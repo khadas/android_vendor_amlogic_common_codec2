@@ -1,0 +1,81 @@
+cc_library_shared {
+    name: "libcodec2_aml",
+	defaults: [
+        "libchrome-defaults",
+        "libcodec2-impl-defaults",
+	],
+	vendor: true,
+
+    srcs: [
+        "C2VDAComponent.cpp",
+        "VideoDecWraper.cpp",
+       // "C2VEAComponent.cpp",
+       // "C2VEAFormatConverter.cpp",
+    ],
+
+    local_include_dirs: [
+        "include",
+    ],
+
+    include_dirs: [
+        "hardware/amlogic/gralloc/amlogic",
+        "frameworks/av/media/libstagefright/include",
+        "frameworks/av/media/codec2/core/include",
+        "frameworks/av/media/codec2/vndk/include",
+        "frameworks/av/media/codec2/components/base/include",
+        "frameworks/native/include/",
+        "frameworks/native/libs/nativewindow/include/",
+        "frameworks/native/libs/arect/include/",
+        "frameworks/native/libs/nativebase/include/",
+        "vendor/amlogic/common/mediahal_sdk/include",
+    ],
+
+    shared_libs: [
+        "android.hardware.graphics.allocator@2.0",
+        "android.hardware.graphics.bufferqueue@2.0",
+        "android.hardware.graphics.mapper@2.0",
+        "android.hardware.media.bufferpool@2.0",
+        "libbase",
+        "libbinder",
+        "liblog",
+        "libstagefright_bufferqueue_helper",
+        "libsfplugin_ccodec_utils",
+        "libcodec2_simple_component",
+        "libstagefright_foundation",
+        "libc2plugin_store_ext",
+        "libutils",
+        "libcutils",
+        "libui",
+        "libutilscallstack",
+        "libchrome",
+        "libevent",
+        "libvda_c2componentstore",
+        "libamgralloc_ext_vendor@2",
+    ],
+
+    header_libs: [
+        "media_plugin_headers",
+        "libcodec2_headers",
+        "libc2plugin_store_ext_headers",
+    ],
+
+    // -Wno-unused-parameter is needed for libchrome/base codes
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wno-unused-parameter",
+    ] + [
+        "-Wno-unused-lambda-capture",
+        "-Wno-unknown-warning-option",
+    ],
+    clang: true,
+    sanitize: {
+        misc_undefined: [
+            "unsigned-integer-overflow",
+            "signed-integer-overflow",
+        ],
+    },
+
+    ldflags: ["-Wl,-Bsymbolic"],
+
+}

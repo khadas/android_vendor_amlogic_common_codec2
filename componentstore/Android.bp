@@ -1,0 +1,37 @@
+cc_library_headers {
+    name: "libvda_c2componentstore_headers",
+    export_include_dirs: [
+        "include",
+    ],
+    vendor_available: true,
+}
+
+cc_library_shared {
+    name: "libvda_c2componentstore",
+    vendor_available: true,
+    srcs: [
+        "C2VDAComponentStore.cpp",
+    ],
+    defaults: [
+        "libcodec2-hidl-defaults",
+    ],
+    header_libs: [
+        "media_plugin_headers",
+        "libcodec2_headers",
+    ],
+    cflags: [
+      "-Werror",
+      "-Wall",
+      "-std=c++14",
+    ],
+    export_include_dirs: [
+        "include",
+    ],
+
+    shared_libs: [
+        "liblog",
+        "libutils",
+        "libcutils",
+    ],
+
+}
