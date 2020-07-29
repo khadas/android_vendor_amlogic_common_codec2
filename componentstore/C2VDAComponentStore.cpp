@@ -25,6 +25,36 @@
     } while (0)
 
 namespace android {
+
+typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc2)(bool);
+typedef void (*DestroyCodec2FactoryFunc2)(::C2ComponentFactory*);
+
+const C2String kH264DecoderName = "c2.vda.avc.decoder";
+const C2String kH265DecoderName = "c2.vda.hevc.decoder";
+const C2String kVP9DecoderName = "c2.vda.vp9.decoder";
+const C2String kH264SecureDecoderName = "c2.vda.avc.decoder.secure";
+const C2String kH265SecureDecoderName = "c2.vda.hevc.decoder.secure";
+const C2String kVP9SecureDecoderName = "c2.vda.vp9.decoder.secure";
+const C2String kCompomentLoadLibray = "libcodec2_aml.so";
+
+enum class C2VDACodec {
+    UNKNOWN,
+    H264,
+    H265,
+    VP9,
+};
+
+struct C2DecoderCompoment {
+    std::string compname;
+    C2VDACodec codec;
+};
+
+static C2DecoderCompoment gC2DecoderCompoments [] = {
+    {kH264DecoderName, C2VDACodec::H264},
+    {kH265DecoderName, C2VDACodec::H265},
+    {kVP9DecoderName, C2VDACodec::VP9},
+};
+
 class C2VDAComponentStore : public C2ComponentStore {
 public:
     C2VDAComponentStore();
@@ -51,12 +81,6 @@ public:
             std::vector<C2FieldSupportedValuesQuery>& fields) const override;
 
 private:
-    enum class C2VDACodec {
-        UNKNOWN,
-        H264,
-        H265,
-        VP9,
-    };
 
     /**
      * An object encapsulating a loaded component module.
@@ -74,7 +98,7 @@ private:
                 mComponentFactory(nullptr) {}
 
         ~ComponentModule() override;
-        c2_status_t init(std::string libPath, C2VDACodec codec);
+        c2_status_t init(std::string libPath, C2VDACodec codec, bool secure);
 
         // Return the traits of the component in this module.
         std::shared_ptr<const C2Component::Traits> getTraits();
@@ -94,8 +118,8 @@ private:
         c2_status_t mInit;  ///< initialization result
 
         void* mLibHandle;                                             ///< loaded library handle
-        C2ComponentFactory::CreateCodec2FactoryFunc createFactory;    ///< loaded create function
-        C2ComponentFactory::DestroyCodec2FactoryFunc destroyFactory;  ///< loaded destroy function
+        CreateCodec2FactoryFunc2 createFactory;    ///< loaded create function
+        DestroyCodec2FactoryFunc2 destroyFactory;  ///< loaded destroy function
         C2ComponentFactory* mComponentFactory;  ///< loaded/created component factory
     };
 
@@ -123,7 +147,7 @@ private:
          * \retval C2_CORRUPTED the component module could not be loaded
          * \retval C2_REFUSED   permission denied to load the component module
          */
-        c2_status_t fetchModule(std::shared_ptr<ComponentModule>* module);
+        c2_status_t fetchModule(std::shared_ptr<ComponentModule>* module, bool secure);
 
     private:
         std::mutex mMutex;                       ///< mutex guarding the module
@@ -180,7 +204,7 @@ C2VDAComponentStore::ComponentModule::~ComponentModule() {
     }
 }
 
-c2_status_t C2VDAComponentStore::ComponentModule::init(std::string libPath, C2VDACodec codec) {
+c2_status_t C2VDAComponentStore::ComponentModule::init(std::string libPath, C2VDACodec codec, bool secure) {
     ALOGV("loading dll");
     mLibHandle = dlopen(libPath.c_str(), RTLD_NOW | RTLD_NODELETE);
     if (mLibHandle == nullptr) {
@@ -206,11 +230,11 @@ c2_status_t C2VDAComponentStore::ComponentModule::init(std::string libPath, C2VD
             ALOGE("Unknown ");
             return C2_CORRUPTED;
         }
-        createFactory = (C2ComponentFactory::CreateCodec2FactoryFunc)dlsym(
+        createFactory = (CreateCodec2FactoryFunc2)dlsym(
                 mLibHandle, createFactoryName.c_str());
-        destroyFactory = (C2ComponentFactory::DestroyCodec2FactoryFunc)dlsym(
+        destroyFactory = (DestroyCodec2FactoryFunc2)dlsym(
                 mLibHandle, destroyFactoryName.c_str());
-        mComponentFactory = createFactory();
+        mComponentFactory = createFactory(secure);
         if (mComponentFactory == nullptr) {
             ALOGD("could not create factory in %s", libPath.c_str());
             mInit = C2_NO_MEMORY;
@@ -292,14 +316,15 @@ c2_status_t C2VDAComponentStore::ComponentModule::createInterface(
 }
 
 c2_status_t C2VDAComponentStore::ComponentLoader::fetchModule(
-        std::shared_ptr<ComponentModule>* module) {
+        std::shared_ptr<ComponentModule>* module, bool secure) {
     c2_status_t res = C2_OK;
     std::lock_guard<std::mutex> lock(mMutex);
     std::shared_ptr<ComponentModule> localModule = mModule.lock();
     if (localModule == nullptr) {
         localModule = std::make_shared<ComponentModule>();
+
         ALOGI("localModule libpath %s %d\n", mLibPath.c_str(), mCodec);
-        res = localModule->init(mLibPath, mCodec);
+        res = localModule->init(mLibPath, mCodec, secure);
         if (res == C2_OK) {
             mModule = localModule;
         }
@@ -315,13 +340,10 @@ C2VDAComponentStore::C2VDAComponentStore()
     // TODO: move this also into a .so so it can be updated
     bool supportc2 = property_get_bool("vendor.media.codec2.support", false);
     if (supportc2) {
-        mComponents.emplace(std::piecewise_construct, std::forward_as_tuple("c2.vda.avc.decoder"),
-                            std::forward_as_tuple("libcodec2_aml.so", C2VDACodec::H264));
-        mComponents.emplace(std::piecewise_construct, std::forward_as_tuple("c2.vda.hevc.decoder"),
-                            std::forward_as_tuple("libcodec2_aml.so", C2VDACodec::H265));
-        mComponents.emplace(std::piecewise_construct, std::forward_as_tuple("c2.vda.vp9.decoder"),
-                            std::forward_as_tuple("libcodec2_aml.so", C2VDACodec::VP9));
-
+        for (int i = 0; i < sizeof(gC2DecoderCompoments) / sizeof(C2DecoderCompoment); i++) {
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2DecoderCompoments[i].compname),
+                    std::forward_as_tuple(kCompomentLoadLibray, gC2DecoderCompoments[i].codec));
+        }
     }
     ALOGI("C2VDAComponentStore::C2VDAComponentStore\n");
 }
@@ -341,7 +363,8 @@ std::vector<std::shared_ptr<const C2Component::Traits>> C2VDAComponentStore::lis
     for (auto& it : mComponents) {
         ComponentLoader& loader = it.second;
         std::shared_ptr<ComponentModule> module;
-        c2_status_t res = loader.fetchModule(&module);
+        bool secure = it.first.find(".secure") != std::string::npos;
+        c2_status_t res = loader.fetchModule(&module, secure);
         if (res == C2_OK) {
             std::shared_ptr<const C2Component::Traits> traits = module->getTraits();
             if (traits) {
@@ -372,10 +395,11 @@ c2_status_t C2VDAComponentStore::createComponent(C2String name,
     component->reset();
     ComponentLoader* loader;
     c2_status_t res = findComponent(name, &loader);
+    bool secure = name.find(".secure") != std::string::npos;
     if (res == C2_OK) {
         std::shared_ptr<ComponentModule> module;
     ALOGI("C2VDAComponentStore::createComponent fetchModule\n");
-        res = loader->fetchModule(&module);
+        res = loader->fetchModule(&module, secure);
         if (res == C2_OK) {
             // TODO: get a unique node ID
             res = module->createComponent(0, component);
@@ -390,9 +414,10 @@ c2_status_t C2VDAComponentStore::createInterface(
     interface->reset();
     ComponentLoader* loader;
     c2_status_t res = findComponent(name, &loader);
+    bool secure = name.find(".secure") != std::string::npos;
     if (res == C2_OK) {
         std::shared_ptr<ComponentModule> module;
-        res = loader->fetchModule(&module);
+        res = loader->fetchModule(&module, secure);
         if (res == C2_OK) {
             // TODO: get a unique node ID
             res = module->createInterface(0, interface);

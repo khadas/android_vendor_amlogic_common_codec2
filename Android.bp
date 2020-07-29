@@ -9,6 +9,7 @@ cc_library_shared {
     srcs: [
         "C2VDAComponent.cpp",
         "VideoDecWraper.cpp",
+        "C2VDAComponentMetaDataUtil.cpp",
        // "C2VEAComponent.cpp",
        // "C2VEAFormatConverter.cpp",
     ],
@@ -42,7 +43,7 @@ cc_library_shared {
         "libsfplugin_ccodec_utils",
         "libcodec2_simple_component",
         "libstagefright_foundation",
-        "libc2plugin_store_ext",
+        "libc2plugin_store",
         "libutils",
         "libcutils",
         "libui",
@@ -56,7 +57,7 @@ cc_library_shared {
     header_libs: [
         "media_plugin_headers",
         "libcodec2_headers",
-        "libc2plugin_store_ext_headers",
+        "libc2plugin_store_headers",
     ],
 
     // -Wno-unused-parameter is needed for libchrome/base codes

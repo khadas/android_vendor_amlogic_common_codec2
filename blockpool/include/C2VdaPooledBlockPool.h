@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <map>
+#include <set>
 
 #include <C2BufferPriv.h>
 #include <C2Buffer.h>
@@ -54,7 +55,7 @@ public:
 
     ~C2VdaPooledBlockPool() override;
 
-    C2Allocator::id_t getAllocatorId() const override {ALOGI("get allocatorId %d", mAllocator->getId()); return mAllocator->getId(); };
+    C2Allocator::id_t getAllocatorId() const override {/*ALOGI("get allocatorId %d", mAllocator->getId());*/ return mAllocator->getId();};
 
     local_id_t getLocalId() const override { return mLocalId; };
 
@@ -74,7 +75,10 @@ public:
 
     c2_status_t getPoolIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* poolId);
 
+    c2_status_t resetGraphicBlock(int32_t slot) { slot = (int)slot; return C2_OK; }
+
     static c2_status_t getMinBuffersForDisplay(size_t* minBuffersForDisplay);
+
 private:
     c2_status_t cancelAllBuffers();
 
@@ -84,10 +88,13 @@ private:
     // Function mutex to lock at the start of each API function call for protecting the
     // synchronization of all member variables.
     std::mutex mMutex;
-
-    std::map<C2GraphicBlock*, int32_t> mBlockAllocations;
-    uint32_t mBufferCountTotal;
-    uint32_t mBufferCountCurrent;
+    // The ids of all allocated buffers.
+    std::set<uint32_t> mBufferIds GUARDED_BY(mMutex);
+    // The maximum count of allocated buffers.
+    size_t mBufferCount GUARDED_BY(mMutex){0};
+    // The timestamp for the next fetchGraphicBlock() call.
+    // Set when the previous fetchGraphicBlock() call timed out.
+    int64_t mNextFetchTimeUs GUARDED_BY(mMutex){0};
 };
 
 #endif  // ANDROID_C2_VDA_POOLED_BLOCK_POOL_H_

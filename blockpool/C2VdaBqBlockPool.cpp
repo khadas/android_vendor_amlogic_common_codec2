@@ -119,6 +119,14 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         return C2_NO_INIT;
     }
 
+    if (mSlotAllocations.size() < mMaxDequeuedBuffers) {
+        Return<HStatus> transResult = mProducer->allowAllocation(true);
+        if (!transResult.isOk()) {
+            ALOGE("allowAllocation(false) failed");
+            return C2_BAD_VALUE;
+        }
+    }
+
     sp<Fence> fence = new Fence();
     C2AndroidMemoryUsage androidUsage = usage;
     int32_t status;
@@ -147,20 +155,19 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
                             hOutput.bufferNeedsReallocation;
                 }
             });
-        //ALOGI("dequeueBuffer status %d\n", status);
+    ALOGV("dequeueBuffer slot:%d, and wait fence", slot);
     // check dequeueBuffer return flag
-    if (!transResult.isOk() || ( status != android::NO_ERROR &&
-        status != android::BufferQueueDefs::BUFFER_NEEDS_REALLOCATION)) {
-        if (status == android::TIMED_OUT) {
-            // no buffer is available now, wait for another retry.
-            //ALOGV("dequeueBuffer timed out, wait for retry...");
-            return C2_TIMED_OUT;
-        } else if (status == android::NO_INIT) {
-            ALOGV("dequeueBuffer no init, return");
-            return C2_NO_INIT;
+    if (!transResult.isOk() || status != android::OK) {
+        if (transResult.isOk()) {
+            if (status == android::INVALID_OPERATION ||
+                status == android::TIMED_OUT ||
+                status == android::WOULD_BLOCK) {
+                ALOGD("dequeue timeout %d", status);
+                return C2_TIMED_OUT;
+            }
         }
-        ALOGE("dequeueBuffer failed: %d", status);
-        //return asC2Error(status);
+        ALOGD("cannot dequeue buffer %d", status);
+        return C2_BAD_VALUE;
     }
 
     // wait for acquire fence if we get one.
@@ -169,28 +176,29 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         ALOGE("Invalid fence received from dequeueBuffer.");
         return C2_BAD_VALUE;
     }
-    ALOGV("dequeued slot %d successfully", slot);
     if (fence) {
         status_t status = fence->wait(kFenceWaitTimeMs);
         if (status == -ETIME) {
             // fence is not signalled yet.
             (void)mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk();
-            ALOGV("fence wait C2_TIMED_OUT");
+            ALOGV("fence wait timeout");
             return C2_TIMED_OUT;
-        }/*
+        }
         if (status != android::NO_ERROR) {
             ALOGD("buffer fence wait error %d", status);
             (void)mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk();
             return C2_BAD_VALUE;
-        }*/
+        }
     }
+    ALOGI("%s dequeued slot %d successfully", __func__, slot);
 
     auto iter = mSlotAllocations.find(slot);
-    if (iter == mSlotAllocations.end()) {
+    if ((iter == mSlotAllocations.end()) ||
+        bufferNeedsReallocation) {
         // it's a new slot index, request for a new buffer.
         if (mSlotAllocations.size() >= mMaxDequeuedBuffers) {
             ALOGE("still get a new slot index but already allocated enough buffers.");
-            mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
+            (void)mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk();
             return C2_CORRUPTED;
         }
         /*if (status != IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) {
@@ -198,6 +206,7 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
             mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
             return C2_CORRUPTED;
         }*/
+
         sp<GraphicBuffer> slotBuffer = new GraphicBuffer();
 
         // N.B. This assumes requestBuffer# returns an existing allocation
@@ -237,8 +246,6 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
                 slotBuffer->stride,
                 slotBuffer->getGenerationNumber(),
                 mProducerId, slot);
-        native_handle_close((native_handle_t *)slotBuffer->handle);
-        //native_handle_delete((native_handle_t *)slotBuffer->handle);
         ALOGI("slotBuffer->handle %d, c2Handle %d\n", slotBuffer->handle->data[0], c2Handle->data[0]);
         if (!c2Handle) {
             ALOGE("WrapNativeCodec2GrallocHandle failed");
@@ -253,8 +260,7 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         }
 
         mSlotAllocations[slot] = std::move(alloc);
-        mSlotGraphicBuffers[slot] = slotBuffer;
-        ALOGI("mSlotAllocations.size() %d, mSlotGraphicBuffers.size() %d\n", mSlotAllocations.size(),  mSlotGraphicBuffers.size());
+        ALOGI("mSlotAllocations.size() %d, \n", mSlotAllocations.size());
         if (mSlotAllocations.size() == mMaxDequeuedBuffers) {
             // already allocated enough buffers, set allowAllocation to false to restrict the
             // eligible slots to allocated ones for future dequeue.
@@ -287,14 +293,28 @@ c2_status_t C2VdaBqBlockPool::requestNewBufferSet(int32_t bufferCount) {
         ALOGD("No HGraphicBufferProducer is configured...");
         return C2_NO_INIT;
     }
+#if 0
+    //no producer switch
+    {
+        sp<Fence> fence(Fence::NO_FENCE);
+        HFenceWrapper hFenceWrapper{};
+        b2h(fence, &hFenceWrapper);
+        for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
+            Return<HStatus> transResult =
+                    mProducer->detachBuffer(static_cast<int32_t>(i));
+            transResult = mProducer->cancelBuffer(i, hFenceWrapper.getHandle());
+        }
+    }
+#endif
 
     // TODO: should we query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS) and add it on?
-    Return<HStatus> transResult = mProducer->setMaxDequeuedBufferCount(bufferCount);
+    Return<HStatus> transResult = mProducer->setMaxDequeuedBufferCount(bufferCount + 8 /*mSlotAllocations.size()*/);
     if (!transResult.isOk()) {
         ALOGE("setMaxDequeuedBufferCount failed");
         return C2_BAD_VALUE;
     }
     mMaxDequeuedBuffers = static_cast<size_t>(bufferCount);
+    mSlotAllocations.clear();
 
     transResult = mProducer->allowAllocation(true);
     if (!transResult.isOk()) {
@@ -320,7 +340,6 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer>& produ
         mProducer = nullptr;
         mAllocator.reset();
         mSlotAllocations.clear();
-        mSlotGraphicBuffers.clear();
         mBlockAllocations.clear();
         ALOGI(">>>>>>configureProducer to null\n");
         return;
@@ -359,7 +378,6 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer>& produ
 c2_status_t C2VdaBqBlockPool::cancelAllBuffers() {
     ALOGI("cancelAllBuffers mAllocator.use_count() %ld\n", mAllocator.use_count());
     mSlotAllocations.clear();
-    mSlotGraphicBuffers.clear();
     mBlockAllocations.clear();
     ALOGI("cancelAllBuffers mSlotAllocations.size() %d, mBlockAllocations %d out\n",
                 mSlotAllocations.size(), mBlockAllocations.size());
@@ -376,8 +394,176 @@ c2_status_t C2VdaBqBlockPool::getPoolIdFromGraphicBlock(std::shared_ptr<C2Graphi
     return C2_OK;
 }
 
+c2_status_t C2VdaBqBlockPool::resetGraphicBlock(int32_t slot) {
+    std::lock_guard<std::mutex> lock(mMutex);
+#if 0
+    if (mProducer && slot < NUM_BUFFER_SLOTS) {
+        sp<Fence> fence(Fence::NO_FENCE);
+        HFenceWrapper hFenceWrapper{};
+        b2h(fence, &hFenceWrapper);
+        Return<HStatus> transResult =
+            mProducer->detachBuffer(static_cast<int32_t>(slot));
+        transResult = mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
+    }
+    auto iter = mSlotAllocations.find(slot);
+    if (iter != mSlotAllocations.end()) {
+        const C2Handle *chandle = iter->second->handle();
+        ALOGI("slot alloctaion close slot:%d, fd=%d", slot, chandle->data[0]);
+        {
+            sp<Fence> fence(Fence::NO_FENCE);
+            HFenceWrapper hFenceWrapper{};
+            b2h(fence, &hFenceWrapper);
+            Return<HStatus> transResult =
+                mProducer->detachBuffer(static_cast<int32_t>(slot));
+            transResult = mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
+        }
+        iter->second.reset();
+        mSlotAllocations.erase(iter);
+    }
+    if (mSlotAllocations.size() < mMaxDequeuedBuffers) {
+        Return<HStatus> transResult = mProducer->allowAllocation(true);
+        if (!transResult.isOk()) {
+            ALOGE("allowAllocation(false) failed");
+            return C2_BAD_VALUE;
+        }
+    }
+#endif
+    slot = (int)slot;
+    return C2_OK;
+}
+
+int64_t C2VdaBqBlockPool::getSurfaceUsage() {
+    if (!mProducer) {
+        ALOGI("no producer, fetch error\n");
+        return 0;
+    }
+    uint32_t width = 64;
+    uint32_t height = 64;
+    uint32_t format = 0x11;//HalPixelFormat::YCRCB_420_SP;
+    C2MemoryUsage usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
+    sp<Fence> fence = new Fence();
+    C2AndroidMemoryUsage androidUsage = usage;
+    int32_t status;
+    int32_t slot;
+    bool bufferNeedsReallocation{};
+
+    {
+        Return<HStatus> transResult = mProducer->allowAllocation(true);
+        if (!transResult.isOk()) {
+            ALOGE("allowAllocation(true) failed");
+            return 0;
+        }
+    }
+
+    //ALOGI("fetchGraphicBlock dequeueBuffer [%d x %d] fence %p\n", width, height, fence.get());
+    using Input = HGraphicBufferProducer::DequeueBufferInput;
+    using Output = HGraphicBufferProducer::DequeueBufferOutput;
+    Return<void> transResult = mProducer->dequeueBuffer(
+            Input{
+                width,
+                height,
+                format,
+                androidUsage.asGrallocUsage()},
+            [&status, &slot, &bufferNeedsReallocation,
+             &fence](HStatus hStatus,
+                     int32_t hSlot,
+                     Output const& hOutput) {
+                slot = static_cast<int>(hSlot);
+                if (!h2b(hStatus, &status) ||
+                        !h2b(hOutput.fence, &fence)) {
+                    status = ::android::BAD_VALUE;
+                } else {
+                    bufferNeedsReallocation =
+                            hOutput.bufferNeedsReallocation;
+                }
+            });
+    ALOGV("dequeueBuffer slot:%d, and wait fence", slot);
+    // check dequeueBuffer return flag
+    if (!transResult.isOk() || status != android::OK) {
+        if (transResult.isOk()) {
+            if (status == android::INVALID_OPERATION ||
+                status == android::TIMED_OUT ||
+                status == android::WOULD_BLOCK) {
+                ALOGD("dequeue timeout %d", status);
+                return 0;
+            }
+        }
+        ALOGD("cannot dequeue buffer %d", status);
+        return 0;
+    }
+
+    // wait for acquire fence if we get one.
+    HFenceWrapper hFenceWrapper{};
+    if (!b2h(fence, &hFenceWrapper)) {
+        ALOGE("Invalid fence received from dequeueBuffer.");
+        return 0;
+    }
+    if (fence) {
+        status_t status = fence->wait(kFenceWaitTimeMs);
+        if (status == -ETIME) {
+            // fence is not signalled yet.
+            (void)mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk();
+            ALOGV("fence wait timeout");
+            return 0;
+        }
+        if (status != android::NO_ERROR) {
+            ALOGD("buffer fence wait error %d", status);
+            (void)mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk();
+            return 0;
+        }
+    }
+
+    sp<GraphicBuffer> slotBuffer = new GraphicBuffer();
+    transResult = mProducer->requestBuffer(
+        slot,
+        [&status, &slotBuffer](
+                HStatus hStatus,
+                HBuffer const& hBuffer,
+                uint32_t generationNumber){
+            if (h2b(hStatus, &status) &&
+                    h2b(hBuffer, &slotBuffer) &&
+                    slotBuffer) {
+                slotBuffer->setGenerationNumber(generationNumber);
+            } else {
+                status = android::BAD_VALUE;
+            }
+    });
+    // check requestBuffer return flag
+    if (!transResult.isOk()) {
+        ALOGI("requestBuffer C2_BAD_VALUE");
+        return 0;
+    } else if (status != android::NO_ERROR) {
+        ALOGE("requestBuffer failed: %d", status);
+        mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
+        return 0;
+    }
+
+    {
+        sp<Fence> fence(Fence::NO_FENCE);
+        HFenceWrapper hFenceWrapper{};
+        b2h(fence, &hFenceWrapper);
+        Return<HStatus> transResult =
+        mProducer->detachBuffer(static_cast<int32_t>(slot));
+        transResult = mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
+        if (status != android::NO_ERROR) {
+            ALOGI("detach fails");
+            return 0;
+        }
+    }
+
+    {
+        Return<HStatus> transResult = mProducer->allowAllocation(false);
+        if (!transResult.isOk()) {
+            ALOGE("allowAllocation(false) failed");
+            return 0;
+        }
+    }
+
+    return slotBuffer->getUsage();
+}
+
 c2_status_t C2VdaBqBlockPool::getMinBuffersForDisplay(size_t* minBuffersForDisplay) {
-        ALOGI("getMinBuffersForDisplay\n");
+    ALOGV("getMinBuffersForDisplay\n");
     *minBuffersForDisplay = 6;
     return C2_OK;
 }

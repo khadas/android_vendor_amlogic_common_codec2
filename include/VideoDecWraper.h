@@ -28,7 +28,7 @@ public:
 
         virtual void ProvidePictureBuffers(uint32_t minNumBuffers,  uint32_t width, uint32_t height)  = 0;
         virtual void DismissPictureBuffer(int32_t picture_buffer_id)  = 0;
-        virtual void PictureReady(int32_t pictureBufferId, int32_t bitstreamId,
+        virtual void PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
                                       uint32_t x, uint32_t y, uint32_t w, uint32_t h)  = 0;
         virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize) = 0;
         virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id)  = 0;
@@ -64,7 +64,7 @@ public:
     // Implementation of the media::VideoDecodeAcceleratorAdaptor::Client interface.
     virtual void onOutputFormatChanged(uint32_t requested_num_of_buffers,
                 int32_t width, uint32_t height);
-    virtual void onOutputBufferDone(int32_t pictureBufferId, int32_t bitstreamId,
+    virtual void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
                 uint32_t width, uint32_t height);
     virtual void onInputBufferDone(int32_t bitstream_buffer_id);
     virtual void onUserdataReady(const uint8_t* userdata, uint32_t usize);
@@ -86,6 +86,8 @@ struct aml_vdec_cfg_infos {
     uint32_t ref_buf_margin;
     uint32_t canvas_mem_mode;
     uint32_t canvas_mem_endian;
+    uint32_t low_latency_mode;
+    uint32_t uvm_hook_type;
 };
 struct aml_vdec_ps_infos {
     uint32_t visible_width;

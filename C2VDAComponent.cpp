@@ -46,6 +46,12 @@
 
 #include <hardware/gralloc1.h>
 #include <am_gralloc_ext.h>
+#include <cutils/properties.h>
+
+#include <C2VDAComponentMetaDataUtil.h>
+
+#define ATRACE_TAG ATRACE_TAG_VIDEO
+#include <utils/Trace.h>
 
 
 #define UNUSED(expr)  \
@@ -53,6 +59,8 @@
         (void)(expr); \
     } while (0)
 
+
+uint32_t android::C2VDAComponent::mDumpFileCnt = 0;
 
 using android::hardware::graphics::common::V1_0::BufferUsage;
 
@@ -107,9 +115,11 @@ const C2String kH264SecureDecoderName = "c2.vda.avc.decoder.secure";
 const C2String kH265SecureDecoderName = "c2.vda.hevc.decoder.secure";
 const C2String kVP9SecureDecoderName = "c2.vda.vp9.decoder.secure";
 
-const uint32_t kDpbOutputBufferExtraCount = 3;  // Use the same number as ACodec.
+const uint32_t kDpbOutputBufferExtraCount = 0;  // Use the same number as ACodec.
 const int kDequeueRetryDelayUs = 10000;  // Wait time of dequeue buffer retry in microseconds.
 const int32_t kAllocateBufferMaxRetries = 10;  // Max retry time for fetchGraphicBlock timeout.
+constexpr uint32_t kDefaultOutputDelay = 4;
+constexpr uint32_t kMaxOutputDelay = 10;
 }  // namespace
 
 static c2_status_t adaptorResultToC2Status(VideoDecodeAcceleratorAdaptor::Result result) {
@@ -191,6 +201,25 @@ C2R C2VDAComponent::IntfImpl::MergedColorAspectsSetter(
     return C2R::Ok();
 }
 
+C2R C2VDAComponent::IntfImpl::Hdr10PlusInfoInputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::input> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+
+C2R C2VDAComponent::IntfImpl::Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::output> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+
+C2R C2VDAComponent::IntfImpl::HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+
+
 C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
       : C2InterfaceHelper(helper), mInitStatus(C2_OK) {
     setDerivedInstance(this);
@@ -246,11 +275,62 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                                                      C2Config::LEVEL_VP9_5})})
                         .withSetter(ProfileLevelSetter)
                         .build());
+        mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
+        addParameter(
+                DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
+                .withDefault(mHdr10PlusInfoInput)
+                .withFields({
+                    C2F(mHdr10PlusInfoInput, m.value).any(),
+                })
+                .withSetter(Hdr10PlusInfoInputSetter)
+                .build());
+
+        mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
+        addParameter(
+                DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
+                .withDefault(mHdr10PlusInfoOutput)
+                .withFields({
+                    C2F(mHdr10PlusInfoOutput, m.value).any(),
+                })
+                .withSetter(Hdr10PlusInfoOutputSetter)
+                .build());
+        // sample BT.2020 static info
+        mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
+        mHdrStaticInfo->mastering = {
+            .red   = { .x = 0.0,  .y = 0.0 },
+            .green = { .x = 0.0,  .y = 0.0 },
+            .blue  = { .x = 0.0,  .y = 0.0 },
+            .white = { .x = 0.0, .y = 0.0 },
+            .maxLuminance = 0.0,
+            .minLuminance = 0.0,
+        };
+        mHdrStaticInfo->maxCll = 0.0;
+        mHdrStaticInfo->maxFall = 0.0;
+
+        helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
+        addParameter(
+                DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
+                .withDefault(mHdrStaticInfo)
+                .withFields({
+                    C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
+                    // TODO
+                })
+                .withSetter(HdrStaticInfoSetter)
+                .build());
     } else {
         ALOGE("Invalid component name: %s", name.c_str());
         mInitStatus = C2_BAD_VALUE;
         return;
     }
+
+    //out delay
+    addParameter(
+            DefineParam(mActualOutputDelay, C2_PARAMKEY_OUTPUT_DELAY)
+            .withDefault(new C2PortActualDelayTuning::output(kDefaultOutputDelay))
+            .withFields({C2F(mActualOutputDelay, value).inRange(0, kMaxOutputDelay)})
+            .withSetter(Setter<decltype(*mActualOutputDelay)>::StrictValueWithNoDeps)
+            .build());
+
     // Get supported profiles from VDA.
     // TODO: re-think the suitable method of getting supported profiles for both pure Android and
     //       ARC++.
@@ -443,7 +523,12 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mPendingColorAspectsChangeFrameIndex(0),
         mCodecProfile(media::VIDEO_CODEC_PROFILE_UNKNOWN),
         mState(State::UNLOADED),
-        mWeakThisFactory(this) {
+        mWeakThisFactory(this),
+        mDumpYuvFp(NULL),
+        mUseBufferQueue(false),
+        mBufferFirstAllocated(false),
+        mResChStat(C2_RESOLUTION_CHANGE_NONE),
+        mSurfaceUsageGeted(false) {
    // TODO(johnylin): the client may need to know if init is failed.
     if (mIntfImpl->status() != C2_OK) {
         ALOGE("Component interface init failed (err code = %d)", mIntfImpl->status());
@@ -456,7 +541,17 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         return;
     }
     mTaskRunner = mThread.task_runner();
+
     mState.store(State::LOADED);
+    bool dump = property_get_bool("vendor.media.codec2.dumpyuv", false);
+    if (dump) {
+        char pathfile[1024] = { '\0'  };
+        sprintf(pathfile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
+        mDumpYuvFp = fopen(pathfile, "wb");
+        if (mDumpYuvFp) {
+            ALOGV("open file %s", pathfile);
+        }
+    }
 }
 
 C2VDAComponent::~C2VDAComponent() {
@@ -475,6 +570,8 @@ void C2VDAComponent::onDestroy() {
         mVideoDecWraper->destroy();
         delete mVideoDecWraper;
         mVideoDecWraper = NULL;
+        if (mDumpYuvFp)
+            fclose(mDumpYuvFp);
     }
     stopDequeueThread();
 }
@@ -485,7 +582,8 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
     CHECK_EQ(mComponentState, ComponentState::UNINITIALIZED);
 
     mVideoDecWraper = new VideoDecWraper();
-    codecConfig();
+    mMetaDataUtil =  std::make_shared<MetaDataUtil>(this);
+    mMetaDataUtil->codecConfig(&mConfigParam);
     mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
             (uint8_t*)&mConfigParam, sizeof(mConfigParam), false, this);
     if (mVDAInitResult == VideoDecodeAcceleratorAdaptor::Result::SUCCESS) {
@@ -588,7 +686,7 @@ void C2VDAComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    ALOGI("onDequeueWork, put pendtingwokr bitid:%lld", work->input.ordinal.frameIndex.peeku());
+    ALOGI("onDequeueWork, put pendtingwokr bitid:%lld, pending worksize:%d", work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
     if (isEmptyCSDWork) {
         // Directly report the empty CSD work as finished.
@@ -640,10 +738,22 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
 
     GraphicBlockInfo* info = getGraphicBlockByPoolId(poolId);
     if (!info) {
-        reportError(C2_CORRUPTED);
-        return;
+        //need to rebind poolid vs blockid
+        info = getUnbindGraphicBlock();
+        if (!info) {
+            reportError(C2_CORRUPTED);
+            return;
+        }
+        info->mPoolId = poolId;
     }
-    if (info->mState != GraphicBlockInfo::State::OWNED_BY_CLIENT) {
+
+    if (!info->mBind) {
+        ALOGI("after realloc graphic, rebind %d->%d", poolId, info->mBlockId);
+        info->mBind = true;
+    }
+
+    if (info->mState != GraphicBlockInfo::State::OWNED_BY_CLIENT &&
+            getVideoResolutionChanged()) {
         ALOGE("Graphic block (id=%d) should be owned by client on return", info->mBlockId);
         reportError(C2_BAD_STATE);
         return;
@@ -665,9 +775,9 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
     }
 }
 
-void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int32_t bitstreamId) {
+void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onOutputBufferDone: picture id=%d, bitstream id=%d", pictureBufferId, bitstreamId);
+    ALOGV("onOutputBufferDone: picture id=%d, bitstream id=%lld", pictureBufferId, bitstreamId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
@@ -679,7 +789,10 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int32_t bitstre
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
     }
-    mPendingBuffersToWork.push_back({bitstreamId, pictureBufferId});
+    ATRACE_INT("c2outdoneid", pictureBufferId);
+    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId});
+    ALOGV("%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersizs:%d, graphicblock:%p",
+            __func__, bitstreamId, pictureBufferId, mPendingBuffersToWork.size(), info->mGraphicBlock->handle());
     sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
 }
 
@@ -695,7 +808,8 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             return C2_BAD_STATE;
         }
 
-        ALOGI("sendOutputBufferToWorkIfAny get pendting bitstream:%d", nextBuffer.mBitstreamId);
+        ALOGV("%s get pendting bitstream:%d, blockid(pictueid):%d",
+                __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId);
         C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
         if (!work) {
             reportError(C2_CORRUPTED);
@@ -726,7 +840,23 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
                            mOutputFormat.mVisibleRect.height()),
                     C2Fence());
             //MarkBlockPoolDataAsShared(constBlock);
-
+            {
+                //for dump
+                if (mDumpYuvFp) {
+                    const C2GraphicView& view = constBlock.map().get();
+                    const uint8_t* const* data = view.data();
+                    int size = info->mGraphicBlock->width() * info->mGraphicBlock->height() * 3 / 2;
+                    //ALOGV("%s C2ConstGraphicBlock database:%x, y:%p u:%p",
+                     //       __FUNCTION__, reinterpret_cast<intptr_t>(data[0]), data[C2PlanarLayout::PLANE_Y], data[C2PlanarLayout::PLANE_U]);
+                    fwrite(data[0], 1, size, mDumpYuvFp);
+                }
+            }
+#if 0
+            {
+                const C2Handle* chandle = constBlock.handle();
+                ALOGI("sendOutputBufferToWorkIfAny count:%ld pooid:%d, fd:%d", info->mGraphicBlock.use_count(), info->mBlockId, chandle->data[0]);
+            }
+#endif
             std::shared_ptr<C2Buffer> buffer = C2Buffer::CreateGraphicBuffer(std::move(constBlock));
             if (mPendingColorAspectsChange &&
                 work->input.ordinal.frameIndex.peeku() >= mPendingColorAspectsChangeFrameIndex) {
@@ -736,19 +866,36 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             if (mCurrentColorAspects) {
                 buffer->setInfo(mCurrentColorAspects);
             }
+            /* update hdr static info */
+            if (mMetaDataUtil->isHDRStaticInfoUpdated()) {
+                updateHDRStaticInfo();
+            }
+            if (mCurrentHdrStaticInfo) {
+                buffer->setInfo(mCurrentHdrStaticInfo);
+            }
+
+            if (mPictureSizeChanged) {
+                mPictureSizeChanged = false;
+                work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
+                ALOGI("video size changed");
+            }
             work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
             info->mGraphicBlock.reset();
         }
 
         // Check no-show frame by timestamps for VP8/VP9 cases before reporting the current work.
+#if 0
         if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
             detectNoShowFrameWorksAndReportIfFinished(&(work->input.ordinal));
         }
+#endif
 
-        ALOGI("sendOutputBufferToWorkIfAny before reportWorkIfFinished bitid %d", nextBuffer.mBitstreamId);
         reportWorkIfFinished(nextBuffer.mBitstreamId);
+        int64_t timestamp = work->input.ordinal.timestamp.peekull();
+        ATRACE_INT("c2workpts", timestamp);
         mPendingBuffersToWork.pop_front();
-        ALOGI("sendOutputBufferToWorkIfAny after pending pop bitid:%d", nextBuffer.mBitstreamId);
+        ATRACE_INT("c2workpts", 0);
+        ALOGI("sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
     }
     return C2_OK;
 }
@@ -905,6 +1052,7 @@ void C2VDAComponent::onStopDone() {
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
         mVideoDecWraper = NULL;
+        mMetaDataUtil.reset();
     }
 
     stopDequeueThread();
@@ -988,6 +1136,18 @@ C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockByPoolId(uint32
     return &(*blockIter);
 }
 
+C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getUnbindGraphicBlock() {
+    auto blockIter = std::find_if(mGraphicBlocks.begin(), mGraphicBlocks.end(),
+            [&](const GraphicBlockInfo& gb) {
+                return gb.mBind == false;
+            });
+    if (blockIter == mGraphicBlocks.end()) {
+        ALOGE("getUnbindGraphicBlock failed\n");
+        return nullptr;
+    }
+    return &(*blockIter);
+}
+
 void C2VDAComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGV("onOutputFormatChanged");
@@ -1000,6 +1160,8 @@ void C2VDAComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format) 
     for (auto& info : mGraphicBlocks) {
         if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR)
             info.mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+        ALOGV("%s index:%d,graphic block status:%d (0:comp 1:vda 2:client), count:%ld", __func__,
+                info.mBlockId, info.mState, info.mGraphicBlock.use_count());
     }
 
     CHECK(!mPendingOutputFormat);
@@ -1033,6 +1195,10 @@ void C2VDAComponent::tryChangeOutputFormat() {
         return;
     }
 
+    if (mBufferFirstAllocated) {
+        mResChStat = C2_RESOLUTION_CHANGEING;
+    }
+
     CHECK_EQ(mPendingOutputFormat->mPixelFormat, HalPixelFormat::YCRCB_420_SP);
 
     mOutputFormat.mPixelFormat = mPendingOutputFormat->mPixelFormat;
@@ -1040,6 +1206,12 @@ void C2VDAComponent::tryChangeOutputFormat() {
     mOutputFormat.mCodedSize = mPendingOutputFormat->mCodedSize;
 
     setOutputFormatCrop(mPendingOutputFormat->mVisibleRect);
+
+    if (mBufferFirstAllocated) {
+        //resolution change
+        videoResolutionChange();
+        return;
+    }
 
     c2_status_t err = allocateBuffersFromBlockAllocator(
             mPendingOutputFormat->mCodedSize,
@@ -1055,30 +1227,104 @@ void C2VDAComponent::tryChangeOutputFormat() {
     mPendingOutputFormat.reset();
 }
 
+c2_status_t C2VDAComponent::videoResolutionChange() {
+    ALOGV("videoResolutionChange");
+
+    stopDequeueThread();
+    mPendingOutputFormat.reset();
+    if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
+        std::shared_ptr<C2VdaBqBlockPool> bqPool =
+            std::static_pointer_cast<C2VdaBqBlockPool>(mBlockPool);
+        for (auto& info : mGraphicBlocks) {
+            info.mFdHaveSet = false;
+            info.mBind = false;
+            info.mGraphicBlock.reset();
+            if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                bqPool->resetGraphicBlock(info.mPoolId);
+                ALOGI("change reset block id:%d, count:%ld", info.mPoolId, info.mGraphicBlock.use_count());
+            }
+        }
+        size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
+        auto err = bqPool->requestNewBufferSet(static_cast<int32_t>(bufferCount));
+        if (err != C2_OK) {
+            ALOGE("failed to request new buffer set to block pool: %d", err);
+            reportError(err);
+        }
+    } else {
+        std::shared_ptr<C2VdaPooledBlockPool> bpPool =
+            std::static_pointer_cast<C2VdaPooledBlockPool>(mBlockPool);
+        for (auto& info : mGraphicBlocks) {
+            info.mFdHaveSet = false;
+            if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                bpPool->resetGraphicBlock(info.mPoolId);
+            }
+        }
+    }
+
+    mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
+    if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat), mBlockPool,
+                false /* resetBuffersInClient */)) {
+        reportError(C2_CORRUPTED);
+        return C2_CORRUPTED;
+    }
+
+    //update picture size
+    C2StreamPictureSizeInfo::output videoSize(0u, mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height());
+    std::vector<std::unique_ptr<C2SettingResult>> failures;
+    c2_status_t err = mIntfImpl->config({&videoSize}, C2_MAY_BLOCK, &failures);
+    mPictureSizeChanged = true;
+    if (err == OK) {
+       mCurrentSize = std::make_shared<C2StreamPictureSizeInfo::output>(0u, mOutputFormat.mCodedSize.width(),
+               mOutputFormat.mCodedSize.height());
+       ALOGI("video size changed, update to params");
+    }
+
+    return C2_OK;
+}
+
+bool C2VDAComponent::getVideoResolutionChanged() {
+    if (mResChStat == C2_RESOLUTION_CHANGEING) {
+        for (auto& info : mGraphicBlocks) {
+            if (info.mFdHaveSet == false)
+                return false;
+        }
+        mResChStat = C2_RESOLUTION_CHANGED;
+        ALOGI("video resolution changed Successfully");
+    }
+
+    return true;
+}
+
 c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size& size,
                                                               uint32_t pixelFormat) {
     ALOGV("allocateBuffersFromBlockAllocator(%s, 0x%x)", size.ToString().c_str(), pixelFormat);
 
     stopDequeueThread();
-
     size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
 
     mGraphicBlocks.clear();
 
     // Get block pool ID configured from the client.
     std::shared_ptr<C2BlockPool> blockPool;
-    auto poolId = mIntfImpl->getBlockPoolId();
-    ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers", poolId);
-    auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
-    if (err != C2_OK) {
-        ALOGE("Graphic block allocator is invalid");
-        reportError(err);
-        return err;
+    int64_t poolId = -1;
+    c2_status_t err;
+    if (!mBlockPool) {
+        poolId = mIntfImpl->getBlockPoolId();
+        err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
+        if (err != C2_OK) {
+            ALOGE("Graphic block allocator is invalid");
+            reportError(err);
+            return err;
+        }
+    } else {
+        blockPool = mBlockPool;
     }
 
+    ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
     bool useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
     size_t minBuffersForDisplay = 0;
     if (useBufferQueue) {
+        mUseBufferQueue = true;
         ALOGI("Bufferqueue-backed block pool is used. blockPool->getAllocatorId() %d, C2PlatformAllocatorStore::BUFFERQUEUE %d",
             blockPool->getAllocatorId(), C2PlatformAllocatorStore::BUFFERQUEUE);
         // Set requested buffer count to C2VdaBqBlockPool.
@@ -1104,12 +1350,6 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
         }
     } else {
         ALOGI("Bufferpool-backed block pool is used.");
-        auto err = CreateCodec2BlockPool(C2VDAAllocatorStore::V4L2_BUFFERPOOL, shared_from_this(), &blockPool);
-        if (err != C2_OK) {
-            ALOGE("CreateCodec2BlockPool fail\n");
-            return err;
-        }
-        ALOGI("pooled blockPool->getAllocatorId() %d\n", blockPool->getAllocatorId());
         std::shared_ptr<C2VdaPooledBlockPool> bpPool =
             std::static_pointer_cast<C2VdaPooledBlockPool>(blockPool);
         if (bpPool) {
@@ -1181,95 +1421,31 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
             appendOutputBuffer(std::move(block), poolId);
         }
     }
-    mOutputFormat.mMinNumBuffers = bufferCount;
 
-    if (!startDequeueThread(size, pixelFormat, std::move(blockPool),
+    mOutputFormat.mMinNumBuffers = bufferCount;
+    if (!mBlockPool)
+        mBlockPool = std::move(blockPool);
+    if (!startDequeueThread(size, pixelFormat, mBlockPool,
                             true /* resetBuffersInClient */)) {
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
+    mBufferFirstAllocated = true;
     return C2_OK;
 }
 
 void C2VDAComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId) {
     GraphicBlockInfo info;
+
     info.mBlockId = static_cast<int32_t>(mGraphicBlocks.size());
     info.mGraphicBlock = std::move(block);
     info.mPoolId = poolId;
+    info.mBind = true;
+    info.mFd = info.mGraphicBlock->handle()->data[0];
+    info.mFdHaveSet = false;
 
-    ALOGV("allocate graphic buffer: %p, id: %d, size: %dx%d", info.mGraphicBlock->handle(),
-          info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height());
-
-    C2ConstGraphicBlock constBlock = info.mGraphicBlock->share(
-            C2Rect(info.mGraphicBlock->width(), info.mGraphicBlock->height()), C2Fence());
-
-    const C2GraphicView& view = constBlock.map().get();
-    const uint8_t* const* data = view.data();
-    CHECK_NE(data, nullptr);
-    const C2PlanarLayout& layout = view.layout();
-
-    ALOGV("allocate graphic buffer: %p, id: %d, size: %dx%d, poolId %d", info.mGraphicBlock->handle(),
-          info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), poolId);
-
-    ALOGV("%s C2ConstGraphicBlock database:%x", __FUNCTION__, reinterpret_cast<intptr_t>(data[0]));
-
-    // get offset from data pointers
-    uint32_t offsets[C2PlanarLayout::MAX_NUM_PLANES];
-    // get plane address frame data pointers
-    intptr_t addrs[C2PlanarLayout::MAX_NUM_PLANES];
-    auto baseAddress = reinterpret_cast<intptr_t>(data[0]);
-    for (uint32_t i = 0; i < layout.numPlanes; ++i) {
-        auto planeAddress = reinterpret_cast<intptr_t>(data[i]);
-        offsets[i] = static_cast<uint32_t>(planeAddress - baseAddress);
-        addrs[i] = static_cast<intptr_t>(planeAddress);
-    }
-
-    bool crcb = false;
-    if (layout.numPlanes == 3 &&
-        offsets[C2PlanarLayout::PLANE_U] > offsets[C2PlanarLayout::PLANE_V]) {
-        // YCrCb format
-        std::swap(offsets[C2PlanarLayout::PLANE_U], offsets[C2PlanarLayout::PLANE_V]);
-        std::swap(addrs[C2PlanarLayout::PLANE_U], addrs[C2PlanarLayout::PLANE_V]);
-        crcb = true;
-    }
-
-    // get plane buffer size. (eg. nv12)
-    uint64_t sizes[C2PlanarLayout::MAX_NUM_PLANES];
-    sizes[C2PlanarLayout::PLANE_Y] = offsets[C2PlanarLayout::PLANE_U]
-        - offsets[C2PlanarLayout::PLANE_Y];
-    sizes[C2PlanarLayout::PLANE_U] = sizes[C2PlanarLayout::PLANE_Y] >> 1;
-    sizes[C2PlanarLayout::PLANE_V] = sizes[C2PlanarLayout::PLANE_U];
-
-    bool semiplanar = false;
-	uint32_t passedNumPlanes = layout.numPlanes;
-    if (layout.planes[C2PlanarLayout::PLANE_U].colInc == 2) {  // chroma_step
-        // Semi-planar format
-        passedNumPlanes--;
-        semiplanar = true;
-    }
-
-    for (uint32_t i = 0; i < passedNumPlanes; ++i) {
-        ALOGV("plane %u: stride: %d, offset: %u", i, layout.planes[i].rowInc, offsets[i]);
-    }
-
-    info.mPixelFormat = (HalPixelFormat)VideoDecWraper::AmVideoDec_getResolveBufferFormat(crcb, semiplanar);
-    ALOGV("HAL pixel format: 0x%x", static_cast<uint32_t>(info.mPixelFormat));
-
-    std::vector<::base::ScopedFD> fds;
-    const C2Handle* const handle = info.mGraphicBlock->handle();
-    fds.emplace_back(dup(handle->data[0]));
-    ALOGI("wsl find handle fd:%d %d", handle->data[0], fds[0].get());
-
-    std::vector<VideoFramePlane> passedPlanes;
-    for (uint32_t i = 0; i < passedNumPlanes; ++i) {
-        CHECK_GT(layout.planes[i].rowInc, 0);
-        passedPlanes.push_back({addrs[i], sizes[i], offsets[i],
-            static_cast<uint32_t>(layout.planes[i].rowInc)});
-    }
-
-    info.mHandles = std::move(fds);
-    info.mPlanes = std::move(passedPlanes);
-
+    ALOGV("%s graphicblock: %p,blockid: %d, size: %dx%d bind %d->%d", __func__, info.mGraphicBlock->handle(),
+        info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), info.mPoolId, info.mBlockId);
     mGraphicBlocks.push_back(std::move(info));
 }
 
@@ -1288,21 +1464,23 @@ void C2VDAComponent::appendSecureOutputBuffer(std::shared_ptr<C2GraphicBlock> bl
 
     std::vector<::base::ScopedFD> fds;
     const C2Handle* const handle = block->handle();
-    for (int i = 0; i < handle->numFds; i++) {
+    /*for (int i = 0; i < handle->numFds; i++) {
         fds.emplace_back(dup(handle->data[i]));
         if (!fds.back().is_valid()) {
             ALOGE("Failed to dup(%d), errno=%d", handle->data[i], errno);
             reportError(C2_CORRUPTED);
             return;
         }
-    }
+    }*/
 
     GraphicBlockInfo info;
     info.mBlockId = static_cast<int32_t>(mGraphicBlocks.size());
     info.mGraphicBlock = std::move(block);
     info.mPoolId = poolId;
     info.mPixelFormat = pixelFormat;
-    info.mHandles = std::move(fds);
+    info.mFd = handle->data[0];
+    info.mFdHaveSet = false;
+    //info.mHandles = std::move(fds);
 
     // In secure mode, since planes are not referred in Chrome side, empty plane is valid.
     info.mPlanes.clear();
@@ -1315,41 +1493,47 @@ void C2VDAComponent::appendSecureOutputBuffer(std::shared_ptr<C2GraphicBlock> bl
 
 void C2VDAComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool ownByAccelerator) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("sendOutputBufferToAccelerator index=%d ownByAccelerator=%d", info->mBlockId,
-          ownByAccelerator);
+    ALOGV("sendOutputBufferToAccelerator index=%d ownByAccelerator=%d, poolid:%d", info->mBlockId,
+          ownByAccelerator, info->mPoolId);
 
     if (ownByAccelerator) {
         CHECK_EQ(info->mState, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
         info->mState = GraphicBlockInfo::State::OWNED_BY_ACCELERATOR;
     }
 
+    ATRACE_INT("c2reusebufid", info->mBlockId);
+
     // mHandles is not empty for the first time the buffer is passed to VDA. In that case, VDA needs
     // to import the buffer first.
-    if (!info->mHandles.empty()) {
+    if (!info->mFdHaveSet) {
         uint8_t* vaddr = NULL;
         uint32_t size = 0;
         bool isNV21 = true;
         int metaFd =-1;
 
-        getVideoType();
-#if 0
-        native_handle_t* handle = android::UnwrapNativeCodec2GrallocHandle(info->mGraphicBlock->handle());
-        if (am_gralloc_is_valid_graphic_buffer(handle)) {
-            am_gralloc_set_omx_video_type(handle, getVideoType());
-            metaFd = am_gralloc_get_omx_v4l_file(handle);
-            //am_gralloc_attr_set_omx2_v4l2_producer_flag(handle);
-        } else {
-            ALOGE("[%s:%d]invalid graphic buffer", __func__, __LINE__);
+        {
+           native_handle_t* handle = android::UnwrapNativeCodec2GrallocHandle(info->mGraphicBlock->handle());
+           if (am_gralloc_is_valid_graphic_buffer(handle)) {
+               am_gralloc_set_omx_video_type(handle, mMetaDataUtil->getVideoType());
+           }
+
+           {
+               uint32_t width, height, format, stride, igbp_slot, generation;
+               uint64_t usage, igbp_id;
+               android::_UnwrapNativeCodec2GrallocMetadata(info->mGraphicBlock->handle(), &width, &height,
+                       &format, &usage, &stride, &generation, &igbp_id,
+                       &igbp_slot);
+               native_handle_t* grallocHandle = android::UnwrapNativeCodec2GrallocHandle(info->mGraphicBlock->handle());
+               sp<GraphicBuffer> buf = new GraphicBuffer(grallocHandle, GraphicBuffer::CLONE_HANDLE, width,
+                       height, format, 1, usage, stride);
+                ALOGI("wsl usage:%llx", buf->getUsage());
+                native_handle_delete(grallocHandle);
+           }
         }
-        ALOGV("%s fd:%d %d %d metafd:%d, infofd:%d", __func__,
-                handle->data[0], handle->data[1], handle->data[2],
-                metaFd,
-                info->mHandles[0].get());
-#endif
-        //mVideoDecWraper->importBufferForPicture(info->mBlockId, handle->data[0], metaFd, vaddr,
-        mVideoDecWraper->importBufferForPicture(info->mBlockId, info->mHandles[0].get(), metaFd, vaddr,
+        mVideoDecWraper->importBufferForPicture(info->mBlockId, info->mGraphicBlock->handle()->data[0], metaFd, vaddr,
                 size, isNV21);
-        info->mHandles.clear();
+        info->mFdHaveSet = true;
+        ALOGV("%s fd:%d, id:%d, usecount:%ld", __func__, info->mGraphicBlock->handle()->data[0], info->mBlockId, info->mGraphicBlock.use_count());
 
     } else {
         mVideoDecWraper->reusePictureBuffer(info->mBlockId);
@@ -1437,6 +1621,19 @@ c2_status_t C2VDAComponent::updateColorAspects() {
         return status;
     }
     mCurrentColorAspects = std::move(colorAspects);
+    return C2_OK;
+}
+
+c2_status_t C2VDAComponent::updateHDRStaticInfo() {
+    ALOGV("updateHDRStaticInfo");
+    std::unique_ptr<C2StreamHdrStaticInfo::output> hdr =
+        std::make_unique<C2StreamHdrStaticInfo::output>();
+    c2_status_t err = mIntfImpl->query({hdr.get()}, {}, C2_DONT_BLOCK, nullptr);
+    if (err != C2_OK) {
+        ALOGE("Failed to query hdr static info, error: %d", err);
+        return err;
+    }
+    mCurrentHdrStaticInfo = std::move(hdr);
     return C2_OK;
 }
 
@@ -1541,10 +1738,59 @@ void C2VDAComponent::onSurfaceChanged() {
     }
 }
 
+void C2VDAComponent::checkVideoDecReconfig() {
+    if (mSurfaceUsageGeted)
+        return;
+
+    if (!mBlockPool) {
+        std::shared_ptr<C2BlockPool> blockPool;
+        auto poolId = mIntfImpl->getBlockPoolId();
+        auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
+        if (err != C2_OK) {
+            ALOGE("Graphic block allocator is invalid");
+            reportError(err);
+        }
+        ALOGI("get block pool ok, id:%lld", poolId);
+        mBlockPool = std::move(blockPool);
+    }
+    if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
+        std::shared_ptr<C2VdaBqBlockPool> bqPool = std::static_pointer_cast<C2VdaBqBlockPool>(mBlockPool);
+        int maxretry = 5;
+        bool usersurfacetexture = false;
+        for (int i = 0; i < maxretry; i++) {
+            int64_t usage = bqPool->getSurfaceUsage();
+            ALOGI("wsl getusage:%lld", usage);
+            if (!(usage & GRALLOC_USAGE_HW_COMPOSER)) {
+                usersurfacetexture = true;
+            }
+            if (usage) {
+                break;
+            }
+        }
+        if (usersurfacetexture) {
+            if (mVideoDecWraper) {
+                mVideoDecWraper->destroy();
+            } else {
+                mVideoDecWraper = new VideoDecWraper();
+            }
+            mMetaDataUtil->setUseSurfaceTexture(usersurfacetexture);
+            mMetaDataUtil->codecConfig(&mConfigParam);
+            mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
+                      (uint8_t*)&mConfigParam, sizeof(mConfigParam), false, this);
+        }
+    }
+    mSurfaceUsageGeted = true;
+}
+
 c2_status_t C2VDAComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
     if (mState.load() != State::RUNNING) {
         return C2_BAD_STATE;
     }
+    if (!mSurfaceUsageGeted) {
+        checkVideoDecReconfig();
+    }
+
+
     while (!items->empty()) {
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VDAComponent::onQueueWork, ::base::Unretained(this),
@@ -1672,7 +1918,7 @@ void C2VDAComponent::DismissPictureBuffer(int32_t pictureBufferId) {
     // no ops
 }
 
-void C2VDAComponent::PictureReady(int32_t pictureBufferId, int32_t bitstreamId,
+void C2VDAComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
                                   uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
     UNUSED(pictureBufferId);
     UNUSED(bitstreamId);
@@ -1691,7 +1937,9 @@ void C2VDAComponent::PictureReady(int32_t pictureBufferId, int32_t bitstreamId,
 void C2VDAComponent::UpdateDecInfo(const uint8_t* info, uint32_t isize) {
     UNUSED(info);
     UNUSED(isize);
-    ALOGV("C2VDAComponent::UpdateDecInfo\n");
+    struct aml_dec_params* pinfo = (struct aml_dec_params*)info;
+    ALOGV("C2VDAComponent::UpdateDecInfo, dec_parms_status=%d\n", pinfo->parms_status);
+    mMetaDataUtil->updateDecParmInfo(pinfo);
 }
 
 
@@ -1938,6 +2186,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             ::usleep(kDequeueRetryDelayUs);  // wait for retry
             continue;
         }
+
         std::shared_ptr<C2GraphicBlock> block;
         C2MemoryUsage usage = {
                 mSecureMode ? C2MemoryUsage::READ_PROTECTED :
@@ -1969,7 +2218,6 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             } else {  // bufferpool
                 std::shared_ptr<C2VdaPooledBlockPool> bpPool =
                     std::static_pointer_cast<C2VdaPooledBlockPool>(blockPool);
-                ALOGI("getPoolIdFromGraphicBlock\n");
                 err = bpPool->getPoolIdFromGraphicBlock(block, &poolId);
             }
 
@@ -1977,7 +2225,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                 ALOGE("dequeueThreadLoop got error on getPoolIdFromGraphicBlock: %d", err);
                 break;
             }
-            ALOGV("dequeueThreadLoop  getblock poolid:%d", poolId);
+            ALOGV("dequeueThreadLoop  getblock poolid:%d,w:%d h:%d, count:%ld", poolId, block->width(), block->height(), block.use_count());
             mTaskRunner->PostTask(FROM_HERE,
                                   ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
                                                ::base::Unretained(this), std::move(block), poolId));
@@ -1988,55 +2236,6 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
         }
     }
     ALOGV("dequeueThreadLoop terminates");
-}
-
-void C2VDAComponent::codecConfig() {
-#if 0
-    uint32_t doubleWriteMode = 0;//0x10;
-    int default_margin = 9;
-    uint32_t bufwidth = 0;//3840;
-    uint32_t bufheight = 0;//2304;
-    uint32_t margin = default_margin;
-
-    memset(&mConfigParam, 0, sizeof(mConfigParam));
-
-    if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-        doubleWriteMode = 0x03;
-        mConfigParam.cfg.canvas_mem_mode = 2;
-    } else if (mIntfImpl->getInputCodec() == InputCodec::H265) {
-        doubleWriteMode = 0x03;
-        mConfigParam.cfg.canvas_mem_mode = 2;
-    } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
-        mConfigParam.cfg.canvas_mem_mode = 1;
-    }
-
-    ALOGI("doubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
-    if (!mSecureMode) {
-        if (mIntfImpl->getInputCodec() == InputCodec::H265) {
-            mConfigParam.cfg.init_height = bufwidth;
-            mConfigParam.cfg.init_width = bufheight;
-            mConfigParam.cfg.ref_buf_margin = margin;
-            mConfigParam.cfg.double_write_mode = doubleWriteMode;
-            mConfigParam.cfg.canvas_mem_endian = 0;
-            mConfigParam.parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-    } else if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-            mConfigParam.cfg.init_height = bufwidth;
-            mConfigParam.cfg.init_width = bufheight;
-            mConfigParam.cfg.ref_buf_margin = margin;
-            mConfigParam.cfg.double_write_mode = doubleWriteMode;
-            mConfigParam.cfg.canvas_mem_endian = 0;
-            mConfigParam.parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-            //setHDRStaticInfo();
-    } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
-            mConfigParam.cfg.init_height = bufwidth;
-            mConfigParam.cfg.init_width = bufheight;
-            mConfigParam.cfg.ref_buf_margin = margin;
-            mConfigParam.cfg.double_write_mode = doubleWriteMode;
-            mConfigParam.cfg.canvas_mem_endian = 0;
-            mConfigParam.parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        }
-    }
-#endif
 }
 
 const char* C2VDAComponent::VideoCodecProfileToMime(media::VideoCodecProfile profile) {
@@ -2050,11 +2249,6 @@ const char* C2VDAComponent::VideoCodecProfileToMime(media::VideoCodecProfile pro
     return "";
 }
 
-int C2VDAComponent::getVideoType() {
-    int videotype = AM_VIDEO_4K;//AM_VIDEO_AFBC;
-
-    return videotype;
-}
 
 class C2VDAComponentFactory : public C2ComponentFactory {
 public:
@@ -2087,38 +2281,24 @@ private:
 };
 }  // namespace android
 
-extern "C" ::C2ComponentFactory* CreateC2VDAH264Factory(bool secureMode) {
-    ALOGI("in %s (secureMode=%d)", __func__, secureMode);
-    secureMode = 0;
-    return secureMode ? new ::android::C2VDAComponentFactory(android::kH264SecureDecoderName)
-                      : new ::android::C2VDAComponentFactory(android::kH264DecoderName);
-}
 
-extern "C" void DestroyC2VDAH264Factory(::C2ComponentFactory* factory) {
-    ALOGV("in %s", __func__);
-    delete factory;
-}
+#define CreateC2VDAFactory(type) \
+    extern "C" ::C2ComponentFactory* CreateC2VDA##type##Factory(bool secureMode) {\
+         ALOGV("create compoment %s secure:%d", #type, secureMode);\
+         return secureMode ? new ::android::C2VDAComponentFactory(android::k##type##SecureDecoderName)\
+                            :new ::android::C2VDAComponentFactory(android::k##type##DecoderName);\
+    }
 
-extern "C" ::C2ComponentFactory* CreateC2VDAH265Factory(bool secureMode) {
-    ALOGI("in %s (secureMode=%d)", __func__, secureMode);
-    secureMode = 0;
-    return secureMode ? new ::android::C2VDAComponentFactory(android::kH265SecureDecoderName)
-                      : new ::android::C2VDAComponentFactory(android::kH265DecoderName);
-}
+#define DestroyC2VDAFactory(type) \
+    extern "C" void DestroyC2VDA##type##Factory(::C2ComponentFactory* factory) {\
+        delete factory;\
+    }
 
-extern "C" void DestroyC2VDAH265Factory(::C2ComponentFactory* factory) {
-    ALOGV("in %s", __func__);
-    delete factory;
-}
+CreateC2VDAFactory(H264)
+CreateC2VDAFactory(H265)
+CreateC2VDAFactory(VP9)
 
-extern "C" ::C2ComponentFactory* CreateC2VDAVP9Factory(bool secureMode) {
-    ALOGI("in %s (secureMode=%d)", __func__, secureMode);
-    secureMode = 0;
-    return secureMode ? new ::android::C2VDAComponentFactory(android::kVP9SecureDecoderName)
-                      : new ::android::C2VDAComponentFactory(android::kVP9DecoderName);
-}
+DestroyC2VDAFactory(H264)
+DestroyC2VDAFactory(H265)
+DestroyC2VDAFactory(VP9)
 
-extern "C" void DestroyC2VDAVP9Factory(::C2ComponentFactory* factory) {
-    ALOGV("in %s", __func__);
-    delete factory;
-}

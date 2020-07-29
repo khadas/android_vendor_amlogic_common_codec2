@@ -33,6 +33,8 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/Fence.h>
 
+#include <bufferpool/BufferPoolTypes.h>
+
 #include <types.h>
 #include <utils/CallStack.h>
 #include <C2VDASupport.h>
@@ -50,8 +52,21 @@ using ::android::hardware::hidl_handle;
 using ::android::hardware::Return;
 
 using ::android::hardware::graphics::common::V1_0::PixelFormat;
+using android::hardware::media::bufferpool::BufferPoolData;
 
 using namespace android;
+
+// The wait time for another try to fetch a buffer from bufferpool.
+const int64_t kFetchRetryDelayUs = 10 * 1000;
+
+int64_t GetNowUs() {
+    struct timespec t;
+    t.tv_sec = 0;
+    t.tv_nsec = 0;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    int64_t nsecs = static_cast<int64_t>(t.tv_sec) * 1000000000LL + t.tv_nsec;
+    return nsecs / 1000ll;
+}
 
 C2VdaPooledBlockPool::C2VdaPooledBlockPool(std::shared_ptr<C2AllocatorGralloc> allocator,
                                    const local_id_t localId)
@@ -71,46 +86,80 @@ C2VdaPooledBlockPool::~C2VdaPooledBlockPool() {
 c2_status_t C2VdaPooledBlockPool::fetchGraphicBlock(
         uint32_t width, uint32_t height, uint32_t format, C2MemoryUsage usage,
         std::shared_ptr<C2GraphicBlock>* block /* nonnull */) {
+    ALOGV("C2VdaPooledBlockPool::fetchGraphicBlock\n");
+    ALOG_ASSERT(block != nullptr);
+    uint32_t poolId = 0;
+    std::lock_guard<std::mutex> lock(mMutex);
 
-    ALOGI("C2VdaPooledBlockPool::fetchGraphicBlock\n");
-    //std::lock_guard<std::mutex> lock(mMutex);
-    C2PooledBlockPool::fetchGraphicBlock(width, height, format, usage, block);
+    if (mNextFetchTimeUs != 0) {
+        int delayUs = GetNowUs() - mNextFetchTimeUs;
+        if (delayUs > 0) {
+            ::usleep(delayUs);
+        }
+        mNextFetchTimeUs = 0;
+    }
 
-    mBlockAllocations[block->get()] = mBufferCountCurrent;
-    ALOGI("RRRRRRRRRRR fetchGraphicBlock mBufferCountCurrent %d, mBufferCountTotal %d\n",
-        mBufferCountCurrent, mBufferCountTotal);
-    mBufferCountCurrent = (mBufferCountCurrent+1) % mBufferCountTotal;
+    std::shared_ptr<C2GraphicBlock> fetchBlock;
+    c2_status_t err =
+        C2PooledBlockPool::fetchGraphicBlock(width, height, format, usage, &fetchBlock);
+    if (err != C2_OK) {
+        ALOGE("Failed at C2PooledBlockPool::fetchGraphicBlock: %d", err);
+        return err;
+    }
 
-    return C2_OK;
+    err = getPoolIdFromGraphicBlock(fetchBlock, &poolId);
+    if (err != C2_OK) {
+        ALOGE("Failed to getPoolIdFromGraphicBlock");
+        return C2_CORRUPTED;
+    }
+
+    if (mBufferIds.size() < mBufferCount) {
+        mBufferIds.insert(poolId);
+    }
+
+    if (mBufferIds.find(poolId) != mBufferIds.end()) {
+        ALOGV("Returned buffer id = %u", poolId);
+        *block = std::move(fetchBlock);
+        return C2_OK;
+    }
+    ALOGV("No buffer could be recycled now, wait for another try...");
+    mNextFetchTimeUs = GetNowUs() + kFetchRetryDelayUs;
+    return C2_TIMED_OUT;
 }
 
 c2_status_t C2VdaPooledBlockPool::requestNewBufferSet(int32_t bufferCount) {
-    ALOGI("requestNewBufferSet max buffer count %d\n", bufferCount);
-    //std::lock_guard<std::mutex> lock(mMutex);
     if (bufferCount <= 0) {
         ALOGE("Invalid requested buffer count = %d", bufferCount);
         return C2_BAD_VALUE;
     }
 
-    mBufferCountTotal = bufferCount;
-    mBufferCountCurrent = 0;
+    ALOGI("requestNewBufferSet max buffer count %d\n", bufferCount);
+    std::lock_guard<std::mutex> lock(mMutex);
+    mBufferIds.clear();
+    mBufferCount = bufferCount;
     return C2_OK;
 }
 
 c2_status_t C2VdaPooledBlockPool::cancelAllBuffers() {
     ALOGI("cancelAllBuffers mAllocator.use_count() %ld\n", mAllocator.use_count());
-    mBlockAllocations.clear();
-    ALOGI("cancelAllBuffers mBlockAllocations %d out\n", mBlockAllocations.size());
+    mBufferIds.clear();
+    mBufferCount = 0;
     return C2_OK;
 }
 
 c2_status_t C2VdaPooledBlockPool::getPoolIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* poolId) {
-    auto iter = mBlockAllocations.find(block.get());
-    ALOGI("android::BlockAllocations poolid %d, block %p\n", mBlockAllocations[block.get()], block.get());
-    if (iter == mBlockAllocations.end())
+    std::shared_ptr<_C2BlockPoolData> blockPoolData =
+            _C2BlockFactory::GetGraphicBlockPoolData(*block);
+    if (blockPoolData->getType() != _C2BlockPoolData::TYPE_BUFFERPOOL) {
+        ALOGE("Obtained C2GraphicBlock is not bufferpool-backed.");
         return C2_BAD_VALUE;
-    *poolId = mBlockAllocations[block.get()];
-    mBlockAllocations.erase(block.get());
+    }
+    std::shared_ptr<BufferPoolData> bpData;
+    if (!_C2BlockFactory::GetBufferPoolData(blockPoolData, &bpData) || !bpData) {
+        ALOGE("BufferPoolData unavailable in block.");
+        return C2_BAD_VALUE;
+    }
+    *poolId = bpData->mId;
     return C2_OK;
 }
 

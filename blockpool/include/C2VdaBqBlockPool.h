@@ -57,7 +57,7 @@ public:
 
     ~C2VdaBqBlockPool() override;
 
-    C2Allocator::id_t getAllocatorId() const override {ALOGI("get allocatorId %d", mAllocator->getId()); return mAllocator->getId(); };
+    C2Allocator::id_t getAllocatorId() const override {/*ALOGI("get allocatorId %d", mAllocator->getId());*/ return mAllocator->getId(); };
 
     local_id_t getLocalId() const override { return mLocalId; };
 
@@ -90,6 +90,10 @@ public:
 
     c2_status_t getPoolIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* poolId);
 
+    c2_status_t resetGraphicBlock(int32_t slot);
+
+    int64_t getSurfaceUsage();
+
     static c2_status_t getMinBuffersForDisplay(size_t* minBuffersForDisplay);
 private:
     c2_status_t cancelAllBuffers();
@@ -105,7 +109,7 @@ private:
     std::mutex mMutex;
 
     std::map<int32_t, std::shared_ptr<C2GraphicAllocation>> mSlotAllocations;
-    std::map<int32_t, android::sp<GraphicBuffer>> mSlotGraphicBuffers;
+    //std::map<int32_t, android::sp<GraphicBuffer>> mSlotGraphicBuffers;
     std::map<C2GraphicBlock*, int32_t> mBlockAllocations;
     size_t mMaxDequeuedBuffers;
 };

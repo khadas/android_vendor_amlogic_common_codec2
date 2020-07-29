@@ -66,6 +66,9 @@ public:
                                             C2P<C2StreamColorAspectsInfo::output>& merged,
                                             const C2P<C2StreamColorAspectsTuning::output>& def,
                                             const C2P<C2StreamColorAspectsInfo::input>& coded);
+        static C2R Hdr10PlusInfoInputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::input> &me);
+        static C2R Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::output> &me);
+        static C2R HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me);
 
         // The input format kind; should be C2FormatCompressed.
         std::shared_ptr<C2StreamBufferTypeSetting::input> mInputFormat;
@@ -102,6 +105,15 @@ public:
         // former has higher priority. This parameter is used for component to provide color aspects
         // as C2Info in decoded output buffers.
         std::shared_ptr<C2StreamColorAspectsInfo::output> mColorAspects;
+        //hdr
+        std::shared_ptr<C2StreamHdrStaticInfo::output> mHdrStaticInfo;
+        std::shared_ptr<C2StreamHdr10PlusInfo::input> mHdr10PlusInfoInput;
+        std::shared_ptr<C2StreamHdr10PlusInfo::output> mHdr10PlusInfoOutput;
+        std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
+
+        //std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
+        std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
+        //std::shared_ptr<C2ActualPipelineDelayTuning> mActualPipelineDelay
 
         c2_status_t mInitStatus;
         media::VideoCodecProfile mCodecProfile;
@@ -111,6 +123,8 @@ public:
     C2VDAComponent(C2String name, c2_node_id_t id,
                    const std::shared_ptr<C2ReflectorHelper>& helper);
     virtual ~C2VDAComponent() override;
+
+    class MetaDataUtil;
 
     // Implementation of C2Component interface
     virtual c2_status_t setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -129,13 +143,18 @@ public:
     //mediahal callback
     virtual void ProvidePictureBuffers(uint32_t minNumBuffers,  uint32_t width, uint32_t height);
     virtual void DismissPictureBuffer(int32_t picture_buffer_id);
-    virtual void PictureReady(int32_t pictureBufferId, int32_t bitstreamId,
+    virtual void PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize);
     virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id);
     virtual void NotifyFlushDone();
     virtual void NotifyResetDone();
     virtual void NotifyError(int error);
+
+    //for out use
+    IntfImpl* GetIntfImpl() {
+       return mIntfImpl.get();
+    }
 
 private:
     // The state machine enumeration on parent thread.
@@ -200,6 +219,9 @@ private:
         HalPixelFormat mPixelFormat;
         // The dmabuf fds dupped from graphic block for importing to VDA.
         std::vector<::base::ScopedFD> mHandles;
+        int32_t mFd;
+        bool mFdHaveSet;
+        bool mBind;
         // VideoFramePlane information for importing to VDA.
         std::vector<VideoFramePlane> mPlanes;
     };
@@ -227,7 +249,7 @@ private:
     void onQueueWork(std::unique_ptr<C2Work> work);
     void onDequeueWork();
     void onInputBufferDone(int32_t bitstreamId);
-    void onOutputBufferDone(int32_t pictureBufferId, int32_t bitstreamId);
+    void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId);
     void onDrain(uint32_t drainMode);
     void onDrainDone();
     void onFlush();
@@ -251,6 +273,8 @@ private:
     GraphicBlockInfo* getGraphicBlockById(int32_t blockId);
     // Helper function to get the specified GraphicBlockInfo object by its pool id.
     GraphicBlockInfo* getGraphicBlockByPoolId(uint32_t poolId);
+    //get first unbind graphicblock
+    GraphicBlockInfo* getUnbindGraphicBlock();
     // Helper function to find the work iterator in |mPendingWorks| by bitstream id.
     std::deque<std::unique_ptr<C2Work>>::iterator findPendingWorkByBitstreamId(int32_t bitstreamId);
     // Helper function to get the specified work in |mPendingWorks| by bitstream id.
@@ -267,12 +291,15 @@ private:
     bool parseCodedColorAspects(const C2ConstLinearBlock& input);
     // Update color aspects for current output buffer.
     c2_status_t updateColorAspects();
+    //update hdr static info
+    c2_status_t updateHDRStaticInfo();
     // Dequeue |mPendingBuffersToWork| to put output buffer to corresponding work and report if
     // finished as many as possible. If |dropIfUnavailable|, drop all pending existing frames
     // without blocking.
     c2_status_t sendOutputBufferToWorkIfAny(bool dropIfUnavailable);
     // Update |mUndequeuedBlockIds| FIFO by pushing |blockId|.
     void updateUndequeuedBlockIds(int32_t blockId);
+    void checkVideoDecReconfig();
 
     // Specific to VP8/VP9, since for no-show frame cases VDA will not call PictureReady to return
     // output buffer which the corresponding work is waiting for, this function detects these works
@@ -302,10 +329,10 @@ private:
     // The rountine task running on dequeue thread.
     void dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat,
                            std::shared_ptr<C2BlockPool> blockPool);
-    //init config
-    void codecConfig();
+    //convert codec profiel to mime
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
-    int getVideoType();
+    c2_status_t videoResolutionChange();
+    bool getVideoResolutionChanged();
 
     // The pointer of component interface implementation.
     std::shared_ptr<IntfImpl> mIntfImpl;
@@ -395,13 +422,25 @@ private:
     // The WeakPtrFactory for getting weak pointer of this.
     ::base::WeakPtrFactory<C2VDAComponent> mWeakThisFactory;
 
-    //std::shared_ptr<C2BlockPool> mBlockPool;
-    //bool mUseInputFd;
+    typedef enum {
+        C2_RESOLUTION_CHANGE_NONE,
+        C2_RESOLUTION_CHANGEING = 1,
+        C2_RESOLUTION_CHANGED = 2,
+    } c2_resch_stat;
+    std::shared_ptr<C2StreamHdrStaticInfo::output> mCurrentHdrStaticInfo;
+    std::shared_ptr<C2StreamPictureSizeInfo::output> mCurrentSize;
     // init param
-    //aml_dec_params mConfigParam;
-    //std::vector<uint8_t> mParam;
-    uint8_t* mConfigParam;
+    aml_dec_params mConfigParam;
+    FILE* mDumpYuvFp;
+    static uint32_t mDumpFileCnt;
     VideoDecWraper* mVideoDecWraper;
+    std::shared_ptr<MetaDataUtil> mMetaDataUtil;
+    bool mUseBufferQueue; /*surface use buffer queue */
+    bool mBufferFirstAllocated;
+    bool mPictureSizeChanged;
+    std::shared_ptr<C2BlockPool> mBlockPool;
+    c2_resch_stat mResChStat;
+    bool mSurfaceUsageGeted;
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };
 

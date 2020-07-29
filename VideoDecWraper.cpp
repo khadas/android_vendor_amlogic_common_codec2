@@ -211,7 +211,7 @@ void VideoDecWraper::importBufferForPicture(
 #else
         ALOGD("outbuf color format %s", isNV21? "NV21" : "NV12");
         mAmVideoDec->createOutputBuffer(pictureBufferId,
-                dup(fd), isNV21, metafd >= 0 ? dup(metafd) : -1);
+                fd, isNV21, metafd >= 0 ? metafd : -1);
 #endif
     }
 }
@@ -258,7 +258,7 @@ void VideoDecWraper::onOutputFormatChanged(uint32_t requested_num_of_buffers,
     }
 }
 
-void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int32_t bitstreamId,
+void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t width, uint32_t height) {
     //ALOGD("pictureReady:pictureBufferId:%d bitstreamId:%d mDecoderCallback:%p", pictureBufferId, bitstreamId, mDecoderCallback);
     if (mDecoderCallback) {
