@@ -1,10 +1,10 @@
 cc_library_shared {
     name: "libcodec2_aml",
-	defaults: [
-        "libchrome-defaults",
-        "libcodec2-impl-defaults",
-	],
-	vendor: true,
+          defaults: [
+          "libchrome-defaults",
+          "libcodec2-impl-defaults",
+          ],
+          vendor: true,
 
     srcs: [
         "C2VDAComponent.cpp",
@@ -51,13 +51,14 @@ cc_library_shared {
         "libchrome",
         "libevent",
         "libvda_c2componentstore",
-        "libamgralloc_ext_vendor@2",
+        "libamgralloc_ext",
     ],
 
     header_libs: [
         "media_plugin_headers",
         "libcodec2_headers",
         "libc2plugin_store_headers",
+        "libcodec2_internal",
     ],
 
     // -Wno-unused-parameter is needed for libchrome/base codes

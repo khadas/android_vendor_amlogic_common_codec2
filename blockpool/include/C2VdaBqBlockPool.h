@@ -78,6 +78,27 @@ public:
 
     void configureProducer(const android::sp<HGraphicBufferProducer>& producer) override;
 
+     /**
+     * Configures an IGBP in order to create blocks. A newly created block is
+     * dequeued from the configured IGBP. Unique Id of IGBP and the slot number of
+     * blocks are passed via native_handle. Managing IGBP is responsibility of caller.
+     * When IGBP is not configured, block will be created via allocator.
+     * Since zero is not used for Unique Id of IGBP, if IGBP is not configured or producer
+     * is configured as nullptr, unique id which is bundled in native_handle is zero.
+     *
+     * \param producer      the IGBP, which will be used to fetch blocks
+     * \param syncMemory    Shared memory for synchronization of allocation & deallocation.
+     * \param bqId          Id of IGBP
+     * \param generationId  Generation Id for rendering output
+     * \param consumerUsage consumerUsage flagof the IGBP
+     */
+    virtual void configureProducer(
+            const android::sp<HGraphicBufferProducer> &producer,
+            native_handle_t *syncMemory,
+            uint64_t bqId,
+            uint32_t generationId,
+            uint64_t consumerUsage);
+
     /**
      * Sends the request of arbitrary number of graphic buffers allocation. If producer is given,
      * it will set maxDequeuedBufferCount as the requested buffer count to producer.
@@ -112,6 +133,8 @@ private:
     //std::map<int32_t, android::sp<GraphicBuffer>> mSlotGraphicBuffers;
     std::map<C2GraphicBlock*, int32_t> mBlockAllocations;
     size_t mMaxDequeuedBuffers;
+
+    uint64_t mConsumerUsage;
 };
 
 #endif  // ANDROID_C2_VDA_BQ_BLOCK_POOL_H_

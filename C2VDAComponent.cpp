@@ -108,12 +108,27 @@ media::Size getFrameSizeFromC2GraphicBlock(const C2GraphicBlock& block) {
 // Use basic graphic block pool/allocator as default.
 const C2BlockPool::local_id_t kDefaultOutputBlockPool = C2BlockPool::PLATFORM_START;//C2PlatformAllocatorStore::BUFFERQUEUE;
 
-const C2String kH264DecoderName = "c2.vda.avc.decoder";
-const C2String kH265DecoderName = "c2.vda.hevc.decoder";
-const C2String kVP9DecoderName = "c2.vda.vp9.decoder";
-const C2String kH264SecureDecoderName = "c2.vda.avc.decoder.secure";
-const C2String kH265SecureDecoderName = "c2.vda.hevc.decoder.secure";
-const C2String kVP9SecureDecoderName = "c2.vda.vp9.decoder.secure";
+const C2String kH264DecoderName = "c2.amlogic.avc.decoder";
+const C2String kH265DecoderName = "c2.amlogic.hevc.decoder";
+const C2String kVP9DecoderName = "c2.amlogic.vp9.decoder";
+const C2String kAV1DecoderName = "c2.amlogic.av1.decoder";
+const C2String kDVHEDecoderName = "c2.amlogic.dolby-vision.dvhe.decoder";
+const C2String kDVAVDecoderName = "c2.amlogic.dolby-vision.dvav.decoder";
+const C2String kDVAV1DecoderName = "c2.amlogic.dolby-vision.dav1.decoder";
+const C2String kMP2VDecoderName = "c2.amlogic.mpeg2.decoder";
+const C2String kMP4VDecoderName = "c2.amlogic.mpeg4.decoder";
+const C2String kMJPGDecoderName = "c2.amlogic.mjpeg.decoder";
+
+
+const C2String kH264SecureDecoderName = "c2.amlogic.avc.decoder.secure";
+const C2String kH265SecureDecoderName = "c2.amlogic.hevc.decoder.secure";
+const C2String kVP9SecureDecoderName = "c2.amlogic.vp9.decoder.secure";
+const C2String kAV1SecureDecoderName = "c2.amlogic.av1.decoder.secure";
+const C2String kDVHESecureDecoderName = "c2.amlogic.dolby-vision.dvhe.decoder.secure";
+const C2String kDVAVSecureDecoderName = "c2.amlogic.dolby-vision.dvav.decoder.secure";
+const C2String kDVAV1SecureDecoderName = "c2.amlogic.dolby-vision.dav1.decoder.secure";
+
+
 
 const uint32_t kDpbOutputBufferExtraCount = 0;  // Use the same number as ACodec.
 const int kDequeueRetryDelayUs = 10000;  // Wait time of dequeue buffer retry in microseconds.
@@ -146,6 +161,43 @@ static c2_status_t adaptorResultToC2Status(VideoDecodeAcceleratorAdaptor::Result
         return C2_CORRUPTED;
     }
 }
+
+struct C2CompomentInputCodec {
+    C2String compname;
+    InputCodec codec;
+};
+
+
+static C2CompomentInputCodec gC2CompomentInputCodec [] = {
+    {kH264DecoderName, InputCodec::H264},
+    {kH264SecureDecoderName, InputCodec::H264},
+    {kH265DecoderName, InputCodec::H265},
+    {kH265DecoderName, InputCodec::H265},
+    {kVP9DecoderName, InputCodec::VP9},
+    {kVP9SecureDecoderName, InputCodec::VP9},
+    {kAV1DecoderName, InputCodec::AV1},
+    {kAV1SecureDecoderName, InputCodec::AV1},
+    {kDVHEDecoderName, InputCodec::DVHE},
+    {kDVHESecureDecoderName, InputCodec::DVHE},
+    {kDVAVDecoderName, InputCodec::DVAV},
+    {kDVAVSecureDecoderName, InputCodec::DVAV},
+    {kDVAV1DecoderName, InputCodec::DVAV1},
+    {kDVAV1SecureDecoderName, InputCodec::DVAV1},
+    {kMP2VDecoderName, InputCodec::MP2V},
+    {kMP4VDecoderName, InputCodec::MP4V},
+    {kMJPGDecoderName, InputCodec::MJPG},
+
+};
+
+static InputCodec getInputCodecFromDecoderName(const C2String name){
+    for (int i = 0; i < sizeof(gC2CompomentInputCodec) / sizeof(C2CompomentInputCodec); i++) {
+        if (name == gC2CompomentInputCodec[i].compname)
+            return gC2CompomentInputCodec[i].codec;
+    }
+    return InputCodec::UNKNOWN;
+
+}
+
 
 // static
 C2R C2VDAComponent::IntfImpl::ProfileLevelSetter(bool mayBlock,
@@ -226,101 +278,321 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
 
     // TODO(johnylin): use factory function to determine whether V4L2 stream or slice API is.
     char inputMime[128];
-    if (name == kH264DecoderName || name == kH264SecureDecoderName) {
-        strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AVC);
-        mInputCodec = InputCodec::H264;
-        addParameter(
-                DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-                        .withDefault(new C2StreamProfileLevelInfo::input(
-                                0u, C2Config::PROFILE_AVC_MAIN, C2Config::LEVEL_AVC_4))
-                        .withFields(
-                                {C2F(mProfileLevel, profile)
-                                         .oneOf({C2Config::PROFILE_AVC_BASELINE,
-                                                 C2Config::PROFILE_AVC_CONSTRAINED_BASELINE,
-                                                 C2Config::PROFILE_AVC_MAIN,
-                                                 C2Config::PROFILE_AVC_HIGH,
-                                                 C2Config::PROFILE_AVC_CONSTRAINED_HIGH}),
-                                 C2F(mProfileLevel, level)
-                                         .oneOf({C2Config::LEVEL_AVC_1, C2Config::LEVEL_AVC_1B,
-                                                 C2Config::LEVEL_AVC_1_1, C2Config::LEVEL_AVC_1_2,
-                                                 C2Config::LEVEL_AVC_1_3, C2Config::LEVEL_AVC_2,
-                                                 C2Config::LEVEL_AVC_2_1, C2Config::LEVEL_AVC_2_2,
-                                                 C2Config::LEVEL_AVC_3, C2Config::LEVEL_AVC_3_1,
-                                                 C2Config::LEVEL_AVC_3_2, C2Config::LEVEL_AVC_4,
-                                                 C2Config::LEVEL_AVC_4_1, C2Config::LEVEL_AVC_4_2,
-                                                 C2Config::LEVEL_AVC_5, C2Config::LEVEL_AVC_5_1,
-                                                 C2Config::LEVEL_AVC_5_2})})
-                        .withSetter(ProfileLevelSetter)
-                        .build());
-    } else if (name == kH265DecoderName || name == kH265SecureDecoderName){
-        strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_HEVC);
-        mInputCodec = InputCodec::H265;
-        addParameter(DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-                .withConstValue(new C2StreamProfileLevelInfo::input(
-                        0u, C2Config::PROFILE_UNUSED, C2Config::LEVEL_UNUSED))
-                .build());
-    } else if (name == kVP9DecoderName || name == kVP9SecureDecoderName) {
-        strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_VP9);
-        mInputCodec = InputCodec::VP9;
-        addParameter(
-                DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-                        .withDefault(new C2StreamProfileLevelInfo::input(
-                                0u, C2Config::PROFILE_VP9_0, C2Config::LEVEL_VP9_5))
-                        .withFields({C2F(mProfileLevel, profile).oneOf({C2Config::PROFILE_VP9_0}),
+    mInputCodec = getInputCodecFromDecoderName(name);
+    //profile and level
+    switch (mInputCodec)
+    {
+        case InputCodec::H264:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AVC);
+            addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                    .withDefault(new C2StreamProfileLevelInfo::input(
+                            0u, C2Config::PROFILE_AVC_MAIN, C2Config::LEVEL_AVC_4))
+                    .withFields(
+                            {C2F(mProfileLevel, profile)
+                                     .oneOf({C2Config::PROFILE_AVC_BASELINE,
+                                             C2Config::PROFILE_AVC_CONSTRAINED_BASELINE,
+                                             C2Config::PROFILE_AVC_MAIN,
+                                             C2Config::PROFILE_AVC_HIGH,
+                                             C2Config::PROFILE_AVC_CONSTRAINED_HIGH}),
+                             C2F(mProfileLevel, level)
+                                     .oneOf({C2Config::LEVEL_AVC_1, C2Config::LEVEL_AVC_1B,
+                                             C2Config::LEVEL_AVC_1_1, C2Config::LEVEL_AVC_1_2,
+                                             C2Config::LEVEL_AVC_1_3, C2Config::LEVEL_AVC_2,
+                                             C2Config::LEVEL_AVC_2_1, C2Config::LEVEL_AVC_2_2,
+                                             C2Config::LEVEL_AVC_3, C2Config::LEVEL_AVC_3_1,
+                                             C2Config::LEVEL_AVC_3_2, C2Config::LEVEL_AVC_4,
+                                             C2Config::LEVEL_AVC_4_1, C2Config::LEVEL_AVC_4_2,
+                                             C2Config::LEVEL_AVC_5, C2Config::LEVEL_AVC_5_1})})
+                    .withSetter(ProfileLevelSetter)
+                    .build());
+            break;
+        case InputCodec::H265:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_HEVC);
+            addParameter(DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_HEVC_MAIN, C2Config::LEVEL_AVC_4))
+                            .withFields(
+                                    {C2F(mProfileLevel, profile)
+                                             .oneOf({C2Config::PROFILE_HEVC_MAIN,
+                                                     C2Config::PROFILE_HEVC_MAIN_10,
+                                                     C2Config::PROFILE_HEVC_MAIN_STILL,
+                                                     C2Config::PROFILE_HEVC_MAIN_422_10}),
                                      C2F(mProfileLevel, level)
-                                             .oneOf({C2Config::LEVEL_VP9_1, C2Config::LEVEL_VP9_1_1,
-                                                     C2Config::LEVEL_VP9_2, C2Config::LEVEL_VP9_2_1,
-                                                     C2Config::LEVEL_VP9_3, C2Config::LEVEL_VP9_3_1,
-                                                     C2Config::LEVEL_VP9_4, C2Config::LEVEL_VP9_4_1,
-                                                     C2Config::LEVEL_VP9_5})})
-                        .withSetter(ProfileLevelSetter)
-                        .build());
-        mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
-        addParameter(
-                DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
-                .withDefault(mHdr10PlusInfoInput)
-                .withFields({
-                    C2F(mHdr10PlusInfoInput, m.value).any(),
-                })
-                .withSetter(Hdr10PlusInfoInputSetter)
-                .build());
+                                             .oneOf({C2Config::LEVEL_HEVC_MAIN_1,
+                                                     C2Config::LEVEL_HEVC_MAIN_2, C2Config::LEVEL_HEVC_MAIN_2_1,
+                                                     C2Config::LEVEL_HEVC_MAIN_3, C2Config::LEVEL_HEVC_MAIN_3_1,
+                                                     C2Config::LEVEL_HEVC_MAIN_4, C2Config::LEVEL_HEVC_MAIN_4_1,
+                                                     C2Config::LEVEL_HEVC_MAIN_5, C2Config::LEVEL_HEVC_MAIN_5_1,
+                                                     C2Config::LEVEL_HEVC_HIGH_4, C2Config::LEVEL_HEVC_HIGH_4_1,
+                                                     C2Config::LEVEL_HEVC_HIGH_5, C2Config::LEVEL_HEVC_HIGH_5_1})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+           break;
+       case InputCodec::VP9:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_VP9);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_VP9_0, C2Config::LEVEL_VP9_5_1))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_VP9_0,
+                                                C2Config::PROFILE_VP9_2,
+                                                C2Config::PROFILE_VP9_3}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_VP9_1, C2Config::LEVEL_VP9_1_1,
+                                                         C2Config::LEVEL_VP9_2, C2Config::LEVEL_VP9_2_1,
+                                                         C2Config::LEVEL_VP9_3, C2Config::LEVEL_VP9_3_1,
+                                                         C2Config::LEVEL_VP9_4, C2Config::LEVEL_VP9_4_1,
+                                                         C2Config::LEVEL_VP9_5, C2Config::LEVEL_VP9_5_1})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
 
-        mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
-        addParameter(
-                DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
-                .withDefault(mHdr10PlusInfoOutput)
-                .withFields({
-                    C2F(mHdr10PlusInfoOutput, m.value).any(),
-                })
-                .withSetter(Hdr10PlusInfoOutputSetter)
-                .build());
-        // sample BT.2020 static info
-        mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
-        mHdrStaticInfo->mastering = {
-            .red   = { .x = 0.0,  .y = 0.0 },
-            .green = { .x = 0.0,  .y = 0.0 },
-            .blue  = { .x = 0.0,  .y = 0.0 },
-            .white = { .x = 0.0, .y = 0.0 },
-            .maxLuminance = 0.0,
-            .minLuminance = 0.0,
-        };
-        mHdrStaticInfo->maxCll = 0.0;
-        mHdrStaticInfo->maxFall = 0.0;
 
-        helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
-        addParameter(
-                DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
-                .withDefault(mHdrStaticInfo)
-                .withFields({
-                    C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
-                    // TODO
-                })
-                .withSetter(HdrStaticInfoSetter)
-                .build());
-    } else {
-        ALOGE("Invalid component name: %s", name.c_str());
-        mInitStatus = C2_BAD_VALUE;
-        return;
+            break;
+        case InputCodec::AV1:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AV1);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_AV1_0, C2Config::LEVEL_AV1_5))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_AV1_0,
+                                                C2Config::PROFILE_AV1_1,
+                                                C2Config::PROFILE_AV1_2}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_AV1_2, C2Config::LEVEL_AV1_2_1,
+                                                         C2Config::LEVEL_AV1_2_2, C2Config::LEVEL_AV1_2_3,
+                                                         C2Config::LEVEL_AV1_3_2, C2Config::LEVEL_AV1_3_3,
+                                                         C2Config::LEVEL_AV1_4, C2Config::LEVEL_AV1_4_1,
+                                                         C2Config::LEVEL_AV1_4_2, C2Config::LEVEL_AV1_4_3,
+                                                         C2Config::LEVEL_AV1_5, C2Config::LEVEL_AV1_5_1})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+            break;
+        case InputCodec::DVHE:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_DV_HE_05, C2Config::LEVEL_DV_MAIN_UHD_60))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_DV_HE_04,
+                                                C2Config::PROFILE_DV_HE_05,
+                                                C2Config::PROFILE_DV_HE_08}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_DV_MAIN_HD_24,
+                                                         C2Config::LEVEL_DV_MAIN_HD_30,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_24,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_30,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_60,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_24,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_30,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_48,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_60,
+                                                         C2Config::LEVEL_DV_HIGH_HD_24,
+                                                         C2Config::LEVEL_DV_HIGH_HD_30,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_24,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_30,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_60,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_24,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_30,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_48,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_60})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+            break;
+        case InputCodec::DVAV:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_DV_AV_09, C2Config::LEVEL_DV_MAIN_UHD_60))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_DV_AV_09}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_DV_MAIN_HD_24,
+                                                         C2Config::LEVEL_DV_MAIN_HD_30,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_24,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_30,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_60,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_24,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_30,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_48,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_60,
+                                                         C2Config::LEVEL_DV_HIGH_HD_24,
+                                                         C2Config::LEVEL_DV_HIGH_HD_30,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_24,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_30,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_60,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_24,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_30,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_48,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_60})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+            break;
+        case InputCodec::DVAV1:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_DV_AV1_10, C2Config::LEVEL_DV_MAIN_UHD_60))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_DV_AV1_10}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_DV_MAIN_HD_24,
+                                                         C2Config::LEVEL_DV_MAIN_HD_30,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_24,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_30,
+                                                         C2Config::LEVEL_DV_MAIN_FHD_60,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_24,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_30,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_48,
+                                                         C2Config::LEVEL_DV_MAIN_UHD_60,
+                                                         C2Config::LEVEL_DV_HIGH_HD_24,
+                                                         C2Config::LEVEL_DV_HIGH_HD_30,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_24,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_30,
+                                                         C2Config::LEVEL_DV_HIGH_FHD_60,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_24,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_30,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_48,
+                                                         C2Config::LEVEL_DV_HIGH_UHD_60})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+            break;
+        case InputCodec::MP2V:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_MPEG2);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_MP2V_HIGH, C2Config::LEVEL_MP2V_HIGH))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_MP2V_SIMPLE,
+                                                C2Config::PROFILE_MP2V_MAIN,
+                                                C2Config::PROFILE_MP2V_SNR_SCALABLE,
+                                                C2Config::PROFILE_MP2V_SPATIALLY_SCALABLE,
+                                                C2Config::PROFILE_MP2V_HIGH,}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_MP2V_LOW,
+                                                         C2Config::LEVEL_MP2V_MAIN,
+                                                         C2Config::LEVEL_MP2V_HIGH_1440,
+                                                         C2Config::LEVEL_MP2V_HIGH})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+            break;
+        case InputCodec::MP4V:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_MPEG4);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_DV_HE_05, C2Config::LEVEL_DV_MAIN_UHD_60))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_MP4V_SIMPLE,
+                                                C2Config::PROFILE_MP4V_SIMPLE_SCALABLE,
+                                                C2Config::PROFILE_MP4V_MAIN,
+                                                C2Config::PROFILE_MP4V_NBIT,
+                                                C2Config::PROFILE_MP4V_ARTS}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_MP4V_0,
+                                                         C2Config::LEVEL_MP4V_0B,
+                                                         C2Config::LEVEL_MP4V_1,
+                                                         C2Config::LEVEL_MP4V_2,
+                                                         C2Config::LEVEL_MP4V_3,
+                                                         C2Config::LEVEL_MP4V_3B,
+                                                         C2Config::LEVEL_MP4V_4,
+                                                         C2Config::LEVEL_MP4V_4A,
+                                                         C2Config::LEVEL_MP4V_5})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+            break;
+        case InputCodec::MJPG:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_MJPEG);
+            addParameter(
+                    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                            .withDefault(new C2StreamProfileLevelInfo::input(
+                                    0u, C2Config::PROFILE_DV_HE_05, C2Config::LEVEL_DV_MAIN_UHD_60))
+                            .withFields(
+                                {C2F(mProfileLevel, profile)
+                                        .oneOf({C2Config::PROFILE_MP4V_SIMPLE,
+                                                C2Config::PROFILE_MP4V_SIMPLE_SCALABLE,
+                                                C2Config::PROFILE_MP4V_MAIN,
+                                                C2Config::PROFILE_MP4V_NBIT,
+                                                C2Config::PROFILE_MP4V_ARTS}),
+                                         C2F(mProfileLevel, level)
+                                                 .oneOf({C2Config::LEVEL_MP4V_0,
+                                                         C2Config::LEVEL_MP4V_0B,
+                                                         C2Config::LEVEL_MP4V_1,
+                                                         C2Config::LEVEL_MP4V_2,
+                                                         C2Config::LEVEL_MP4V_3,
+                                                         C2Config::LEVEL_MP4V_3B,
+                                                         C2Config::LEVEL_MP4V_4,
+                                                         C2Config::LEVEL_MP4V_4A,
+                                                         C2Config::LEVEL_MP4V_5})})
+                            .withSetter(ProfileLevelSetter)
+                            .build());
+            break;
+
+        default:
+            ALOGE("Invalid component name: %s", name.c_str());
+            mInitStatus = C2_BAD_VALUE;
+            return;
+
+
+    }
+
+    //HDR
+    if (mInputCodec == InputCodec::VP9 || mInputCodec == InputCodec::AV1) {
+            mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
+            addParameter(
+                    DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
+                    .withDefault(mHdr10PlusInfoInput)
+                    .withFields({
+                        C2F(mHdr10PlusInfoInput, m.value).any(),
+                    })
+                    .withSetter(Hdr10PlusInfoInputSetter)
+                    .build());
+
+            mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
+            addParameter(
+                    DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
+                    .withDefault(mHdr10PlusInfoOutput)
+                    .withFields({
+                        C2F(mHdr10PlusInfoOutput, m.value).any(),
+                    })
+                    .withSetter(Hdr10PlusInfoOutputSetter)
+                    .build());
+            // sample BT.2020 static info
+            mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
+            mHdrStaticInfo->mastering = {
+                .red   = { .x = 0.0,  .y = 0.0 },
+                .green = { .x = 0.0,  .y = 0.0 },
+                .blue  = { .x = 0.0,  .y = 0.0 },
+                .white = { .x = 0.0, .y = 0.0 },
+                .maxLuminance = 0.0,
+                .minLuminance = 0.0,
+            };
+            mHdrStaticInfo->maxCll = 0.0;
+            mHdrStaticInfo->maxFall = 0.0;
+
+            helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
+            addParameter(
+                    DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
+                    .withDefault(mHdrStaticInfo)
+                    .withFields({
+                        C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
+                        // TODO
+                    })
+                    .withSetter(HdrStaticInfoSetter)
+                    .build());
     }
 
     //out delay
@@ -347,6 +619,9 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     auto minSize = supportedProfiles[0].min_resolution;
     auto maxSize = supportedProfiles[0].max_resolution;
 
+    addParameter(DefineParam(mKind, C2_PARAMKEY_COMPONENT_KIND)
+                         .withConstValue(new C2ComponentKindSetting(C2Component::KIND_DECODER))
+                         .build());
     addParameter(
             DefineParam(mInputFormat, C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE)
                     .withConstValue(new C2StreamBufferTypeSetting::input(0u, C2BufferData::LINEAR))
@@ -2245,6 +2520,14 @@ const char* C2VDAComponent::VideoCodecProfileToMime(media::VideoCodecProfile pro
         return "video/hevc";
     } else if (profile >= media::VP9PROFILE_MIN && profile <= media::VP9PROFILE_MAX) {
         return "video/x-vnd.on2.vp9";
+    } else if (profile >= media::AV1PROFILE_MIN && profile <= media::AV1PROFILE_MAX) {
+        return "video/av01";
+    } else if (profile >= media::DOLBYVISION_MIN && profile <= media::DOLBYVISION_MAX) {
+        return "video/dolby-vision";
+    } else if (profile == media::MPEG4_PROFILE) {
+        return "video/mp4v-es";
+    }  else if (profile == media::MPEG2_PROFILE) {
+        return "video/mpeg2";
     }
     return "";
 }
@@ -2288,6 +2571,13 @@ private:
          return secureMode ? new ::android::C2VDAComponentFactory(android::k##type##SecureDecoderName)\
                             :new ::android::C2VDAComponentFactory(android::k##type##DecoderName);\
     }
+#define CreateC2VDAClearFactory(type) \
+        extern "C" ::C2ComponentFactory* CreateC2VDA##type##Factory(bool secureMode) {\
+             ALOGV("create compoment %s secure:%d", #type, secureMode);\
+             UNUSED(secureMode);\
+             return new ::android::C2VDAComponentFactory(android::k##type##DecoderName);\
+        }
+
 
 #define DestroyC2VDAFactory(type) \
     extern "C" void DestroyC2VDA##type##Factory(::C2ComponentFactory* factory) {\
@@ -2297,8 +2587,27 @@ private:
 CreateC2VDAFactory(H264)
 CreateC2VDAFactory(H265)
 CreateC2VDAFactory(VP9)
+CreateC2VDAFactory(AV1)
+CreateC2VDAFactory(DVHE)
+CreateC2VDAFactory(DVAV)
+CreateC2VDAFactory(DVAV1)
+CreateC2VDAClearFactory(MP2V)
+CreateC2VDAClearFactory(MP4V)
+CreateC2VDAClearFactory(MJPG)
+
 
 DestroyC2VDAFactory(H264)
 DestroyC2VDAFactory(H265)
 DestroyC2VDAFactory(VP9)
+DestroyC2VDAFactory(AV1)
+DestroyC2VDAFactory(DVHE)
+DestroyC2VDAFactory(DVAV)
+DestroyC2VDAFactory(DVAV1)
+DestroyC2VDAFactory(MP2V)
+DestroyC2VDAFactory(MP4V)
+DestroyC2VDAFactory(MJPG)
+
+
+
+
 

@@ -29,12 +29,28 @@ namespace android {
 typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc2)(bool);
 typedef void (*DestroyCodec2FactoryFunc2)(::C2ComponentFactory*);
 
-const C2String kH264DecoderName = "c2.vda.avc.decoder";
-const C2String kH265DecoderName = "c2.vda.hevc.decoder";
-const C2String kVP9DecoderName = "c2.vda.vp9.decoder";
-const C2String kH264SecureDecoderName = "c2.vda.avc.decoder.secure";
-const C2String kH265SecureDecoderName = "c2.vda.hevc.decoder.secure";
-const C2String kVP9SecureDecoderName = "c2.vda.vp9.decoder.secure";
+const C2String kH264DecoderName = "c2.amlogic.avc.decoder";
+const C2String kH265DecoderName = "c2.amlogic.hevc.decoder";
+const C2String kVP9DecoderName = "c2.amlogic.vp9.decoder";
+const C2String kAV1DecoderName = "c2.amlogic.av1.decoder";
+const C2String kDVHEDecoderName = "c2.amlogic.dolby-vision.dvhe.decoder";
+const C2String kDVAVDecoderName = "c2.amlogic.dolby-vision.dvav.decoder";
+const C2String kDVAV1DecoderName = "c2.amlogic.dolby-vision.dav1.decoder";
+const C2String kMP2VDecoderName = "c2.amlogic.mpeg2.decoder";
+const C2String kMP4VDecoderName = "c2.amlogic.mpeg4.decoder";
+const C2String kMJPGDecoderName = "c2.amlogic.mjpeg.decoder";
+
+
+const C2String kH264SecureDecoderName = "c2.amlogic.avc.decoder.secure";
+const C2String kH265SecureDecoderName = "c2.amlogic.hevc.decoder.secure";
+const C2String kVP9SecureDecoderName = "c2.amlogic.vp9.decoder.secure";
+const C2String kAV1SecureDecoderName = "c2.amlogic.av1.decoder.secure";
+const C2String kDVHESecureDecoderName = "c2.amlogic.dolby-vision.dvhe.decoder.secure";
+const C2String kDVAVSecureDecoderName = "c2.amlogic.dolby-vision.dvav.decoder.secure";
+const C2String kDVAV1SecureDecoderName = "c2.amlogic.dolby-vision.dav1.decoder.secure";
+const C2String kMP2VSecureDecoderName = "c2.amlogic.mpeg2.decoder.secure";
+const C2String kMP4VSecureDecoderName = "c2.amlogic.mpeg4.decoder.secure";
+
 const C2String kCompomentLoadLibray = "libcodec2_aml.so";
 
 enum class C2VDACodec {
@@ -42,6 +58,13 @@ enum class C2VDACodec {
     H264,
     H265,
     VP9,
+    AV1,
+    DVHE,
+    DVAV,
+    DVAV1,
+    MP2V,
+    MP4V,
+    MJPG,
 };
 
 struct C2DecoderCompoment {
@@ -53,6 +76,13 @@ static C2DecoderCompoment gC2DecoderCompoments [] = {
     {kH264DecoderName, C2VDACodec::H264},
     {kH265DecoderName, C2VDACodec::H265},
     {kVP9DecoderName, C2VDACodec::VP9},
+    {kAV1DecoderName, C2VDACodec::AV1},
+    {kDVHEDecoderName, C2VDACodec::DVHE},
+    {kDVAVDecoderName, C2VDACodec::DVAV},
+    {kDVAV1DecoderName, C2VDACodec::DVAV1},
+    {kMP2VDecoderName, C2VDACodec::MP2V},
+    {kMP4VDecoderName, C2VDACodec::MP4V},
+    {kMJPGDecoderName, C2VDACodec::MJPG},
 };
 
 class C2VDAComponentStore : public C2ComponentStore {
@@ -214,21 +244,46 @@ c2_status_t C2VDAComponentStore::ComponentModule::init(std::string libPath, C2VD
         std::string createFactoryName;
         std::string destroyFactoryName;
         switch (codec) {
-        case C2VDACodec::H264:
-            createFactoryName = "CreateC2VDAH264Factory";
-            destroyFactoryName = "DestroyC2VDAH264Factory";
-            break;
-		case C2VDACodec::H265:
-			createFactoryName = "CreateC2VDAH265Factory";
-            destroyFactoryName = "DestroyC2VDAH265Factory";
-			break;
-        case C2VDACodec::VP9:
-            createFactoryName = "CreateC2VDAVP9Factory";
-            destroyFactoryName = "DestroyC2VDAVP9Factory";
-            break;
-        default:
-            ALOGE("Unknown ");
-            return C2_CORRUPTED;
+          case C2VDACodec::H264:
+              createFactoryName = "CreateC2VDAH264Factory";
+              destroyFactoryName = "DestroyC2VDAH264Factory";
+              break;
+          case C2VDACodec::H265:
+              createFactoryName = "CreateC2VDAH265Factory";
+              destroyFactoryName = "DestroyC2VDAH265Factory";
+              break;
+          case C2VDACodec::VP9:
+              createFactoryName = "CreateC2VDAVP9Factory";
+              destroyFactoryName = "DestroyC2VDAVP9Factory";
+              break;
+          case C2VDACodec::AV1:
+              createFactoryName = "CreateC2VDAAV1Factory";
+              destroyFactoryName = "DestroyC2VDAAV1Factory";
+              break;
+          case C2VDACodec::DVHE:
+              createFactoryName = "CreateC2VDADVHEFactory";
+              destroyFactoryName = "DestroyC2VDADVHEFactory";
+              break;
+          case C2VDACodec::DVAV:
+              createFactoryName = "CreateC2VDADVAVFactory";
+              destroyFactoryName = "DestroyC2VDADVAVFactory";
+              break;
+          case C2VDACodec::DVAV1:
+              createFactoryName = "CreateC2VDADVAV1Factory";
+              destroyFactoryName = "DestroyC2VDADVAV1Factory";
+              break;
+          case C2VDACodec::MP2V:
+              createFactoryName = "CreateC2VDAMP2VFactory";
+              destroyFactoryName = "DestroyC2VDAMP2VFactory";
+              break;
+          case C2VDACodec::MP4V:
+              createFactoryName = "CreateC2VDAMP4VFactory";
+              destroyFactoryName = "DestroyC2VDAMP4VFactory";
+              break;
+
+          default:
+              ALOGE("Unknown codec:%d", codec);
+              return C2_CORRUPTED;
         }
         createFactory = (CreateCodec2FactoryFunc2)dlsym(
                 mLibHandle, createFactoryName.c_str());

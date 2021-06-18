@@ -98,7 +98,8 @@ C2VdaBqBlockPool::C2VdaBqBlockPool(std::shared_ptr<C2AllocatorGralloc> allocator
       : C2BufferQueueBlockPool(sAllocatorDummy, localId),
         mAllocator(allocator),
         mLocalId(localId),
-        mMaxDequeuedBuffers(0u) {
+        mMaxDequeuedBuffers(0u),
+        mConsumerUsage(0) {
     ALOGI("C2VdaBqBlockPool mAllocator.use_count() %ld\n", mAllocator.use_count());
 }
 
@@ -374,6 +375,20 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer>& produ
         mProducerId = 0;
     }
 }
+void C2VdaBqBlockPool::configureProducer(
+            const android::sp<HGraphicBufferProducer> &producer,
+            native_handle_t *syncMemory,
+            uint64_t bqId,
+            uint32_t generationId,
+            uint64_t consumerUsage) {
+    (void) syncMemory;
+    (void) bqId;
+    (void) generationId;
+    ALOGI("configureProducer consumerUsage:%llx\n", consumerUsage);
+    mConsumerUsage = consumerUsage;
+    configureProducer(producer);
+}
+
 
 c2_status_t C2VdaBqBlockPool::cancelAllBuffers() {
     ALOGI("cancelAllBuffers mAllocator.use_count() %ld\n", mAllocator.use_count());
@@ -437,6 +452,11 @@ int64_t C2VdaBqBlockPool::getSurfaceUsage() {
         ALOGI("no producer, fetch error\n");
         return 0;
     }
+    if (mConsumerUsage != 0) {
+        ALOGI("getSurfaceUsage, mConsumerUsage:%llx\n", mConsumerUsage);
+        return mConsumerUsage;
+    }
+
     uint32_t width = 64;
     uint32_t height = 64;
     uint32_t format = 0x11;//HalPixelFormat::YCRCB_420_SP;

@@ -88,24 +88,77 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
             mConfigParam->cfg.double_write_mode = doubleWriteMode;
             mConfigParam->cfg.canvas_mem_endian = 0;
             mConfigParam->cfg.low_latency_mode = 0;
+            mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
             mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-    } else if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-            mConfigParam->cfg.init_height = bufwidth;
-            mConfigParam->cfg.init_width = bufheight;
-            mConfigParam->cfg.ref_buf_margin = margin;
-            mConfigParam->cfg.double_write_mode = doubleWriteMode;
-            mConfigParam->cfg.canvas_mem_endian = 0;
-            mConfigParam->cfg.low_latency_mode = 0;
-            mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-            setHDRStaticInfo();
-    } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
-            mConfigParam->cfg.init_height = bufwidth;
-            mConfigParam->cfg.init_width = bufheight;
-            mConfigParam->cfg.ref_buf_margin = margin;
-            mConfigParam->cfg.double_write_mode = doubleWriteMode;
-            mConfigParam->cfg.canvas_mem_endian = 0;
-            mConfigParam->cfg.low_latency_mode = 0;
-            mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+
+        } else if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+                setHDRStaticInfo();
+        } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::AV1) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+                setHDRStaticInfo();
+        } else if (mIntfImpl->getInputCodec() == InputCodec::DVHE) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV1) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::MP2V) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::MP4V) {
+                mConfigParam->cfg.init_height = bufwidth;
+                mConfigParam->cfg.init_width = bufheight;
+                mConfigParam->cfg.ref_buf_margin = margin;
+                mConfigParam->cfg.double_write_mode = doubleWriteMode;
+                mConfigParam->cfg.canvas_mem_endian = 0;
+                mConfigParam->cfg.low_latency_mode = 0;
+                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         }
     }
 }

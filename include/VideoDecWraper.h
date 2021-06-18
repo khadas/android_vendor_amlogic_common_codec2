@@ -66,6 +66,8 @@ public:
                 int32_t width, uint32_t height);
     virtual void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
                 uint32_t width, uint32_t height);
+    virtual void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
+            uint32_t width, uint32_t height, int32_t flags);
     virtual void onInputBufferDone(int32_t bitstream_buffer_id);
     virtual void onUserdataReady(const uint8_t* userdata, uint32_t usize);
     virtual void onUpdateDecInfo(const uint8_t* info, uint32_t isize);
@@ -79,6 +81,23 @@ private:
     VideoDecWraperCallback* mDecoderCallback;
 };
 
+enum {
+    /* metadata_config_flag */
+    VDEC_CFG_FLAG_DV_TWOLARYER = (1<<0),
+    VDEC_CFG_FLAG_DV_NEGATIVE  = (1<<1),
+    VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE = (1<<14),
+    VDEC_CFG_FLAG_NR_ENABLE    = (1<<15),
+    VDEC_CFG_FLAG_PROG_ONLY    = (1<<16),
+};
+
+enum {
+    /* low_latency_mode */
+    LOWLATENCY_DISABALE,
+    LOWLATENCY_NORMAL  = (1 << 0),
+    LOWLATENCY_FENCE = (1 << 1),
+};
+
+
 struct aml_vdec_cfg_infos {
     uint32_t double_write_mode;
     uint32_t init_width;
@@ -88,6 +107,10 @@ struct aml_vdec_cfg_infos {
     uint32_t canvas_mem_endian;
     uint32_t low_latency_mode;
     uint32_t uvm_hook_type;
+    uint32_t metadata_config_flag;
+    uint32_t duration;
+    uint32_t data[4];
+
 };
 struct aml_vdec_ps_infos {
     uint32_t visible_width;
@@ -99,7 +122,10 @@ struct aml_vdec_ps_infos {
     uint32_t mb_height;
     uint32_t dpb_size;
     uint32_t ref_frames;
-    uint32_t reorder_frames;
+    uint32_t dpb_frames;
+    uint32_t dpb_margin;
+    uint32_t field;
+    uint32_t data[3];
 };
 
 struct aml_vdec_cnt_infos {

@@ -23,10 +23,19 @@ enum class HalPixelFormat : uint32_t {
     NV21 = 0x3132564e,
 };
 
+
 enum class InputCodec {
     H264,
     H265,
     VP9,
+    AV1,
+    DVHE,
+    DVAV,
+    DVAV1,
+    MP2V,
+    MP4V,
+    MJPG,
+    UNKNOWN = 0xff,
 };
 
 // The offset and stride of a video frame plane.

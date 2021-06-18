@@ -266,6 +266,15 @@ void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     }
 
 }
+void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
+            uint32_t width, uint32_t height, int32_t flags) {
+    (void)flags;
+    //ALOGD("pictureReady:pictureBufferId:%d bitstreamId:%d mDecoderCallback:%p", pictureBufferId, bitstreamId, mDecoderCallback);
+    if (mDecoderCallback) {
+        mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height);
+    }
+
+}
 void VideoDecWraper::onInputBufferDone(int32_t bitstream_buffer_id) {
     //ALOGD("notifyEndOfBitstreamBuffer:bitstream_buffer_id:%d", bitstream_buffer_id);
 

@@ -70,6 +70,8 @@ public:
         static C2R Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::output> &me);
         static C2R HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me);
 
+        // The kind of the component; should be C2Component::KIND_ENCODER.
+          std::shared_ptr<C2ComponentKindSetting> mKind;
         // The input format kind; should be C2FormatCompressed.
         std::shared_ptr<C2StreamBufferTypeSetting::input> mInputFormat;
         // The output format kind; should be C2FormatVideo.
