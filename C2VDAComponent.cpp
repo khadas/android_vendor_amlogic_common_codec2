@@ -33,7 +33,10 @@
 
 #include <android/hardware/graphics/common/1.0/types.h>
 #include <cutils/native_handle.h>
+
+
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Log.h>
@@ -857,7 +860,7 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
     CHECK_EQ(mComponentState, ComponentState::UNINITIALIZED);
 
     mVideoDecWraper = new VideoDecWraper();
-    mMetaDataUtil =  std::make_shared<MetaDataUtil>(this);
+    mMetaDataUtil =  std::make_shared<MetaDataUtil>(this, mSecureMode);
     mMetaDataUtil->codecConfig(&mConfigParam);
     mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
             (uint8_t*)&mConfigParam, sizeof(mConfigParam), false, this);
@@ -1003,8 +1006,10 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
     }
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
-    if (block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
-        block->height() != static_cast<uint32_t>(mOutputFormat.mCodedSize.height())) {
+    if ((block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
+        block->height() != static_cast<uint32_t>(mOutputFormat.mCodedSize.height())) &&
+        (block->width() != align(static_cast<uint32_t>(mOutputFormat.mCodedSize.width()), 64) ||
+        block->height() != align(static_cast<uint32_t>(mOutputFormat.mCodedSize.height()), 64))){
         // Output buffer is returned after we changed output resolution. Just let the buffer be
         // released.
         ALOGV("Discard obsolete graphic block: pool id=%u", poolId);
@@ -1642,14 +1647,15 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
     }
     ALOGV("Minimum undequeued buffer count = %zu", minBuffersForDisplay);
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
+    uint64_t platformUsage = mMetaDataUtil->getPlatformUsage();
+    C2MemoryUsage usage = {
+            mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
+            (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
+
+    ALOGV("usage %llx", usage.expected);
 
     for (size_t i = 0; i < bufferCount; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
-        C2MemoryUsage usage = {
-                mSecureMode ? C2MemoryUsage::READ_PROTECTED :
-                    am_gralloc_get_omx_osd_producer_usage(),
-                    //am_gralloc_get_omx_metadata_producer_usage(),
-                static_cast<uint64_t>(BufferUsage::VIDEO_DECODER)};
 
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
@@ -1801,7 +1807,7 @@ void C2VDAComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool 
                native_handle_t* grallocHandle = android::UnwrapNativeCodec2GrallocHandle(info->mGraphicBlock->handle());
                sp<GraphicBuffer> buf = new GraphicBuffer(grallocHandle, GraphicBuffer::CLONE_HANDLE, width,
                        height, format, 1, usage, stride);
-                ALOGI("wsl usage:%llx", buf->getUsage());
+                ALOGI("wsl usage:%llx, width:%d, height:%d", buf->getUsage(), width, height);
                 native_handle_delete(grallocHandle);
            }
         }
@@ -2455,6 +2461,11 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                                        std::shared_ptr<C2BlockPool> blockPool) {
     ALOGV("dequeueThreadLoop starts");
     DCHECK(mDequeueThread.task_runner()->BelongsToCurrentThread());
+    uint64_t platformUsage = mMetaDataUtil->getPlatformUsage();
+    C2MemoryUsage usage = {
+            mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
+            (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
+    ALOGV("usage %llx", usage.expected);
 
     while (!mDequeueLoopStop.load()) {
         if (mBuffersInClient.load() == 0) {
@@ -2463,11 +2474,6 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
         }
 
         std::shared_ptr<C2GraphicBlock> block;
-        C2MemoryUsage usage = {
-                mSecureMode ? C2MemoryUsage::READ_PROTECTED :
-                    am_gralloc_get_omx_osd_producer_usage(),
-                    //am_gralloc_get_omx_metadata_producer_usage(),
-                static_cast<uint64_t>(BufferUsage::VIDEO_DECODER)};
         auto err = blockPool->fetchGraphicBlock(size.width(), size.height(), pixelFormat, usage,
                                                 &block);
         if (err == C2_TIMED_OUT) {

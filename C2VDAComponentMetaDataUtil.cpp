@@ -36,9 +36,32 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     bufheight = output.height;
     ALOGI("configure width:%d height:%d", output.width, output.height);
 
-    if (mUseSurfaceTexture) {
-        doubleWriteMode = 1;
-        ALOGI("surface texture use dw 1");
+    switch (mIntfImpl->getInputCodec())
+    {
+        case InputCodec::H264:
+            if (mSecure)
+                doubleWriteMode = 0x10;
+            else
+                doubleWriteMode = 1;
+            break;
+        case InputCodec::MP2V:
+        case InputCodec::MP4V:
+        case InputCodec::MJPG:
+            doubleWriteMode = 1;
+            break;
+        case InputCodec::H265:
+        case InputCodec::VP9:
+        case InputCodec::AV1:
+            if (mUseSurfaceTexture) {
+                doubleWriteMode = 1;
+                ALOGI("surface texture use dw 1");
+            } else {
+                doubleWriteMode = 3;
+            }
+            break;
+        default:
+            doubleWriteMode = 3;
+            break;
     }
 
     if (bufwidth * bufheight > 4096 * 2304) {
@@ -353,12 +376,42 @@ int C2VDAComponent::MetaDataUtil::getVideoType() {
     if (mConfigParam->cfg.double_write_mode == 0 ||
         mConfigParam->cfg.double_write_mode == 3) {
         if (mIntfImpl->getInputCodec() == InputCodec::VP9 ||
-            mIntfImpl->getInputCodec() == InputCodec::H265) {
+            mIntfImpl->getInputCodec() == InputCodec::H265 ||
+            mIntfImpl->getInputCodec() == InputCodec::AV1) {
             videotype |= AM_VIDEO_AFBC;
         }
     }
 
     return videotype;
+}
+
+
+uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
+    uint64_t usage = am_gralloc_get_video_decoder_full_buffer_usage();
+
+    if (mUseSurfaceTexture) {
+        usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
+    } else {
+        switch (mIntfImpl->getInputCodec())
+        {
+            case InputCodec::H264:
+            case InputCodec::MP2V:
+            case InputCodec::MP4V:
+            case InputCodec::MJPG:
+                usage = am_gralloc_get_video_decoder_full_buffer_usage();
+                break;
+            case InputCodec::H265:
+            case InputCodec::VP9:
+            case InputCodec::AV1:
+                usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+                break;
+            default:
+                usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+                break;
+        }
+    }
+
+    return usage & C2MemoryUsage::PLATFORM_MASK;
 }
 
 

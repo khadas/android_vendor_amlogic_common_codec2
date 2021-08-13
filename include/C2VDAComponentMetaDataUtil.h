@@ -16,11 +16,12 @@
 namespace android {
 class C2VDAComponent::MetaDataUtil {
 public:
-    MetaDataUtil(C2VDAComponent* comp):
+    MetaDataUtil(C2VDAComponent* comp, bool secure):
         mComp(comp),
         mUseSurfaceTexture(false),
-        mHDRStaticInfoChanged(false) {
-            mIntfImpl = mComp->GetIntfImpl();
+        mHDRStaticInfoChanged(false),
+        mSecure(secure) {
+        mIntfImpl = mComp->GetIntfImpl();
     }
     virtual ~MetaDataUtil() {}
 
@@ -39,6 +40,7 @@ public:
         return false;
     }
     //int check_color_aspects();
+    uint64_t getPlatformUsage();
 
 private:
     /* set hdr static to decoder */
@@ -52,6 +54,7 @@ private:
     C2VDAComponent* mComp;
     bool mUseSurfaceTexture;
     bool mHDRStaticInfoChanged;
+    bool mSecure;
     std::mutex mMutex;
 };
 
