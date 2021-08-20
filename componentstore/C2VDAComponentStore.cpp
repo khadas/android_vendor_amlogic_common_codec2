@@ -24,6 +24,10 @@
         (void)(expr); \
     } while (0)
 
+#define ION_POOL_CMA_MASK                   (1 << 16)
+#define ION_FLAG_EXTEND_MESON_HEAP          (1 << 30)
+#define ION_FLAG_EXTEND_PROTECTED           (1 << 31)
+
 namespace android {
 
 typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc2)(bool);
@@ -74,12 +78,19 @@ struct C2DecoderCompoment {
 
 static C2DecoderCompoment gC2DecoderCompoments [] = {
     {kH264DecoderName, C2VDACodec::H264},
+    {kH264SecureDecoderName, C2VDACodec::H264},
     {kH265DecoderName, C2VDACodec::H265},
+    {kH265SecureDecoderName, C2VDACodec::H265},
     {kVP9DecoderName, C2VDACodec::VP9},
+    {kVP9SecureDecoderName, C2VDACodec::VP9},
     {kAV1DecoderName, C2VDACodec::AV1},
+    {kAV1SecureDecoderName, C2VDACodec::AV1},
     {kDVHEDecoderName, C2VDACodec::DVHE},
+    {kDVHESecureDecoderName, C2VDACodec::DVHE},
     {kDVAVDecoderName, C2VDACodec::DVAV},
+    {kDVAVSecureDecoderName, C2VDACodec::DVAV},
     {kDVAV1DecoderName, C2VDACodec::DVAV1},
+    {kDVAV1SecureDecoderName, C2VDACodec::DVAV1},
     {kMP2VDecoderName, C2VDACodec::MP2V},
     {kMP4VDecoderName, C2VDACodec::MP4V},
     {kMJPGDecoderName, C2VDACodec::MJPG},
@@ -194,8 +205,15 @@ private:
             setDerivedInstance(this);
             struct Setter {
                 static C2R setIonUsage(bool /* mayBlock */, C2P<C2StoreIonUsageInfo> &me) {
-                    me.set().heapMask = ~(1<<5);
-                    me.set().allocFlags = 0;
+                    ALOGI("setIonUsage %lld %d", me.get().usage, me.get().capacity);
+                    if (me.get().usage & C2MemoryUsage::READ_PROTECTED) {
+                        me.set().heapMask = ION_POOL_CMA_MASK;
+                        me.set().allocFlags = ION_FLAG_EXTEND_MESON_HEAP | ION_FLAG_EXTEND_PROTECTED;
+                    } else {
+                        me.set().heapMask = ~(1<<5);
+                        me.set().allocFlags = 0;
+                    }
+
                     me.set().minAlignment = 0;
                     return C2R::Ok();
                 }
@@ -394,8 +412,11 @@ C2VDAComponentStore::C2VDAComponentStore()
       mInterface(mReflector) {
     // TODO: move this also into a .so so it can be updated
     bool supportc2 = property_get_bool("vendor.media.codec2.support", false);
+    bool disablec2secure = property_get_bool("vendor.media.codec2.disable_secure", true);
     if (supportc2) {
         for (int i = 0; i < sizeof(gC2DecoderCompoments) / sizeof(C2DecoderCompoment); i++) {
+            if (disablec2secure && strstr(gC2DecoderCompoments[i].compname.c_str(), (const char *)".secure"))
+                continue;
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2DecoderCompoments[i].compname),
                     std::forward_as_tuple(kCompomentLoadLibray, gC2DecoderCompoments[i].codec));
         }
@@ -453,7 +474,7 @@ c2_status_t C2VDAComponentStore::createComponent(C2String name,
     bool secure = name.find(".secure") != std::string::npos;
     if (res == C2_OK) {
         std::shared_ptr<ComponentModule> module;
-    ALOGI("C2VDAComponentStore::createComponent fetchModule\n");
+        ALOGI("C2VDAComponentStore::createComponent fetchModule\n");
         res = loader->fetchModule(&module, secure);
         if (res == C2_OK) {
             // TODO: get a unique node ID

@@ -175,7 +175,7 @@ static C2CompomentInputCodec gC2CompomentInputCodec [] = {
     {kH264DecoderName, InputCodec::H264},
     {kH264SecureDecoderName, InputCodec::H264},
     {kH265DecoderName, InputCodec::H265},
-    {kH265DecoderName, InputCodec::H265},
+    {kH265SecureDecoderName, InputCodec::H265},
     {kVP9DecoderName, InputCodec::VP9},
     {kVP9SecureDecoderName, InputCodec::VP9},
     {kAV1DecoderName, InputCodec::AV1},
@@ -683,14 +683,11 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                          .calculatedAs(LocalCalculator::MaxSizeCalculator, mSize)
                          .build());
 
-    bool secureMode = name.find(".secure") != std::string::npos;
-    C2Allocator::id_t inputAllocators[] = {secureMode ? C2VDAAllocatorStore::SECURE_LINEAR
-                                                      : C2PlatformAllocatorStore::ION};//C2PlatformAllocatorStore::BLOB};
+    C2Allocator::id_t inputAllocators[] = { C2PlatformAllocatorStore::ION };
 
     C2Allocator::id_t outputAllocators[] = {C2VDAAllocatorStore::V4L2_BUFFERPOOL};
 
-    C2Allocator::id_t surfaceAllocator = secureMode ? C2VDAAllocatorStore::SECURE_GRAPHIC
-                                                    : C2VDAAllocatorStore::V4L2_BUFFERQUEUE;
+    C2Allocator::id_t surfaceAllocator = C2VDAAllocatorStore::V4L2_BUFFERQUEUE;
 
     addParameter(
             DefineParam(mInputAllocatorIds, C2_PARAMKEY_INPUT_ALLOCATORS)
@@ -863,7 +860,7 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
     mMetaDataUtil =  std::make_shared<MetaDataUtil>(this, mSecureMode);
     mMetaDataUtil->codecConfig(&mConfigParam);
     mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
-            (uint8_t*)&mConfigParam, sizeof(mConfigParam), false, this);
+            (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this);
     if (mVDAInitResult == VideoDecodeAcceleratorAdaptor::Result::SUCCESS) {
         mComponentState = ComponentState::STARTED;
         mHasError = false;
@@ -886,6 +883,7 @@ void C2VDAComponent::onQueueWork(std::unique_ptr<C2Work> work) {
 
     uint32_t drainMode = NO_DRAIN;
     if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
+        ALOGV("input EOS");
         drainMode = DRAIN_COMPONENT_WITH_EOS;
     }
     mQueue.push({std::move(work), drainMode});
@@ -1122,7 +1120,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             //MarkBlockPoolDataAsShared(constBlock);
             {
                 //for dump
-                if (mDumpYuvFp) {
+                if (mDumpYuvFp && !mSecureMode) {
                     const C2GraphicView& view = constBlock.map().get();
                     const uint8_t* const* data = view.data();
                     int size = info->mGraphicBlock->width() * info->mGraphicBlock->height() * 3 / 2;
@@ -1331,6 +1329,7 @@ void C2VDAComponent::onStopDone() {
     mPendingBuffersToWork.clear();
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
+        delete mVideoDecWraper;
         mVideoDecWraper = NULL;
         mMetaDataUtil.reset();
     }
@@ -1363,7 +1362,7 @@ c2_status_t C2VDAComponent::setListener_vb(const std::shared_ptr<C2Component::Li
 
 void C2VDAComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& input,
                                                   int32_t bitstreamId, uint64_t timestamp, int32_t flags) {
-    UNUSED(flags);
+    //UNUSED(flags);
     ALOGV("sendInputBufferToAccelerator");
     int dupFd = dup(input.handle()->data[0]);
     if (dupFd < 0) {
@@ -1372,8 +1371,8 @@ void C2VDAComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inpu
         reportError(C2_CORRUPTED);
         return;
     }
-    ALOGV("Decode bitstream ID: %d, offset: %u size: %u", bitstreamId, input.offset(),
-          input.size());
+    ALOGV("Decode bitstream ID: %d, offset: %u size: %u flags 0x%x", bitstreamId, input.offset(),
+          input.size(), flags);
     mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp);
 }
 
@@ -1696,11 +1695,7 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
             // Allocate the output buffers.
             mVideoDecWraper->assignPictureBuffers(bufferCount);
         }
-        if (mSecureMode) {
-            appendSecureOutputBuffer(std::move(block), poolId);
-        } else {
-            appendOutputBuffer(std::move(block), poolId);
-        }
+        appendOutputBuffer(std::move(block), poolId);
     }
 
     mOutputFormat.mMinNumBuffers = bufferCount;
@@ -1728,48 +1723,6 @@ void C2VDAComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, u
     ALOGV("%s graphicblock: %p,blockid: %d, size: %dx%d bind %d->%d", __func__, info.mGraphicBlock->handle(),
         info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), info.mPoolId, info.mBlockId);
     mGraphicBlocks.push_back(std::move(info));
-}
-
-void C2VDAComponent::appendSecureOutputBuffer(std::shared_ptr<C2GraphicBlock> block,
-                                              uint32_t poolId) {
-#ifdef V4L2_CODEC2_ARC
-    android::HalPixelFormat pixelFormat = getPlatformPixelFormat();
-    if (pixelFormat == android::HalPixelFormat::UNKNOWN) {
-        ALOGE("Failed to get pixel format on platform.");
-        reportError(C2_CORRUPTED);
-        return;
-    }
-    CHECK(pixelFormat == android::HalPixelFormat::YV12 ||
-          pixelFormat == android::HalPixelFormat::NV12);
-    ALOGV("HAL pixel format: 0x%x", static_cast<uint32_t>(pixelFormat));
-
-    std::vector<::base::ScopedFD> fds;
-    const C2Handle* const handle = block->handle();
-    /*for (int i = 0; i < handle->numFds; i++) {
-        fds.emplace_back(dup(handle->data[i]));
-        if (!fds.back().is_valid()) {
-            ALOGE("Failed to dup(%d), errno=%d", handle->data[i], errno);
-            reportError(C2_CORRUPTED);
-            return;
-        }
-    }*/
-
-    GraphicBlockInfo info;
-    info.mBlockId = static_cast<int32_t>(mGraphicBlocks.size());
-    info.mGraphicBlock = std::move(block);
-    info.mPoolId = poolId;
-    info.mPixelFormat = pixelFormat;
-    info.mFd = handle->data[0];
-    info.mFdHaveSet = false;
-    //info.mHandles = std::move(fds);
-
-    // In secure mode, since planes are not referred in Chrome side, empty plane is valid.
-    info.mPlanes.clear();
-    mGraphicBlocks.push_back(std::move(info));
-#else
-    ALOGE("appendSecureOutputBuffer() is not supported...");
-    reportError(C2_OMITTED);
-#endif // V4L2_CODEC2_ARC
 }
 
 void C2VDAComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool ownByAccelerator) {
@@ -2057,7 +2010,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
             mMetaDataUtil->setUseSurfaceTexture(usersurfacetexture);
             mMetaDataUtil->codecConfig(&mConfigParam);
             mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                      (uint8_t*)&mConfigParam, sizeof(mConfigParam), false, this);
+                      (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this);
         }
     }
     mSurfaceUsageGeted = true;
@@ -2067,7 +2020,7 @@ c2_status_t C2VDAComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const i
     if (mState.load() != State::RUNNING) {
         return C2_BAD_STATE;
     }
-    if (!mSurfaceUsageGeted) {
+    if (!mSurfaceUsageGeted && !mSecureMode) {
         checkVideoDecReconfig();
     }
 
