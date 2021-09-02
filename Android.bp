@@ -1,10 +1,34 @@
+bootstrap_go_package {
+    name: "c2_aml",
+    pkgPath: "android/soong/c2_aml",
+    deps: [
+        "blueprint",
+        "soong",
+        "soong-android",
+        "soong-cc",
+        "soong-genrule",
+        "blueprint-bootstrap",
+        "soong-cc-config"
+    ],
+    srcs: [
+        "c2_aml.go",
+    ],
+
+    pluginFor: ["soong_build"],
+}
+
+c2_aml_defaults {
+    name: "c2_aml_defaults",
+}
+
 cc_library_shared {
     name: "libcodec2_aml",
-          defaults: [
-          "libchrome-defaults",
-          "libcodec2-impl-defaults",
-          ],
-          vendor: true,
+    defaults: [
+        "libchrome-defaults",
+        "libcodec2-impl-defaults",
+        "c2_aml_defaults"
+    ],
+    vendor: true,
 
     srcs: [
         "C2VDAComponent.cpp",

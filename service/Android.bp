@@ -39,6 +39,7 @@ cc_binary {
     defaults: [
         "hidl_defaults",
         "libcodec2-hidl-defaults",
+        "c2_aml_defaults",
     ],
     header_libs:[
         "libcodec2_headers",

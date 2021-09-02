@@ -40,6 +40,29 @@ static constexpr char kBaseSeccompPolicyPath[] =
 static constexpr char kExtSeccompPolicyPath[] =
         "/vendor/etc/seccomp_policy/android.hardware.amlogic.media.c2@1.2-extended-seccomp-policy";
 
+extern "C"  void printBuildInfo() {
+#ifdef HAVE_VERSION_INFO
+    ALOGV("\n--------------------------------\n"
+            "ARCH = %s\n"
+            "Version:%s\n"
+            "%s\n"
+            "%s\n"
+            "Change-Id:%s\n"
+            "CommitID:%s\n"
+            "--------------------------------\n",
+#if defined(__aarch64__)
+            "arm64",
+#else
+            "arm",
+#endif
+#endif
+            VERSION,
+            GIT_COMMITMSG,
+            GIT_PD,
+            GIT_CHANGEID,
+            GIT_COMMITID);
+}
+
 int main(int /* argc */, char** /* argv */) {
     using namespace ::android;
     LOG(DEBUG) << "android.hardware.media.c2@1.2-service starting...";
@@ -55,6 +78,7 @@ int main(int /* argc */, char** /* argv */) {
     // contains alternating binder and hwbinder calls. (See b/35283480.)
     hardware::configureRpcThreadpool(8, true /* callerWillJoin */);
 
+    printBuildInfo();
     // Create IComponentStore service.
     {
         using namespace ::android::hardware::media::c2::V1_2;
