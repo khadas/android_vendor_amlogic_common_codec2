@@ -52,7 +52,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
         case InputCodec::H265:
         case InputCodec::VP9:
         case InputCodec::AV1:
-            if (mUseSurfaceTexture) {
+            if (mUseSurfaceTexture || mNoSurface) {
                 doubleWriteMode = 1;
                 ALOGI("surface texture use dw 1");
             } else {
@@ -389,7 +389,7 @@ int C2VDAComponent::MetaDataUtil::getVideoType() {
 uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
     uint64_t usage = am_gralloc_get_video_decoder_full_buffer_usage();
 
-    if (mUseSurfaceTexture) {
+    if (mUseSurfaceTexture || mNoSurface) {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
     } else {
         switch (mIntfImpl->getInputCodec())
@@ -413,6 +413,11 @@ uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
 
     return usage & C2MemoryUsage::PLATFORM_MASK;
 }
+
+void C2VDAComponent::MetaDataUtil::setNoSurfaceTexture(bool isNoSurface) {
+    mNoSurface = isNoSurface;
+}
+
 
 
 }

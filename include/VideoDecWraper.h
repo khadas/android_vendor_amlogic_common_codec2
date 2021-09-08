@@ -79,8 +79,9 @@ public:
 private:
     AmVideoDecBase* mAmVideoDec;
     VideoDecWraperCallback* mDecoderCallback;
-    static uint32_t mInstanceCnt;
-    static uint32_t mInstanceNum;
+    static uint32_t gInstanceCnt;
+    static uint32_t gInstanceNum;
+    uint32_t mInstanceCnt;
 };
 
 enum {

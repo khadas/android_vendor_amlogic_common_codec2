@@ -37,6 +37,8 @@
 #include <C2PlatformSupport.h>
 
 using ::android::GraphicBuffer;
+using ::android::BufferQueueDefs::NUM_BUFFER_SLOTS;
+
 
 /**
  * The BufferQueue-backed block pool design which supports to request arbitrary count of graphic
@@ -124,6 +126,7 @@ private:
 
     android::sp<HGraphicBufferProducer> mProducer;
     uint64_t mProducerId;
+    uint32_t mGeneration;
 
     // Function mutex to lock at the start of each API function call for protecting the
     // synchronization of all member variables.
@@ -135,6 +138,12 @@ private:
     size_t mMaxDequeuedBuffers;
 
     uint64_t mConsumerUsage;
+
+    android::sp<GraphicBuffer> mBuffers[NUM_BUFFER_SLOTS];
+
+    std::weak_ptr<C2BufferQueueBlockPoolData> mPoolDatas[NUM_BUFFER_SLOTS];
+
+    std::shared_ptr<C2SurfaceSyncMemory> mSyncMem;
 };
 
 #endif  // ANDROID_C2_VDA_BQ_BLOCK_POOL_H_

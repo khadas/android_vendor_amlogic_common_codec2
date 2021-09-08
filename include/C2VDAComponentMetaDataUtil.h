@@ -19,6 +19,7 @@ public:
     MetaDataUtil(C2VDAComponent* comp, bool secure):
         mComp(comp),
         mUseSurfaceTexture(false),
+        mNoSurface(false),
         mHDRStaticInfoChanged(false),
         mSecure(secure) {
         mIntfImpl = mComp->GetIntfImpl();
@@ -30,6 +31,7 @@ public:
     void updateDecParmInfo(aml_dec_params* params);
     int getVideoType();
     void setUseSurfaceTexture(bool usersftexture) { mUseSurfaceTexture = usersftexture; }
+    void setNoSurfaceTexture(bool isNoSurface);
     bool isHDRStaticInfoUpdated() {
         if (mHDRStaticInfoChanged) {
             std::lock_guard<std::mutex> lock(mMutex);
@@ -53,6 +55,7 @@ private:
     aml_dec_params* mConfigParam;
     C2VDAComponent* mComp;
     bool mUseSurfaceTexture;
+    bool mNoSurface;
     bool mHDRStaticInfoChanged;
     bool mSecure;
     std::mutex mMutex;

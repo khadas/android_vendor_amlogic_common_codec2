@@ -1310,8 +1310,26 @@ void C2VDAComponent::onFlushDone() {
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     reportAbandonedWorks();
+    while (!mPendingBuffersToWork.empty()) {
+        auto nextBuffer = mPendingBuffersToWork.front();
+        GraphicBlockInfo* info = getGraphicBlockById(nextBuffer.mBlockId);
+        if (info->mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT)
+            info->mState = GraphicBlockInfo::State::OWNED_BY_ACCELERATOR;
+        mPendingBuffersToWork.pop_front();
+    }
     mPendingBuffersToWork.clear();
     mComponentState = ComponentState::STARTED;
+
+    //after flush we need reuse the buffer which owned by accelerator
+    for (auto& info : mGraphicBlocks) {
+        ALOGV("%s index:%d,graphic block status:%d (0:comp 1:vda 2:client), count:%ld", __func__,
+                info.mBlockId, info.mState, info.mGraphicBlock.use_count());
+        if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+            ALOGE("sendOutputBufferToAccelerator ");
+            sendOutputBufferToAccelerator(&info, false);
+        }
+    }
+
 
     // Work dequeueing was stopped while component flushing. Restart it.
     mTaskRunner->PostTask(FROM_HERE,
@@ -1335,17 +1353,23 @@ void C2VDAComponent::onStopDone() {
     }
 
     stopDequeueThread();
-	for (auto& info : mGraphicBlocks) {
+    for (auto& info : mGraphicBlocks) {
         ALOGI("info.mGraphicBlock.reset()");
         info.mGraphicBlock.reset();
     }
-	ALOGI("mGraphicBlocks.clear();");
+    ALOGI("mGraphicBlocks.clear();");
     mGraphicBlocks.clear();
+
+    mBufferFirstAllocated = false;
+    mBlockPool.reset();
+    mBlockPool = NULL;
+
+    mSurfaceUsageGeted = false;
 
     mStopDoneEvent->Signal();
     mStopDoneEvent = nullptr;
     mComponentState = ComponentState::UNINITIALIZED;
-	ALOGI("onStopDone OK");
+    ALOGI("onStopDone OK");
 }
 
 c2_status_t C2VDAComponent::setListener_vb(const std::shared_ptr<C2Component::Listener>& listener,
@@ -2012,7 +2036,19 @@ void C2VDAComponent::checkVideoDecReconfig() {
             mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                       (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this);
         }
+    }else {
+        //use BUFFERPOOL, no surface
+        if (mVideoDecWraper) {
+            mVideoDecWraper->destroy();
+        } else {
+            mVideoDecWraper = new VideoDecWraper();
+        }
+        mMetaDataUtil->setNoSurfaceTexture(true);
+        mMetaDataUtil->codecConfig(&mConfigParam);
+        mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
+                  (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this);
     }
+
     mSurfaceUsageGeted = true;
 }
 
