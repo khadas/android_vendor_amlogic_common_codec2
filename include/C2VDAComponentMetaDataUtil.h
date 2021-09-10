@@ -43,7 +43,8 @@ public:
     }
     //int check_color_aspects();
     uint64_t getPlatformUsage();
-
+    uint32_t getOutAlignedSize(uint32_t size, bool forcealign = false);
+    bool getNeedReallocBuffer();
 private:
     /* set hdr static to decoder */
     int setHDRStaticInfo();

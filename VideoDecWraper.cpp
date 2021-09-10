@@ -157,8 +157,9 @@ int VideoDecWraper::initialize(
     uint8_t* config,
     uint32_t configLen,
     bool secureMode,
-    VideoDecWraperCallback* client) {
-    VDEC_LOGD("initialize:mime:%s secureMode is %d", mime, secureMode);
+    VideoDecWraperCallback* client,
+    int32_t flags) {
+    VDEC_LOGD("initialize:mime:%s secureMode is %d flags is 0x%x", mime, secureMode, flags);
     //mAmVideoDec = new AmVideoDec(this);
     if (!mAmVideoDec)
         mAmVideoDec = getAmVideoDec(this);
@@ -167,7 +168,7 @@ int VideoDecWraper::initialize(
         return -1;
     }
 
-    int ret = mAmVideoDec->initialize(mime, config, configLen, secureMode);
+    int ret = mAmVideoDec->initialize(mime, config, configLen, secureMode, true, flags);
     if (ret != 0) {
         return -1;
     }
@@ -183,11 +184,14 @@ int32_t VideoDecWraper::decode(
     uint8_t* pbuf,
     off_t offset,
     uint32_t bytesUsed,
-    uint64_t timestamp) {
-    VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld", bitstreamId, bytesUsed, timestamp);
+    uint64_t timestamp,
+    int32_t flags) {
+    VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
+        bitstreamId, bytesUsed, timestamp, flags);
 
     if (mAmVideoDec) {
-        return mAmVideoDec->queueInputBuffer(bitstreamId, pbuf, offset, bytesUsed, timestamp);
+        return mAmVideoDec->queueInputBuffer(bitstreamId, pbuf, offset, bytesUsed,
+               timestamp, flags);
     }
     return -1;
 }
@@ -197,11 +201,14 @@ int32_t VideoDecWraper::decode(
     int ashmemFd,
     off_t offset,
     uint32_t bytesUsed,
-    uint64_t timestamp) {
-    VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld", bitstreamId, bytesUsed, timestamp);
+    uint64_t timestamp,
+    int32_t flags) {
+    VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
+        bitstreamId, bytesUsed, timestamp, flags);
 
     if (mAmVideoDec) {
-        return mAmVideoDec->queueInputBuffer(bitstreamId, ashmemFd, offset, bytesUsed, timestamp);
+        return mAmVideoDec->queueInputBuffer(bitstreamId, ashmemFd, offset,
+            bytesUsed, timestamp, flags);
     }
     return -1;
 }

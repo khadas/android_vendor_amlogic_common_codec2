@@ -24,9 +24,10 @@
         (void)(expr); \
     } while (0)
 
-#define ION_POOL_CMA_MASK                   (1 << 16)
-#define ION_FLAG_EXTEND_MESON_HEAP          (1 << 30)
-#define ION_FLAG_EXTEND_PROTECTED           (1 << 31)
+#define ION_POOL_CMA_MASK                       (1 << 16)
+#define ION_FLAG_EXTEND_MESON_SECURE_VDEC_HEAP  (1 << 28)
+#define ION_FLAG_EXTEND_MESON_HEAP              (1 << 30)
+#define ION_FLAG_EXTEND_PROTECTED               (1 << 31)
 
 namespace android {
 
@@ -208,7 +209,7 @@ private:
                     ALOGI("setIonUsage %lld %d", me.get().usage, me.get().capacity);
                     if (me.get().usage & C2MemoryUsage::READ_PROTECTED) {
                         me.set().heapMask = ION_POOL_CMA_MASK;
-                        me.set().allocFlags = ION_FLAG_EXTEND_MESON_HEAP | ION_FLAG_EXTEND_PROTECTED;
+                        me.set().allocFlags = ION_FLAG_EXTEND_MESON_HEAP | ION_FLAG_EXTEND_MESON_SECURE_VDEC_HEAP;
                     } else {
                         me.set().heapMask = ~(1<<5);
                         me.set().allocFlags = 0;
@@ -411,8 +412,8 @@ C2VDAComponentStore::C2VDAComponentStore()
       mReflector(std::make_shared<C2ReflectorHelper>()),
       mInterface(mReflector) {
     // TODO: move this also into a .so so it can be updated
-    bool supportc2 = property_get_bool("vendor.media.codec2.support", false);
-    bool disablec2secure = property_get_bool("vendor.media.codec2.disable_secure", true);
+    bool supportc2 = property_get_bool("vendor.media.codec2.support", true);
+    bool disablec2secure = property_get_bool("vendor.media.codec2.disable_secure", false);
     if (supportc2) {
         for (int i = 0; i < sizeof(gC2DecoderCompoments) / sizeof(C2DecoderCompoment); i++) {
             if (disablec2secure && strstr(gC2DecoderCompoments[i].compname.c_str(), (const char *)".secure"))

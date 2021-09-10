@@ -11,6 +11,8 @@
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <am_gralloc_ext.h>
 
+#define OUTPUT_BUFS_ALIGN_SIZE (64)
+
 #define min(a, b) (((a) > (b))? (b):(a))
 
 namespace android {
@@ -418,6 +420,40 @@ void C2VDAComponent::MetaDataUtil::setNoSurfaceTexture(bool isNoSurface) {
     mNoSurface = isNoSurface;
 }
 
+uint32_t C2VDAComponent::MetaDataUtil::getOutAlignedSize(uint32_t size, bool forcealign) {
+    if ((mSecure && mIntfImpl->getInputCodec() == InputCodec::H264) || forcealign)
+        return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
+    return size;
+}
 
+bool C2VDAComponent::MetaDataUtil::getNeedReallocBuffer()
+{
+    bool realloc = true;
+    bool debugrealloc = property_get_bool("vendor.media.codec2.reallocbuf", false);
+
+    if (debugrealloc)
+        return true;
+
+    if (mUseSurfaceTexture) {
+        realloc = true;
+    } else {
+        switch (mIntfImpl->getInputCodec()) {
+            case InputCodec::H264:
+            case InputCodec::MP2V:
+            case InputCodec::MP4V:
+            case InputCodec::MJPG:
+                realloc = true;
+                break;
+            case InputCodec::H265:
+            case InputCodec::VP9:
+            case InputCodec::AV1:
+                realloc = false;
+                break;
+            default:
+                break;
+        }
+    }
+    return realloc;
+}
 
 }

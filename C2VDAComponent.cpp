@@ -860,7 +860,7 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
     mMetaDataUtil =  std::make_shared<MetaDataUtil>(this, mSecureMode);
     mMetaDataUtil->codecConfig(&mConfigParam);
     mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
-            (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this);
+            (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
     if (mVDAInitResult == VideoDecodeAcceleratorAdaptor::Result::SUCCESS) {
         mComponentState = ComponentState::STARTED;
         mHasError = false;
@@ -1006,8 +1006,8 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
 
     if ((block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
         block->height() != static_cast<uint32_t>(mOutputFormat.mCodedSize.height())) &&
-        (block->width() != align(static_cast<uint32_t>(mOutputFormat.mCodedSize.width()), 64) ||
-        block->height() != align(static_cast<uint32_t>(mOutputFormat.mCodedSize.height()), 64))){
+        (block->width() != mMetaDataUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width(), true) ||
+        block->height() != mMetaDataUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true))) {
         // Output buffer is returned after we changed output resolution. Just let the buffer be
         // released.
         ALOGV("Discard obsolete graphic block: pool id=%u", poolId);
@@ -1397,7 +1397,7 @@ void C2VDAComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inpu
     }
     ALOGV("Decode bitstream ID: %d, offset: %u size: %u flags 0x%x", bitstreamId, input.offset(),
           input.size(), flags);
-    mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp);
+    mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, flags);
 }
 
 std::deque<std::unique_ptr<C2Work>>::iterator C2VDAComponent::findPendingWorkByBitstreamId(
@@ -1684,8 +1684,9 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
         err = C2_NO_INIT;
         while (err != C2_OK) {
             ALOGI("fetchGraphicBlock IN ALLOCATOR\n");
-            err = blockPool->fetchGraphicBlock(size.width(), size.height(), pixelFormat, usage,
-                                           &block);
+            err = blockPool->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
+                                               mMetaDataUtil->getOutAlignedSize(size.height()),
+                                               pixelFormat, usage, &block);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 ALOGD("allocate buffer timeout, %d retry time(s) left...", retries_left);
                 retries_left--;
@@ -2034,7 +2035,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
             mMetaDataUtil->setUseSurfaceTexture(usersurfacetexture);
             mMetaDataUtil->codecConfig(&mConfigParam);
             mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                      (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this);
+                      (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
         }
     }else {
         //use BUFFERPOOL, no surface
@@ -2046,7 +2047,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
         mMetaDataUtil->setNoSurfaceTexture(true);
         mMetaDataUtil->codecConfig(&mConfigParam);
         mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                  (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this);
+                  (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
     }
 
     mSurfaceUsageGeted = true;
@@ -2463,8 +2464,9 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
         }
 
         std::shared_ptr<C2GraphicBlock> block;
-        auto err = blockPool->fetchGraphicBlock(size.width(), size.height(), pixelFormat, usage,
-                                                &block);
+        auto err = blockPool->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
+                                                mMetaDataUtil->getOutAlignedSize(size.height()),
+                                                pixelFormat, usage, &block);
         if (err == C2_TIMED_OUT) {
             // Mutexes often do not care for FIFO. Practically the thread who is locking the mutex
             // usually will be granted to lock again right thereafter. To make this loop not too

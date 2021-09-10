@@ -25,9 +25,9 @@ public:
     Result initialize(media::VideoCodecProfile profile, bool secureMode,
                       VideoDecodeAcceleratorAdaptor::Client* client,
                       const std::vector<uint8_t>& param,
-                      uint32_t instanceNum = 0) override;
-    void decode(int32_t bitstreamId, int handleFd, off_t offset, uint32_t bytesUsed, uint64_t timestamp);
-    void decode(int32_t bitstreamId, uint8_t* pbuf, off_t offset, uint32_t bytesUsed, uint64_t timestamp);
+                      uint32_t instanceNum = 0, int32_t flags = 0) override;
+    void decode(int32_t bitstreamId, int handleFd, off_t offset, uint32_t bytesUsed, uint64_t timestamp, int32_t flags = 0);
+    void decode(int32_t bitstreamId, uint8_t* pbuf, off_t offset, uint32_t bytesUsed, uint64_t timestamp, int32_t flags = 0);
     void assignPictureBuffers(uint32_t numOutputBuffers) override;
     void importBufferForPicture(int32_t pictureBufferId, HalPixelFormat format, int handleFd,
                                 int metaFd, const std::vector<VideoFramePlane>& planes) override;
