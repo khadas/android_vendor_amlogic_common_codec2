@@ -783,7 +783,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                          .calculatedAs(LocalCalculator::MaxSizeCalculator, mSize)
                          .build());
 
-    C2Allocator::id_t inputAllocators[] = { C2PlatformAllocatorStore::ION };
+    C2Allocator::id_t inputAllocators[] = { C2PlatformAllocatorStore::DMABUFHEAP };
 
     C2Allocator::id_t outputAllocators[] = {C2VDAAllocatorStore::V4L2_BUFFERPOOL};
 

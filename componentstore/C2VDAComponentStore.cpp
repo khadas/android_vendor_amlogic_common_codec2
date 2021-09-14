@@ -200,6 +200,7 @@ private:
 
     struct Interface : public C2InterfaceHelper {
         std::shared_ptr<C2StoreIonUsageInfo> mIonUsageInfo;
+        std::shared_ptr<C2StoreDmaBufUsageInfo> mDmaBufUsageInfo;
 
         Interface(std::shared_ptr<C2ReflectorHelper> reflector)
             : C2InterfaceHelper(reflector) {
@@ -218,6 +219,17 @@ private:
                     me.set().minAlignment = 0;
                     return C2R::Ok();
                 }
+
+                static C2R setDmaBufUsage(bool /* mayBlock */, C2P<C2StoreDmaBufUsageInfo> &me) {
+                    long long usage = (long long)me.get().m.usage;
+                    ALOGI("setDmaBufUsage %lld", usage);
+                    if (usage & C2MemoryUsage::READ_PROTECTED)
+                        strncpy(me.set().m.heapName, "system-secure-uncached", me.v.flexCount());
+                    else
+                        strncpy(me.set().m.heapName, "system-uncached", me.v.flexCount());
+                    me.set().m.allocFlags = 0;
+                    return C2R::Ok();
+                };
             };
 
             addParameter(
@@ -231,6 +243,18 @@ private:
                     C2F(mIonUsageInfo, minAlignment).equalTo(0)
                 })
                 .withSetter(Setter::setIonUsage)
+                .build());
+
+            addParameter(
+                DefineParam(mDmaBufUsageInfo, "dmabuf-usage")
+                .withDefault(C2StoreDmaBufUsageInfo::AllocShared(0))
+                .withFields({
+                    C2F(mDmaBufUsageInfo, m.usage).flags({C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE}),
+                    C2F(mDmaBufUsageInfo, m.capacity).inRange(0, UINT32_MAX, 1024),
+                    C2F(mDmaBufUsageInfo, m.allocFlags).flags({}),
+                    C2F(mDmaBufUsageInfo, m.heapName).any(),
+                })
+                .withSetter(Setter::setDmaBufUsage)
                 .build());
         }
     };
