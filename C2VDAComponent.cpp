@@ -819,7 +819,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mUseBufferQueue(false),
         mBufferFirstAllocated(false),
         mResChStat(C2_RESOLUTION_CHANGE_NONE),
-        mSurfaceUsageGeted(false) {
+        mSurfaceUsageGeted(false),
+        mVDAComponentStopDone(false) {
    // TODO(johnylin): the client may need to know if init is failed.
     if (mIntfImpl->status() != C2_OK) {
         ALOGE("Component interface init failed (err code = %d)", mIntfImpl->status());
@@ -2054,6 +2055,7 @@ c2_status_t C2VDAComponent::start() {
         return c2Status;
     }
     mState.store(State::RUNNING);
+    mVDAComponentStopDone = false;
     return C2_OK;
 }
 
@@ -2061,6 +2063,10 @@ c2_status_t C2VDAComponent::start() {
 c2_status_t C2VDAComponent::stop() {
     // Use mStartStopLock to block other asynchronously start/stop calls.
     std::lock_guard<std::mutex> lock(mStartStopLock);
+
+    if (mVDAComponentStopDone) {
+        return C2_CANNOT_DO;
+    }
 
     auto state = mState.load();
     if (!(state == State::RUNNING || state == State::ERROR)) {
@@ -2073,10 +2079,12 @@ c2_status_t C2VDAComponent::stop() {
                           ::base::Bind(&C2VDAComponent::onStop, ::base::Unretained(this), &done));
     done.Wait();
     mState.store(State::LOADED);
+    mVDAComponentStopDone = true;
     return C2_OK;
 }
 
 c2_status_t C2VDAComponent::reset() {
+    mVDAComponentStopDone = false;
     return stop();
     // TODO(johnylin): reset is different than stop that it could be called in any state.
     // TODO(johnylin): when reset is called, set ComponentInterface to default values.

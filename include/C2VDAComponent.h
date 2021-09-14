@@ -438,6 +438,7 @@ private:
     std::shared_ptr<C2BlockPool> mBlockPool;
     c2_resch_stat mResChStat;
     bool mSurfaceUsageGeted;
+    bool mVDAComponentStopDone;
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };
 
