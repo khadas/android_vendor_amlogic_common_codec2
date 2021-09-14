@@ -932,7 +932,7 @@ void C2VDAComponent::onDequeueWork() {
         // Client may queue a work with no input buffer for either it's EOS or empty CSD, otherwise
         // every work must have one input buffer.
         isEmptyCSDWork = work->input.flags & C2FrameData::FLAG_CODEC_CONFIG;
-        CHECK(drainMode != NO_DRAIN || isEmptyCSDWork);
+        //CHECK(drainMode != NO_DRAIN || isEmptyCSDWork);
         // Emplace a nullptr to unify the check for work done.
         ALOGV("Got a work with no input buffer! Emplace a nullptr inside.");
         work->input.buffers.emplace_back(nullptr);
