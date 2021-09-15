@@ -33,6 +33,7 @@ cc_library_shared {
     srcs: [
         "C2VDAComponent.cpp",
         "VideoDecWraper.cpp",
+        "VideoTunnelRendererWraper.cpp",
         "C2VDAComponentMetaDataUtil.cpp",
        // "C2VEAComponent.cpp",
        // "C2VEAFormatConverter.cpp",

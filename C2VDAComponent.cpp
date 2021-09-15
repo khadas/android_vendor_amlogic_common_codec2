@@ -57,6 +57,9 @@
 #include <utils/Trace.h>
 
 
+#define AM_SIDEBAND_HANDLE_NUM_INT (3)
+#define AM_SIDEBAND_HANDLE_NUM_FD (0)
+
 #define UNUSED(expr)  \
     do {              \
         (void)(expr); \
@@ -277,6 +280,60 @@ C2R C2VDAComponent::IntfImpl::HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdr
 C2R C2VDAComponent::IntfImpl::LowLatencyModeSetter(bool mayBlock, C2P<C2GlobalLowLatencyModeTuning> &me) {
     (void)mayBlock;
     return me.F(me.v.value).validatePossible(me.v.value);
+}
+
+C2R C2VDAComponent::IntfImpl::OutSurfaceAllocatorIdSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+
+C2R C2VDAComponent::IntfImpl::TunnelModeOutSetter(bool mayBlock, C2P<C2PortTunneledModeTuning::output> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+C2R C2VDAComponent::IntfImpl::TunnelHandleSetter(bool mayBlock, C2P<C2PortTunnelHandleTuning::output> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+C2R C2VDAComponent::IntfImpl::TunnelSystemTimeSetter(bool mayBlock, C2P<C2PortTunnelSystemTime::output> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
+
+
+c2_status_t C2VDAComponent::IntfImpl::config(
+        const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures,
+        bool updateParams,
+        std::vector<std::shared_ptr<C2Param>> *changes) {
+        C2InterfaceHelper::config(params, mayBlock, failures, updateParams, changes);
+
+        for (C2Param* const param : params) {
+            switch (param->coreIndex().coreIndex()) {
+                case C2PortTunneledModeTuning::CORE_INDEX:
+                    ALOGI("tunnel mode config");
+                    if (mComponent) {
+                        mComponent->onConfigureTunnelMode();
+                        // change to bufferpool
+                        mOutputSurfaceAllocatorId->value = C2VDAAllocatorStore::V4L2_BUFFERPOOL;
+                    }
+                    break;
+#if 0
+                case C2StreamPictureSizeInfo::CORE_INDEX:
+                    ALOGI("picturesize config:%dx%d", ((C2StreamPictureSizeInfo*)param)->width,
+                            ((C2StreamPictureSizeInfo*)param)->height);
+                    break;
+#endif
+                default:
+                    break;
+            }
+        }
+
+        return C2_OK;
 }
 
 C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
@@ -617,6 +674,37 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
             .withFields({C2F(mSecureBufferMode, value).inRange(C2Config::SM_UNPROTECTED, C2Config::SM_READ_PROTECTED)})
             .withSetter(Setter<decltype(*mSecureBufferMode)>::StrictValueWithNoDeps)
             .build());
+    //tunnel mode
+    mTunnelModeOutput =
+        C2PortTunneledModeTuning::output::AllocShared(
+            1,
+            C2PortTunneledModeTuning::Struct::SIDEBAND,
+            C2PortTunneledModeTuning::Struct::REALTIME,
+            -1);
+    addParameter(
+            DefineParam(mTunnelModeOutput, C2_PARAMKEY_TUNNELED_RENDER)
+            .withDefault(mTunnelModeOutput)
+            .withFields({
+                C2F(mTunnelModeOutput, m.mode).any(),
+                C2F(mTunnelModeOutput, m.syncType).any(),
+            })
+            .withSetter(TunnelModeOutSetter)
+            .build());
+    addParameter(
+            DefineParam(mTunnelHandleOutput, C2_PARAMKEY_OUTPUT_TUNNEL_HANDLE)
+            .withDefault(C2PortTunnelHandleTuning::output::AllocShared(AM_SIDEBAND_HANDLE_NUM_INT))
+            .withFields({
+                C2F(mTunnelHandleOutput, m.values[0]).any(),
+                C2F(mTunnelHandleOutput, m.values).any()})
+            .withSetter(TunnelHandleSetter)
+            .build());
+
+    addParameter(
+            DefineParam(mTunnelSystemTimeOut, C2_PARAMKEY_OUTPUT_RENDER_TIME)
+            .withDefault(new C2PortTunnelSystemTime::output(-1ll))
+            .withFields({C2F(mTunnelSystemTimeOut, value).any()})
+            .withSetter(TunnelSystemTimeSetter)
+            .build());
 
     // Get supported profiles from VDA.
     // TODO: re-think the suitable method of getting supported profiles for both pure Android and
@@ -712,7 +800,9 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                     .build());
 
     addParameter(DefineParam(mOutputSurfaceAllocatorId, C2_PARAMKEY_OUTPUT_SURFACE_ALLOCATOR)
-                         .withConstValue(new C2PortSurfaceAllocatorTuning::output(surfaceAllocator))
+                         .withDefault(new C2PortSurfaceAllocatorTuning::output(surfaceAllocator))
+                         .withFields({C2F(mOutputSurfaceAllocatorId, value).any()})
+                         .withSetter(OutSurfaceAllocatorIdSetter)
                          .build());
 
     C2BlockPool::local_id_t outputBlockPools[] = {kDefaultOutputBlockPool};
@@ -816,6 +906,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mState(State::UNLOADED),
         mWeakThisFactory(this),
         mDumpYuvFp(NULL),
+        mTunnelId(-1),
+        mTunnelHandle(NULL),
         mUseBufferQueue(false),
         mBufferFirstAllocated(false),
         mResChStat(C2_RESOLUTION_CHANGE_NONE),
@@ -826,6 +918,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         ALOGE("Component interface init failed (err code = %d)", mIntfImpl->status());
         return;
     }
+
+    mIntfImpl->setComponent(this);
 
     mSecureMode = name.find(".secure") != std::string::npos;
     if (!mThread.Start()) {
@@ -865,7 +959,45 @@ void C2VDAComponent::onDestroy() {
         if (mDumpYuvFp)
             fclose(mDumpYuvFp);
     }
+    if (mTunnelHandle) {
+        am_gralloc_destroy_sideband_handle(mTunnelHandle);
+    }
     stopDequeueThread();
+}
+
+int C2VDAComponent::fillVideoFrameTunnelMode(int medafd) {
+    (void)medafd;
+
+    ALOGI("%s:%d, fd:%d", __func__, __LINE__, medafd);
+    GraphicBlockInfo* info = getGraphicBlockByFd(medafd);
+    if (!info) {
+        ALOGE("%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, medafd);
+        reportError(C2_CORRUPTED);
+        return 0;
+    }
+    sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+    return 0;
+}
+
+int C2VDAComponent::fillVideoFrameCallback(void* obj, void* args) {
+    C2VDAComponent* pCompoment = (C2VDAComponent*)obj;
+    int* medafd = (int*)args;
+
+    pCompoment->fillVideoFrameTunnelMode(*medafd);
+    return 0;
+}
+
+int C2VDAComponent::notifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime) {
+    ALOGI("%s:%d rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+    sendOutputBufferToWorkTunnel(rendertime);
+    return 0;
+}
+
+int C2VDAComponent::notifyTunnelRenderTimeCallback(void* obj, void* args) {
+    C2VDAComponent* pCompoment = (C2VDAComponent*)obj;
+    struct VideoTunnelRendererWraper::renderTime* rendertime = (struct VideoTunnelRendererWraper::renderTime*)args;
+    pCompoment->notifyRenderTimeTunnelMode(rendertime);
+    return 0;
 }
 
 void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done) {
@@ -881,6 +1013,11 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
     if (mVDAInitResult == VideoDecodeAcceleratorAdaptor::Result::SUCCESS) {
         mComponentState = ComponentState::STARTED;
         mHasError = false;
+    }
+    if (mVideoTunnelRenderer) {
+        mVideoTunnelRenderer->regFillVideoFrameCallBack(fillVideoFrameCallback, this);
+        mVideoTunnelRenderer->regNotifyTunnelRenderTimeCallBack(notifyTunnelRenderTimeCallback, this);
+        mVideoTunnelRenderer->start();
     }
 
     if (!mSecureMode && (mIntfImpl->getInputCodec() == InputCodec::H264
@@ -967,8 +1104,11 @@ void C2VDAComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    ALOGI("onDequeueWork, put pendtingwokr bitid:%lld, pending worksize:%d", work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
-    mPendingWorks.emplace_back(std::move(work));
+    {
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
+        ALOGI("onDequeueWork, put pendtingwokr bitid:%lld, pending worksize:%d", work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
+        mPendingWorks.emplace_back(std::move(work));
+    }
     if (isEmptyCSDWork) {
         // Directly report the empty CSD work as finished.
         ALOGI("onDequeueWork empty csd work, bitid:%d\n", bitstreamId);
@@ -985,15 +1125,19 @@ void C2VDAComponent::onInputBufferDone(int32_t bitstreamId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGV("onInputBufferDone: bitstream id=%d", bitstreamId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
+    {
 
-    C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
-    if (!work) {
-        reportError(C2_CORRUPTED);
-        return;
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
+        C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
+        if (!work) {
+            ALOGE("%s:%d can not get pending work with bitstreamid:%d", __func__, __LINE__,  bitstreamId);
+            reportError(C2_CORRUPTED);
+            return;
+        }
+
+        // When the work is done, the input buffer shall be reset by component.
+        work->input.buffers.front().reset();
     }
-
-    // When the work is done, the input buffer shall be reset by component.
-    work->input.buffers.front().reset();
 
     reportWorkIfFinished(bitstreamId);
 }
@@ -1063,8 +1207,11 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     ALOGV("onOutputBufferDone: picture id=%d, bitstream id=%lld", pictureBufferId, bitstreamId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
+    int64_t timestamp = -1;
+
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
     if (!info) {
+        ALOGE("%s:%d can not get graphicblock  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
         reportError(C2_CORRUPTED);
         return;
     }
@@ -1072,11 +1219,81 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
     }
+    {
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
+        C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
+        if (!work) {
+            ALOGE("not find the correct work with bitstreamid:%lld", bitstreamId);
+            reportError(C2_CORRUPTED);
+            return;
+        }
+        timestamp = work->input.ordinal.timestamp.peekull();
+    }
+
     ATRACE_INT("c2outdoneid", pictureBufferId);
-    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId});
+    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp});
     ALOGV("%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersizs:%d, graphicblock:%p",
             __func__, bitstreamId, pictureBufferId, mPendingBuffersToWork.size(), info->mGraphicBlock->handle());
-    sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
+    if (!mTunnelHandle) {
+        sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
+    } else {
+        sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
+    }
+}
+
+c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
+    ALOGI("%s:%d, rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+    {
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
+
+        C2Work* work = getPendingWorkByMediaTime(rendertime->mediaUs);
+        if (!work) {
+            ALOGE("not find the correct work with mediaTime:%lld", rendertime->mediaUs);
+            reportError(C2_CORRUPTED);
+            return C2_CORRUPTED;
+        }
+        mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs;
+        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
+    }
+
+    auto pendingbuffer = std::find_if(
+            mPendingBuffersToWork.begin(), mPendingBuffersToWork.end(),
+            [time=rendertime->mediaUs](const OutputBufferInfo& o) { return o.mMediaTimeUs == time;});
+
+    if (pendingbuffer != mPendingBuffersToWork.end()) {
+        reportWorkIfFinished(pendingbuffer->mBitstreamId);
+    }
+
+    return C2_OK;
+}
+
+c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId) {
+    GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
+    int64_t timestamp = -1;
+
+    if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+        ALOGE("Graphic block (id=%d) should not be owned by accelerator", info->mBlockId);
+        reportError(C2_BAD_STATE);
+        return C2_BAD_STATE;
+    }
+
+    {
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
+        C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
+        if (!work) {
+            ALOGE("not find the correct work with bitstreamid:%lld", bitstreamId);
+            reportError(C2_CORRUPTED);
+            return C2_CORRUPTED;
+        }
+        timestamp = work->input.ordinal.timestamp.peekull();
+    }
+
+    if (mVideoTunnelRenderer) {
+        ALOGI("%s:%d, fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
+        mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
+    }
+
+    return C2_OK;
 }
 
 c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) {
@@ -1090,11 +1307,13 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             reportError(C2_BAD_STATE);
             return C2_BAD_STATE;
         }
-
         ALOGV("%s get pendting bitstream:%d, blockid(pictueid):%d",
                 __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId);
+
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
         C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
         if (!work) {
+            ALOGE("%s:%d can not find the correct work with bitstreamid:%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
             reportError(C2_CORRUPTED);
             return C2_CORRUPTED;
         }
@@ -1191,6 +1410,7 @@ void C2VDAComponent::onDrain(uint32_t drainMode) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGV("onDrain: mode = %u", drainMode);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
+    std::unique_lock<std::mutex> l(mPendWorksMutex);
 
     if (!mQueue.empty()) {
         // Mark last queued work as "drain-till-here" by setting drainMode. Do not change drainMode
@@ -1259,6 +1479,9 @@ void C2VDAComponent::onFlush() {
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     mVideoDecWraper->reset();
+    if (mVideoTunnelRenderer) {
+        mVideoTunnelRenderer->flush();
+    }
     // Pop all works in mQueue and put into mAbandonedWorks.
     while (!mQueue.empty()) {
         mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
@@ -1293,6 +1516,10 @@ void C2VDAComponent::onStop(::base::WaitableEvent* done) {
         uint32_t flags = 0;
         mVideoDecWraper->reset(flags|RESET_FLAG_NOWAIT);
     }
+
+    if (mVideoTunnelRenderer) {
+        mVideoTunnelRenderer->stop();
+    }
 }
 
 void C2VDAComponent::onResetDone() {
@@ -1305,6 +1532,7 @@ void C2VDAComponent::onResetDone() {
     } else if (mComponentState == ComponentState::STOPPING) {
         onStopDone();
     } else {
+        ALOGE("%s:%d", __FUNCTION__, __LINE__);
         reportError(C2_CORRUPTED);
     }
 }
@@ -1413,10 +1641,28 @@ std::deque<std::unique_ptr<C2Work>>::iterator C2VDAComponent::findPendingWorkByB
                         });
 }
 
+std::deque<std::unique_ptr<C2Work>>::iterator C2VDAComponent::findPendingWorkByMediaTime(
+        int64_t mediaTime) {
+    return std::find_if(mPendingWorks.begin(), mPendingWorks.end(),
+                        [mediaTime](const std::unique_ptr<C2Work>& w) {
+                            return w->input.ordinal.timestamp.peekull() ==
+                                   mediaTime;
+                        });
+}
+
 C2Work* C2VDAComponent::getPendingWorkByBitstreamId(int32_t bitstreamId) {
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
     if (workIter == mPendingWorks.end()) {
         ALOGE("Can't find pending work by bitstream ID: %d", bitstreamId);
+        return nullptr;
+    }
+    return workIter->get();
+}
+
+C2Work* C2VDAComponent::getPendingWorkByMediaTime(int64_t mediaTime) {
+    auto workIter = findPendingWorkByMediaTime(mediaTime);
+    if (workIter == mPendingWorks.end()) {
+        ALOGE("Can't find pending work by mediaTime: %lld", mediaTime);
         return nullptr;
     }
     return workIter->get();
@@ -1438,6 +1684,19 @@ C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockByPoolId(uint32
 
     if (blockIter == mGraphicBlocks.end()) {
         ALOGE("getGraphicBlockByPoolId failed: poolId=%u", poolId);
+        return nullptr;
+    }
+    return &(*blockIter);
+}
+
+C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockByFd(int32_t fd) {
+    auto blockIter = std::find_if(mGraphicBlocks.begin(), mGraphicBlocks.end(),
+                                  [fd](const GraphicBlockInfo& gb) {
+                                      return gb.mFd == fd;
+                                  });
+
+    if (blockIter == mGraphicBlocks.end()) {
+        ALOGE("%s failed: fd=%u", __func__, fd);
         return nullptr;
     }
     return &(*blockIter);
@@ -1571,6 +1830,7 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
     mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
     if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat), mBlockPool,
                 false /* resetBuffersInClient */)) {
+        ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
@@ -1629,6 +1889,9 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
 
     ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
     bool useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
+    if (mTunnelHandle) {
+        DCHECK(useBufferQueue == false);
+    }
     size_t minBuffersForDisplay = 0;
     if (useBufferQueue) {
         mUseBufferQueue = true;
@@ -1730,8 +1993,10 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
     mOutputFormat.mMinNumBuffers = bufferCount;
     if (!mBlockPool)
         mBlockPool = std::move(blockPool);
-    if (!startDequeueThread(size, pixelFormat, mBlockPool,
+    if (!mTunnelHandle && !startDequeueThread(size, pixelFormat, mBlockPool,
                             true /* resetBuffersInClient */)) {
+
+        ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
@@ -2175,27 +2440,30 @@ void C2VDAComponent::detectNoShowFrameWorksAndReportIfFinished(
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     std::vector<int32_t> noShowFrameBitstreamIds;
 
-    for (auto& work : mPendingWorks) {
-        // A work in mPendingWorks would be considered to have no-show frame if there is no
-        // corresponding output buffer returned while the one of the work with latter timestamp is
-        // already returned. (VDA is outputted in display order.)
-        // Note: this fix is workable but not most appropriate because we rely on timestamps which
-        // may wrap around or be uncontinuous in adaptive skip-back case. The ideal fix should parse
-        // show_frame flag for each frame by either framework, component, or VDA, and propogate
-        // along the stack.
-        // TODO(johnylin): Discuss with framework team to handle no-show frame properly.
-        if (isNoShowFrameWork(work.get(), currOrdinal)) {
-            // Mark FLAG_DROP_FRAME for no-show frame work.
-            work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
+    {
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
+        for (auto& work : mPendingWorks) {
+            // A work in mPendingWorks would be considered to have no-show frame if there is no
+            // corresponding output buffer returned while the one of the work with latter timestamp is
+            // already returned. (VDA is outputted in display order.)
+            // Note: this fix is workable but not most appropriate because we rely on timestamps which
+            // may wrap around or be uncontinuous in adaptive skip-back case. The ideal fix should parse
+            // show_frame flag for each frame by either framework, component, or VDA, and propogate
+            // along the stack.
+            // TODO(johnylin): Discuss with framework team to handle no-show frame properly.
+            if (isNoShowFrameWork(work.get(), currOrdinal)) {
+                // Mark FLAG_DROP_FRAME for no-show frame work.
+                work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
 
-            // We need to call reportWorkIfFinished() for all detected no-show frame works. However,
-            // we should do it after the detection loop since reportWorkIfFinished() may erase
-            // entries in mPendingWorks.
-            int32_t bitstreamId = frameIndexToBitstreamId(work->input.ordinal.frameIndex);
-            noShowFrameBitstreamIds.push_back(bitstreamId);
-            ALOGV("Detected no-show frame work index=%llu timestamp=%llu",
-                  work->input.ordinal.frameIndex.peekull(),
-                  work->input.ordinal.timestamp.peekull());
+                // We need to call reportWorkIfFinished() for all detected no-show frame works. However,
+                // we should do it after the detection loop since reportWorkIfFinished() may erase
+                // entries in mPendingWorks.
+                int32_t bitstreamId = frameIndexToBitstreamId(work->input.ordinal.frameIndex);
+                noShowFrameBitstreamIds.push_back(bitstreamId);
+                ALOGV("Detected no-show frame work index=%llu timestamp=%llu",
+                      work->input.ordinal.frameIndex.peekull(),
+                      work->input.ordinal.timestamp.peekull());
+            }
         }
     }
 
@@ -2231,9 +2499,11 @@ bool C2VDAComponent::isNoShowFrameWork(const C2Work* work,
 
 void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
+    std::unique_lock<std::mutex> l(mPendWorksMutex);
 
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
     if (workIter == mPendingWorks.end()) {
+        ALOGE("%s:%d can not find work with bistreamid:%d", __func__, __LINE__, bitstreamId);
         reportError(C2_CORRUPTED);
         return;
     }
@@ -2267,17 +2537,34 @@ bool C2VDAComponent::isWorkDone(const C2Work* work) const {
         // Input buffer is still owned by VDA.
         return false;
     }
+
     if (mPendingOutputEOS && mPendingWorks.size() == 1u) {
         // If mPendingOutputEOS is true, the last returned work should be marked EOS flag and
         // returned by reportEOSWork() instead.
         return false;
     }
+
     if (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) &&
-        !(work->worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME) &&
-        work->worklets.front()->output.buffers.empty()) {
+            !(work->worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME)) {
         // Unless the input is CSD or the output is dropped, this work is not done because the
         // output buffer is not returned from VDA yet.
-        return false;
+        // tunnel mode need add rendertime info update
+        if (!mTunnelHandle) {
+            if (work->worklets.front()->output.buffers.empty()) {
+                return false;
+            }
+        } else {
+            if (work->worklets.front()->output.configUpdate.empty()) {
+                return false;
+            } else {
+                auto existingParm = std::find_if(
+                    work->worklets.front()->output.configUpdate.begin(), work->worklets.front()->output.configUpdate.end(),
+                    [index = C2PortTunnelSystemTime::CORE_INDEX](const std::unique_ptr<C2Param>& param) { return param->coreIndex().coreIndex() == index; });
+                if (existingParm == work->worklets.front()->output.configUpdate.end()) {
+                    return false;
+                }
+            }
+        }
     }
     return true;  // This work is done.
 }
@@ -2285,6 +2572,8 @@ bool C2VDAComponent::isWorkDone(const C2Work* work) const {
 c2_status_t C2VDAComponent::reportEOSWork() {
     ALOGV("reportEOSWork");
     DCHECK(mTaskRunner->BelongsToCurrentThread());
+    std::unique_lock<std::mutex> l(mPendWorksMutex);
+
     // In this moment all works prior to EOS work should be done and returned to listener.
     if (mPendingWorks.size() != 1u) {  // only EOS work left
         ALOGE("It shouldn't have remaining works in mPendingWorks except EOS work.");
@@ -2312,6 +2601,7 @@ c2_status_t C2VDAComponent::reportEOSWork() {
 void C2VDAComponent::reportAbandonedWorks() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     std::list<std::unique_ptr<C2Work>> abandonedWorks;
+    std::unique_lock<std::mutex> l(mPendWorksMutex);
 
     while (!mPendingWorks.empty()) {
         std::unique_ptr<C2Work> work(std::move(mPendingWorks.front()));
@@ -2453,6 +2743,31 @@ const char* C2VDAComponent::VideoCodecProfileToMime(media::VideoCodecProfile pro
     return "";
 }
 
+
+void C2VDAComponent::onConfigureTunnelMode() {
+   /* configure */
+    if (mIntfImpl->mTunnelModeOutput->m.syncType == C2PortTunneledModeTuning::Struct::sync_type_t::AUDIO_HW_SYNC) {
+        int syncId = mIntfImpl->mTunnelModeOutput->m.syncId[0];
+        if (syncId >= 0) {
+            if (((syncId & 0x0000FF00) == 0xFF00)
+                || (syncId == 0x0)) {
+                if (mVideoTunnelRenderer == NULL) {
+                    mVideoTunnelRenderer = new VideoTunnelRendererWraper(mSecureMode);
+                }
+                if (mVideoTunnelRenderer->init(syncId)) {
+                    mTunnelId = mVideoTunnelRenderer->getTunnelId();
+                    mTunnelHandle = am_gralloc_create_sideband_handle(AM_FIXED_TUNNEL, mTunnelId);
+                    if (mTunnelHandle) {
+                        CHECK_EQ(mIntfImpl->mTunnelHandleOutput->flexCount(), mTunnelHandle->numInts);
+                        memcpy(mIntfImpl->mTunnelHandleOutput->m.values, &mTunnelHandle->data[mTunnelHandle->numFds], sizeof(int32_t) * mTunnelHandle->numInts);
+                    }
+                }
+            }
+        }
+    }
+
+    return;
+}
 
 class C2VDAComponentFactory : public C2ComponentFactory {
 public:

@@ -36,6 +36,7 @@
 
 #include <AmVideoDecBase.h>
 #include <VideoDecWraper.h>
+#include <VideoTunnelRendererWraper.h>
 
 namespace android {
 
@@ -47,11 +48,18 @@ public:
     public:
         IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper);
 
+        c2_status_t config(
+                const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
+                std::vector<std::unique_ptr<C2SettingResult>>* const failures,
+                bool updateParams = true,
+                std::vector<std::shared_ptr<C2Param>> *changes = nullptr);
+
         // interfaces for C2VDAComponent
         c2_status_t status() const { return mInitStatus; }
         media::VideoCodecProfile getCodecProfile() const { return mCodecProfile; }
         C2BlockPool::local_id_t getBlockPoolId() const { return mOutputBlockPoolIds->m.values[0]; }
         InputCodec getInputCodec() const { return mInputCodec; }
+        void setComponent(C2VDAComponent* comp) {mComponent = comp;}
 
     private:
         // Configurable parameter setters.
@@ -70,6 +78,10 @@ public:
         static C2R Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::output> &me);
         static C2R HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me);
         static C2R LowLatencyModeSetter(bool mayBlock, C2P<C2GlobalLowLatencyModeTuning> &me);
+        static C2R OutSurfaceAllocatorIdSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me);
+        static C2R TunnelModeOutSetter(bool mayBlock, C2P<C2PortTunneledModeTuning::output> &me);
+        static C2R TunnelHandleSetter(bool mayBlock, C2P<C2PortTunnelHandleTuning::output> &me);
+        static C2R TunnelSystemTimeSetter(bool mayBlock, C2P<C2PortTunnelSystemTime::output> &me);
 
         // The kind of the component; should be C2Component::KIND_ENCODER.
           std::shared_ptr<C2ComponentKindSetting> mKind;
@@ -117,6 +129,10 @@ public:
         //std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
         std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
         //std::shared_ptr<C2ActualPipelineDelayTuning> mActualPipelineDelay
+        //tunnel mode
+        std::shared_ptr<C2PortTunneledModeTuning::output> mTunnelModeOutput;
+        std::shared_ptr<C2PortTunnelHandleTuning::output> mTunnelHandleOutput;
+        std::shared_ptr<C2PortTunnelSystemTime::output> mTunnelSystemTimeOut;
 
         std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
         std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
@@ -124,6 +140,8 @@ public:
         c2_status_t mInitStatus;
         media::VideoCodecProfile mCodecProfile;
         InputCodec mInputCodec;
+        C2VDAComponent *mComponent;
+        friend C2VDAComponent;
     };
 
     C2VDAComponent(C2String name, c2_node_id_t id,
@@ -135,6 +153,7 @@ public:
     // Implementation of C2Component interface
     virtual c2_status_t setListener_vb(const std::shared_ptr<Listener>& listener,
                                        c2_blocking_t mayBlock) override;
+
     virtual c2_status_t queue_nb(std::list<std::unique_ptr<C2Work>>* const items) override;
     virtual c2_status_t announce_nb(const std::vector<C2WorkOutline>& items) override;
     virtual c2_status_t flush_sm(flush_mode_t mode,
@@ -156,6 +175,15 @@ public:
     virtual void NotifyFlushDone();
     virtual void NotifyResetDone();
     virtual void NotifyError(int error);
+
+    //tunnel mode implement
+    void onConfigureTunnelMode();
+    static int fillVideoFrameCallback(void* obj, void* args);
+    static int notifyTunnelRenderTimeCallback(void* obj, void* args);
+    int fillVideoFrameTunnelMode(int medafd);
+    int notifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime);
+    c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
+    c2_status_t sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime);
 
     //for out use
     IntfImpl* GetIntfImpl() {
@@ -247,6 +275,7 @@ private:
     struct OutputBufferInfo {
         int32_t mBitstreamId;
         int32_t mBlockId;
+        int64_t mMediaTimeUs;
     };
 
     // These tasks should be run on the component thread |mThread|.
@@ -278,12 +307,15 @@ private:
     GraphicBlockInfo* getGraphicBlockById(int32_t blockId);
     // Helper function to get the specified GraphicBlockInfo object by its pool id.
     GraphicBlockInfo* getGraphicBlockByPoolId(uint32_t poolId);
+    GraphicBlockInfo* getGraphicBlockByFd(int32_t fd);
     //get first unbind graphicblock
     GraphicBlockInfo* getUnbindGraphicBlock();
     // Helper function to find the work iterator in |mPendingWorks| by bitstream id.
     std::deque<std::unique_ptr<C2Work>>::iterator findPendingWorkByBitstreamId(int32_t bitstreamId);
+    std::deque<std::unique_ptr<C2Work>>::iterator findPendingWorkByMediaTime(int64_t mediaTime);
     // Helper function to get the specified work in |mPendingWorks| by bitstream id.
     C2Work* getPendingWorkByBitstreamId(int32_t bitstreamId);
+    C2Work* getPendingWorkByMediaTime(int64_t mediaTime);
     // Try to apply the output format change.
     void tryChangeOutputFormat();
     // Allocate output buffers (graphic blocks) from block allocator.
@@ -382,6 +414,7 @@ private:
     // sent out by onWorkDone call to listener.
     // TODO: maybe use priority_queue instead.
     std::deque<std::unique_ptr<C2Work>> mPendingWorks;
+    std::mutex mPendWorksMutex;
     // Store all abandoned works. When component gets flushed/stopped, remaining works in queue are
     // dumped here and sent out by onWorkDone call to listener after flush/stop is finished.
     std::vector<std::unique_ptr<C2Work>> mAbandonedWorks;
@@ -431,7 +464,10 @@ private:
     FILE* mDumpYuvFp;
     static uint32_t mDumpFileCnt;
     VideoDecWraper* mVideoDecWraper;
+    VideoTunnelRendererWraper* mVideoTunnelRenderer;
     std::shared_ptr<MetaDataUtil> mMetaDataUtil;
+    int32_t mTunnelId;
+    native_handle_t* mTunnelHandle;
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;
     bool mPictureSizeChanged;
