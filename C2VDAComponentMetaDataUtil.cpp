@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <utils/Log.h>
+#include <Codec2Mapper.h>
 #include <cutils/properties.h>
 
 #include <C2VDAComponentMetaDataUtil.h>
@@ -25,6 +26,10 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     uint32_t margin = default_margin;
     char value[PROPERTY_VALUE_MAX];
 
+    mEnableNR = property_get_bool("vendor.c2.nr.enable", false);
+    mEnableDILocalBuf = property_get_bool("vendor.c2.di.localbuf.enable", false);
+    mEnable8kNR = property_get_bool("vendor.c2.8k.nr.enable", false);
+
     mConfigParam = configParam;
     memset(mConfigParam, 0, sizeof(aml_dec_params));
 
@@ -34,6 +39,21 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     if (err != C2_OK) {
         ALOGE("query C2StreamPictureSizeInfo size error\n");
     }
+
+    C2GlobalLowLatencyModeTuning lowLatency;
+    err = mIntfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
+    if (err != C2_OK) {
+        ALOGE("query C2StreamPictureSizeInfo size error\n");
+    }
+
+    if (lowLatency.value) {
+        ALOGI("Config low latency mode to v4l2 decoder.");
+        mConfigParam->cfg.low_latency_mode |= LOWLATENCY_NORMAL;
+    } else {
+        ALOGI("disable low latency mode to v4l2 decoder.");
+        mConfigParam->cfg.low_latency_mode |= LOWLATENCY_DISABALE;
+    }
+
     bufwidth = output.width;
     bufheight = output.height;
     ALOGI("configure width:%d height:%d", output.width, output.height);
@@ -56,7 +76,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
         case InputCodec::AV1:
             if (mUseSurfaceTexture || mNoSurface) {
                 doubleWriteMode = 1;
-                ALOGI("surface texture use dw 1");
+                ALOGI("surface texture/nosurface use dw 1");
             } else {
                 doubleWriteMode = 3;
             }
@@ -68,6 +88,9 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
 
     if (bufwidth * bufheight > 4096 * 2304) {
         doubleWriteMode = 0x04;
+        if (!mEnable8kNR) {
+            mEnableNR = false;
+        }
     }
 
     if (mIntfImpl->getInputCodec() == InputCodec::H264) {
@@ -88,6 +111,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
         ALOGI("set margin:%d", default_margin);
     }
 
+
     margin = default_margin;
     mConfigParam->cfg.canvas_mem_mode = 0;
 
@@ -104,6 +128,29 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
 #endif
 
     ALOGI("doubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
+
+
+
+    if (mUseSurfaceTexture || mNoSurface) {
+        mEnableNR = false;
+        mEnableDILocalBuf = false;
+    }
+
+
+    if (mNoSurface) {
+        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_PROG_ONLY;
+    }
+
+    if (mEnableNR) {
+        ALOGI("enable NR");
+        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_NR_ENABLE;
+    }
+
+    if (mEnableDILocalBuf) {
+        ALOGI("enable DILocalBuf");
+        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
+    }
+
     mConfigParam->cfg.uvm_hook_type = 2;
     if (/*!mSecureMode*/1) {
         if (mIntfImpl->getInputCodec() == InputCodec::H265) {
@@ -112,7 +159,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
             mConfigParam->cfg.ref_buf_margin = margin;
             mConfigParam->cfg.double_write_mode = doubleWriteMode;
             mConfigParam->cfg.canvas_mem_endian = 0;
-            mConfigParam->cfg.low_latency_mode = 0;
             mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
             mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
 
@@ -122,7 +168,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
                 setHDRStaticInfo();
         } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
@@ -131,7 +176,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::AV1) {
@@ -140,7 +184,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
                 setHDRStaticInfo();
@@ -150,7 +193,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV) {
                 mConfigParam->cfg.init_height = bufwidth;
@@ -158,7 +200,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV1) {
                 mConfigParam->cfg.init_height = bufwidth;
@@ -166,7 +207,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::MP2V) {
                 mConfigParam->cfg.init_height = bufwidth;
@@ -174,7 +214,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::MP4V) {
                 mConfigParam->cfg.init_height = bufwidth;
@@ -182,7 +221,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
                 mConfigParam->cfg.ref_buf_margin = margin;
                 mConfigParam->cfg.double_write_mode = doubleWriteMode;
                 mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.low_latency_mode = 0;
                 mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         }
     }
@@ -296,24 +334,55 @@ int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vde
             phdr->color_parms.content_light_level.max_pic_average;
 
         isHdrChanged = checkHdrStaticInfoMetaChanged(phdr);
-	}
-
-    //setup color aspects
-    bool isPresent       = (phdr->signal_type >> 29) & 0x01;
-    int32_t matrixCoeffs = (phdr->signal_type >> 0 ) & 0xff;
-    int32_t transfer     = (phdr->signal_type >> 8 ) & 0xff;
-    int32_t primaries    = (phdr->signal_type >> 16) & 0xff;
-    bool    range        = (phdr->signal_type >> 25) & 0x01;
-
-    if (isPresent) {
-        ColorAspects aspects;
-        ColorUtils::convertIsoColorAspectsToCodecAspects(
-            primaries, transfer, matrixCoeffs, range, aspects);
-        isColorAspectsChanged = 1;//((OmxVideoDecoder*)mOwner)->handleColorAspectsChange( true, aspects);
     }
 
+    if (mSignalType != phdr->signal_type) {
+        mSignalType = phdr->signal_type;
+        //setup color aspects
+        bool isPresent       = (phdr->signal_type >> 29) & 0x01;
+        int32_t matrixCoeffs = (phdr->signal_type >> 0 ) & 0xff;
+        int32_t transfer     = (phdr->signal_type >> 8 ) & 0xff;
+        int32_t primaries    = (phdr->signal_type >> 16) & 0xff;
+        bool    range        = (phdr->signal_type >> 25) & 0x01;
+
+        if (isPresent) {
+            ColorAspects aspects;
+            C2StreamColorAspectsInfo::input codedAspects = { 0u };
+            ColorUtils::convertIsoColorAspectsToCodecAspects(
+                primaries, transfer, matrixCoeffs, range, aspects);
+            isColorAspectsChanged = 1;//((OmxVideoDecoder*)mOwner)->handleColorAspectsChange( true, aspects);
+            if (!C2Mapper::map(aspects.mPrimaries, &codedAspects.primaries)) {
+                codedAspects.primaries = C2Color::PRIMARIES_UNSPECIFIED;
+            }
+            if (!C2Mapper::map(aspects.mRange, &codedAspects.range)) {
+                codedAspects.range = C2Color::RANGE_UNSPECIFIED;
+            }
+            if (!C2Mapper::map(aspects.mMatrixCoeffs, &codedAspects.matrix)) {
+                codedAspects.matrix = C2Color::MATRIX_UNSPECIFIED;
+            }
+            if (!C2Mapper::map(aspects.mTransfer, &codedAspects.transfer)) {
+                codedAspects.transfer = C2Color::TRANSFER_UNSPECIFIED;
+            }
+            ALOGD("update color aspect p:%d/%d, r:%d/%d, m:%d/%d, t:%d/%d",
+                        codedAspects.primaries, aspects.mPrimaries,
+                        codedAspects.range, codedAspects.range,
+                        codedAspects.matrix, aspects.mMatrixCoeffs,
+                        codedAspects.transfer, aspects.mTransfer);
+            std::vector<std::unique_ptr<C2SettingResult>> failures;
+            c2_status_t err = mIntfImpl->config({&codedAspects}, C2_MAY_BLOCK, &failures);
+            if (err != C2_OK) {
+                ALOGE("Failed to config hdr static info, error:%d", err);
+            }
+            std::lock_guard<std::mutex> lock(mMutex);
+            mColorAspectsChanged = true;
+
+        }
+    }
+
+
+
     //notify OMX Client port settings changed if needed
-    if (isHdrChanged || isColorAspectsChanged) {
+    if (isHdrChanged) {
         //mOwner->eventHandler(OMX_EventPortSettingsChanged, kOutputPortIndex,
         //OMX_IndexAndroidDescribeHDRStaticInfo, NULL)
         //config

@@ -254,11 +254,11 @@ void VideoDecWraper::flush() {
     }
 
 }
-void VideoDecWraper::reset() {
+void VideoDecWraper::reset(uint32_t flags) {
     VDEC_LOGD("reset");
 
     if (mAmVideoDec) {
-        mAmVideoDec->reset();
+        mAmVideoDec->reset(flags);
     }
 
 }

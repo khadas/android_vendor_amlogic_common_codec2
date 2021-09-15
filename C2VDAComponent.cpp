@@ -274,6 +274,10 @@ C2R C2VDAComponent::IntfImpl::HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdr
     return C2R::Ok();
 }
 
+C2R C2VDAComponent::IntfImpl::LowLatencyModeSetter(bool mayBlock, C2P<C2GlobalLowLatencyModeTuning> &me) {
+    (void)mayBlock;
+    return me.F(me.v.value).validatePossible(me.v.value);
+}
 
 C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
       : C2InterfaceHelper(helper), mInitStatus(C2_OK) {
@@ -769,6 +773,12 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                                      .inRange(C2Color::MATRIX_UNSPECIFIED, C2Color::MATRIX_OTHER)})
                     .withSetter(MergedColorAspectsSetter, mDefaultColorAspects, mCodedColorAspects)
                     .build());
+    addParameter(
+        DefineParam(mLowLatencyMode, C2_PARAMKEY_LOW_LATENCY_MODE)
+                .withDefault(new C2GlobalLowLatencyModeTuning(false))
+                .withFields({C2F(mLowLatencyMode, value).oneOf({true, false})})
+                .withSetter(LowLatencyModeSetter)
+                .build());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -794,8 +804,6 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mVDAInitResult(VideoDecodeAcceleratorAdaptor::Result::ILLEGAL_STATE),
         mComponentState(ComponentState::UNINITIALIZED),
         mPendingOutputEOS(false),
-        mPendingColorAspectsChange(false),
-        mPendingColorAspectsChangeFrameIndex(0),
         mCodecProfile(media::VIDEO_CODEC_PROFILE_UNKNOWN),
         mState(State::UNLOADED),
         mWeakThisFactory(this),
@@ -866,10 +874,11 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
         mHasError = false;
     }
 
-    if (!mSecureMode && mIntfImpl->getInputCodec() == InputCodec::H264) {
+    if (!mSecureMode && (mIntfImpl->getInputCodec() == InputCodec::H264
+                || mIntfImpl->getInputCodec() == InputCodec::H265
+                || mIntfImpl->getInputCodec() == InputCodec::MP2V)) {
         // Get default color aspects on start.
         updateColorAspects();
-        mPendingColorAspectsChange = false;
     }
 
     done->Signal();
@@ -932,19 +941,6 @@ void C2VDAComponent::onDequeueWork() {
         C2ConstLinearBlock linearBlock = work->input.buffers.front()->data().linearBlocks().front();
         CHECK_GT(linearBlock.size(), 0u);
 
-        // Call parseCodedColorAspects() to try to parse color aspects from bitstream only if:
-        // 1) This is non-secure decoding.
-        // 2) This is H264 codec.
-        // 3) This input is CSD buffer (with flags FLAG_CODEC_CONFIG).
-        if (!mSecureMode && (mIntfImpl->getInputCodec() == InputCodec::H264) &&
-            (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG)) {
-            if (parseCodedColorAspects(linearBlock)) {
-                // Record current frame index, color aspects should be updated only for output
-                // buffers whose frame indices are not less than this one.
-                mPendingColorAspectsChange = true;
-                mPendingColorAspectsChangeFrameIndex = work->input.ordinal.frameIndex.peeku();
-            }
-        }
         // Send input buffer to VDA for decode.
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
         sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags);
@@ -1136,10 +1132,8 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             }
 #endif
             std::shared_ptr<C2Buffer> buffer = C2Buffer::CreateGraphicBuffer(std::move(constBlock));
-            if (mPendingColorAspectsChange &&
-                work->input.ordinal.frameIndex.peeku() >= mPendingColorAspectsChangeFrameIndex) {
+            if (mMetaDataUtil->isColorAspectsChanged()) {
                 updateColorAspects();
-                mPendingColorAspectsChange = false;
             }
             if (mCurrentColorAspects) {
                 buffer->setInfo(mCurrentColorAspects);
@@ -1287,7 +1281,8 @@ void C2VDAComponent::onStop(::base::WaitableEvent* done) {
     } else if (mComponentState != ComponentState::FLUSHING) {
         // Do not request VDA reset again before the previous one is done. If reset is already sent
         // by onFlush(), just regard the following NotifyResetDone callback as for stopping.
-        mVideoDecWraper->reset();
+        uint32_t flags = 0;
+        mVideoDecWraper->reset(flags|RESET_FLAG_NOWAIT);
     }
 }
 

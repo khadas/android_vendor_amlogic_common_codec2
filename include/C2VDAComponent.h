@@ -69,6 +69,7 @@ public:
         static C2R Hdr10PlusInfoInputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::input> &me);
         static C2R Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::output> &me);
         static C2R HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me);
+        static C2R LowLatencyModeSetter(bool mayBlock, C2P<C2GlobalLowLatencyModeTuning> &me);
 
         // The kind of the component; should be C2Component::KIND_ENCODER.
           std::shared_ptr<C2ComponentKindSetting> mKind;
@@ -116,6 +117,8 @@ public:
         //std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
         std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
         //std::shared_ptr<C2ActualPipelineDelayTuning> mActualPipelineDelay
+
+        std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
 
         c2_status_t mInitStatus;
         media::VideoCodecProfile mCodecProfile;
@@ -392,15 +395,7 @@ private:
     std::unique_ptr<VideoFormat> mPendingOutputFormat;
     // The color aspects parameter for current decoded output buffers.
     std::shared_ptr<C2StreamColorAspectsInfo::output> mCurrentColorAspects;
-    // The flag of pending color aspects change. This should be set once we have parsed color
-    // aspects from bitstream by parseCodedColorAspects(), at the same time recorded input frame
-    // index into |mPendingColorAspectsChangeFrameIndex|.
-    // When this flag is true and the corresponding frame index is not less than
-    // |mPendingColorAspectsChangeFrameIndex| for the output buffer in onOutputBufferDone(), update
-    // |mCurrentColorAspects| from component interface and reset the flag.
-    bool mPendingColorAspectsChange;
-    // The record of frame index to update color aspects. Details as above.
-    uint64_t mPendingColorAspectsChangeFrameIndex;
+
     // The record of bitstream and block ID of pending output buffers returned from accelerator.
     std::deque<OutputBufferInfo> mPendingBuffersToWork;
     // A FIFO queue to record the block IDs which are currently undequequed for display. The size

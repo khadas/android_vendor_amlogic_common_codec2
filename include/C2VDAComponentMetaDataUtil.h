@@ -21,7 +21,12 @@ public:
         mUseSurfaceTexture(false),
         mNoSurface(false),
         mHDRStaticInfoChanged(false),
-        mSecure(secure) {
+        mColorAspectsChanged(false),
+        mSecure(secure),
+        mEnableNR(false),
+        mEnableDILocalBuf(false),
+        mEnable8kNR(false),
+        mSignalType(0) {
         mIntfImpl = mComp->GetIntfImpl();
     }
     virtual ~MetaDataUtil() {}
@@ -36,6 +41,16 @@ public:
         if (mHDRStaticInfoChanged) {
             std::lock_guard<std::mutex> lock(mMutex);
             mHDRStaticInfoChanged = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    bool isColorAspectsChanged() {
+        if (mColorAspectsChanged) {
+            std::lock_guard<std::mutex> lock(mMutex);
+            mColorAspectsChanged = false;
             return true;
         }
 
@@ -58,7 +73,13 @@ private:
     bool mUseSurfaceTexture;
     bool mNoSurface;
     bool mHDRStaticInfoChanged;
+    bool mColorAspectsChanged;
     bool mSecure;
+    bool mEnableNR;
+    bool mEnableDILocalBuf;
+    bool mEnable8kNR;
+
+    uint32_t mSignalType;
     std::mutex mMutex;
 };
 

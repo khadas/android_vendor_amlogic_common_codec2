@@ -57,7 +57,7 @@ public:
                                 bool isNV21);
     void reusePictureBuffer(int32_t pictureBufferId);
     void flush();
-    void reset();
+    void reset(uint32_t flags = 0);
     void destroy();
     //media::VideoDecodeAccelerator::SupportedProfiles GetSupportedProfiles(InputCodec inputCodec);
 
