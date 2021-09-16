@@ -33,6 +33,7 @@ cc_binary {
     name: "android.hardware.media.c2@1.2-service",
     vendor: true,
     relative_install_path: "hw",
+    vintf_fragments : ["android.hardware.media.c2@1.2-service.xml"],
 
 //    init_rc: ["android.hardware.media.c2@1.2-service.rc"],
 
