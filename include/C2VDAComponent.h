@@ -266,7 +266,6 @@ private:
     void onOutputFormatChanged(std::unique_ptr<VideoFormat> format);
     void onVisibleRectChanged(const media::Rect& cropRect);
     void onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId);
-    void onSurfaceChanged();
 
     // Send input buffer to accelerator with specified bitstream id.
     void sendInputBufferToAccelerator(const C2ConstLinearBlock& input, int32_t bitstreamId,  uint64_t timestamp, int32_t flags);

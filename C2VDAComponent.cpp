@@ -1917,89 +1917,6 @@ void C2VDAComponent::setOutputFormatCrop(const media::Rect& cropRect) {
     mOutputFormat.mVisibleRect = cropRect;
 }
 
-void C2VDAComponent::onSurfaceChanged() {
-    DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onSurfaceChanged");
-
-    if (mComponentState == ComponentState::UNINITIALIZED) {
-        return;  // Component is already stopped, no need to update graphic blocks.
-    }
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
-
-    stopDequeueThread();
-
-    // Get block pool ID configured from the client.
-    std::shared_ptr<C2BlockPool> blockPool;
-    auto blockPoolId = mIntfImpl->getBlockPoolId();
-    ALOGI("Retrieving C2BlockPool ID = %" PRIu64 " for updating output buffers", blockPoolId);
-    auto err = GetCodec2BlockPool(blockPoolId, shared_from_this(), &blockPool);
-    ALOGI("blockPool use count %ld\n", blockPool.use_count());
-    if (err != C2_OK) {
-        ALOGE("Graphic block allocator is invalid");
-        reportError(err);
-        return;
-    }
-    if (blockPool->getAllocatorId() != C2PlatformAllocatorStore::BUFFERQUEUE) {
-        ALOGE("Only Bufferqueue-backed block pool would need to change surface.");
-        reportError(C2_CORRUPTED);
-        return;
-    }
-
-    std::shared_ptr<C2VdaBqBlockPool> bqPool =
-            std::static_pointer_cast<C2VdaBqBlockPool>(blockPool);
-    if (!bqPool) {
-        ALOGE("static_pointer_cast C2VdaBqBlockPool failed...");
-        reportError(C2_CORRUPTED);
-        return;
-    }
-
-    size_t minBuffersForDisplay = 0;
-    err = bqPool->getMinBuffersForDisplay(&minBuffersForDisplay);
-    if (err != C2_OK) {
-        ALOGE("failed to query minimum undequeued buffer count from block pool: %d", err);
-        reportError(err);
-        return;
-    }
-    ALOGV("Minimum undequeued buffer count = %zu", minBuffersForDisplay);
-    mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
-
-    for (auto& info : mGraphicBlocks) {
-        bool willCancel = (info.mGraphicBlock == nullptr);
-        uint32_t oldSlot = info.mPoolId;
-        ALOGV("Updating graphic block #%d: slot = %u, willCancel = %d", info.mBlockId, oldSlot,
-              willCancel);
-        uint32_t newSlot = 0;
-        std::shared_ptr<C2GraphicBlock> block;
-        //err = bqPool->updateGraphicBlock(willCancel, oldSlot, &newSlot, &block);
-        if (err == C2_CANCELED) {
-            // There may be a chance that a task in task runner before onSurfaceChange triggers
-            // output format change. If so, block pool will return C2_CANCELED and no need to
-            // updateGraphicBlock anymore.
-            return;
-        }
-        if (err != C2_OK) {
-            ALOGE("failed to update graphic block from block pool: %d", err);
-            reportError(err);
-            return;
-        }
-
-        // Update slot index.
-        info.mPoolId = newSlot;
-        // Update C2GraphicBlock if |willCancel| is false. Note that although the old C2GraphicBlock
-        // will be released, the block pool data destructor won't do detachBuffer to new surface
-        // because the producer ID is not matched.
-        if (!willCancel) {
-            info.mGraphicBlock = std::move(block);
-        }
-    }
-
-    if (!startDequeueThread(mOutputFormat.mCodedSize,
-                            static_cast<uint32_t>(mOutputFormat.mPixelFormat), std::move(blockPool),
-                            false /* resetBuffersInClient */)) {
-        reportError(C2_CORRUPTED);
-    }
-}
-
 void C2VDAComponent::checkVideoDecReconfig() {
     if (mSurfaceUsageGeted)
         return;
@@ -2176,6 +2093,8 @@ std::shared_ptr<C2ComponentInterface> C2VDAComponent::intf() {
 void C2VDAComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t width, uint32_t height) {
     // Always use fexible pixel 420 format YCbCr_420_888 in Android.
     // Uses coded size for crop rect while it is not available.
+    if (mBufferFirstAllocated && minNumBuffers < mOutputFormat.mMinNumBuffers)
+        minNumBuffers = mOutputFormat.mMinNumBuffers;
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,
                                                 media::Size(width, height), media::Rect(width, height));
 
@@ -2463,7 +2382,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
     while (!mDequeueLoopStop.load()) {
         if (mBuffersInClient.load() == 0) {
             ::usleep(kDequeueRetryDelayUs);  // wait for retry
-            continue;
+            //continue;
         }
 
         std::shared_ptr<C2GraphicBlock> block;
@@ -2477,12 +2396,6 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             // lock. TODO (b/118354314): replace this if there is better solution.
             ::usleep(1);
             continue;  // wait for retry
-        }
-        if (err == C2_BAD_STATE) {
-            ALOGV("Got informed from block pool surface is changed.");
-            mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onSurfaceChanged,
-                                                          ::base::Unretained(this)));
-            break;  // terminate the loop, will be resumed after onSurfaceChanged().
         }
         if (err == C2_OK) {
             uint32_t poolId;

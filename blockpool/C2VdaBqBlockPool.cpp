@@ -260,17 +260,12 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
     if ((iter == mSlotAllocations.end()) ||
         bufferNeedsReallocation) {
         // it's a new slot index, request for a new buffer.
-        if (mSlotAllocations.size() >= mMaxDequeuedBuffers) {
+        if (mSlotAllocations.size() >= mMaxDequeuedBuffers  || slot >= mMaxDequeuedBuffers) {
+            if (mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk())
+                return C2_TIMED_OUT;
             ALOGE("still get a new slot index but already allocated enough buffers.");
-            (void)mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk();
             return C2_CORRUPTED;
         }
-        /*if (status != IGraphicBufferProducer::BUFFER_NEEDS_REALLOCATION) {
-            ALOGE("expect BUFFER_NEEDS_REALLOCATION flag but didn't get one.");
-            mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
-            return C2_CORRUPTED;
-        }*/
-
 
         if (!slotBuffer) {
             slotBuffer = new GraphicBuffer();
@@ -307,9 +302,6 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
             // getting generation # lazily due to dequeue failure.
             mGeneration = outGeneration;
         }
-    } else if (mSlotAllocations.size() < mMaxDequeuedBuffers) {
-        ALOGE("failed to allocate enough buffers");
-        return C2_BAD_STATE;
     }
 
     if (slotBuffer) {
@@ -392,8 +384,7 @@ c2_status_t C2VdaBqBlockPool::requestNewBufferSet(int32_t bufferCount) {
     }
 #endif
 
-    // TODO: should we query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS) and add it on?
-    Return<HStatus> transResult = mProducer->setMaxDequeuedBufferCount(bufferCount + 8 /*mSlotAllocations.size()*/);
+    Return<HStatus> transResult = mProducer->setMaxDequeuedBufferCount(bufferCount);
     if (!transResult.isOk()) {
         ALOGE("setMaxDequeuedBufferCount failed");
         return C2_BAD_VALUE;
@@ -560,15 +551,8 @@ c2_status_t C2VdaBqBlockPool::getPoolIdFromGraphicBlock(std::shared_ptr<C2Graphi
 
 c2_status_t C2VdaBqBlockPool::resetGraphicBlock(int32_t slot) {
     std::lock_guard<std::mutex> lock(mMutex);
-#if 0
-    if (mProducer && slot < NUM_BUFFER_SLOTS) {
-        sp<Fence> fence(Fence::NO_FENCE);
-        HFenceWrapper hFenceWrapper{};
-        b2h(fence, &hFenceWrapper);
-        Return<HStatus> transResult =
-            mProducer->detachBuffer(static_cast<int32_t>(slot));
-        transResult = mProducer->cancelBuffer(slot, hFenceWrapper.getHandle());
-    }
+    if (!mProducer)
+        return C2_OK;
     auto iter = mSlotAllocations.find(slot);
     if (iter != mSlotAllocations.end()) {
         const C2Handle *chandle = iter->second->handle();
@@ -591,8 +575,6 @@ c2_status_t C2VdaBqBlockPool::resetGraphicBlock(int32_t slot) {
             return C2_BAD_VALUE;
         }
     }
-#endif
-    slot = (int)slot;
     return C2_OK;
 }
 
