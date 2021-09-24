@@ -42,19 +42,6 @@ cc_library_shared {
         "include",
     ],
 
-    include_dirs: [
-        "hardware/amlogic/gralloc/amlogic",
-        "frameworks/av/media/libstagefright/include",
-        "frameworks/av/media/codec2/core/include",
-        "frameworks/av/media/codec2/vndk/include",
-        "frameworks/av/media/codec2/components/base/include",
-        "frameworks/native/include/",
-        "frameworks/native/libs/nativewindow/include/",
-        "frameworks/native/libs/arect/include/",
-        "frameworks/native/libs/nativebase/include/",
-        "vendor/amlogic/common/mediahal_sdk/include",
-    ],
-
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.bufferqueue@2.0",
@@ -83,6 +70,10 @@ cc_library_shared {
         "libcodec2_headers",
         "libc2plugin_store_headers",
         "libcodec2_internal",
+        "libstagefright_headers",
+        "libnativewindow_headers",
+        "libnativebase_headers",
+        "libmediahal_headers",
     ],
 
     // -Wno-unused-parameter is needed for libchrome/base codes
