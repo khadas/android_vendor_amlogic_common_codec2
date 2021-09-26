@@ -118,6 +118,7 @@ public:
         std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
         //std::shared_ptr<C2ActualPipelineDelayTuning> mActualPipelineDelay
 
+        std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
         std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
 
         c2_status_t mInitStatus;

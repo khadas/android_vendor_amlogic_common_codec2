@@ -610,6 +610,14 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
             .withSetter(Setter<decltype(*mActualOutputDelay)>::StrictValueWithNoDeps)
             .build());
 
+    //secure buffer mode now we just support secure buffer mode
+    addParameter(
+            DefineParam(mSecureBufferMode, C2_PARAMKEY_SECURE_MODE)
+            .withDefault(new C2SecureModeTuning(C2Config::SM_READ_PROTECTED))
+            .withFields({C2F(mSecureBufferMode, value).inRange(C2Config::SM_UNPROTECTED, C2Config::SM_READ_PROTECTED)})
+            .withSetter(Setter<decltype(*mSecureBufferMode)>::StrictValueWithNoDeps)
+            .build());
+
     // Get supported profiles from VDA.
     // TODO: re-think the suitable method of getting supported profiles for both pure Android and
     //       ARC++.
