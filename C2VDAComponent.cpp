@@ -1309,93 +1309,94 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         }
         ALOGV("%s get pendting bitstream:%d, blockid(pictueid):%d",
                 __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId);
-
-        std::unique_lock<std::mutex> l(mPendWorksMutex);
-        C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
-        if (!work) {
-            ALOGE("%s:%d can not find the correct work with bitstreamid:%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
-            reportError(C2_CORRUPTED);
-            return C2_CORRUPTED;
-        }
-
-        if (info->mState == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
-            // This buffer is the existing frame and still owned by client.
-            if (!dropIfUnavailable &&
-                std::find(mUndequeuedBlockIds.begin(), mUndequeuedBlockIds.end(),
-                          nextBuffer.mBlockId) == mUndequeuedBlockIds.end()) {
-                ALOGV("Still waiting for existing frame returned from client...");
-                return C2_TIMED_OUT;
+        {
+            std::unique_lock<std::mutex> l(mPendWorksMutex);
+            C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
+            if (!work) {
+                ALOGE("%s:%d can not find the correct work with bitstreamid:%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
+                reportError(C2_CORRUPTED);
+                return C2_CORRUPTED;
             }
-            ALOGV("Drop this frame...");
-            sendOutputBufferToAccelerator(info, false /* ownByAccelerator */);
-            work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
-        } else {
-            // This buffer is ready to push into the corresponding work.
-            // Output buffer will be passed to client soon along with mListener->onWorkDone_nb().
-            info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
-            mBuffersInClient++;
-            updateUndequeuedBlockIds(info->mBlockId);
 
-            // Attach output buffer to the work corresponded to bitstreamId.
-            C2ConstGraphicBlock constBlock = info->mGraphicBlock->share(
-                    C2Rect(mOutputFormat.mVisibleRect.width(),
-                           mOutputFormat.mVisibleRect.height()),
-                    C2Fence());
-            //MarkBlockPoolDataAsShared(constBlock);
-            {
-                //for dump
-                if (mDumpYuvFp && !mSecureMode) {
-                    const C2GraphicView& view = constBlock.map().get();
-                    const uint8_t* const* data = view.data();
-                    int size = info->mGraphicBlock->width() * info->mGraphicBlock->height() * 3 / 2;
-                    //ALOGV("%s C2ConstGraphicBlock database:%x, y:%p u:%p",
-                     //       __FUNCTION__, reinterpret_cast<intptr_t>(data[0]), data[C2PlanarLayout::PLANE_Y], data[C2PlanarLayout::PLANE_U]);
-                    fwrite(data[0], 1, size, mDumpYuvFp);
+            if (info->mState == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
+                // This buffer is the existing frame and still owned by client.
+                if (!dropIfUnavailable &&
+                    std::find(mUndequeuedBlockIds.begin(), mUndequeuedBlockIds.end(),
+                              nextBuffer.mBlockId) == mUndequeuedBlockIds.end()) {
+                    ALOGV("Still waiting for existing frame returned from client...");
+                    return C2_TIMED_OUT;
                 }
-            }
-#if 0
-            {
-                const C2Handle* chandle = constBlock.handle();
-                ALOGI("sendOutputBufferToWorkIfAny count:%ld pooid:%d, fd:%d", info->mGraphicBlock.use_count(), info->mBlockId, chandle->data[0]);
-            }
-#endif
-            std::shared_ptr<C2Buffer> buffer = C2Buffer::CreateGraphicBuffer(std::move(constBlock));
-            if (mMetaDataUtil->isColorAspectsChanged()) {
-                updateColorAspects();
-            }
-            if (mCurrentColorAspects) {
-                buffer->setInfo(mCurrentColorAspects);
-            }
-            /* update hdr static info */
-            if (mMetaDataUtil->isHDRStaticInfoUpdated()) {
-                updateHDRStaticInfo();
-            }
-            if (mCurrentHdrStaticInfo) {
-                buffer->setInfo(mCurrentHdrStaticInfo);
+                ALOGV("Drop this frame...");
+                sendOutputBufferToAccelerator(info, false /* ownByAccelerator */);
+                work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
+            } else {
+                // This buffer is ready to push into the corresponding work.
+                // Output buffer will be passed to client soon along with mListener->onWorkDone_nb().
+                info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
+                mBuffersInClient++;
+                updateUndequeuedBlockIds(info->mBlockId);
+
+                // Attach output buffer to the work corresponded to bitstreamId.
+                C2ConstGraphicBlock constBlock = info->mGraphicBlock->share(
+                        C2Rect(mOutputFormat.mVisibleRect.width(),
+                               mOutputFormat.mVisibleRect.height()),
+                        C2Fence());
+                //MarkBlockPoolDataAsShared(constBlock);
+                {
+                    //for dump
+                    if (mDumpYuvFp && !mSecureMode) {
+                        const C2GraphicView& view = constBlock.map().get();
+                        const uint8_t* const* data = view.data();
+                        int size = info->mGraphicBlock->width() * info->mGraphicBlock->height() * 3 / 2;
+                        //ALOGV("%s C2ConstGraphicBlock database:%x, y:%p u:%p",
+                         //       __FUNCTION__, reinterpret_cast<intptr_t>(data[0]), data[C2PlanarLayout::PLANE_Y], data[C2PlanarLayout::PLANE_U]);
+                        fwrite(data[0], 1, size, mDumpYuvFp);
+                    }
+                }
+        #if 0
+                {
+                    const C2Handle* chandle = constBlock.handle();
+                    ALOGI("sendOutputBufferToWorkIfAny count:%ld pooid:%d, fd:%d", info->mGraphicBlock.use_count(), info->mBlockId, chandle->data[0]);
+                }
+        #endif
+                std::shared_ptr<C2Buffer> buffer = C2Buffer::CreateGraphicBuffer(std::move(constBlock));
+                if (mMetaDataUtil->isColorAspectsChanged()) {
+                    updateColorAspects();
+                }
+                if (mCurrentColorAspects) {
+                    buffer->setInfo(mCurrentColorAspects);
+                }
+                /* update hdr static info */
+                if (mMetaDataUtil->isHDRStaticInfoUpdated()) {
+                    updateHDRStaticInfo();
+                }
+                if (mCurrentHdrStaticInfo) {
+                    buffer->setInfo(mCurrentHdrStaticInfo);
+                }
+
+                if (mPictureSizeChanged) {
+                    mPictureSizeChanged = false;
+                    work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
+                    ALOGI("video size changed");
+                }
+                work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
+                info->mGraphicBlock.reset();
             }
 
-            if (mPictureSizeChanged) {
-                mPictureSizeChanged = false;
-                work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
-                ALOGI("video size changed");
+            // Check no-show frame by timestamps for VP8/VP9 cases before reporting the current work.
+        #if 0
+            if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
+                detectNoShowFrameWorksAndReportIfFinished(&(work->input.ordinal));
             }
-            work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
-            info->mGraphicBlock.reset();
+        #endif
+            int64_t timestamp = work->input.ordinal.timestamp.peekull();
+            ATRACE_INT("c2workpts", timestamp);
+            ALOGI("sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
+            ATRACE_INT("c2workpts", 0);
         }
-
-        // Check no-show frame by timestamps for VP8/VP9 cases before reporting the current work.
-#if 0
-        if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-            detectNoShowFrameWorksAndReportIfFinished(&(work->input.ordinal));
-        }
-#endif
 
         reportWorkIfFinished(nextBuffer.mBitstreamId);
-        int64_t timestamp = work->input.ordinal.timestamp.peekull();
-        ATRACE_INT("c2workpts", timestamp);
         mPendingBuffersToWork.pop_front();
-        ATRACE_INT("c2workpts", 0);
-        ALOGI("sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
     }
     return C2_OK;
 }
@@ -1577,6 +1578,8 @@ void C2VDAComponent::onStopDone() {
     reportAbandonedWorks();
     mPendingOutputFormat.reset();
     mPendingBuffersToWork.clear();
+    stopDequeueThread();
+
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
         delete mVideoDecWraper;
@@ -1584,7 +1587,6 @@ void C2VDAComponent::onStopDone() {
         mMetaDataUtil.reset();
     }
 
-    stopDequeueThread();
     for (auto& info : mGraphicBlocks) {
         ALOGI("info.mGraphicBlock.reset()");
         info.mGraphicBlock.reset();
