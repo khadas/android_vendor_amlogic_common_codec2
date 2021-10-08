@@ -14,10 +14,12 @@
 #include <video_decode_accelerator.h>
 
 #include <C2Component.h>
+#include <C2ComponentFactory.h>
 #include <C2Config.h>
 #include <C2Enum.h>
 #include <C2Param.h>
 #include <C2ParamDef.h>
+
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
 
@@ -143,6 +145,10 @@ public:
         C2VDAComponent *mComponent;
         friend C2VDAComponent;
     };
+
+    static std::shared_ptr<C2Component> create(const std::string& name, c2_node_id_t id,
+                                               const std::shared_ptr<C2ReflectorHelper>& helper,
+                                               C2ComponentFactory::ComponentDeleter deleter);
 
     C2VDAComponent(C2String name, c2_node_id_t id,
                    const std::shared_ptr<C2ReflectorHelper>& helper);
@@ -370,6 +376,8 @@ private:
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
     bool getVideoResolutionChanged();
+
+    static std::atomic<int32_t> sConcurrentInstances;
 
     // The pointer of component interface implementation.
     std::shared_ptr<IntfImpl> mIntfImpl;

@@ -893,6 +893,44 @@ C2VDAComponent::VideoFormat::VideoFormat(HalPixelFormat pixelFormat, uint32_t mi
         mCodedSize(codedSize),
         mVisibleRect(visibleRect) {}
 
+
+// static
+std::atomic<int32_t> C2VDAComponent::sConcurrentInstances = 0;
+
+// static
+std::shared_ptr<C2Component> C2VDAComponent::create(
+        const std::string& name, c2_node_id_t id, const std::shared_ptr<C2ReflectorHelper>& helper,
+        C2ComponentFactory::ComponentDeleter deleter) {
+    UNUSED(deleter);
+
+    static const int32_t kMaxConcurrentInstances =
+            property_get_int32("vendor.codec2.decode.concurrent-instances", 9);
+    static const int32_t kMaxSecureConcurrentInstances =
+            property_get_int32("vendor.codec2.securedecode.concurrent-instances", 1);
+
+    static std::mutex mutex;
+
+    std::lock_guard<std::mutex> lock(mutex);
+
+    bool isSecure = name.find(".secure") != std::string::npos;
+
+    if (isSecure) {
+        if (kMaxSecureConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxSecureConcurrentInstances) {
+            ALOGW("Reject to Initialize() due to too many secure instances: %d", sConcurrentInstances.load());
+            return nullptr;
+        }
+    } else {
+        if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
+            ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
+            return nullptr;
+        }
+    }
+
+
+
+    return std::shared_ptr<C2Component>(new C2VDAComponent(name, id, helper));
+}
+
 C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
                                const std::shared_ptr<C2ReflectorHelper>& helper)
       : mIntfImpl(std::make_shared<IntfImpl>(name, helper)),
@@ -913,6 +951,10 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mResChStat(C2_RESOLUTION_CHANGE_NONE),
         mSurfaceUsageGeted(false),
         mVDAComponentStopDone(false) {
+   ALOGI("%s(%s)", __func__, name.c_str());
+
+   sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
+
    // TODO(johnylin): the client may need to know if init is failed.
     if (mIntfImpl->status() != C2_OK) {
         ALOGE("Component interface init failed (err code = %d)", mIntfImpl->status());
@@ -941,12 +983,14 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
 }
 
 C2VDAComponent::~C2VDAComponent() {
-    ALOGI("~C2VDAComponent");
+    ALOGI("%s", __func__);
     if (mThread.IsRunning()) {
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VDAComponent::onDestroy, ::base::Unretained(this)));
         mThread.Stop();
     }
+    sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
+    ALOGI("%s done", __func__);
 }
 
 void C2VDAComponent::onDestroy() {
@@ -2780,9 +2824,8 @@ public:
 
     c2_status_t createComponent(c2_node_id_t id, std::shared_ptr<C2Component>* const component,
                                 ComponentDeleter deleter) override {
-        UNUSED(deleter);
-        *component = std::shared_ptr<C2Component>(new C2VDAComponent(mDecoderName, id, mReflector));
-        return C2_OK;
+        *component = C2VDAComponent::create(mDecoderName, id, mReflector, deleter);
+        return *component ? C2_OK : C2_NO_MEMORY;
     }
     c2_status_t createInterface(c2_node_id_t id,
                                 std::shared_ptr<C2ComponentInterface>* const interface,
