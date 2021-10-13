@@ -114,7 +114,7 @@ bool VideoTunnelRendererWraper::flush() {
 int VideoTunnelRendererWraper::regFillVideoFrameCallBack(callbackFunc funs, void* obj) {
     if (!mVideoTunnelRenderer)
         return false;
-    return mVideoTunnelRenderer->regCallBack(VideoTunnelRendererBase::CB_FILLVIDEOFRAME, funs, obj);
+    return mVideoTunnelRenderer->regCallBack(VideoTunnelRendererBase::CB_FILLVIDEOFRAME2, funs, obj);
 }
 
 int VideoTunnelRendererWraper::regNotifyTunnelRenderTimeCallBack(callbackFunc funs, void* obj) {

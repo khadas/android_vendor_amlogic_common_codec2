@@ -52,6 +52,7 @@
 #include <cutils/properties.h>
 
 #include <C2VDAComponentMetaDataUtil.h>
+#include <logdebug.h>
 
 #define ATRACE_TAG ATRACE_TAG_VIDEO
 #include <utils/Trace.h>
@@ -65,8 +66,12 @@
         (void)(expr); \
     } while (0)
 
+#define C2VDA_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mInstanceID, mCurInstanceID, ##str)
+
 
 uint32_t android::C2VDAComponent::mDumpFileCnt = 0;
+uint32_t android::C2VDAComponent::mInstanceNum = 0;
+uint32_t android::C2VDAComponent::mInstanceID = 0;
 
 using android::hardware::graphics::common::V1_0::BufferUsage;
 
@@ -315,7 +320,7 @@ c2_status_t C2VDAComponent::IntfImpl::config(
         for (C2Param* const param : params) {
             switch (param->coreIndex().coreIndex()) {
                 case C2PortTunneledModeTuning::CORE_INDEX:
-                    ALOGI("tunnel mode config");
+                    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config", C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
                     if (mComponent) {
                         mComponent->onConfigureTunnelMode();
                         // change to bufferpool
@@ -950,17 +955,17 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mBufferFirstAllocated(false),
         mResChStat(C2_RESOLUTION_CHANGE_NONE),
         mSurfaceUsageGeted(false),
-        mVDAComponentStopDone(false) {
-   ALOGI("%s(%s)", __func__, name.c_str());
+        mVDAComponentStopDone(false),
+        mIsTunnelMode(false) {
+    ALOGI("%s(%s)", __func__, name.c_str());
 
-   sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
+    sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
 
    // TODO(johnylin): the client may need to know if init is failed.
     if (mIntfImpl->status() != C2_OK) {
         ALOGE("Component interface init failed (err code = %d)", mIntfImpl->status());
         return;
     }
-
     mIntfImpl->setComponent(this);
 
     mSecureMode = name.find(".secure") != std::string::npos;
@@ -969,8 +974,13 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         return;
     }
     mTaskRunner = mThread.task_runner();
-
     mState.store(State::LOADED);
+    mCurInstanceID = mInstanceNum;
+    mInstanceNum ++;
+    mInstanceID ++;
+
+    propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
+    C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
     bool dump = property_get_bool("vendor.media.codec2.dumpyuv", false);
     if (dump) {
         char pathfile[1024] = { '\0'  };
@@ -991,6 +1001,7 @@ C2VDAComponent::~C2VDAComponent() {
     }
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     ALOGI("%s done", __func__);
+    --mInstanceNum;
 }
 
 void C2VDAComponent::onDestroy() {
@@ -1009,30 +1020,45 @@ void C2VDAComponent::onDestroy() {
     stopDequeueThread();
 }
 
-int C2VDAComponent::fillVideoFrameTunnelMode(int medafd) {
-    (void)medafd;
+int C2VDAComponent::fillVideoFrameTunnelMode2(int medafd, bool rendered) {
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, fd:%d, render:%d", __func__, __LINE__, medafd, rendered);
 
-    ALOGI("%s:%d, fd:%d", __func__, __LINE__, medafd);
     GraphicBlockInfo* info = getGraphicBlockByFd(medafd);
     if (!info) {
-        ALOGE("%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, medafd);
+        C2VDA_LOG(CODEC2_LOG_ERR, "%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, medafd);
         reportError(C2_CORRUPTED);
         return 0;
     }
+    info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
     sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+
+    /* for drop, need report finished work */
+    if (!rendered) {
+        auto pendingbuffer = std::find_if(
+                mPendingBuffersToWork.begin(), mPendingBuffersToWork.end(),
+                [id = info->mBlockId](const OutputBufferInfo& o) { return o.mBlockId == id;});
+        if (pendingbuffer != mPendingBuffersToWork.end()) {
+            struct VideoTunnelRendererWraper::renderTime rendertime = {
+                .mediaUs = pendingbuffer->mMediaTimeUs,
+                .renderUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000,
+            };
+            sendOutputBufferToWorkTunnel(&rendertime);
+        }
+    }
+
     return 0;
 }
 
-int C2VDAComponent::fillVideoFrameCallback(void* obj, void* args) {
+int C2VDAComponent::fillVideoFrameCallback2(void* obj, void* args) {
     C2VDAComponent* pCompoment = (C2VDAComponent*)obj;
-    int* medafd = (int*)args;
+    struct fillVideoFrame2* pfillVideoFrame = (struct fillVideoFrame2*)args;
 
-    pCompoment->fillVideoFrameTunnelMode(*medafd);
+    pCompoment->fillVideoFrameTunnelMode2(pfillVideoFrame->fd, pfillVideoFrame->rendered);
     return 0;
 }
 
 int C2VDAComponent::notifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime) {
-    ALOGI("%s:%d rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s:%d rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
     sendOutputBufferToWorkTunnel(rendertime);
     return 0;
 }
@@ -1059,7 +1085,7 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
         mHasError = false;
     }
     if (mVideoTunnelRenderer) {
-        mVideoTunnelRenderer->regFillVideoFrameCallBack(fillVideoFrameCallback, this);
+        mVideoTunnelRenderer->regFillVideoFrameCallBack(fillVideoFrameCallback2, this);
         mVideoTunnelRenderer->regNotifyTunnelRenderTimeCallBack(notifyTunnelRenderTimeCallback, this);
         mVideoTunnelRenderer->start();
     }
@@ -1278,7 +1304,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp});
     ALOGV("%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersizs:%d, graphicblock:%p",
             __func__, bitstreamId, pictureBufferId, mPendingBuffersToWork.size(), info->mGraphicBlock->handle());
-    if (!mTunnelHandle) {
+    if (!mIsTunnelMode) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else {
         sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
@@ -1286,13 +1312,25 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 }
 
 c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
-    ALOGI("%s:%d, rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+
     {
         std::unique_lock<std::mutex> l(mPendWorksMutex);
 
+        if (mPendingBuffersToWork.empty() ||
+                mPendingWorks.empty()) {
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "empty pendingwork, ignore report it");
+            return C2_OK;
+        }
+        auto nextBuffer = mPendingBuffersToWork.front();
+        if (rendertime->mediaUs < nextBuffer.mMediaTimeUs) {
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "old timestamp, ignore report it");
+            return C2_OK;
+        }
+
         C2Work* work = getPendingWorkByMediaTime(rendertime->mediaUs);
         if (!work) {
-            ALOGE("not find the correct work with mediaTime:%lld", rendertime->mediaUs);
+            C2VDA_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld", rendertime->mediaUs);
             reportError(C2_CORRUPTED);
             return C2_CORRUPTED;
         }
@@ -1305,7 +1343,10 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRende
             [time=rendertime->mediaUs](const OutputBufferInfo& o) { return o.mMediaTimeUs == time;});
 
     if (pendingbuffer != mPendingBuffersToWork.end()) {
+        //info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, rendertime:%lld, bitstreamId:%d", __func__, __LINE__, rendertime->mediaUs, pendingbuffer->mBitstreamId);
         reportWorkIfFinished(pendingbuffer->mBitstreamId);
+        mPendingBuffersToWork.erase(pendingbuffer);
     }
 
     return C2_OK;
@@ -1315,7 +1356,8 @@ c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId,
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
     int64_t timestamp = -1;
 
-    if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+    if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR ||
+        info->mState == GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER) {
         ALOGE("Graphic block (id=%d) should not be owned by accelerator", info->mBlockId);
         reportError(C2_BAD_STATE);
         return C2_BAD_STATE;
@@ -1334,6 +1376,7 @@ c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId,
 
     if (mVideoTunnelRenderer) {
         ALOGI("%s:%d, fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
+        info->mState = GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER;
         mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
     }
 
@@ -1470,6 +1513,9 @@ void C2VDAComponent::onDrain(uint32_t drainMode) {
             mVideoDecWraper->flush();
             mComponentState = ComponentState::DRAINING;
             mPendingOutputEOS = drainMode == DRAIN_COMPONENT_WITH_EOS;
+            if (mVideoTunnelRenderer && mTunnelHandle) {
+                mVideoTunnelRenderer->flush();
+            }
         } else {
             ALOGV("Neglect drain. Component in state: %d", mComponentState);
         }
@@ -1494,6 +1540,14 @@ void C2VDAComponent::onDrainDone() {
         // and component should still expect onFlushDone callback from VDA.
         ALOGE("Unexpected state while onDrainDone(). State=%d", mComponentState);
         reportError(C2_BAD_STATE);
+        return;
+    }
+
+    if (mIsTunnelMode) {
+        CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] tunnel mode reset done", __FUNCTION__, __LINE__);
+        // Work dequeueing was stopped while component draining. Restart it.
+        mTaskRunner->PostTask(FROM_HERE,
+                          ::base::Bind(&C2VDAComponent::onDequeueWork, ::base::Unretained(this)));
         return;
     }
 
@@ -1803,7 +1857,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
     }
 
     // Drop all pending existing frames and return all finished works before changing output format.
-    if (sendOutputBufferToWorkIfAny(true /* dropIfUnavailable */) != C2_OK) {
+    if (!mIsTunnelMode && sendOutputBufferToWorkIfAny(true /* dropIfUnavailable */) != C2_OK) {
         return;
     }
 
@@ -1842,8 +1896,28 @@ void C2VDAComponent::tryChangeOutputFormat() {
 c2_status_t C2VDAComponent::videoResolutionChange() {
     ALOGV("videoResolutionChange");
 
-    stopDequeueThread();
     mPendingOutputFormat.reset();
+    if (mIsTunnelMode) {
+        //tunnel mode not realloc buffer when resolution change
+        size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
+        if (bufferCount > mOutBufferCount) {
+            C2VDA_LOG(CODEC2_LOG_ERR, "tunnel new outbuffer count %d large than default %d, please check", bufferCount, mOutBufferCount);
+            return C2_BAD_VALUE;
+        } else {
+            bufferCount = mOutBufferCount;
+        }
+        mVideoDecWraper->assignPictureBuffers(bufferCount);
+        DCHECK(mBlockPool->getAllocatorId() != C2PlatformAllocatorStore::BUFFERQUEUE);
+        for (auto& info : mGraphicBlocks) {
+            info.mFdHaveSet = false;
+            if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                sendOutputBufferToAccelerator(&info, true /* ownByAccelerator */);
+            }
+        }
+        return C2_OK;
+    }
+
+    stopDequeueThread();
     if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
         std::shared_ptr<C2VdaBqBlockPool> bqPool =
             std::static_pointer_cast<C2VdaBqBlockPool>(mBlockPool);
@@ -1895,6 +1969,22 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
     return C2_OK;
 }
 
+int C2VDAComponent::getTunnelModeDefBufNum(InputCodec videotype) {
+    int defaultMaxBuffers = 16;
+
+    if (videotype == InputCodec::AV1) {
+        defaultMaxBuffers = 16;
+    } else if (videotype == InputCodec::VP9) {
+        defaultMaxBuffers = 14;
+    } else if (videotype == InputCodec::H265) {
+        defaultMaxBuffers = 12;
+    } else if (videotype == InputCodec::H264) {
+        defaultMaxBuffers = 12;
+    }
+
+    return defaultMaxBuffers;
+}
+
 bool C2VDAComponent::getVideoResolutionChanged() {
     if (mResChStat == C2_RESOLUTION_CHANGEING) {
         for (auto& info : mGraphicBlocks) {
@@ -1914,6 +2004,15 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
 
     stopDequeueThread();
     size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
+    if (mIsTunnelMode) {
+        mOutBufferCount = getTunnelModeDefBufNum(GetIntfImpl()->getInputCodec());
+        if (bufferCount > mOutBufferCount) {
+            C2VDA_LOG(CODEC2_LOG_INFO, "tunnel mode outbuffer count %d large than default num %d", bufferCount, mOutBufferCount);
+            mOutBufferCount = bufferCount;
+        } else {
+            bufferCount = mOutBufferCount;
+        }
+    }
 
     mGraphicBlocks.clear();
 
@@ -1935,7 +2034,7 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
 
     ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
     bool useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
-    if (mTunnelHandle) {
+    if (mIsTunnelMode) {
         DCHECK(useBufferQueue == false);
     }
     size_t minBuffersForDisplay = 0;
@@ -2039,7 +2138,7 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
     mOutputFormat.mMinNumBuffers = bufferCount;
     if (!mBlockPool)
         mBlockPool = std::move(blockPool);
-    if (!mTunnelHandle && !startDequeueThread(size, pixelFormat, mBlockPool,
+    if (!mIsTunnelMode && !startDequeueThread(size, pixelFormat, mBlockPool,
                             true /* resetBuffersInClient */)) {
 
         ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
@@ -2276,7 +2375,9 @@ void C2VDAComponent::checkVideoDecReconfig() {
         } else {
             mVideoDecWraper = new VideoDecWraper();
         }
-        mMetaDataUtil->setNoSurfaceTexture(true);
+        if (!mIsTunnelMode) {
+            mMetaDataUtil->setNoSurfaceTexture(true);
+        }
         mMetaDataUtil->codecConfig(&mConfigParam);
         mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                   (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
@@ -2595,7 +2696,7 @@ bool C2VDAComponent::isWorkDone(const C2Work* work) const {
         // Unless the input is CSD or the output is dropped, this work is not done because the
         // output buffer is not returned from VDA yet.
         // tunnel mode need add rendertime info update
-        if (!mTunnelHandle) {
+        if (!mIsTunnelMode) {
             if (work->worklets.front()->output.buffers.empty()) {
                 return false;
             }
@@ -2808,6 +2909,7 @@ void C2VDAComponent::onConfigureTunnelMode() {
                         memcpy(mIntfImpl->mTunnelHandleOutput->m.values, &mTunnelHandle->data[mTunnelHandle->numFds], sizeof(int32_t) * mTunnelHandle->numInts);
                     }
                 }
+                mIsTunnelMode = true;
             }
         }
     }

@@ -184,9 +184,9 @@ public:
 
     //tunnel mode implement
     void onConfigureTunnelMode();
-    static int fillVideoFrameCallback(void* obj, void* args);
+    static int fillVideoFrameCallback2(void* obj, void* args);
     static int notifyTunnelRenderTimeCallback(void* obj, void* args);
-    int fillVideoFrameTunnelMode(int medafd);
+    int fillVideoFrameTunnelMode2(int medafd, bool rendered);
     int notifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime);
     c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
     c2_status_t sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime);
@@ -195,6 +195,10 @@ public:
     IntfImpl* GetIntfImpl() {
        return mIntfImpl.get();
     }
+
+    static uint32_t mInstanceNum;
+    static uint32_t mInstanceID;
+    uint32_t mCurInstanceID;
 
 private:
     // The state machine enumeration on parent thread.
@@ -244,6 +248,7 @@ private:
             OWNED_BY_COMPONENT,    // Owned by this component.
             OWNED_BY_ACCELERATOR,  // Owned by video decode accelerator.
             OWNED_BY_CLIENT,       // Owned by client.
+            OWNER_BY_TUNNELRENDER,
         };
 
         // The ID of this block used for accelerator.
@@ -376,6 +381,7 @@ private:
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
     bool getVideoResolutionChanged();
+    int getTunnelModeDefBufNum(InputCodec videotype);
 
     static std::atomic<int32_t> sConcurrentInstances;
 
@@ -483,6 +489,9 @@ private:
     c2_resch_stat mResChStat;
     bool mSurfaceUsageGeted;
     bool mVDAComponentStopDone;
+    bool mIsTunnelMode;
+    int32_t mOutBufferCount;
+
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };
 

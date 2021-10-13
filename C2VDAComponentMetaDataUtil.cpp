@@ -11,12 +11,34 @@
 #include <VideoDecodeAcceleratorAdaptor.h>
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <am_gralloc_ext.h>
+#include <logdebug.h>
+
+#define C2VDAMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, C2VDAComponent::mInstanceID, mComp->mCurInstanceID, ##str)
 
 #define OUTPUT_BUFS_ALIGN_SIZE (64)
-
 #define min(a, b) (((a) > (b))? (b):(a))
 
 namespace android {
+
+C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
+    mComp(comp),
+    mUseSurfaceTexture(false),
+    mNoSurface(false),
+    mHDRStaticInfoChanged(false),
+    mColorAspectsChanged(false),
+    mSecure(secure),
+    mEnableNR(false),
+    mEnableDILocalBuf(false),
+    mEnable8kNR(false),
+    mSignalType(0) {
+    mIntfImpl = mComp->GetIntfImpl();
+    propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
+    C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
+}
+
+C2VDAComponent::MetaDataUtil::~MetaDataUtil() {
+    C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
+}
 
 void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     uint32_t doubleWriteMode = 3;
@@ -37,26 +59,26 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     C2StreamPictureSizeInfo::output output;
     c2_status_t err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
-        ALOGE("query C2StreamPictureSizeInfo size error\n");
+        C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamPictureSizeInfo size error", __func__, __LINE__);
     }
 
     C2GlobalLowLatencyModeTuning lowLatency;
     err = mIntfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
-        ALOGE("query C2StreamPictureSizeInfo size error\n");
+        C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamPictureSizeInfo size error", __func__, __LINE__);
     }
 
     if (lowLatency.value) {
-        ALOGI("Config low latency mode to v4l2 decoder.");
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "Config low latency mode to v4l2 decoder.");
         mConfigParam->cfg.low_latency_mode |= LOWLATENCY_NORMAL;
     } else {
-        ALOGI("disable low latency mode to v4l2 decoder.");
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "disable low latency mode to v4l2 decoder.");
         mConfigParam->cfg.low_latency_mode |= LOWLATENCY_DISABALE;
     }
 
     bufwidth = output.width;
     bufheight = output.height;
-    ALOGI("configure width:%d height:%d", output.width, output.height);
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "configure width:%d height:%d", output.width, output.height);
 
     switch (mIntfImpl->getInputCodec())
     {
@@ -76,7 +98,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
         case InputCodec::AV1:
             if (mUseSurfaceTexture || mNoSurface) {
                 doubleWriteMode = 1;
-                ALOGI("surface texture/nosurface use dw 1");
+                C2VDAMDU_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 1");
             } else {
                 doubleWriteMode = 3;
             }
@@ -103,14 +125,13 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
 
     if (property_get("vendor.media.doublewrite", value, NULL) > 0) {
         doubleWriteMode = atoi(value);
-        ALOGI("set double:%d", doubleWriteMode);
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "set double:%d", doubleWriteMode);
     }
     memset(value, 0, sizeof(value));
     if (property_get("vendor.media.margin", value, NULL) > 0) {
         default_margin = atoi(value);
-        ALOGI("set margin:%d", default_margin);
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "set margin:%d", default_margin);
     }
-
 
     margin = default_margin;
     mConfigParam->cfg.canvas_mem_mode = 0;
@@ -127,10 +148,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     }
 #endif
 
-    ALOGI("doubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
-
-
-
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "doubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
     if (mUseSurfaceTexture || mNoSurface) {
         mEnableNR = false;
         mEnableDILocalBuf = false;
@@ -142,12 +160,12 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     }
 
     if (mEnableNR) {
-        ALOGI("enable NR");
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "enable NR");
         mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_NR_ENABLE;
     }
 
     if (mEnableDILocalBuf) {
-        ALOGI("enable DILocalBuf");
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "enable DILocalBuf");
         mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
     }
 
@@ -231,8 +249,8 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
     C2StreamHdrStaticInfo::output hdr;
     c2_status_t err = mIntfImpl->query({&hdr}, {}, C2_DONT_BLOCK, &params);
     if (err != C2_OK) {
-         ALOGE("query hdr info error\n");
-         return 0;
+        C2VDAMDU_LOG(CODEC2_LOG_ERR, "query hdr info error");
+        return 0;
     }
 
     if (((int32_t)(hdr.mastering.red.x * 1000) == 0) &&
@@ -247,7 +265,7 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
         ((int32_t)(hdr.mastering.minLuminance * 1000) == 0) &&
         ((int32_t)(hdr.maxCll * 1000) == 0) &&
         ((int32_t)(hdr.maxFall * 1000) == 0)) { /* defalut val */
-        ALOGE("no hdr static info set");
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "no hdr static info set");
         return 0;
     }
 
@@ -265,7 +283,7 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
     mConfigParam->hdr.color_parms.content_light_level.max_pic_average = hdr.maxFall + 0.5;//info.sType1.mMaxFrameAverageLightLevel;
     mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_HDRINFO;
 
-    ALOGI("set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicave:%d, %f %f %f %f %f %f %f %f %f %f %f %f",
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicave:%d, %f %f %f %f %f %f %f %f %f %f %f %f",
             mConfigParam->hdr.color_parms.primaries[0][0],
             mConfigParam->hdr.color_parms.primaries[0][1],
             mConfigParam->hdr.color_parms.primaries[1][0],
@@ -295,7 +313,7 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
 }
 
 void C2VDAComponent::MetaDataUtil::updateDecParmInfo(aml_dec_params* pinfo) {
-    ALOGD("pinfo->dec_parms_status %x\n", pinfo->parms_status);
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "pinfo->dec_parms_status %x\n", pinfo->parms_status);
     if (pinfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
         checkHDRMetadataAndColorAspects(&pinfo->hdr);
     }
@@ -363,7 +381,7 @@ int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vde
             if (!C2Mapper::map(aspects.mTransfer, &codedAspects.transfer)) {
                 codedAspects.transfer = C2Color::TRANSFER_UNSPECIFIED;
             }
-            ALOGD("update color aspect p:%d/%d, r:%d/%d, m:%d/%d, t:%d/%d",
+            C2VDAMDU_LOG(CODEC2_LOG_INFO, "update color aspect p:%d/%d, r:%d/%d, m:%d/%d, t:%d/%d",
                         codedAspects.primaries, aspects.mPrimaries,
                         codedAspects.range, codedAspects.range,
                         codedAspects.matrix, aspects.mMatrixCoeffs,
@@ -371,7 +389,7 @@ int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vde
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             c2_status_t err = mIntfImpl->config({&codedAspects}, C2_MAY_BLOCK, &failures);
             if (err != C2_OK) {
-                ALOGE("Failed to config hdr static info, error:%d", err);
+                C2VDAMDU_LOG(CODEC2_LOG_ERR, "Failed to config hdr static info, error:%d", err);
             }
             std::lock_guard<std::mutex> lock(mMutex);
             mColorAspectsChanged = true;
@@ -389,7 +407,7 @@ int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vde
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         c2_status_t err = mIntfImpl->config({&hdr}, C2_MAY_BLOCK, &failures);
         if (err != C2_OK) {
-            ALOGE("Failed to config hdr static info, error:%d", err);
+            C2VDAMDU_LOG(CODEC2_LOG_ERR, "Failed to config hdr static info, error:%d", err);
         }
         std::lock_guard<std::mutex> lock(mMutex);
         mHDRStaticInfoChanged = true;

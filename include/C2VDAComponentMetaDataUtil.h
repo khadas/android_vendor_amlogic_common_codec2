@@ -16,20 +16,8 @@
 namespace android {
 class C2VDAComponent::MetaDataUtil {
 public:
-    MetaDataUtil(C2VDAComponent* comp, bool secure):
-        mComp(comp),
-        mUseSurfaceTexture(false),
-        mNoSurface(false),
-        mHDRStaticInfoChanged(false),
-        mColorAspectsChanged(false),
-        mSecure(secure),
-        mEnableNR(false),
-        mEnableDILocalBuf(false),
-        mEnable8kNR(false),
-        mSignalType(0) {
-        mIntfImpl = mComp->GetIntfImpl();
-    }
-    virtual ~MetaDataUtil() {}
+    MetaDataUtil(C2VDAComponent* comp, bool secure);
+    virtual ~MetaDataUtil();
 
     /* configure decoder */
     void codecConfig(aml_dec_params* params);
