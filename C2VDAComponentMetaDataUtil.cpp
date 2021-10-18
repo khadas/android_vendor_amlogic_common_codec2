@@ -543,4 +543,22 @@ bool C2VDAComponent::MetaDataUtil::getNeedReallocBuffer()
     return realloc;
 }
 
+bool C2VDAComponent::MetaDataUtil::checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat old_video_format_new)
+{
+    bool buffernumchanged = false;
+    bool framesizechanged = false;
+
+    if (old_video_format_new.mMinNumBuffers != video_format_old.mMinNumBuffers)
+        buffernumchanged = true;
+
+    if (old_video_format_new.mCodedSize.width() != video_format_old.mCodedSize.width() ||
+        old_video_format_new.mCodedSize.height() !=  video_format_old.mCodedSize.height())
+        framesizechanged = true;
+
+    if (buffernumchanged || framesizechanged) {
+        return true;
+    }
+    return false;
+}
+
 }

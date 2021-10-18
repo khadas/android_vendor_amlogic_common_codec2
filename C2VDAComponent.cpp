@@ -117,7 +117,7 @@ media::Size getFrameSizeFromC2GraphicBlock(const C2GraphicBlock& block) {
 #endif
 
 // Use basic graphic block pool/allocator as default.
-const C2BlockPool::local_id_t kDefaultOutputBlockPool = C2BlockPool::PLATFORM_START;//C2PlatformAllocatorStore::BUFFERQUEUE;
+const C2BlockPool::local_id_t kDefaultOutputBlockPool = C2VDAAllocatorStore::V4L2_BUFFERPOOL;//C2PlatformAllocatorStore::BUFFERQUEUE;
 
 const C2String kH264DecoderName = "c2.amlogic.avc.decoder";
 const C2String kH265DecoderName = "c2.amlogic.hevc.decoder";
@@ -1867,6 +1867,10 @@ void C2VDAComponent::tryChangeOutputFormat() {
 
     CHECK_EQ(mPendingOutputFormat->mPixelFormat, HalPixelFormat::YCRCB_420_SP);
 
+    mLastOutputFormat.mPixelFormat = mOutputFormat.mPixelFormat;
+    mLastOutputFormat.mMinNumBuffers =  mOutputFormat.mMinNumBuffers;
+    mLastOutputFormat.mCodedSize = mOutputFormat.mCodedSize;
+
     mOutputFormat.mPixelFormat = mPendingOutputFormat->mPixelFormat;
     mOutputFormat.mMinNumBuffers = mPendingOutputFormat->mMinNumBuffers;
     mOutputFormat.mCodedSize = mPendingOutputFormat->mCodedSize;
@@ -1891,6 +1895,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
         sendOutputBufferToAccelerator(&info, true /* ownByAccelerator */);
     }
     mPendingOutputFormat.reset();
+    mBufferFirstAllocated = true;
 }
 
 c2_status_t C2VDAComponent::videoResolutionChange() {
@@ -1936,23 +1941,46 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
             ALOGE("failed to request new buffer set to block pool: %d", err);
             reportError(err);
         }
+        mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
+
+        if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat), mBlockPool,
+                    false /* resetBuffersInClient */)) {
+            ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
+            reportError(C2_CORRUPTED);
+            return C2_CORRUPTED;
+        }
     } else {
-        std::shared_ptr<C2VdaPooledBlockPool> bpPool =
-            std::static_pointer_cast<C2VdaPooledBlockPool>(mBlockPool);
-        for (auto& info : mGraphicBlocks) {
-            info.mFdHaveSet = false;
-            if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
-                bpPool->resetGraphicBlock(info.mPoolId);
+        if (mMetaDataUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat)) {
+            auto err = allocateBuffersFromBlockAllocator(
+                                mOutputFormat.mCodedSize,
+                                static_cast<uint32_t>(mOutputFormat.mPixelFormat));
+            if (err != C2_OK) {
+                ALOGE("failed to allocate new buffer err: %d", err);
+                reportError(err);
+            }
+
+            for (auto& info : mGraphicBlocks) {
+                sendOutputBufferToAccelerator(&info, true /* ownByAccelerator */);
+            }
+        } else {
+            std::shared_ptr<C2VdaPooledBlockPool> bpPool =
+                std::static_pointer_cast<C2VdaPooledBlockPool>(mBlockPool);
+            for (auto& info : mGraphicBlocks) {
+                info.mFdHaveSet = false;
+                if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                    bpPool->resetGraphicBlock(info.mPoolId);
+                }
+            }
+
+            mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
+
+            if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat), mBlockPool,
+                        false /* resetBuffersInClient */)) {
+                ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
+                reportError(C2_CORRUPTED);
+                return C2_CORRUPTED;
             }
         }
-    }
-
-    mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
-    if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat), mBlockPool,
-                false /* resetBuffersInClient */)) {
-        ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
-        reportError(C2_CORRUPTED);
-        return C2_CORRUPTED;
     }
 
     //update picture size
@@ -2079,6 +2107,14 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
             reportError(C2_CORRUPTED);
             return C2_CORRUPTED;
         }
+        if (mBufferFirstAllocated) {
+            for (auto& info : mGraphicBlocks) {
+                info.mFdHaveSet = false;
+                if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                    bpPool->resetGraphicBlock(info.mPoolId);
+                }
+            }
+        }
     }
     ALOGV("Minimum undequeued buffer count = %zu", minBuffersForDisplay);
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
@@ -2145,7 +2181,6 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
-    mBufferFirstAllocated = true;
     return C2_OK;
 }
 
@@ -2336,11 +2371,14 @@ void C2VDAComponent::checkVideoDecReconfig() {
         std::shared_ptr<C2BlockPool> blockPool;
         auto poolId = mIntfImpl->getBlockPoolId();
         auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
-        if (err != C2_OK) {
-            ALOGE("Graphic block allocator is invalid");
-            reportError(err);
+        if (err != C2_OK || !blockPool) {
+            ALOGI("get block pool ok, id:%lld", poolId);
+            err = CreateCodec2BlockPool(poolId, shared_from_this(), &blockPool);
+            if (err != C2_OK) {
+                ALOGE("Graphic block allocator is invalid");
+                reportError(err);
+            }
         }
-        ALOGI("get block pool ok, id:%lld", poolId);
         mBlockPool = std::move(blockPool);
     }
     if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {

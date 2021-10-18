@@ -48,6 +48,7 @@ public:
     uint64_t getPlatformUsage();
     uint32_t getOutAlignedSize(uint32_t size, bool forcealign = false);
     bool getNeedReallocBuffer();
+    bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat old_video_format_new);
 private:
     /* set hdr static to decoder */
     int setHDRStaticInfo();

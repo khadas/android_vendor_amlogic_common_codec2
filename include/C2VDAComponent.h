@@ -437,6 +437,8 @@ private:
     media::Rect mRequestedVisibleRect;
     // The current output format.
     VideoFormat mOutputFormat;
+    // The last output format.
+    VideoFormat mLastOutputFormat;
     // The pending output format. We need to wait until all buffers are returned back to apply the
     // format change.
     std::unique_ptr<VideoFormat> mPendingOutputFormat;
