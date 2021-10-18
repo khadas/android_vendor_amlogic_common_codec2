@@ -67,7 +67,8 @@ using namespace android;
 namespace {
 
 // The wait time for acquire fence in milliseconds.
-const int kFenceWaitTimeMs = 10;
+// Use 1000ms as some as omx and videotunnel.
+const int kFenceWaitTimeMs = 1000;
 // The timeout delay for dequeuing buffer from producer in nanoseconds.
 const int64_t kDequeueTimeoutNs = 10 * 1000 * 1000;
 
@@ -260,7 +261,7 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
     if ((iter == mSlotAllocations.end()) ||
         bufferNeedsReallocation) {
         // it's a new slot index, request for a new buffer.
-        if (mSlotAllocations.size() >= mMaxDequeuedBuffers  || slot >= mMaxDequeuedBuffers) {
+        if (!bufferNeedsReallocation && (mSlotAllocations.size() >= mMaxDequeuedBuffers || slot >= mMaxDequeuedBuffers)) {
             if (mProducer->cancelBuffer(slot, hFenceWrapper.getHandle()).isOk())
                 return C2_TIMED_OUT;
             ALOGE("still get a new slot index but already allocated enough buffers.");
