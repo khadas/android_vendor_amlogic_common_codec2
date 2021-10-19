@@ -88,6 +88,7 @@ enum {
     /* metadata_config_flag */
     VDEC_CFG_FLAG_DV_TWOLARYER = (1<<0),
     VDEC_CFG_FLAG_DV_NEGATIVE  = (1<<1),
+    VDEC_CFG_FLAG_DIS_ERR_POLICY = (1 << 11),
     VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE = (1<<14),
     VDEC_CFG_FLAG_NR_ENABLE    = (1<<15),
     VDEC_CFG_FLAG_PROG_ONLY    = (1<<16),

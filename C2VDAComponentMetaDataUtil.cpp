@@ -51,6 +51,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     mEnableNR = property_get_bool("vendor.c2.nr.enable", false);
     mEnableDILocalBuf = property_get_bool("vendor.c2.di.localbuf.enable", false);
     mEnable8kNR = property_get_bool("vendor.c2.8k.nr.enable", false);
+    mDisableErrPolicy = property_get_bool("vendor.c2.disable.err.policy", true);
 
     mConfigParam = configParam;
     memset(mConfigParam, 0, sizeof(aml_dec_params));
@@ -167,6 +168,11 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     if (mEnableDILocalBuf) {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "enable DILocalBuf");
         mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
+    }
+
+    if (mDisableErrPolicy) {
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "c2 need disable error policy");
+        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DIS_ERR_POLICY;
     }
 
     mConfigParam->cfg.uvm_hook_type = 2;

@@ -67,6 +67,7 @@ private:
     bool mEnableNR;
     bool mEnableDILocalBuf;
     bool mEnable8kNR;
+    bool mDisableErrPolicy;
 
     uint32_t mSignalType;
     std::mutex mMutex;
