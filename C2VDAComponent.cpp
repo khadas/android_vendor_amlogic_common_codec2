@@ -620,6 +620,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
 
     //HDR
     if (mInputCodec == InputCodec::VP9 || mInputCodec == InputCodec::AV1) {
+        /* for CTS, c2 codecs not support hdr now
             mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
             addParameter(
                     DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
@@ -639,6 +640,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                     })
                     .withSetter(Hdr10PlusInfoOutputSetter)
                     .build());
+        */
             // sample BT.2020 static info
             mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
             mHdrStaticInfo->mastering = {
