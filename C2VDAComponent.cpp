@@ -1347,6 +1347,17 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRende
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, rendertime:%lld, bitstreamId:%d", __func__, __LINE__, rendertime->mediaUs, pendingbuffer->mBitstreamId);
         reportWorkIfFinished(pendingbuffer->mBitstreamId);
         mPendingBuffersToWork.erase(pendingbuffer);
+        /* EOS work check */
+        if ((mPendingWorks.size() == 1u) &&
+            mPendingOutputEOS) {
+            C2Work* eosWork = mPendingWorks.front().get();
+            DCHECK((eosWork->input.flags & C2FrameData::FLAG_END_OF_STREAM) > 0);
+            mIntfImpl->mTunnelSystemTimeOut->value = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
+            eosWork->worklets.front()->output.ordinal.timestamp = INT64_MAX;
+            eosWork->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
+            C2VDA_LOG(CODEC2_LOG_INFO, "%s:%d eos work report", __func__, __LINE__);
+            reportEOSWork();
+        }
     }
 
     return C2_OK;
@@ -1816,18 +1827,19 @@ C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getUnbindGraphicBlock() {
 
 void C2VDAComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onOutputFormatChanged");
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
-    ALOGV("New output format(pixel_format=0x%x, min_num_buffers=%u, coded_size=%s, crop_rect=%s)",
+    C2VDA_LOG(CODEC2_LOG_INFO, "[%s:%d]New output format(pixel_format=0x%x, min_num_buffers=%u, coded_size=%s, crop_rect=%s)",
+          __func__, __LINE__,
           static_cast<uint32_t>(format->mPixelFormat), format->mMinNumBuffers,
           format->mCodedSize.ToString().c_str(), format->mVisibleRect.ToString().c_str());
 
     for (auto& info : mGraphicBlocks) {
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] index:%d,graphic block status:%d (0:comp 1:vda 2:client 3:tunnelrender), count:%ld",
+                __func__, __LINE__,
+                info.mBlockId, info.mState, info.mGraphicBlock.use_count());
         if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR)
             info.mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-        ALOGV("%s index:%d,graphic block status:%d (0:comp 1:vda 2:client), count:%ld", __func__,
-                info.mBlockId, info.mState, info.mGraphicBlock.use_count());
     }
 
     CHECK(!mPendingOutputFormat);
@@ -2462,6 +2474,7 @@ c2_status_t C2VDAComponent::flush_sm(flush_mode_t mode,
 }
 
 c2_status_t C2VDAComponent::drain_nb(drain_mode_t mode) {
+    C2VDA_LOG(CODEC2_LOG_INFO, "%s drain mode:%d", __func__, mode);
     if (mode != DRAIN_COMPONENT_WITH_EOS && mode != DRAIN_COMPONENT_NO_EOS) {
         return C2_OMITTED;  // Tunneling is not supported by now
     }
@@ -2930,7 +2943,8 @@ const char* C2VDAComponent::VideoCodecProfileToMime(media::VideoCodecProfile pro
 
 
 void C2VDAComponent::onConfigureTunnelMode() {
-   /* configure */
+    /* configure */
+    C2VDA_LOG(CODEC2_LOG_INFO, "[%s] synctype:%d, syncid:%d", __func__, mIntfImpl->mTunnelModeOutput->m.syncType, mIntfImpl->mTunnelModeOutput->m.syncId[0]);
     if (mIntfImpl->mTunnelModeOutput->m.syncType == C2PortTunneledModeTuning::Struct::sync_type_t::AUDIO_HW_SYNC) {
         int syncId = mIntfImpl->mTunnelModeOutput->m.syncId[0];
         if (syncId >= 0) {
