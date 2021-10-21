@@ -1014,6 +1014,10 @@ void C2VDAComponent::onDestroy() {
         if (mDumpYuvFp)
             fclose(mDumpYuvFp);
     }
+    if (mVideoTunnelRenderer) {
+        delete mVideoTunnelRenderer;
+        mVideoTunnelRenderer = NULL;
+    }
     if (mTunnelHandle) {
         am_gralloc_destroy_sideband_handle(mTunnelHandle);
     }
