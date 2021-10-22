@@ -1340,7 +1340,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRende
             reportError(C2_CORRUPTED);
             return C2_CORRUPTED;
         }
-        mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs;
+        mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs * 1000;
         work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
     }
 
@@ -1358,7 +1358,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRende
             mPendingOutputEOS) {
             C2Work* eosWork = mPendingWorks.front().get();
             DCHECK((eosWork->input.flags & C2FrameData::FLAG_END_OF_STREAM) > 0);
-            mIntfImpl->mTunnelSystemTimeOut->value = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
+            mIntfImpl->mTunnelSystemTimeOut->value = systemTime(SYSTEM_TIME_MONOTONIC);
             eosWork->worklets.front()->output.ordinal.timestamp = INT64_MAX;
             eosWork->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
             C2VDA_LOG(CODEC2_LOG_INFO, "%s:%d eos work report", __func__, __LINE__);
