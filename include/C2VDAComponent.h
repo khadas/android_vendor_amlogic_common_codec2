@@ -476,6 +476,7 @@ private:
     } c2_resch_stat;
     std::shared_ptr<C2StreamHdrStaticInfo::output> mCurrentHdrStaticInfo;
     std::shared_ptr<C2StreamPictureSizeInfo::output> mCurrentSize;
+    std::shared_ptr<C2PortActualDelayTuning::output> mOutputDelay;
     // init param
     aml_dec_params mConfigParam;
     FILE* mDumpYuvFp;

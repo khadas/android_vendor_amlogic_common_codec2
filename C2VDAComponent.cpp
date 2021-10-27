@@ -144,8 +144,8 @@ const C2String kDVAV1SecureDecoderName = "c2.amlogic.dolby-vision.dav1.decoder.s
 const uint32_t kDpbOutputBufferExtraCount = 0;  // Use the same number as ACodec.
 const int kDequeueRetryDelayUs = 10000;  // Wait time of dequeue buffer retry in microseconds.
 const int32_t kAllocateBufferMaxRetries = 10;  // Max retry time for fetchGraphicBlock timeout.
-constexpr uint32_t kDefaultOutputDelay = 4;
-constexpr uint32_t kMaxOutputDelay = 10;
+constexpr uint32_t kDefaultOutputDelay = 5;
+constexpr uint32_t kMaxOutputDelay = 32;
 }  // namespace
 
 static c2_status_t adaptorResultToC2Status(VideoDecodeAcceleratorAdaptor::Result result) {
@@ -951,6 +951,7 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mCodecProfile(media::VIDEO_CODEC_PROFILE_UNKNOWN),
         mState(State::UNLOADED),
         mWeakThisFactory(this),
+        mOutputDelay(nullptr),
         mDumpYuvFp(NULL),
         mTunnelId(-1),
         mTunnelHandle(NULL),
@@ -1490,6 +1491,11 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
                     work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
                     ALOGI("video size changed");
                 }
+
+                if (mOutputDelay != nullptr) {
+                    work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mOutputDelay));
+                    mOutputDelay = nullptr;
+                }
                 work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
                 info->mGraphicBlock.reset();
             }
@@ -1901,6 +1907,14 @@ void C2VDAComponent::tryChangeOutputFormat() {
     mOutputFormat.mCodedSize = mPendingOutputFormat->mCodedSize;
 
     setOutputFormatCrop(mPendingOutputFormat->mVisibleRect);
+
+    C2PortActualDelayTuning::output outputDelay(mOutputFormat.mMinNumBuffers - mConfigParam.cfg.ref_buf_margin);
+    std::vector<std::unique_ptr<C2SettingResult>> failures;
+    c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
+    if (outputDelayErr == OK) {
+        mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
+    }
+
 
     if (mBufferFirstAllocated) {
         //resolution change
