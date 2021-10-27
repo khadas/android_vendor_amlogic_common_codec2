@@ -910,18 +910,13 @@ std::shared_ptr<C2Component> C2VDAComponent::create(
         const std::string& name, c2_node_id_t id, const std::shared_ptr<C2ReflectorHelper>& helper,
         C2ComponentFactory::ComponentDeleter deleter) {
     UNUSED(deleter);
-
     static const int32_t kMaxConcurrentInstances =
             property_get_int32("vendor.codec2.decode.concurrent-instances", 9);
     static const int32_t kMaxSecureConcurrentInstances =
-            property_get_int32("vendor.codec2.securedecode.concurrent-instances", 1);
-
+            property_get_int32("vendor.codec2.securedecode.concurrent-instances", 2);
     static std::mutex mutex;
-
     std::lock_guard<std::mutex> lock(mutex);
-
     bool isSecure = name.find(".secure") != std::string::npos;
-
     if (isSecure) {
         if (kMaxSecureConcurrentInstances >= 0 && sConcurrentInstanceSecures.load() >= kMaxSecureConcurrentInstances) {
             ALOGW("Reject to Initialize() due to too many secure instances: %d", sConcurrentInstanceSecures.load());
@@ -933,9 +928,6 @@ std::shared_ptr<C2Component> C2VDAComponent::create(
             return nullptr;
         }
     }
-
-
-
     return std::shared_ptr<C2Component>(new C2VDAComponent(name, id, helper));
 }
 
