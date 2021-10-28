@@ -384,6 +384,7 @@ private:
     int getTunnelModeDefBufNum(InputCodec videotype);
 
     static std::atomic<int32_t> sConcurrentInstances;
+    static std::atomic<int32_t> sConcurrentInstanceSecures;
 
     // The pointer of component interface implementation.
     std::shared_ptr<IntfImpl> mIntfImpl;

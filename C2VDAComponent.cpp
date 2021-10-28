@@ -903,6 +903,7 @@ C2VDAComponent::VideoFormat::VideoFormat(HalPixelFormat pixelFormat, uint32_t mi
 
 // static
 std::atomic<int32_t> C2VDAComponent::sConcurrentInstances = 0;
+std::atomic<int32_t> C2VDAComponent::sConcurrentInstanceSecures = 0;
 
 // static
 std::shared_ptr<C2Component> C2VDAComponent::create(
@@ -922,8 +923,8 @@ std::shared_ptr<C2Component> C2VDAComponent::create(
     bool isSecure = name.find(".secure") != std::string::npos;
 
     if (isSecure) {
-        if (kMaxSecureConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxSecureConcurrentInstances) {
-            ALOGW("Reject to Initialize() due to too many secure instances: %d", sConcurrentInstances.load());
+        if (kMaxSecureConcurrentInstances >= 0 && sConcurrentInstanceSecures.load() >= kMaxSecureConcurrentInstances) {
+            ALOGW("Reject to Initialize() due to too many secure instances: %d", sConcurrentInstanceSecures.load());
             return nullptr;
         }
     } else {
@@ -961,7 +962,11 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mIsTunnelMode(false) {
     ALOGI("%s(%s)", __func__, name.c_str());
 
-    sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
+    mSecureMode = name.find(".secure") != std::string::npos;
+    if (mSecureMode)
+        sConcurrentInstanceSecures.fetch_add(1, std::memory_order_relaxed);
+    else
+        sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
 
    // TODO(johnylin): the client may need to know if init is failed.
     if (mIntfImpl->status() != C2_OK) {
@@ -970,7 +975,6 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
     }
     mIntfImpl->setComponent(this);
 
-    mSecureMode = name.find(".secure") != std::string::npos;
     if (!mThread.Start()) {
         ALOGE("Component thread failed to start.");
         return;
@@ -1001,7 +1005,10 @@ C2VDAComponent::~C2VDAComponent() {
                               ::base::Bind(&C2VDAComponent::onDestroy, ::base::Unretained(this)));
         mThread.Stop();
     }
-    sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
+    if (mSecureMode)
+        sConcurrentInstanceSecures.fetch_sub(1, std::memory_order_relaxed);
+    else
+        sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     ALOGI("%s done", __func__);
     --mInstanceNum;
 }
