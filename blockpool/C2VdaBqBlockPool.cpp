@@ -22,6 +22,7 @@
 #include <mutex>
 
 #include <utils/Log.h>
+#include <sys/stat.h>
 
 #include <C2AllocatorGralloc.h>
 #include <C2BlockInternal.h>
@@ -183,13 +184,14 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         return C2_NO_INIT;
     }
 
-    if (mSlotAllocations.size() < mMaxDequeuedBuffers) {
+    if ((mSlotAllocations.size() < mMaxDequeuedBuffers) && (mOriginalSlotInode.size() < mMaxDequeuedBuffers)) {
         Return<HStatus> transResult = mProducer->allowAllocation(true);
         if (!transResult.isOk()) {
             ALOGE("allowAllocation(false) failed");
             return C2_BAD_VALUE;
         }
     }
+    migrateLostBuf();
 
     sp<Fence> fence = new Fence();
     C2AndroidMemoryUsage androidUsage = usage;
@@ -219,7 +221,6 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
                             hOutput.bufferNeedsReallocation;
                 }
             });
-    ALOGV("dequeueBuffer slot:%d, and wait fence", slot);
     // check dequeueBuffer return flag
     if (!transResult.isOk() || status != android::OK) {
         if (transResult.isOk()) {
@@ -233,6 +234,7 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         ALOGD("cannot dequeue buffer %d", status);
         return C2_BAD_VALUE;
     }
+    ALOGV("dequeueBuffer slot:%d, and wait fence", slot);
 
     // wait for acquire fence if we get one.
     HFenceWrapper hFenceWrapper{};
@@ -254,7 +256,8 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
             return C2_BAD_VALUE;
         }
     }
-    ALOGI("%s dequeued slot %d successfully", __func__, slot);
+
+    ALOGI("%s dequeued slot %d successfully, bufferNeedsReallocation:%d", __func__, slot, bufferNeedsReallocation);
     sp<GraphicBuffer> &slotBuffer = mBuffers[slot];
 
     auto iter = mSlotAllocations.find(slot);
@@ -302,6 +305,12 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         if (mGeneration == 0) {
             // getting generation # lazily due to dequeue failure.
             mGeneration = outGeneration;
+        }
+        if (slotBuffer && ((mOriginalSlotInode.size() < mMaxDequeuedBuffers) || bufferNeedsReallocation)) {
+            uint64_t inode;
+            getINodeFromFd(slotBuffer->handle->data[0], &inode);
+            ALOGV("set original slot : %d, inode :%lld", slot, inode);
+            mOriginalSlotInode[slot] = inode;
         }
     }
 
@@ -352,7 +361,9 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
 
         *block = _C2BlockFactory::CreateGraphicBlock(mSlotAllocations[slot], poolData);
         mBlockAllocations[block->get()] = slot;
-        ALOGV("fetchGraphicBlock slot %d, block %p\n", slot, block->get());
+        setSlotToOriginal(slot, slotBuffer->handle->data[0]);
+
+        ALOGV("fetchGraphicBlock slot %d, block %p, block fd: %d, c2Handle fd:%d\n", slot, block->get(), block->get()->handle()->data[0], c2Handle->data[0]);
     }
 
 
@@ -392,6 +403,7 @@ c2_status_t C2VdaBqBlockPool::requestNewBufferSet(int32_t bufferCount) {
     }
     mMaxDequeuedBuffers = static_cast<size_t>(bufferCount);
     mSlotAllocations.clear();
+    mOriginalSlotInode.clear();
 
     transResult = mProducer->allowAllocation(true);
     if (!transResult.isOk()) {
@@ -429,7 +441,14 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer> &produ
                        uint64_t producerId,
                        uint32_t generation,
                        uint64_t usage) {
-    ALOGE("configureProducer, producerId:%lld, generation:%d, usage:%llx" , producerId, generation, usage);
+    ALOGD("configureProducer, producerId:%lld, generation:%d, usage:%llx" , producerId, generation, usage);
+
+    if (((mConsumerUsage & GRALLOC_USAGE_HW_COMPOSER) != 0) &&  (usage & GRALLOC_USAGE_HW_COMPOSER) == 0) {
+        ALOGD("mConsumerUsage:%llx, usage:%llx, surfaceview --> surfacetext do not change usage" , mConsumerUsage, usage);
+    } else {
+        mConsumerUsage = usage;
+    }
+
     std::shared_ptr<C2SurfaceSyncMemory> c2SyncMem;
     if (syncHandle) {
         if (!producer) {
@@ -455,8 +474,9 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer> &produ
                 noInit = !transResult.isOk() ||
                          static_cast<HStatus>(transResult) == HStatus::NO_INIT;
             }
+            mNeedMigrates[i] = false;
         }
-        int32_t oldGeneration = mGeneration;
+        mOldProducerId = mGeneration;
         if (producer) {
             mProducer = producer;
             mProducerId = producerId;
@@ -476,6 +496,7 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer> &produ
             syncVar->setSyncStatusLocked(C2SyncVariables::STATUS_ACTIVE);
             syncVar->unlock();
         }
+        std::map<int32_t, int32_t> oldSlotToOrg = mSlotToOriginal;
         if (mProducer) {
 
             Return<HStatus> transResult2 = producer->setDequeueTimeout(kDequeueTimeoutNs);
@@ -490,19 +511,26 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer> &produ
                 ALOGE("allowAllocation(false) failed");
                 return ;
             }
+            mSlotToOriginal.clear();
         }
         if (mProducer) { // migrate buffers
             for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
                 std::shared_ptr<C2BufferQueueBlockPoolData> data =
                         mPoolDatas[i].lock();
                 if (data) {
+                    ALOGD("have data:%d", i);
                     int slot = data->migrate(
-                            mProducer, generation, usage,
-                            producerId, mBuffers[i], oldGeneration, mSyncMem);
+                            mProducer, mGeneration, mConsumerUsage,
+                            mProducerId, mBuffers[i], mOldProducerId, mSyncMem);
                     if (slot >= 0) {
+                        ALOGD("new slot: %d --> %d org:%d", i, slot, oldSlotToOrg[i]);
                         buffers[slot] = mBuffers[i];
                         poolDatas[slot] = data;
+                        mSlotToOriginal[slot] = oldSlotToOrg[i] ;
                         ++migrated;
+                    } else {
+                        mNeedMigrates[i] = true;
+                        ALOGD("no slot: %d", i);
                     }
                 }
             }
@@ -512,11 +540,12 @@ void C2VdaBqBlockPool::configureProducer(const sp<HGraphicBufferProducer> &produ
             mPoolDatas[i] = poolDatas[i];
         }
     }
-    mConsumerUsage = usage;
     if (producer) {
         ALOGD("local generation change %u , "
               "bqId: %llu migrated buffers # %d",
               generation, (unsigned long long)producerId, migrated);
+        mSlotAllocations.clear();
+        mBlockAllocations.clear();
     }
 }
 
@@ -545,15 +574,31 @@ c2_status_t C2VdaBqBlockPool::getPoolIdFromGraphicBlock(std::shared_ptr<C2Graphi
     ALOGV("android::BlockAllocations poolid %d, block %p\n", mBlockAllocations[block.get()], block.get());
     if (iter == mBlockAllocations.end())
         return C2_BAD_VALUE;
-    *poolId = mBlockAllocations[block.get()];
+    int32_t slot = mBlockAllocations[block.get()];
+    *poolId = mSlotToOriginal[slot];
+    ALOGV("slot:%d, original slot:%d", slot, *poolId );
     mBlockAllocations.erase(block.get());
     return C2_OK;
 }
 
-c2_status_t C2VdaBqBlockPool::resetGraphicBlock(int32_t slot) {
+c2_status_t C2VdaBqBlockPool::resetGraphicBlock(int32_t originalSlot) {
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mProducer)
         return C2_OK;
+
+    int32_t slot = -1;
+    for (auto &entry : mSlotToOriginal) {
+        if (entry.second == originalSlot) {
+            slot = entry.first;
+            break;
+        }
+    }
+
+    if (slot == -1) {
+        ALOGE("get slot failed");
+        return C2_BAD_VALUE;
+    }
+
     auto iter = mSlotAllocations.find(slot);
     if (iter != mSlotAllocations.end()) {
         const C2Handle *chandle = iter->second->handle();
@@ -719,4 +764,98 @@ c2_status_t C2VdaBqBlockPool::getMinBuffersForDisplay(size_t* minBuffersForDispl
     *minBuffersForDisplay = 6;
     return C2_OK;
 }
+
+bool C2VdaBqBlockPool::getINodeFromFd(int32_t fd, uint64_t *ino) {
+    ALOGV("getInode");
+    struct stat st;
+    int ret = fstat(fd, &st);
+    if (ret == -1) {
+        ALOGE("fstat error %d :%s", fd, strerror(errno));
+        return false;
+    } else {
+        *ino = st.st_ino;
+        ALOGV("[%d]==fstat: st_ino:%llu st_uid:%u st_gid:%u", fd, st.st_ino, st.st_uid, st.st_gid);
+    }
+
+    return true;
+}
+
+
+bool C2VdaBqBlockPool::migrateLostBuf() {
+    std::shared_ptr<C2BufferQueueBlockPoolData>
+        poolDatas[NUM_BUFFER_SLOTS];
+    sp<GraphicBuffer> buffers[NUM_BUFFER_SLOTS];
+    bool canSetBuffers = false;
+
+    for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
+         if (mNeedMigrates[i] == true) {
+             std::shared_ptr<C2BufferQueueBlockPoolData> data =
+                         mPoolDatas[i].lock();
+             if (data) {
+                 ALOGD("have data:%d", i);
+                 int slot = data->migrate(
+                         mProducer, mGeneration, mConsumerUsage,
+                         mProducerId, mBuffers[i], mOldProducerId, mSyncMem);
+                 if (slot >= 0) {
+                     ALOGD("new slot: %d --> %d", i, slot);
+                     buffers[slot] = mBuffers[i];
+                     poolDatas[slot] = data;
+                     mNeedMigrates[i] = false;
+                     canSetBuffers = true;
+                 } else {
+                     mNeedMigrates[i] = true;
+                     ALOGD("no slot: %d", i);
+                     canSetBuffers = false;
+                 }
+             }
+         }
+
+     }
+     if (canSetBuffers) {
+         for (int i = 0; i < NUM_BUFFER_SLOTS; ++i) {
+             if (buffers[i].get() != NULL) {
+                 mBuffers[i] = buffers[i];
+                 mPoolDatas[i] = poolDatas[i];
+             }
+         }
+     }
+     return true;
+
+}
+
+bool C2VdaBqBlockPool::setSlotToOriginal(int32_t slot, int32_t fd) {
+    auto iter = mSlotToOriginal.find(slot);
+    if (iter == mSlotToOriginal.end()) {
+        uint64_t inode;
+        int32_t originalSlot = -1;
+        getINodeFromFd(fd, &inode);
+
+        for (auto &entry : mOriginalSlotInode) {
+            if (entry.second == inode) {
+                originalSlot = entry.first;
+                break;
+            }
+        }
+        if (originalSlot != -1) {
+           ALOGV("set slot to original slot : %d, originalSlot :%d", slot, originalSlot);
+           mSlotToOriginal[slot] = originalSlot;
+           if (mNeedMigrates[slot] == true) {
+                mNeedMigrates[slot] = false;
+           }
+        } else {
+            ALOGE("can not get original slot");
+            return false;
+        }
+        ALOGV("mSlotToOriginal size:%d", mSlotToOriginal.size());
+#if 0//for debug
+        for (auto &entry : mSlotToOriginal) {
+            ALOGV("slot orslot [%d %d]",  entry.first, entry.second);
+        }
+#endif
+    }
+    return true;
+
+}
+
+
 

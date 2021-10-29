@@ -118,15 +118,21 @@ public:
     int64_t getSurfaceUsage();
 
     static c2_status_t getMinBuffersForDisplay(size_t* minBuffersForDisplay);
+
 private:
     c2_status_t cancelAllBuffers();
+    bool getINodeFromFd(int32_t fd, uint64_t *ino);
+    bool migrateLostBuf();
+    bool setSlotToOriginal(int32_t slot, int32_t fd);
 
     std::shared_ptr<android::C2AllocatorGralloc> mAllocator;
     const local_id_t mLocalId;
 
     android::sp<HGraphicBufferProducer> mProducer;
     uint64_t mProducerId;
+    uint64_t mOldProducerId;
     uint32_t mGeneration;
+
 
     // Function mutex to lock at the start of each API function call for protecting the
     // synchronization of all member variables.
@@ -135,6 +141,9 @@ private:
     std::map<int32_t, std::shared_ptr<C2GraphicAllocation>> mSlotAllocations;
     //std::map<int32_t, android::sp<GraphicBuffer>> mSlotGraphicBuffers;
     std::map<C2GraphicBlock*, int32_t> mBlockAllocations;
+
+    std::map<int32_t, uint64_t> mOriginalSlotInode;
+    std::map<int32_t, int32_t> mSlotToOriginal;
     size_t mMaxDequeuedBuffers;
 
     uint64_t mConsumerUsage;
@@ -142,6 +151,8 @@ private:
     android::sp<GraphicBuffer> mBuffers[NUM_BUFFER_SLOTS];
 
     std::weak_ptr<C2BufferQueueBlockPoolData> mPoolDatas[NUM_BUFFER_SLOTS];
+
+    bool mNeedMigrates[NUM_BUFFER_SLOTS];
 
     std::shared_ptr<C2SurfaceSyncMemory> mSyncMem;
 };
