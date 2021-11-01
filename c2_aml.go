@@ -56,7 +56,8 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     GIT_CHANGEID := "-DGIT_CHANGEID=" +  "\"" + gitChangeID +  "\""
     cppflags = append(cppflags, GIT_CHANGEID)
 
-    execCmd = "cd " + currentdir + "&& git log -1 | grep ]" //fmt.Sprintf("cd %s && git log -1 | grep '\['", currentdir);
+    //execCmd = "cd " + currentdir + "&& git log -1 | grep ] | sed 's/\"/\\\"/g'"
+    execCmd = fmt.Sprintf("cd %s && git log -1 | grep ']' | sed 's/\"/\\\\\"/g'", string(currentdir))
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
         fmt.Printf("get commitmsg err: %s\n", err)
@@ -65,7 +66,6 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     gitCommitMsg = strings.TrimSpace(string(gitCommitMsg))
     GIT_COMMMITMSG := "-DGIT_COMMITMSG=" +  "\"" + gitCommitMsg +  "\""
     cppflags = append(cppflags, GIT_COMMMITMSG)
-    //fmt.Printf("get commitmsg:%s\n", gitCommitMsg)
 
     execCmd = "cd " + currentdir + "&& git log -1 | grep 'PD#'"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
