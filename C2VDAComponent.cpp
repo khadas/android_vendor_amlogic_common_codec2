@@ -382,7 +382,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
             strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_HEVC);
             addParameter(DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                             .withDefault(new C2StreamProfileLevelInfo::input(
-                                    0u, C2Config::PROFILE_HEVC_MAIN, C2Config::LEVEL_AVC_4))
+                                    0u, C2Config::PROFILE_HEVC_MAIN, C2Config::LEVEL_HEVC_HIGH_5_1))
                             .withFields(
                                     {C2F(mProfileLevel, profile)
                                              .oneOf({C2Config::PROFILE_HEVC_MAIN,
@@ -436,6 +436,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                                          C2F(mProfileLevel, level)
                                                  .oneOf({C2Config::LEVEL_AV1_2, C2Config::LEVEL_AV1_2_1,
                                                          C2Config::LEVEL_AV1_2_2, C2Config::LEVEL_AV1_2_3,
+                                                         C2Config::LEVEL_AV1_3, C2Config::LEVEL_AV1_3_1,
                                                          C2Config::LEVEL_AV1_3_2, C2Config::LEVEL_AV1_3_3,
                                                          C2Config::LEVEL_AV1_4, C2Config::LEVEL_AV1_4_1,
                                                          C2Config::LEVEL_AV1_4_2, C2Config::LEVEL_AV1_4_3,
