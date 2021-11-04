@@ -156,9 +156,11 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     }
 
 
-    if (mNoSurface) {
+    // TODO: C2 can not support 1 input decode to 2 output mode
+    // setup VDEC_CFG_FLAG_PROG_ONLY to enforce decoder output 1 frame for now
+    //if (mNoSurface) {
         mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_PROG_ONLY;
-    }
+    //}
 
     if (mEnableNR) {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "enable NR");
