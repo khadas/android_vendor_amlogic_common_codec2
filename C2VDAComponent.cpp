@@ -619,7 +619,9 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     }
 
     //HDR
-    if (mInputCodec == InputCodec::VP9 || mInputCodec == InputCodec::AV1) {
+    if (mInputCodec == InputCodec::VP9
+        || mInputCodec == InputCodec::AV1
+        || mInputCodec == InputCodec::H265) {
         /* for CTS, c2 codecs not support hdr now
             mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
             addParameter(
