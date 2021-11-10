@@ -18,7 +18,13 @@
 #define OUTPUT_BUFS_ALIGN_SIZE (64)
 #define min(a, b) (((a) > (b))? (b):(a))
 
+
 namespace android {
+
+constexpr int kMaxWidth = 4096;
+constexpr int kMaxHeight = 2304;
+constexpr int kMaxWidth1080p = 1920;
+constexpr int kMaxHeight1080p = 1088;
 
 C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mComp(comp),
@@ -489,22 +495,49 @@ uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
     if (mUseSurfaceTexture || mNoSurface) {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
     } else {
-        switch (mIntfImpl->getInputCodec())
-        {
-            case InputCodec::H264:
-            case InputCodec::MP2V:
-            case InputCodec::MP4V:
-            case InputCodec::MJPG:
-                usage = am_gralloc_get_video_decoder_full_buffer_usage();
-                break;
-            case InputCodec::H265:
-            case InputCodec::VP9:
-            case InputCodec::AV1:
-                usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                break;
-            default:
-                usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                break;
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("vendor.media.doublewrite", value, NULL) > 0) {
+            int32_t doublewrite_debug = atoi(value);
+            C2VDAMDU_LOG(CODEC2_LOG_INFO, "set double:%d", doublewrite_debug);
+            if (doublewrite_debug != 0) {
+                switch (doublewrite_debug) {
+                    case 1:
+                    case 0x10:
+                        usage = am_gralloc_get_video_decoder_full_buffer_usage();
+                        break;
+                    case 2:
+                    case 3:
+                        usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+                        break;
+                    case 4:
+                    case 0x100:
+                    case 0x200:
+                    case 0x300:
+                        usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
+                        break;
+                    default:
+                        usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+                        break;
+                }
+            }
+         } else {
+            switch (mIntfImpl->getInputCodec())
+            {
+                case InputCodec::H264:
+                case InputCodec::MP2V:
+                case InputCodec::MP4V:
+                case InputCodec::MJPG:
+                    usage = am_gralloc_get_video_decoder_full_buffer_usage();
+                    break;
+                case InputCodec::H265:
+                case InputCodec::VP9:
+                case InputCodec::AV1:
+                    usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+                    break;
+                default:
+                    usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+                    break;
+            }
         }
     }
 
@@ -567,6 +600,19 @@ bool C2VDAComponent::MetaDataUtil::checkReallocOutputBuffer(VideoFormat video_fo
         return true;
     }
     return false;
+}
+
+bool C2VDAComponent::MetaDataUtil::getMaxBufWidthAndHeight(uint32_t* width, uint32_t* height) {
+    bool support_4k = property_get_bool("ro.vendor.platform.support.4k", true);
+
+    if (support_4k) {
+        *width = kMaxWidth;
+        *height = kMaxHeight;
+    } else {
+        *width = kMaxWidth1080p;
+        *height = kMaxHeight1080p;
+    }
+    return true;
 }
 
 }

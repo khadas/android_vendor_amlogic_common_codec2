@@ -1959,23 +1959,33 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
     if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
         std::shared_ptr<C2VdaBqBlockPool> bqPool =
             std::static_pointer_cast<C2VdaBqBlockPool>(mBlockPool);
-        for (auto& info : mGraphicBlocks) {
-            info.mFdHaveSet = false;
-            info.mBind = false;
-            info.mGraphicBlock.reset();
-            if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
-                bqPool->resetGraphicBlock(info.mPoolId);
-                ALOGI("change reset block id:%d, count:%ld", info.mPoolId, info.mGraphicBlock.use_count());
+        if (mMetaDataUtil->getNeedReallocBuffer()) {
+            for (auto& info : mGraphicBlocks) {
+                info.mFdHaveSet = false;
+                info.mBind = false;
+                info.mGraphicBlock.reset();
+                if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                    bqPool->resetGraphicBlock(info.mPoolId);
+                    ALOGI("change reset block id:%d, count:%ld", info.mPoolId, info.mGraphicBlock.use_count());
+                }
+            }
+            size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
+            auto err = bqPool->requestNewBufferSet(static_cast<int32_t>(bufferCount));
+            if (err != C2_OK) {
+                ALOGE("failed to request new buffer set to block pool: %d", err);
+                reportError(err);
+            }
+            mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
+        } else {
+            ALOGV("%s:%d do not need realloc", __func__, __LINE__);
+            mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
+            for (auto& info : mGraphicBlocks) {
+                info.mFdHaveSet = false;
+                if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                    sendOutputBufferToAccelerator(&info, true /* ownByAccelerator */);
+                }
             }
         }
-        size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-        auto err = bqPool->requestNewBufferSet(static_cast<int32_t>(bufferCount));
-        if (err != C2_OK) {
-            ALOGE("failed to request new buffer set to block pool: %d", err);
-            reportError(err);
-        }
-        mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
-
         if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat), mBlockPool,
                     false /* resetBuffersInClient */)) {
             ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
@@ -2030,7 +2040,7 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
     return C2_OK;
 }
 
-int C2VDAComponent::getTunnelModeDefBufNum(InputCodec videotype) {
+int C2VDAComponent::getDefaultMaxBufNum(InputCodec videotype) {
     int defaultMaxBuffers = 16;
 
     if (videotype == InputCodec::AV1) {
@@ -2065,8 +2075,8 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
 
     stopDequeueThread();
     size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-    if (mIsTunnelMode) {
-        mOutBufferCount = getTunnelModeDefBufNum(GetIntfImpl()->getInputCodec());
+    if (mIsTunnelMode || !mMetaDataUtil->getNeedReallocBuffer()) {
+        mOutBufferCount = getDefaultMaxBufNum(GetIntfImpl()->getInputCodec());
         if (bufferCount > mOutBufferCount) {
             C2VDA_LOG(CODEC2_LOG_INFO, "tunnel mode outbuffer count %d large than default num %d", bufferCount, mOutBufferCount);
             mOutBufferCount = bufferCount;
@@ -2587,8 +2597,13 @@ void C2VDAComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t widt
     // Uses coded size for crop rect while it is not available.
     if (mBufferFirstAllocated && minNumBuffers < mOutputFormat.mMinNumBuffers)
         minNumBuffers = mOutputFormat.mMinNumBuffers;
+    uint32_t max_width = width;
+    uint32_t max_height = height;
+    if (!mMetaDataUtil->getNeedReallocBuffer()) {
+        mMetaDataUtil->getMaxBufWidthAndHeight(&max_width, &max_height);
+    }
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,
-                                                media::Size(width, height), media::Rect(width, height));
+                                                media::Size(max_width, max_height), media::Rect(width, height));
 
     // Set mRequestedVisibleRect to default.
     mRequestedVisibleRect = media::Rect();

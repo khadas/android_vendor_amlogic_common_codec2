@@ -381,7 +381,7 @@ private:
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
     bool getVideoResolutionChanged();
-    int getTunnelModeDefBufNum(InputCodec videotype);
+    int getDefaultMaxBufNum(InputCodec videotype);
 
     static std::atomic<int32_t> sConcurrentInstances;
     static std::atomic<int32_t> sConcurrentInstanceSecures;

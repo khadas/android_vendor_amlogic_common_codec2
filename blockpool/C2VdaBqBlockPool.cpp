@@ -183,14 +183,7 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         ALOGI("no producer, fetch error\n");
         return C2_NO_INIT;
     }
-
-    if ((mSlotAllocations.size() < mMaxDequeuedBuffers) && (mOriginalSlotInode.size() < mMaxDequeuedBuffers)) {
-        Return<HStatus> transResult = mProducer->allowAllocation(true);
-        if (!transResult.isOk()) {
-            ALOGE("allowAllocation(false) failed");
-            return C2_BAD_VALUE;
-        }
-    }
+    //ALOGI("mSlotAllocations:%d, mOriginalSlotInode:%d,mMaxDequeuedBuffers:%d\n", mSlotAllocations.size(), mOriginalSlotInode.size(), mMaxDequeuedBuffers);
     migrateLostBuf();
 
     sp<Fence> fence = new Fence();
@@ -306,11 +299,21 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
             // getting generation # lazily due to dequeue failure.
             mGeneration = outGeneration;
         }
-        if (slotBuffer && ((mOriginalSlotInode.size() < mMaxDequeuedBuffers) || bufferNeedsReallocation)) {
-            uint64_t inode;
-            getINodeFromFd(slotBuffer->handle->data[0], &inode);
-            ALOGV("set original slot : %d, inode :%lld", slot, inode);
-            mOriginalSlotInode[slot] = inode;
+        if (slotBuffer) {
+            if (bufferNeedsReallocation) {
+                uint64_t inode;
+                getINodeFromFd(slotBuffer->handle->data[0], &inode);
+                ALOGV("set original slot : %d, inode :%lld", slot, inode);
+                mOriginalSlotInode[slot] = inode;
+            } else if (mOriginalSlotInode.size() < mMaxDequeuedBuffers) {
+                auto iter = mOriginalSlotInode.find(slot);
+                if (iter == mOriginalSlotInode.end()) {
+                    uint64_t inode;
+                    getINodeFromFd(slotBuffer->handle->data[0], &inode);
+                    ALOGV("set original slot : %d, inode :%lld", slot, inode);
+                    mOriginalSlotInode[slot] = inode;
+                }
+            }
         }
     }
 
@@ -342,7 +345,7 @@ c2_status_t C2VdaBqBlockPool::fetchGraphicBlock(
         }
 
         mSlotAllocations[slot] = std::move(alloc);
-        ALOGI("mSlotAllocations.size() %d, \n", mSlotAllocations.size());
+        ALOGI("mSlotAllocations.size() %d, mMaxDequeuedBuffers:%d\n", mSlotAllocations.size(), mMaxDequeuedBuffers);
         if (mSlotAllocations.size() == mMaxDequeuedBuffers) {
             // already allocated enough buffers, set allowAllocation to false to restrict the
             // eligible slots to allocated ones for future dequeue.
@@ -404,6 +407,7 @@ c2_status_t C2VdaBqBlockPool::requestNewBufferSet(int32_t bufferCount) {
     mMaxDequeuedBuffers = static_cast<size_t>(bufferCount);
     mSlotAllocations.clear();
     mOriginalSlotInode.clear();
+    mSlotToOriginal.clear();
 
     transResult = mProducer->allowAllocation(true);
     if (!transResult.isOk()) {
