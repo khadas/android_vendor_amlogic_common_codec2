@@ -12,6 +12,8 @@
 #include <C2VDAComponent.h>
 
 #include <VideoDecWraper.h>
+#include <amuvm.h>
+#include <queue>
 
 namespace android {
 class C2VDAComponent::MetaDataUtil {
@@ -34,6 +36,14 @@ public:
 
         return false;
     }
+    bool isHDR10PlusStaticInfoUpdated() {
+        if (mHDR10PLusInfoChanged) {
+            std::lock_guard<std::mutex> lock(mMutex);
+            mHDR10PLusInfoChanged = false;
+            return true;
+        }
+        return false;
+    }
 
     bool isColorAspectsChanged() {
         if (mColorAspectsChanged) {
@@ -50,6 +60,12 @@ public:
     bool getNeedReallocBuffer();
     bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat old_video_format_new);
     bool getMaxBufWidthAndHeight(uint32_t *width, uint32_t *height);
+    bool getUvmMetaData(int fd,unsigned char *data,int *size);
+    void parseAndprocessMetaData(unsigned char *data, int size);
+    void updateHDR10plus(unsigned char *data, int size);
+    void updateDurationUs(unsigned char *data, int size);
+    bool getHDR10PlusData(std::string &data);
+
 private:
     /* set hdr static to decoder */
     int setHDRStaticInfo();
@@ -57,18 +73,27 @@ private:
     int checkHdrStaticInfoMetaChanged(struct aml_vdec_hdr_infos* phdr);
     int isHDRStaticInfoDifferent(struct aml_vdec_hdr_infos* phd_old, struct aml_vdec_hdr_infos* phdr_new);
 
+    int mUvmFd;
     C2VDAComponent::IntfImpl* mIntfImpl;
     aml_dec_params* mConfigParam;
     C2VDAComponent* mComp;
     bool mUseSurfaceTexture;
     bool mNoSurface;
     bool mHDRStaticInfoChanged;
+    bool mHDR10PLusInfoChanged;
     bool mColorAspectsChanged;
     bool mSecure;
     bool mEnableNR;
     bool mEnableDILocalBuf;
     bool mEnable8kNR;
     bool mDisableErrPolicy;
+
+    /* for interlace stream */
+    bool mIsInterlaced;
+    unsigned int mDurationUs;
+
+    /* for hdr10 plus */
+    std::queue<std::string> mHDR10PlusData;
 
     uint32_t mSignalType;
     std::mutex mMutex;

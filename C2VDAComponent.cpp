@@ -15,11 +15,13 @@
 
 #define __C2_GENERATE_GLOBAL_VARS__
 //#include <C2ArcSupport.h>  // to getParamReflector from arc store
+#include <amuvm.h>
 #include <C2VDAAllocatorStore.h>
 #include <C2VDAComponent.h>
 //#include <C2VDAPixelFormat.h>
 #include <C2VdaBqBlockPool.h>
 #include <C2VdaPooledBlockPool.h>
+#include <C2Buffer.h>
 
 //#include <h264_parser.h>
 
@@ -622,7 +624,6 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     if (mInputCodec == InputCodec::VP9
         || mInputCodec == InputCodec::AV1
         || mInputCodec == InputCodec::H265) {
-        /* for CTS, c2 codecs not support hdr now
             mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
             addParameter(
                     DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
@@ -642,7 +643,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                     })
                     .withSetter(Hdr10PlusInfoOutputSetter)
                     .build());
-        */
+
             // sample BT.2020 static info
             mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
             mHdrStaticInfo->mastering = {
@@ -933,6 +934,10 @@ std::shared_ptr<C2Component> C2VDAComponent::create(
     return std::shared_ptr<C2Component>(new C2VDAComponent(name, id, helper));
 }
 
+struct DummyReadView : public C2ReadView {
+    DummyReadView() : C2ReadView(C2_NO_INIT) {}
+};
+
 C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
                                const std::shared_ptr<C2ReflectorHelper>& helper)
       : mIntfImpl(std::make_shared<IntfImpl>(name, helper)),
@@ -954,7 +959,9 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mResChStat(C2_RESOLUTION_CHANGE_NONE),
         mSurfaceUsageGeted(false),
         mVDAComponentStopDone(false),
-        mIsTunnelMode(false) {
+        mIsTunnelMode(false),
+        mHDR10PlusMeteDataNeedCheck(false),
+        mDefaultDummyReadView(DummyReadView()) {
     ALOGI("%s(%s)", __func__, name.c_str());
 
     mSecureMode = name.find(".secure") != std::string::npos;
@@ -1119,6 +1126,7 @@ void C2VDAComponent::onQueueWork(std::unique_ptr<C2Work> work) {
         ALOGV("input EOS");
         drainMode = DRAIN_COMPONENT_WITH_EOS;
     }
+
     mQueue.push({std::move(work), drainMode});
     // TODO(johnylin): set a maximum size of mQueue and check if mQueue is already full.
 
@@ -1167,7 +1175,35 @@ void C2VDAComponent::onDequeueWork() {
 
         // Send input buffer to VDA for decode.
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
-        sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags);
+        //check hdr10 plus
+        const uint8_t *hdr10plusbuf = nullptr;
+        uint32_t hdr10pluslen = 0;
+        C2ReadView rView = mDefaultDummyReadView;
+
+        for (const std::unique_ptr<C2Param> &param : work->input.configUpdate) {
+            if (param) {
+                C2StreamHdr10PlusInfo::input *hdr10PlusInfo =
+                    C2StreamHdr10PlusInfo::input::From(param.get());
+                if (hdr10PlusInfo != nullptr) {
+                    std::vector<std::unique_ptr<C2SettingResult>> failures;
+                    std::unique_ptr<C2Param> outParam = C2Param::CopyAsStream(*param.get(), true /* out put*/, param->stream());
+
+                    c2_status_t err = mIntfImpl->config({outParam.get()}, C2_MAY_BLOCK, &failures);
+                    if (err == C2_OK) {
+                        mHDR10PlusMeteDataNeedCheck = true;
+                        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*outParam.get()));
+
+                        rView = work->input.buffers[0]->data().linearBlocks().front().map().get();
+                        hdr10plusbuf = rView.data();
+                        hdr10pluslen = rView.capacity();
+                    } else {
+                        ALOGE("onQueueWork: Config update hdr10Plus size failed.");
+                    }
+                    break;
+                }
+            }
+        }
+        sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusbuf, hdr10pluslen);
     }
 
     CHECK_EQ(work->worklets.size(), 1u);
@@ -1286,8 +1322,16 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     int64_t timestamp = -1;
-
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
+
+    if (mHDR10PlusMeteDataNeedCheck) {
+        unsigned char  buffer[META_DATA_SIZE];
+        int buffer_size = 0;
+        memset(buffer, 0, META_DATA_SIZE);
+        mMetaDataUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
+        mMetaDataUtil->parseAndprocessMetaData(buffer, buffer_size);
+    }
+
     if (!info) {
         ALOGE("%s:%d can not get graphicblock  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
         reportError(C2_CORRUPTED);
@@ -1478,6 +1522,14 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
                 }
                 if (mCurrentHdrStaticInfo) {
                     buffer->setInfo(mCurrentHdrStaticInfo);
+                }
+
+                /* updata hdr10 plus info */
+                if (mMetaDataUtil->isHDR10PlusStaticInfoUpdated()) {
+                    updateHDR10PlusInfo();
+                }
+                if (mCurrentHdr10PlusInfo) {
+                    buffer->setInfo(mCurrentHdr10PlusInfo);
                 }
 
                 if (mPictureSizeChanged) {
@@ -1741,7 +1793,7 @@ c2_status_t C2VDAComponent::setListener_vb(const std::shared_ptr<C2Component::Li
 }
 
 void C2VDAComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& input,
-                                                  int32_t bitstreamId, uint64_t timestamp, int32_t flags) {
+                                                  int32_t bitstreamId, uint64_t timestamp,int32_t flags,uint8_t *hdrbuf,uint32_t hdrlen) {
     //UNUSED(flags);
     ALOGV("sendInputBufferToAccelerator");
     int dupFd = dup(input.handle()->data[0]);
@@ -1751,9 +1803,9 @@ void C2VDAComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inpu
         reportError(C2_CORRUPTED);
         return;
     }
-    ALOGV("Decode bitstream ID: %d, offset: %u size: %u flags 0x%x", bitstreamId, input.offset(),
-          input.size(), flags);
-    mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, flags);
+    ALOGV("Decode bitstream ID: %d, offset: %u size: %u hdrlen:%d flags 0x%x", bitstreamId, input.offset(),
+          input.size(), hdrlen,flags);
+    mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, hdrbuf, hdrlen, flags);
 }
 
 std::deque<std::unique_ptr<C2Work>>::iterator C2VDAComponent::findPendingWorkByBitstreamId(
@@ -2386,6 +2438,17 @@ c2_status_t C2VDAComponent::updateHDRStaticInfo() {
     }
     mCurrentHdrStaticInfo = std::move(hdr);
     return C2_OK;
+}
+void C2VDAComponent::updateHDR10PlusInfo() {
+    ALOGV("updateHDR10PlusInfo");
+    std::string hdr10Data;
+    if (mMetaDataUtil->getHDR10PlusData(hdr10Data)) {
+        if (hdr10Data.size() != 0) {
+            std::memcpy(mCurrentHdr10PlusInfo->m.value, hdr10Data.c_str(), hdr10Data.size());
+            mCurrentHdr10PlusInfo->setFlexCount(hdr10Data.size());
+            ALOGV("get HDR10Plus data size:%d ", hdr10Data.size());
+        }
+    }
 }
 
 void C2VDAComponent::onVisibleRectChanged(const media::Rect& cropRect) {

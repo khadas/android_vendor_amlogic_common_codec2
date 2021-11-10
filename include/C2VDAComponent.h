@@ -308,7 +308,7 @@ private:
     void onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId);
 
     // Send input buffer to accelerator with specified bitstream id.
-    void sendInputBufferToAccelerator(const C2ConstLinearBlock& input, int32_t bitstreamId,  uint64_t timestamp, int32_t flags);
+    void sendInputBufferToAccelerator(const C2ConstLinearBlock& input, int32_t bitstreamId,  uint64_t timestamp,int32_t flags,uint8_t *hdrbuf = nullptr,uint32_t hdrlen = 0);
     // Send output buffer to accelerator. If |passToAccelerator|, change the ownership to
     // OWNED_BY_ACCELERATOR of this buffer.
     void sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool passToAccelerator);
@@ -341,6 +341,8 @@ private:
     c2_status_t updateColorAspects();
     //update hdr static info
     c2_status_t updateHDRStaticInfo();
+    //update hdr10 plus info
+    void updateHDR10PlusInfo();
     // Dequeue |mPendingBuffersToWork| to put output buffer to corresponding work and report if
     // finished as many as possible. If |dropIfUnavailable|, drop all pending existing frames
     // without blocking.
@@ -475,6 +477,7 @@ private:
         C2_RESOLUTION_CHANGED = 2,
     } c2_resch_stat;
     std::shared_ptr<C2StreamHdrStaticInfo::output> mCurrentHdrStaticInfo;
+    std::shared_ptr<C2StreamHdr10PlusInfo::output> mCurrentHdr10PlusInfo;
     std::shared_ptr<C2StreamPictureSizeInfo::output> mCurrentSize;
     std::shared_ptr<C2PortActualDelayTuning::output> mOutputDelay;
     // init param
@@ -495,6 +498,9 @@ private:
     bool mVDAComponentStopDone;
     bool mIsTunnelMode;
     int32_t mOutBufferCount;
+    bool mHDR10PlusMeteDataNeedCheck;
+
+    C2ReadView mDefaultDummyReadView;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

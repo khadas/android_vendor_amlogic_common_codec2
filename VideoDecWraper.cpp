@@ -185,13 +185,17 @@ int32_t VideoDecWraper::decode(
     off_t offset,
     uint32_t bytesUsed,
     uint64_t timestamp,
+    uint8_t* hdrbuf,
+    uint32_t hdrlen,
     int32_t flags) {
     VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
         bitstreamId, bytesUsed, timestamp, flags);
 
     if (mAmVideoDec) {
-        return mAmVideoDec->queueInputBuffer(bitstreamId, pbuf, offset, bytesUsed,
-               timestamp, flags);
+        if (hdrlen > 0)
+            return mAmVideoDec->queueInputBuffer(bitstreamId, pbuf, offset, bytesUsed, timestamp, hdrbuf, hdrlen,flags);
+        else
+            return mAmVideoDec->queueInputBuffer(bitstreamId, pbuf, offset, bytesUsed,timestamp, flags);
     }
     return -1;
 }
@@ -202,13 +206,17 @@ int32_t VideoDecWraper::decode(
     off_t offset,
     uint32_t bytesUsed,
     uint64_t timestamp,
+    uint8_t* hdrbuf,
+    uint32_t hdrlen,
     int32_t flags) {
     VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
         bitstreamId, bytesUsed, timestamp, flags);
 
     if (mAmVideoDec) {
-        return mAmVideoDec->queueInputBuffer(bitstreamId, ashmemFd, offset,
-            bytesUsed, timestamp, flags);
+        if (hdrlen > 0)
+            return mAmVideoDec->queueInputBuffer(bitstreamId, ashmemFd, offset,bytesUsed, timestamp, hdrbuf, hdrlen,flags);
+        else
+            return mAmVideoDec->queueInputBuffer(bitstreamId, ashmemFd, offset,bytesUsed, timestamp, flags);
     }
     return -1;
 }

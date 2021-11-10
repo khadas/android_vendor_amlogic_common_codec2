@@ -27,23 +27,35 @@ constexpr int kMaxWidth1080p = 1920;
 constexpr int kMaxHeight1080p = 1088;
 
 C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
+    mUvmFd(-1),
     mComp(comp),
     mUseSurfaceTexture(false),
     mNoSurface(false),
     mHDRStaticInfoChanged(false),
+    mHDR10PLusInfoChanged(false),
     mColorAspectsChanged(false),
     mSecure(secure),
     mEnableNR(false),
     mEnableDILocalBuf(false),
     mEnable8kNR(false),
+    mIsInterlaced(false),
     mSignalType(0) {
     mIntfImpl = mComp->GetIntfImpl();
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
     C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
+
+    mUvmFd = amuvm_open();
+    if (mUvmFd < 0) {
+        C2VDAMDU_LOG(CODEC2_LOG_ERR, "open uvm device fail.");
+        mUvmFd = -1;
+    }
 }
 
 C2VDAComponent::MetaDataUtil::~MetaDataUtil() {
     C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
+    if (mUvmFd > 0) {
+        amuvm_close(mUvmFd);
+    }
 }
 
 void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
@@ -615,4 +627,111 @@ bool C2VDAComponent::MetaDataUtil::getMaxBufWidthAndHeight(uint32_t* width, uint
     return true;
 }
 
+bool C2VDAComponent::MetaDataUtil::getUvmMetaData(int fd, unsigned char *data, int *size) {
+    if (mUvmFd <= 0) {
+        mUvmFd = amuvm_open();
+        if (mUvmFd < 0) {
+            C2VDAMDU_LOG(CODEC2_LOG_ERR, "open uvm device fail.");
+            return false;
+        }
+    }
+
+    if (data == NULL)
+        return false;
+
+    int meta_size = amuvm_getmetadata(mUvmFd, fd, data);
+    if (meta_size < 0) {
+        return false;
+    }
+
+    *size = meta_size;
+    return true;
+}
+
+void C2VDAComponent::MetaDataUtil::parseAndprocessMetaData(unsigned char *data, int size) {
+    unsigned char buffer[size];
+    struct aml_meta_head_s *meta_head;
+    uint32_t total_size = 0;
+    uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
+
+    if (data == NULL || size <= 0) {
+        C2VDAMDU_LOG(CODEC2_LOG_ERR,"parse and process meta data faild");
+        return;
+    }
+    memset(buffer, 0, size);
+    memcpy(buffer, data, size);
+    meta_head = (struct aml_meta_head_s *)buffer;
+    while (total_size < size)
+    {
+        meta_magic = meta_head->magic;
+        meta_type  = meta_head->type;
+        meta_size  = meta_head->data_size;
+        unsigned char buf[meta_size];
+        if (meta_magic != META_DATA_MAGIC || (meta_size > META_DATA_SIZE)) {
+            C2VDAMDU_LOG(CODEC2_LOG_ERR,"get mate head error");
+            break;
+        }
+        memset(buf, 0, meta_size);
+        memcpy(buf, (data + total_size + AML_META_HEAD_SIZE), meta_size);
+        /*
+        if (meta_type == UVM_META_DATA_VF_BASE_INFOS) {
+            updateDurationUs(buf, meta_size);
+        }
+        else */
+        if (meta_type == UVM_META_DATA_HDR10P_DATA) {
+            updateHDR10plus(buf, meta_size);
+        }
+
+        total_size = total_size + AML_META_HEAD_SIZE + meta_size;
+
+        if (total_size <= META_DATA_SIZE) {
+            memset(buffer, 0, size);
+            memcpy(buffer, data + total_size, (size - total_size));
+            meta_head = (struct aml_meta_head_s *)buffer;
+        } else {
+            break;
+        }
+    }
+}
+void C2VDAComponent::MetaDataUtil::updateHDR10plus(unsigned char *data, int size) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (size > 0) {
+        mHDR10PLusInfoChanged = true;
+        char buffer[size];
+        memset(buffer,0,size);
+        memcpy(buffer, data, size);
+        mHDR10PlusData.push({std::string(buffer)});
+    }
+}
+bool C2VDAComponent::MetaDataUtil::getHDR10PlusData(std::string &data)
+{
+    if (!mHDR10PlusData.empty()) {
+        data = std::move(mHDR10PlusData.front());
+        mHDR10PlusData.pop();
+        return true;
+    }
+    return false;
+}
+
+void C2VDAComponent::MetaDataUtil::updateDurationUs(unsigned char *data, int size) {
+    uint32_t durationdata = 0;
+    if (data == NULL || size <= 0) {
+        C2VDAMDU_LOG(CODEC2_LOG_ERR,"update DurationUs error");
+        return;
+    }
+
+    struct aml_vf_base_info_s *baseinfo = (struct aml_vf_base_info_s *)(data);
+
+    if (baseinfo != NULL && baseinfo->duration != 0) {
+        durationdata = baseinfo->duration;
+        if (mIsInterlaced && durationdata != 0) {
+            uint64_t rate64 = 1000000;
+            rate64 = rate64 / (96000 * 1.0 / durationdata);
+            if (rate64 != 0) {
+                mDurationUs = 2 * rate64;
+                C2VDAMDU_LOG(CODEC2_LOG_ERR,"update mDurationUs = %d by meta data", mDurationUs);
+            }
+        }
+    }
+}
 }

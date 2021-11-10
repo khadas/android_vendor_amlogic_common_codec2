@@ -46,8 +46,8 @@ public:
     // Implementation of the VideoDecodeAcceleratorAdaptor interface.
     int initialize(const char* mime, uint8_t* config, uint32_t configLen,
                                 bool secureMode, VideoDecWraperCallback* client, int32_t flags = 0);
-    int32_t decode(int32_t bitstreamId, uint8_t* pbuf, off_t offset, uint32_t bytesUsed, uint64_t timestamp, int32_t flags = 0);
-    int32_t decode(int32_t bitstreamId, int ashmemFd, off_t offset, uint32_t bytesUsed, uint64_t timestamp, int32_t flags = 0);
+    int32_t decode(int32_t bitstreamId, uint8_t* pbuf, off_t offset, uint32_t bytesUsed, uint64_t timestamp, uint8_t* hdrbuf = NULL, uint32_t hdrlen = 0, int32_t flags = 0);
+    int32_t decode(int32_t bitstreamId, int ashmemFd, off_t offset, uint32_t bytesUsed, uint64_t timestamp, uint8_t* hdrbuf = NULL, uint32_t hdrlen = 0, int32_t flags = 0);
     void assignPictureBuffers(uint32_t numOutputBuffers);
     void importBufferForPicture(int32_t pictureBufferId,
                                 int fd,
