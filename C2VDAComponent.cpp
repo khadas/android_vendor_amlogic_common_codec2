@@ -2945,25 +2945,43 @@ bool C2VDAComponent::isWorkDone(const C2Work* work) const {
 c2_status_t C2VDAComponent::reportEOSWork() {
     ALOGV("reportEOSWork");
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    std::unique_lock<std::mutex> l(mPendWorksMutex);
+    std::unique_ptr<C2Work> eosWork;
+    {
+        std::unique_lock<std::mutex> l(mPendWorksMutex);
 
-    // In this moment all works prior to EOS work should be done and returned to listener.
-    if (mPendingWorks.size() != 1u) {  // only EOS work left
-        ALOGE("It shouldn't have remaining works in mPendingWorks except EOS work.");
-        reportError(C2_CORRUPTED);
-        return C2_CORRUPTED;
+
+        auto workIter = std::find_if(mPendingWorks.begin(), mPendingWorks.end(),
+                        [](const std::unique_ptr<C2Work>& w) {
+                            return w->input.flags & C2FrameData::FLAG_END_OF_STREAM;
+                        });
+        if (workIter == mPendingWorks.end()) {
+            ALOGE("Failed to find EOS work.");
+            reportError(C2_CORRUPTED);
+            return C2_CORRUPTED;
+
+        }
+
+        mPendingOutputEOS = false;
+
+        eosWork = std::move(*workIter);
+        mPendingWorks.erase(workIter);
+        if (!eosWork->input.buffers.empty()) {
+            eosWork->input.buffers.front().reset();
+        }
+        eosWork->result = C2_OK;
+        eosWork->workletsProcessed = static_cast<uint32_t>(eosWork->worklets.size());
+        eosWork->worklets.front()->output.flags = C2FrameData::FLAG_END_OF_STREAM;
     }
 
-    mPendingOutputEOS = false;
-
-    std::unique_ptr<C2Work> eosWork(std::move(mPendingWorks.front()));
-    mPendingWorks.pop_front();
-    if (!eosWork->input.buffers.empty()) {
-        eosWork->input.buffers.front().reset();
+    if (!mPendingWorks.empty()) {
+        ALOGW("There are remaining works except EOS work. abandon them.");
+        for (const auto& kv : mPendingWorks) {
+            ALOGW("Work index=%llu, timestamp=%llu",
+                  kv->input.ordinal.frameIndex.peekull(),
+                  kv->input.ordinal.timestamp.peekull());
+        }
+        reportAbandonedWorks();
     }
-    eosWork->result = C2_OK;
-    eosWork->workletsProcessed = static_cast<uint32_t>(eosWork->worklets.size());
-    eosWork->worklets.front()->output.flags = C2FrameData::FLAG_END_OF_STREAM;
 
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(eosWork));
