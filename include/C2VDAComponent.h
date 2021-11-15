@@ -497,6 +497,8 @@ private:
     bool mSurfaceUsageGeted;
     bool mVDAComponentStopDone;
     bool mIsTunnelMode;
+    std::vector<struct fillVideoFrame2> mFillVideoFrameQueue;
+    bool mCanQueueOutBuffer;
     int32_t mOutBufferCount;
     bool mHDR10PlusMeteDataNeedCheck;
 

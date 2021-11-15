@@ -960,6 +960,7 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mSurfaceUsageGeted(false),
         mVDAComponentStopDone(false),
         mIsTunnelMode(false),
+        mCanQueueOutBuffer(false),
         mHDR10PlusMeteDataNeedCheck(false),
         mDefaultDummyReadView(DummyReadView()) {
     ALOGI("%s(%s)", __func__, name.c_str());
@@ -1038,28 +1039,43 @@ void C2VDAComponent::onDestroy() {
 int C2VDAComponent::fillVideoFrameTunnelMode2(int medafd, bool rendered) {
     C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, fd:%d, render:%d", __func__, __LINE__, medafd, rendered);
 
-    GraphicBlockInfo* info = getGraphicBlockByFd(medafd);
-    if (!info) {
-        C2VDA_LOG(CODEC2_LOG_ERR, "%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, medafd);
-        reportError(C2_CORRUPTED);
+    struct fillVideoFrame2 frame = {
+        .fd = medafd,
+        .rendered = rendered
+    };
+    mFillVideoFrameQueue.push_back(frame);
+
+    if (!mCanQueueOutBuffer) {
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "cannot queue out buffer, cache it fd:%d, render:%d",
+            medafd, rendered);
         return 0;
     }
-    info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-    sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
 
-    /* for drop, need report finished work */
-    if (!rendered) {
-        auto pendingbuffer = std::find_if(
-                mPendingBuffersToWork.begin(), mPendingBuffersToWork.end(),
-                [id = info->mBlockId](const OutputBufferInfo& o) { return o.mBlockId == id;});
-        if (pendingbuffer != mPendingBuffersToWork.end()) {
-            struct VideoTunnelRendererWraper::renderTime rendertime = {
-                .mediaUs = pendingbuffer->mMediaTimeUs,
-                .renderUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000,
-            };
-            sendOutputBufferToWorkTunnel(&rendertime);
+    for (auto &frame : mFillVideoFrameQueue) {
+        GraphicBlockInfo* info = getGraphicBlockByFd(frame.fd);
+        if (!info) {
+            C2VDA_LOG(CODEC2_LOG_ERR, "%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, medafd);
+            reportError(C2_CORRUPTED);
+            return 0;
+        }
+        info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+        sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+
+        /* for drop, need report finished work */
+        if (!frame.rendered) {
+            auto pendingbuffer = std::find_if(
+                    mPendingBuffersToWork.begin(), mPendingBuffersToWork.end(),
+                    [id = info->mBlockId](const OutputBufferInfo& o) { return o.mBlockId == id;});
+            if (pendingbuffer != mPendingBuffersToWork.end()) {
+                struct VideoTunnelRendererWraper::renderTime rendertime = {
+                    .mediaUs = pendingbuffer->mMediaTimeUs,
+                    .renderUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000,
+                };
+                sendOutputBufferToWorkTunnel(&rendertime);
+            }
         }
     }
+    mFillVideoFrameQueue.clear();
 
     return 0;
 }
@@ -1069,6 +1085,7 @@ int C2VDAComponent::fillVideoFrameCallback2(void* obj, void* args) {
     struct fillVideoFrame2* pfillVideoFrame = (struct fillVideoFrame2*)args;
 
     pCompoment->fillVideoFrameTunnelMode2(pfillVideoFrame->fd, pfillVideoFrame->rendered);
+
     return 0;
 }
 
@@ -1899,6 +1916,7 @@ void C2VDAComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format) 
           static_cast<uint32_t>(format->mPixelFormat), format->mMinNumBuffers,
           format->mCodedSize.ToString().c_str(), format->mVisibleRect.ToString().c_str());
 
+    mCanQueueOutBuffer = false;
     for (auto& info : mGraphicBlocks) {
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] index:%d,graphic block status:%d (0:comp 1:vda 2:client 3:tunnelrender), count:%ld",
                 __func__, __LINE__,
@@ -2004,6 +2022,7 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
                 sendOutputBufferToAccelerator(&info, true /* ownByAccelerator */);
             }
         }
+        mCanQueueOutBuffer = true;
         return C2_OK;
     }
 
@@ -2262,6 +2281,7 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
         if (i == 0) {
             // Allocate the output buffers.
             mVideoDecWraper->assignPictureBuffers(bufferCount);
+            mCanQueueOutBuffer = true;
         }
         appendOutputBuffer(std::move(block), poolId);
     }
