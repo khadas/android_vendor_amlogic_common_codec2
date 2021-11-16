@@ -62,7 +62,9 @@ public:
         C2BlockPool::local_id_t getBlockPoolId() const { return mOutputBlockPoolIds->m.values[0]; }
         InputCodec getInputCodec() const { return mInputCodec; }
         void setComponent(C2VDAComponent* comp) {mComponent = comp;}
-
+        std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects() {
+            return this->mColorAspects;
+        }
     private:
         // Configurable parameter setters.
         static C2R ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::input>& info);
@@ -481,7 +483,7 @@ private:
     std::shared_ptr<C2StreamPictureSizeInfo::output> mCurrentSize;
     std::shared_ptr<C2PortActualDelayTuning::output> mOutputDelay;
     // init param
-    aml_dec_params mConfigParam;
+    mediahal_cfg_parms mConfigParam;
     FILE* mDumpYuvFp;
     static uint32_t mDumpFileCnt;
     VideoDecWraper* mVideoDecWraper;

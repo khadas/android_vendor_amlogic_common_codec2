@@ -13,6 +13,8 @@
 #include <am_gralloc_ext.h>
 #include <logdebug.h>
 
+#define V4L2_PARMS_MAGIC 0x55aacc33
+
 #define C2VDAMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, C2VDAComponent::mInstanceID, mComp->mCurInstanceID, ##str)
 
 #define OUTPUT_BUFS_ALIGN_SIZE (64)
@@ -39,7 +41,8 @@ C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mEnableDILocalBuf(false),
     mEnable8kNR(false),
     mIsInterlaced(false),
-    mSignalType(0) {
+    mSignalType(0),
+    mEnableAdaptivePlayback(false) {
     mIntfImpl = mComp->GetIntfImpl();
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
     C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
@@ -58,7 +61,7 @@ C2VDAComponent::MetaDataUtil::~MetaDataUtil() {
     }
 }
 
-void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
+void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) {
     uint32_t doubleWriteMode = 3;
     int default_margin = 9;
     uint32_t bufwidth = 4096;
@@ -72,7 +75,10 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     mDisableErrPolicy = property_get_bool("vendor.c2.disable.err.policy", true);
 
     mConfigParam = configParam;
-    memset(mConfigParam, 0, sizeof(aml_dec_params));
+    memset(mConfigParam, 0, sizeof(mediahal_cfg_parms));
+    struct v4l2_parms * pAmlV4l2Param    = &mConfigParam->v4l2cfg;
+    struct aml_dec_params * pAmlDecParam = &mConfigParam->amldeccfg;
+
 
     std::vector<std::unique_ptr<C2Param>> params;
     C2StreamPictureSizeInfo::output output;
@@ -89,15 +95,22 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
 
     if (lowLatency.value) {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "Config low latency mode to v4l2 decoder.");
-        mConfigParam->cfg.low_latency_mode |= LOWLATENCY_NORMAL;
+        pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_NORMAL;
     } else {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "disable low latency mode to v4l2 decoder.");
-        mConfigParam->cfg.low_latency_mode |= LOWLATENCY_DISABALE;
+        pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABALE;
     }
 
     bufwidth = output.width;
     bufheight = output.height;
     C2VDAMDU_LOG(CODEC2_LOG_INFO, "configure width:%d height:%d", output.width, output.height);
+
+    // add v4l2 config
+    pAmlV4l2Param->magic = V4L2_PARMS_MAGIC;
+    pAmlV4l2Param->len = sizeof(struct v4l2_parms) / sizeof(uint32_t);
+    pAmlV4l2Param->adaptiveplayback = mEnableAdaptivePlayback;
+    pAmlV4l2Param->width  = bufwidth;
+    pAmlV4l2Param->height = bufheight;
 
     switch (mIntfImpl->getInputCodec())
     {
@@ -153,17 +166,17 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     }
 
     margin = default_margin;
-    mConfigParam->cfg.canvas_mem_mode = 0;
+    pAmlDecParam->cfg.canvas_mem_mode = 0;
 
 #if 0
     if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
         doubleWriteMode = 0x03;
-        mConfigParam->cfg.canvas_mem_mode = 2;
+        pAmlDecParam->cfg.canvas_mem_mode = 2;
     } else if (mIntfImpl->getInputCodec() == InputCodec::H265) {
         doubleWriteMode = 0x03;
-        mConfigParam->cfg.canvas_mem_mode = 2;
+        pAmlDecParam->cfg.canvas_mem_mode = 2;
     } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
-        mConfigParam->cfg.canvas_mem_mode = 1;
+        pAmlDecParam->cfg.canvas_mem_mode = 1;
     }
 #endif
 
@@ -177,95 +190,95 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
     // TODO: C2 can not support 1 input decode to 2 output mode
     // setup VDEC_CFG_FLAG_PROG_ONLY to enforce decoder output 1 frame for now
     //if (mNoSurface) {
-        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_PROG_ONLY;
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_PROG_ONLY;
     //}
 
     if (mEnableNR) {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "enable NR");
-        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_NR_ENABLE;
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_NR_ENABLE;
     }
 
     if (mEnableDILocalBuf) {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "enable DILocalBuf");
-        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
     }
 
     if (mDisableErrPolicy) {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "c2 need disable error policy");
-        mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DIS_ERR_POLICY;
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DIS_ERR_POLICY;
     }
 
-    mConfigParam->cfg.uvm_hook_type = 2;
+    pAmlDecParam->cfg.uvm_hook_type = 2;
     if (/*!mSecureMode*/1) {
         if (mIntfImpl->getInputCodec() == InputCodec::H265) {
-            mConfigParam->cfg.init_height = bufwidth;
-            mConfigParam->cfg.init_width = bufheight;
-            mConfigParam->cfg.ref_buf_margin = margin;
-            mConfigParam->cfg.double_write_mode = doubleWriteMode;
-            mConfigParam->cfg.canvas_mem_endian = 0;
-            mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
-            mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-                setHDRStaticInfo();
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;//TODO Check
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            setHDRStaticInfo();
         } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::AV1) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-                setHDRStaticInfo();
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            setHDRStaticInfo();
         } else if (mIntfImpl->getInputCodec() == InputCodec::DVHE) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV1) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::MP2V) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::MP4V) {
-                mConfigParam->cfg.init_height = bufwidth;
-                mConfigParam->cfg.init_width = bufheight;
-                mConfigParam->cfg.ref_buf_margin = margin;
-                mConfigParam->cfg.double_write_mode = doubleWriteMode;
-                mConfigParam->cfg.canvas_mem_endian = 0;
-                mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         }
     }
 }
@@ -273,6 +286,12 @@ void C2VDAComponent::MetaDataUtil::codecConfig(aml_dec_params* configParam) {
 int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
         std::vector<std::unique_ptr<C2Param>> params;
     C2StreamHdrStaticInfo::output hdr;
+    bool isPresent = true;
+    int32_t matrixCoeffs;
+    int32_t transfer;
+    int32_t primaries;
+    bool    range;
+
     c2_status_t err = mIntfImpl->query({&hdr}, {}, C2_DONT_BLOCK, &params);
     if (err != C2_OK) {
         C2VDAMDU_LOG(CODEC2_LOG_ERR, "query hdr info error");
@@ -295,33 +314,70 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
         return 0;
     }
 
-    mConfigParam->hdr.color_parms.primaries[0][0] = hdr.mastering.green.x / 0.00002 + 0.5;//info.sType1.mG.x;
-    mConfigParam->hdr.color_parms.primaries[0][1] = hdr.mastering.green.y / 0.00002 + 0.5;//info.sType1.mG.y;
-    mConfigParam->hdr.color_parms.primaries[1][0] = hdr.mastering.blue.x / 0.00002 + 0.5;//info.sType1.mB.x;
-    mConfigParam->hdr.color_parms.primaries[1][1] = hdr.mastering.blue.y / 0.00002 + 0.5;//info.sType1.mB.y;
-    mConfigParam->hdr.color_parms.primaries[2][0] = hdr.mastering.red.x / 0.00002 + 0.5;//info.sType1.mR.x;
-    mConfigParam->hdr.color_parms.primaries[2][1] = hdr.mastering.red.y / 0.00002 + 0.5;//info.sType1.mR.y;
-    mConfigParam->hdr.color_parms.white_point[0] = hdr.mastering.white.x / 0.00002 + 0.5;//info.sType1.mW.x;
-    mConfigParam->hdr.color_parms.white_point[1] = hdr.mastering.white.y / 0.00002 + 0.5;//info.sType1.mW.y;
-    mConfigParam->hdr.color_parms.luminance[0] = ((int32_t)(hdr.mastering.maxLuminance + 0.5)) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-    mConfigParam->hdr.color_parms.luminance[1] = hdr.mastering.minLuminance / 0.0001 + 0.5;//info.sType1.mMinDisplayLuminance;
-    mConfigParam->hdr.color_parms.content_light_level.max_content = hdr.maxCll + 0.5;//info.sType1.mMaxContentLightLevel;
-    mConfigParam->hdr.color_parms.content_light_level.max_pic_average = hdr.maxFall + 0.5;//info.sType1.mMaxFrameAverageLightLevel;
-    mConfigParam->parms_status |= V4L2_CONFIG_PARM_DECODE_HDRINFO;
+    bool enable = property_get_bool("vendor.c2.hdr.endian.enable", false);
 
-    C2VDAMDU_LOG(CODEC2_LOG_INFO, "set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicave:%d, %f %f %f %f %f %f %f %f %f %f %f %f",
-            mConfigParam->hdr.color_parms.primaries[0][0],
-            mConfigParam->hdr.color_parms.primaries[0][1],
-            mConfigParam->hdr.color_parms.primaries[1][0],
-            mConfigParam->hdr.color_parms.primaries[1][1],
-            mConfigParam->hdr.color_parms.primaries[2][0],
-            mConfigParam->hdr.color_parms.primaries[2][1],
-            mConfigParam->hdr.color_parms.white_point[0],
-            mConfigParam->hdr.color_parms.white_point[1],
-            mConfigParam->hdr.color_parms.luminance[0],
-            mConfigParam->hdr.color_parms.luminance[1],
-            mConfigParam->hdr.color_parms.content_light_level.max_content,
-            mConfigParam->hdr.color_parms.content_light_level.max_pic_average,
+    std::function<int(int)> BLEndianInt = [=] (int value) -> int {
+        if (enable)
+            return value;
+        else
+            return ((value & 0x000F) << 12 ) | ((value & 0x00F0) << 4 ) | ((value & 0x0F00) >> 4) | ((value & 0xF000) >> 12);
+    };
+
+    struct aml_dec_params *pAmlDecParam = &mConfigParam->amldeccfg;
+
+    pAmlDecParam->hdr.color_parms.present_flag = 1;
+    pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+    pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+    pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+    pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+    pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+    pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+    pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+    pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+    pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
+    pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+    pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+    pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+    pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_HDRINFO;
+
+    ColorAspects sfAspects;
+    if (!C2Mapper::map(mHDRStaticInfoColorAspects->primaries, &sfAspects.mPrimaries)) {
+        sfAspects.mPrimaries = android::ColorAspects::PrimariesUnspecified;
+    }
+    if (!C2Mapper::map(mHDRStaticInfoColorAspects->range, &sfAspects.mRange)) {
+        sfAspects.mRange = android::ColorAspects::RangeUnspecified;
+    }
+    if (!C2Mapper::map(mHDRStaticInfoColorAspects->matrix, &sfAspects.mMatrixCoeffs)) {
+        sfAspects.mMatrixCoeffs = android::ColorAspects::MatrixUnspecified;
+    }
+    if (!C2Mapper::map(mHDRStaticInfoColorAspects->transfer, &sfAspects.mTransfer)) {
+        sfAspects.mTransfer = android::ColorAspects::TransferUnspecified;
+    }
+
+    ColorUtils::convertCodecColorAspectsToIsoAspects(sfAspects, &primaries, &transfer, &matrixCoeffs, &range);
+
+    pAmlDecParam->hdr.signal_type = (isPresent << 29)
+                                    | (5 << 26)
+                                    | (range << 25)
+                                    | (1 << 24)
+                                    | (primaries << 16)
+                                    | (transfer << 8)
+                                    | matrixCoeffs;
+
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicave:%d signaltype:%x, %f %f %f %f %f %f %f %f %f %f %f %f",
+            pAmlDecParam->hdr.color_parms.primaries[0][0],
+            pAmlDecParam->hdr.color_parms.primaries[0][1],
+            pAmlDecParam->hdr.color_parms.primaries[1][0],
+            pAmlDecParam->hdr.color_parms.primaries[1][1],
+            pAmlDecParam->hdr.color_parms.primaries[2][0],
+            pAmlDecParam->hdr.color_parms.primaries[2][1],
+            pAmlDecParam->hdr.color_parms.white_point[0],
+            pAmlDecParam->hdr.color_parms.white_point[1],
+            pAmlDecParam->hdr.color_parms.luminance[0],
+            pAmlDecParam->hdr.color_parms.luminance[1],
+            pAmlDecParam->hdr.color_parms.content_light_level.max_content,
+            pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average,
+            pAmlDecParam->hdr.signal_type,
             hdr.mastering.green.x,
             hdr.mastering.green.y,
             hdr.mastering.blue.x,
@@ -338,10 +394,10 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
     return 0;
 }
 
-void C2VDAComponent::MetaDataUtil::updateDecParmInfo(aml_dec_params* pinfo) {
-    C2VDAMDU_LOG(CODEC2_LOG_INFO, "pinfo->dec_parms_status %x\n", pinfo->parms_status);
-    if (pinfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
-        checkHDRMetadataAndColorAspects(&pinfo->hdr);
+void C2VDAComponent::MetaDataUtil::updateDecParmInfo(mediahal_cfg_parms* pinfo) {
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "pinfo->dec_parms_status %x\n", pinfo->amldeccfg.parms_status);
+    if (pinfo->amldeccfg.parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
+        checkHDRMetadataAndColorAspects(&pinfo->amldeccfg.hdr);
     }
 }
 
@@ -458,8 +514,8 @@ int C2VDAComponent::MetaDataUtil::checkHdrStaticInfoMetaChanged(struct aml_vdec_
         return false;
     }
 
-    if (isHDRStaticInfoDifferent(&(mConfigParam->hdr), phdr)) {
-        mConfigParam->hdr = *phdr;
+    if (isHDRStaticInfoDifferent(&(mConfigParam->amldeccfg.hdr), phdr)) {
+        mConfigParam->amldeccfg.hdr = *phdr;
         return true;
     }
 
@@ -488,8 +544,8 @@ int C2VDAComponent::MetaDataUtil::isHDRStaticInfoDifferent(struct aml_vdec_hdr_i
 int C2VDAComponent::MetaDataUtil::getVideoType() {
     int videotype = AM_VIDEO_4K;//AM_VIDEO_AFBC;
 
-    if (mConfigParam->cfg.double_write_mode == 0 ||
-        mConfigParam->cfg.double_write_mode == 3) {
+    if (mConfigParam->amldeccfg.cfg.double_write_mode == 0 ||
+        mConfigParam->amldeccfg.cfg.double_write_mode == 3) {
         if (mIntfImpl->getInputCodec() == InputCodec::VP9 ||
             mIntfImpl->getInputCodec() == InputCodec::H265 ||
             mIntfImpl->getInputCodec() == InputCodec::AV1) {

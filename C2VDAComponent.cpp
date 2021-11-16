@@ -1109,6 +1109,7 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
 
     mVideoDecWraper = new VideoDecWraper();
     mMetaDataUtil =  std::make_shared<MetaDataUtil>(this, mSecureMode);
+    mMetaDataUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
     mMetaDataUtil->codecConfig(&mConfigParam);
     mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
             (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
@@ -1972,7 +1973,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
 
     setOutputFormatCrop(mPendingOutputFormat->mVisibleRect);
 
-    C2PortActualDelayTuning::output outputDelay(mOutputFormat.mMinNumBuffers - mConfigParam.cfg.ref_buf_margin);
+    C2PortActualDelayTuning::output outputDelay(mOutputFormat.mMinNumBuffers - mConfigParam.amldeccfg.cfg.ref_buf_margin);
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
     if (outputDelayErr == OK) {
@@ -2720,8 +2721,8 @@ void C2VDAComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
 void C2VDAComponent::UpdateDecInfo(const uint8_t* info, uint32_t isize) {
     UNUSED(info);
     UNUSED(isize);
-    struct aml_dec_params* pinfo = (struct aml_dec_params*)info;
-    ALOGV("C2VDAComponent::UpdateDecInfo, dec_parms_status=%d\n", pinfo->parms_status);
+    struct mediahal_cfg_parms* pinfo = (struct mediahal_cfg_parms*)info;
+    ALOGV("C2VDAComponent::UpdateDecInfo, dec_parms_status=%d\n", pinfo->amldeccfg.parms_status);
     mMetaDataUtil->updateDecParmInfo(pinfo);
 }
 

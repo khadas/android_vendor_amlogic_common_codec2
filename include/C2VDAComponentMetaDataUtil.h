@@ -22,8 +22,8 @@ public:
     virtual ~MetaDataUtil();
 
     /* configure decoder */
-    void codecConfig(aml_dec_params* params);
-    void updateDecParmInfo(aml_dec_params* params);
+    void codecConfig(mediahal_cfg_parms* params);
+    void updateDecParmInfo(mediahal_cfg_parms* params);
     int getVideoType();
     void setUseSurfaceTexture(bool usersftexture) { mUseSurfaceTexture = usersftexture; }
     void setNoSurface(bool isNoSurface);
@@ -65,6 +65,9 @@ public:
     void updateHDR10plus(unsigned char *data, int size);
     void updateDurationUs(unsigned char *data, int size);
     bool getHDR10PlusData(std::string &data);
+    void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
+        mHDRStaticInfoColorAspects = coloraspect;
+    }
 
 private:
     /* set hdr static to decoder */
@@ -72,10 +75,12 @@ private:
     int checkHDRMetadataAndColorAspects(struct aml_vdec_hdr_infos* phdr);
     int checkHdrStaticInfoMetaChanged(struct aml_vdec_hdr_infos* phdr);
     int isHDRStaticInfoDifferent(struct aml_vdec_hdr_infos* phd_old, struct aml_vdec_hdr_infos* phdr_new);
+    // as C2Info in decoded output buffers.
+    std::shared_ptr<C2StreamColorAspectsInfo::output> mHDRStaticInfoColorAspects;
 
     int mUvmFd;
     C2VDAComponent::IntfImpl* mIntfImpl;
-    aml_dec_params* mConfigParam;
+    mediahal_cfg_parms* mConfigParam;
     C2VDAComponent* mComp;
     bool mUseSurfaceTexture;
     bool mNoSurface;
@@ -96,6 +101,7 @@ private:
     std::queue<std::string> mHDR10PlusData;
 
     uint32_t mSignalType;
+    bool mEnableAdaptivePlayback;
     std::mutex mMutex;
 };
 

@@ -189,5 +189,19 @@ struct aml_dec_params {
     struct aml_vdec_hdr_infos hdr;
     struct aml_vdec_cnt_infos cnt;
 };
+
+struct v4l2_parms {
+    uint32_t magic;
+    uint32_t len;
+    uint32_t adaptiveplayback;
+    uint32_t height;
+    uint32_t width;
+};
+
+struct mediahal_cfg_parms {
+    struct v4l2_parms v4l2cfg;
+    struct aml_dec_params amldeccfg;
+};
+
 }
 #endif
