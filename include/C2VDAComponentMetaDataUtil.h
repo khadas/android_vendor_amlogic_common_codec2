@@ -26,7 +26,7 @@ public:
     void updateDecParmInfo(aml_dec_params* params);
     int getVideoType();
     void setUseSurfaceTexture(bool usersftexture) { mUseSurfaceTexture = usersftexture; }
-    void setNoSurfaceTexture(bool isNoSurface);
+    void setNoSurface(bool isNoSurface);
     bool isHDRStaticInfoUpdated() {
         if (mHDRStaticInfoChanged) {
             std::lock_guard<std::mutex> lock(mMutex);

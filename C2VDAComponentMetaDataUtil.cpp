@@ -556,7 +556,7 @@ uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
     return usage & C2MemoryUsage::PLATFORM_MASK;
 }
 
-void C2VDAComponent::MetaDataUtil::setNoSurfaceTexture(bool isNoSurface) {
+void C2VDAComponent::MetaDataUtil::setNoSurface(bool isNoSurface) {
     mNoSurface = isNoSurface;
 }
 
@@ -574,7 +574,7 @@ bool C2VDAComponent::MetaDataUtil::getNeedReallocBuffer()
     if (debugrealloc)
         return true;
 
-    if (mUseSurfaceTexture) {
+    if (mUseSurfaceTexture|| mNoSurface) {
         realloc = true;
     } else {
         switch (mIntfImpl->getInputCodec()) {

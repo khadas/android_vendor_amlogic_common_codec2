@@ -2540,7 +2540,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
             mVideoDecWraper = new VideoDecWraper();
         }
         if (!mIsTunnelMode) {
-            mMetaDataUtil->setNoSurfaceTexture(true);
+            mMetaDataUtil->setNoSurface(true);
         }
         mMetaDataUtil->codecConfig(&mConfigParam);
         mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
