@@ -114,6 +114,16 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     versionStr = fmt.Sprintf("V%s.%s.%s-g%s", major_v, minor_v, commitCnt, gitCommitIDShort);
     fmt.Printf("codec2 version:%s\n", string(versionStr))
 
+    execCmd = fmt.Sprintf("cd %s && cat featurelist.json | sed '1s/^.//' | tr -d '\n\r ' | sed 's/\"/\\\\\"/g'", string(currentdir))
+    ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
+    if err != nil {
+        fmt.Printf("get featurelist err: %s\n", err)
+    }
+    featurelist := strings.Replace(string(ret), "\n", "", -1)
+    //fmt.Printf("get featurelist:%s\n", string(featurelist))
+    MEDIA_MODULE_FEATURES :="-DMEDIA_MODULE_FEATURES=" + "\"" + "\\n" + "{\\\"MM-module-name\\\":\\\"CODEC2\\\",\\\"Version\\\":\\\"" + string(versionStr)+ "\\\"," +string(featurelist) + "\\n"+"\""
+    cppflags = append(cppflags, MEDIA_MODULE_FEATURES)
+
     CODEc2_VERSION := "-DVERSION=" + "\"" + versionStr +  "\""
     cppflags = append(cppflags, CODEc2_VERSION)
 

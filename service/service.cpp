@@ -40,6 +40,10 @@ static constexpr char kBaseSeccompPolicyPath[] =
 static constexpr char kExtSeccompPolicyPath[] =
         "/vendor/etc/seccomp_policy/android.hardware.amlogic.media.c2@1.2-extended-seccomp-policy";
 
+#ifdef HAVE_VERSION_INFO
+static const char* c2Features= (char*)MEDIA_MODULE_FEATURES;
+#endif
+
 extern "C"  void printBuildInfo() {
 #ifdef HAVE_VERSION_INFO
     ALOGV("\n--------------------------------\n"
@@ -55,12 +59,13 @@ extern "C"  void printBuildInfo() {
 #else
             "arm",
 #endif
-#endif
             VERSION,
             GIT_COMMITMSG,
             GIT_PD,
             GIT_CHANGEID,
             GIT_COMMITID);
+    ALOGV("%s", c2Features);
+#endif
 }
 
 int main(int /* argc */, char** /* argv */) {
