@@ -334,7 +334,7 @@ private:
     // Allocate output buffers (graphic blocks) from block allocator.
     c2_status_t allocateBuffersFromBlockAllocator(const media::Size& size, uint32_t pixelFormat);
     // Append allocated buffer (graphic block) to |mGraphicBlocks|.
-    void appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId);
+    void appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId, bool bind);
     // Append allocated buffer (graphic block) to |mGraphicBlocks| in secure mode.
     void appendSecureOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId);
     // Parse coded color aspects from bitstream and configs parameter if applicable.
@@ -505,6 +505,8 @@ private:
     bool mHDR10PlusMeteDataNeedCheck;
 
     C2ReadView mDefaultDummyReadView;
+    std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;
+    uint32_t mPendingGraphicBlockBufferId;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

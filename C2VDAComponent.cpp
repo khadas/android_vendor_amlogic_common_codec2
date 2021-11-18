@@ -1300,6 +1300,12 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
         //need to rebind poolid vs blockid
         info = getUnbindGraphicBlock();
         if (!info) {
+            if (!mPendingGraphicBlockBuffer) {
+                mPendingGraphicBlockBuffer = std::move(block);
+                mPendingGraphicBlockBufferId = poolId;
+                ALOGV("now pending block id: %d, count:%ld", poolId, block.use_count());
+                return;
+            }
             reportError(C2_CORRUPTED);
             return;
         }
@@ -1779,10 +1785,18 @@ void C2VDAComponent::onStopDone() {
         mMetaDataUtil.reset();
     }
 
+    if (mPendingGraphicBlockBuffer) {
+        ALOGV("clear pending block id: %d, count:%ld",
+            mPendingGraphicBlockBufferId, mPendingGraphicBlockBuffer.use_count());
+        mPendingGraphicBlockBufferId = -1;
+        mPendingGraphicBlockBuffer.reset();
+    }
+
     for (auto& info : mGraphicBlocks) {
         ALOGI("info.mGraphicBlock.reset()");
         info.mGraphicBlock.reset();
     }
+
     ALOGI("mGraphicBlocks.clear();");
     mGraphicBlocks.clear();
 
@@ -2040,6 +2054,19 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
                     bqPool->resetGraphicBlock(info.mPoolId);
                     ALOGI("change reset block id:%d, count:%ld", info.mPoolId, info.mGraphicBlock.use_count());
                 }
+                if (mPendingGraphicBlockBuffer) {
+                    ALOGV("change reset pending block id: %d, count:%ld",
+                        mPendingGraphicBlockBufferId, mPendingGraphicBlockBuffer.use_count());
+                    bqPool->resetGraphicBlock(mPendingGraphicBlockBufferId);
+                    mPendingGraphicBlockBufferId = -1;
+                    mPendingGraphicBlockBuffer.reset();
+                }
+            }
+            size_t inc_buf_num = mOutputFormat.mMinNumBuffers - mLastOutputFormat.mMinNumBuffers;
+            if (inc_buf_num > 0) {
+                ALOGV("resolution change increase buf num is %d", inc_buf_num);
+                for (int i = 0; i < inc_buf_num; i++)
+                    appendOutputBuffer(NULL, 0, false);
             }
             size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
             auto err = bqPool->requestNewBufferSet(static_cast<int32_t>(bufferCount));
@@ -2284,7 +2311,7 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
             mVideoDecWraper->assignPictureBuffers(bufferCount);
             mCanQueueOutBuffer = true;
         }
-        appendOutputBuffer(std::move(block), poolId);
+        appendOutputBuffer(std::move(block), poolId, true);
     }
 
     mOutputFormat.mMinNumBuffers = bufferCount;
@@ -2300,18 +2327,19 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockAllocator(const media::Size&
     return C2_OK;
 }
 
-void C2VDAComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId) {
+void C2VDAComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId, bool bind) {
     GraphicBlockInfo info;
 
     info.mBlockId = static_cast<int32_t>(mGraphicBlocks.size());
-    info.mGraphicBlock = std::move(block);
-    info.mPoolId = poolId;
-    info.mBind = true;
-    info.mFd = info.mGraphicBlock->handle()->data[0];
+    if (bind) {
+        info.mPoolId = poolId;
+        info.mGraphicBlock = std::move(block);
+        info.mFd = info.mGraphicBlock->handle()->data[0];
+        ALOGV("%s graphicblock: %p,blockid: %d, size: %dx%d bind %d->%d", __func__, info.mGraphicBlock->handle(),
+            info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), info.mPoolId, info.mBlockId);
+    }
+    info.mBind = bind;
     info.mFdHaveSet = false;
-
-    ALOGV("%s graphicblock: %p,blockid: %d, size: %dx%d bind %d->%d", __func__, info.mGraphicBlock->handle(),
-        info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), info.mPoolId, info.mBlockId);
     mGraphicBlocks.push_back(std::move(info));
 }
 
