@@ -501,6 +501,7 @@ private:
     bool mIsTunnelMode;
     std::vector<struct fillVideoFrame2> mFillVideoFrameQueue;
     bool mCanQueueOutBuffer;
+    std::vector<int64_t> mTunnelAbandonMediaTimeQueue;
     int32_t mOutBufferCount;
     bool mHDR10PlusMeteDataNeedCheck;
 

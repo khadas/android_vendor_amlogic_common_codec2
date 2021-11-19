@@ -1407,6 +1407,13 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRende
 
         C2Work* work = getPendingWorkByMediaTime(rendertime->mediaUs);
         if (!work) {
+            for (auto it = mTunnelAbandonMediaTimeQueue.begin(); it != mTunnelAbandonMediaTimeQueue.end(); it ++) {
+                if (rendertime->mediaUs == *it) {
+                    mTunnelAbandonMediaTimeQueue.erase(it);
+                    C2VDA_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld, correct work have abandoed and report to framework", rendertime->mediaUs);
+                    return C2_OK;
+                }
+            }
             C2VDA_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld", rendertime->mediaUs);
             reportError(C2_CORRUPTED);
             return C2_CORRUPTED;
@@ -1777,6 +1784,7 @@ void C2VDAComponent::onStopDone() {
     reportAbandonedWorks();
     mPendingOutputFormat.reset();
     mPendingBuffersToWork.clear();
+    mTunnelAbandonMediaTimeQueue.clear();
     stopDequeueThread();
 
     if (mVideoDecWraper) {
@@ -2971,6 +2979,8 @@ void C2VDAComponent::reportAbandonedWorks() {
             work->input.buffers.front().reset();
         }
         abandonedWorks.emplace_back(std::move(work));
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s tunnel mode abandon mediatimeus:%lld", __func__, work->input.ordinal.timestamp.peekull());
+        mTunnelAbandonMediaTimeQueue.push_back(work->input.ordinal.timestamp.peekull());
     }
     mAbandonedWorks.clear();
 
