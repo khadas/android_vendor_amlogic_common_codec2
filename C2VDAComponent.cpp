@@ -986,7 +986,10 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mIsTunnelMode(false),
         mCanQueueOutBuffer(false),
         mHDR10PlusMeteDataNeedCheck(false),
-        mDefaultDummyReadView(DummyReadView()) {
+        mDefaultDummyReadView(DummyReadView()),
+        mInterlacedType(C2_INTERLACED_TYPE_NONE),
+        mInterlacedFirstField(true),
+        mFirstInputTimestamp(-1) {
     ALOGI("%s(%s)", __func__, name.c_str());
 
     mSecureMode = name.find(".secure") != std::string::npos;
@@ -1008,7 +1011,7 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
     }
     mTaskRunner = mThread.task_runner();
     mState.store(State::LOADED);
-    mCurInstanceID = mInstanceNum;
+    mCurInstanceID = mInstanceID;
     mInstanceNum ++;
     mInstanceID ++;
 
@@ -1198,6 +1201,19 @@ void C2VDAComponent::onQueueWork(std::unique_ptr<C2Work> work) {
         drainMode = DRAIN_COMPONENT_WITH_EOS;
     }
 
+    // setup mInterlacedType
+    if (!(mInterlacedType&C2_INTERLACED_TYPE_SETUP) && mFirstInputTimestamp != -1 &&
+            (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) == 0) {
+        mInterlacedType = C2_INTERLACED_TYPE_SETUP;
+        if (work->input.ordinal.timestamp.peekull() > mFirstInputTimestamp) {
+            mInterlacedType |= C2_INTERLACED_TYPE_2FIELD;
+        }
+        ALOGD("%s#%d setting up mInterlacedType:%08x, timestamp:%llu ->  %llu", __func__, __LINE__, mInterlacedType,
+                mFirstInputTimestamp, work->input.ordinal.timestamp.peekull());
+    }
+    if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) == 0 && (mFirstInputTimestamp == -1)) {
+        mFirstInputTimestamp = work->input.ordinal.timestamp.peekull();
+    }
     mQueue.push({std::move(work), drainMode});
     // TODO(johnylin): set a maximum size of mQueue and check if mQueue is already full.
 
@@ -1527,6 +1543,17 @@ c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId,
     return C2_OK;
 }
 
+C2Work* C2VDAComponent::cloneWork(C2Work* ori) {
+    C2Work* n = new C2Work();
+
+    n->input.flags = ori->input.flags;
+    n->input.ordinal = ori->input.ordinal;
+    n->worklets.emplace_back(new C2Worklet);
+    n->worklets.front()->output.ordinal = n->input.ordinal;
+
+    return n;
+}
+
 c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
@@ -1547,6 +1574,12 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
             sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
             return C2_OK;
+        }
+        if (mMetaDataUtil->isInterlaced() &&
+                mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
+                mInterlacedFirstField) {
+            ALOGD("%s#%d interlace one-in/two-out first field output, clone the work", __func__, __LINE__);
+            work = cloneWork(work);
         }
 
         if (info->mState == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
@@ -1636,10 +1669,27 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         ALOGI("sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
         ATRACE_INT("c2workpts", 0);
 
-        reportWorkIfFinished(nextBuffer.mBitstreamId);
+        if (mMetaDataUtil->isInterlaced() &&
+                mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
+                mInterlacedFirstField) {
+            sendClonedWork(work);
+        } else {
+            reportWorkIfFinished(nextBuffer.mBitstreamId);
+        }
         mPendingBuffersToWork.pop_front();
+        mInterlacedFirstField = !mInterlacedFirstField;
     }
     return C2_OK;
+}
+
+void C2VDAComponent::sendClonedWork(C2Work* work) {
+    work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
+    work->result = C2_OK;
+    work->workletsProcessed = 1;
+
+    std::list<std::unique_ptr<C2Work>> finishedWorks;
+    finishedWorks.emplace_back(std::move(std::unique_ptr<C2Work>(work)));
+    mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
 }
 
 void C2VDAComponent::updateUndequeuedBlockIds(int32_t blockId) {
@@ -1745,6 +1795,9 @@ void C2VDAComponent::onFlush() {
     }
     mComponentState = ComponentState::FLUSHING;
     mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+    mInterlacedType = C2_INTERLACED_TYPE_NONE;
+    mInterlacedFirstField = true;
+    mFirstInputTimestamp = -1;
 }
 
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {
@@ -2060,7 +2113,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
 
     setOutputFormatCrop(mPendingOutputFormat->mVisibleRect);
 
-    C2PortActualDelayTuning::output outputDelay(mOutputFormat.mMinNumBuffers - mConfigParam.amldeccfg.cfg.ref_buf_margin);
+    C2PortActualDelayTuning::output outputDelay(mOutputFormat.mMinNumBuffers - mConfigParam.amldeccfg.cfg.ref_buf_margin + 2);
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
     if (outputDelayErr == OK) {
@@ -2447,10 +2500,15 @@ void C2VDAComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool 
         int metaFd =-1;
 
         {
-           native_handle_t* handle = android::UnwrapNativeCodec2GrallocHandle(info->mGraphicBlock->handle());
-           if (am_gralloc_is_valid_graphic_buffer(handle)) {
-               am_gralloc_set_omx_video_type(handle, mMetaDataUtil->getVideoType());
-           }
+            if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
+                const native_handle_t* c2Handle = info->mGraphicBlock->handle();
+                uint32_t* slotId = (uint32_t*)(&c2Handle->data[c2Handle->numFds + c2Handle->numInts - 2]);
+                const native_handle_t* handle = std::static_pointer_cast<C2VdaBqBlockPool>(mBlockPool)->getOriNativeHandle(*slotId);
+                if (am_gralloc_is_valid_graphic_buffer(handle)) {
+                    am_gralloc_set_omx_video_type(handle, mMetaDataUtil->getVideoType());
+                    am_gralloc_set_ext_attr(handle, GRALLOC_BUFFER_ATTR_AM_OMX_BUFFER_SEQUENCE, mCurInstanceID);
+                }
+            }
 
            {
                uint32_t width, height, format, stride, igbp_slot, generation;

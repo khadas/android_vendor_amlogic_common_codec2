@@ -861,5 +861,8 @@ bool C2VdaBqBlockPool::setSlotToOriginal(int32_t slot, int32_t fd) {
 
 }
 
+const native_handle_t* C2VdaBqBlockPool::getOriNativeHandle(uint32_t slotID) {
+    return mBuffers[slotID]->handle;
+}
 
 

@@ -25,6 +25,7 @@ public:
     void codecConfig(mediahal_cfg_parms* params);
     void updateDecParmInfo(aml_dec_params* params);
     void updateInterlacedInfo(bool isInterlaced);
+    bool isInterlaced() {return mIsInterlaced;};
     int getVideoType();
     void setUseSurfaceTexture(bool usersftexture) { mUseSurfaceTexture = usersftexture; }
     void setNoSurface(bool isNoSurface);

@@ -376,6 +376,9 @@ private:
     // Helper function to determine if the work is finished.
     bool isWorkDone(const C2Work* work) const;
 
+    C2Work* cloneWork(C2Work* ori);
+    void sendClonedWork(C2Work* work);
+
     // Start dequeue thread, return true on success. If |resetBuffersInClient|, reset the counter
     // |mBuffersInClient| on start.
     bool startDequeueThread(const media::Size& size, uint32_t pixelFormat,
@@ -481,6 +484,12 @@ private:
         C2_RESOLUTION_CHANGEING = 1,
         C2_RESOLUTION_CHANGED = 2,
     } c2_resch_stat;
+    enum {
+        C2_INTERLACED_TYPE_NONE   = 0x00000000,
+        C2_INTERLACED_TYPE_1FIELD = 0x00000000,
+        C2_INTERLACED_TYPE_2FIELD = 0x00000001,
+        C2_INTERLACED_TYPE_SETUP  = 0x00000002,
+    };
     std::shared_ptr<C2StreamHdrStaticInfo::output> mCurrentHdrStaticInfo;
     std::shared_ptr<C2StreamHdr10PlusInfo::output> mCurrentHdr10PlusInfo;
     std::shared_ptr<C2StreamPictureSizeInfo::output> mCurrentSize;
@@ -513,6 +522,9 @@ private:
     uint32_t mPendingGraphicBlockBufferId;
     uint64_t mLastFlushTimeMs;
     std::vector<int32_t> mNoShowFrameBitstreamIds;
+    uint32_t mInterlacedType;
+    bool mInterlacedFirstField;
+    int64_t mFirstInputTimestamp;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

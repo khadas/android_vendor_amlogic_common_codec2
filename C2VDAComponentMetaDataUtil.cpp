@@ -186,13 +186,6 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
         mEnableDILocalBuf = false;
     }
 
-
-    // TODO: C2 can not support 1 input decode to 2 output mode
-    // setup VDEC_CFG_FLAG_PROG_ONLY to enforce decoder output 1 frame for now
-    //if (mNoSurface) {
-        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_PROG_ONLY;
-    //}
-
     if (mEnableNR) {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "enable NR");
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_NR_ENABLE;

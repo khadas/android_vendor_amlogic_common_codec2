@@ -118,6 +118,7 @@ public:
     int64_t getSurfaceUsage();
 
     static c2_status_t getMinBuffersForDisplay(size_t* minBuffersForDisplay);
+    const native_handle_t* getOriNativeHandle(uint32_t slotID);
 
 private:
     c2_status_t cancelAllBuffers();
