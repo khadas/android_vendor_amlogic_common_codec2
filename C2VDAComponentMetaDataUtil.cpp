@@ -394,10 +394,10 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
     return 0;
 }
 
-void C2VDAComponent::MetaDataUtil::updateDecParmInfo(mediahal_cfg_parms* pinfo) {
-    C2VDAMDU_LOG(CODEC2_LOG_INFO, "pinfo->dec_parms_status %x\n", pinfo->amldeccfg.parms_status);
-    if (pinfo->amldeccfg.parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
-        checkHDRMetadataAndColorAspects(&pinfo->amldeccfg.hdr);
+void C2VDAComponent::MetaDataUtil::updateDecParmInfo(aml_dec_params* pinfo) {
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "pinfo->dec_parms_status %x\n", pinfo->parms_status);
+    if (pinfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
+        checkHDRMetadataAndColorAspects(&pinfo->hdr);
     }
 }
 

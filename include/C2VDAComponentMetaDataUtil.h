@@ -23,7 +23,7 @@ public:
 
     /* configure decoder */
     void codecConfig(mediahal_cfg_parms* params);
-    void updateDecParmInfo(mediahal_cfg_parms* params);
+    void updateDecParmInfo(aml_dec_params* params);
     int getVideoType();
     void setUseSurfaceTexture(bool usersftexture) { mUseSurfaceTexture = usersftexture; }
     void setNoSurface(bool isNoSurface);

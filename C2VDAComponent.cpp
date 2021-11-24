@@ -2758,8 +2758,8 @@ void C2VDAComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
 void C2VDAComponent::UpdateDecInfo(const uint8_t* info, uint32_t isize) {
     UNUSED(info);
     UNUSED(isize);
-    struct mediahal_cfg_parms* pinfo = (struct mediahal_cfg_parms*)info;
-    ALOGV("C2VDAComponent::UpdateDecInfo, dec_parms_status=%d\n", pinfo->amldeccfg.parms_status);
+    struct aml_dec_params* pinfo = (struct aml_dec_params*)info;
+    ALOGV("C2VDAComponent::UpdateDecInfo, dec_parms_status=%d\n", pinfo->parms_status);
     mMetaDataUtil->updateDecParmInfo(pinfo);
 }
 
