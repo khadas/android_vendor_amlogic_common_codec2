@@ -183,6 +183,7 @@ public:
     virtual void NotifyFlushDone();
     virtual void NotifyResetDone();
     virtual void NotifyError(int error);
+    virtual void NotifyEvent(uint32_t event, void *param, uint32_t paramsize);
 
     //tunnel mode implement
     void onConfigureTunnelMode();

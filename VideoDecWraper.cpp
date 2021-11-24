@@ -353,6 +353,9 @@ void VideoDecWraper::onError(int32_t error) {
 void VideoDecWraper::onEvent(uint32_t event, void* param, uint32_t paramsize) {
     VDEC_LOGD("event %d, param %p, paramsize:%d\n", event, param, paramsize);
 
+    if (mDecoderCallback) {
+        mDecoderCallback->NotifyEvent(event, param, paramsize);
+    }
 }
 
 

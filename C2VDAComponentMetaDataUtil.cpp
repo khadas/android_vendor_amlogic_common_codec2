@@ -401,6 +401,11 @@ void C2VDAComponent::MetaDataUtil::updateDecParmInfo(aml_dec_params* pinfo) {
     }
 }
 
+void C2VDAComponent::MetaDataUtil::updateInterlacedInfo(bool isInterlaced) {
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "%s#%d: isInterlaced:%d", __func__, __LINE__, isInterlaced);
+    mIsInterlaced = isInterlaced;
+}
+
 int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vdec_hdr_infos* phdr) {
     bool isHdrChanged = false;
     bool isColorAspectsChanged = false;

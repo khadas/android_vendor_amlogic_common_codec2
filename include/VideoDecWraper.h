@@ -35,8 +35,14 @@ public:
         virtual void NotifyFlushDone()  = 0;
         virtual void NotifyResetDone()  = 0;
         virtual void NotifyError(int error)  = 0;
+        virtual void NotifyEvent(uint32_t event, void* param, uint32_t paramsize) = 0;
 
    };
+
+    enum Event_v4l2 {
+        // Event file is a interlaced
+        FIELD_INTERLACED = 1,
+    };
 
     VideoDecWraper();
     ~VideoDecWraper();

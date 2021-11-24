@@ -2790,6 +2790,20 @@ void C2VDAComponent::NotifyError(int error) {
                           ::base::Bind(&C2VDAComponent::reportError, ::base::Unretained(this), err));
 }
 
+void C2VDAComponent::NotifyEvent(uint32_t event, void *param, uint32_t paramsize) {
+    UNUSED(param);
+    UNUSED(paramsize);
+    switch (event) {
+        case VideoDecWraper::FIELD_INTERLACED:
+            CODEC2_LOG(CODEC2_LOG_INFO, "is interlaced");
+            mMetaDataUtil->updateInterlacedInfo(true);
+            break;
+        default:
+            CODEC2_LOG(CODEC2_LOG_INFO, "NotifyEvent:event:%d", event);
+            break;
+    }
+}
+
 void C2VDAComponent::detectNoShowFrameWorksAndReportIfFinished(
         const C2WorkOrdinalStruct* currOrdinal) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
