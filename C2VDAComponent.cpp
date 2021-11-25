@@ -2978,9 +2978,9 @@ void C2VDAComponent::reportAbandonedWorks() {
         if (!work->input.buffers.empty()) {
             work->input.buffers.front().reset();
         }
-        abandonedWorks.emplace_back(std::move(work));
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s tunnel mode abandon mediatimeus:%lld", __func__, work->input.ordinal.timestamp.peekull());
         mTunnelAbandonMediaTimeQueue.push_back(work->input.ordinal.timestamp.peekull());
+        abandonedWorks.emplace_back(std::move(work));
     }
     mAbandonedWorks.clear();
 
