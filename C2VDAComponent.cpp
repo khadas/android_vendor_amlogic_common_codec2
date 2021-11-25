@@ -1370,8 +1370,9 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         std::unique_lock<std::mutex> l(mPendWorksMutex);
         C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
-            ALOGE("not find the correct work with bitstreamid:%lld", bitstreamId);
-            reportError(C2_CORRUPTED);
+            ALOGE("%s:%d discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
+            info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+            sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
             return;
         }
         timestamp = work->input.ordinal.timestamp.peekull();
@@ -1462,7 +1463,7 @@ c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId,
         std::unique_lock<std::mutex> l(mPendWorksMutex);
         C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
-            ALOGE("not find the correct work with bitstreamid:%lld", bitstreamId);
+            ALOGE("%s:%d discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
             reportError(C2_CORRUPTED);
             return C2_CORRUPTED;
         }
@@ -1495,9 +1496,10 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             std::unique_lock<std::mutex> l(mPendWorksMutex);
             C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
             if (!work) {
-                ALOGE("%s:%d can not find the correct work with bitstreamid:%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
-                reportError(C2_CORRUPTED);
-                return C2_CORRUPTED;
+                ALOGE("%s:%d discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
+                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+                sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+                return C2_OK;
             }
 
             if (info->mState == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
@@ -1695,6 +1697,7 @@ void C2VDAComponent::onFlush() {
         mQueue.pop();
     }
     mComponentState = ComponentState::FLUSHING;
+    mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
 }
 
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {
@@ -1735,6 +1738,7 @@ void C2VDAComponent::onResetDone() {
         return;  // component is already stopped.
     }
     if (mComponentState == ComponentState::FLUSHING) {
+        mLastFlushTimeMs = 0;
         onFlushDone();
     } else if (mComponentState == ComponentState::STOPPING) {
         onStopDone();
@@ -3052,6 +3056,15 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
         if (mBuffersInClient.load() == 0) {
             ::usleep(kDequeueRetryDelayUs);  // wait for retry
             //continue;
+        }
+
+        //we reuse this to check reset is complete or not it timeout will force reset once time
+        uint64_t nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+        if (mComponentState == ComponentState::FLUSHING &&
+            mLastFlushTimeMs > 0 && nowTimeMs - mLastFlushTimeMs >= 2000) {
+            ALOGI("onFlush timeout we need force flush once time");
+            mLastFlushTimeMs = 0;
+            mVideoDecWraper->reset(RESET_FLAG_NOWAIT);
         }
 
         std::shared_ptr<C2GraphicBlock> block;

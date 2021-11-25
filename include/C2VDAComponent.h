@@ -509,6 +509,7 @@ private:
     C2ReadView mDefaultDummyReadView;
     std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;
     uint32_t mPendingGraphicBlockBufferId;
+    uint64_t mLastFlushTimeMs;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };
