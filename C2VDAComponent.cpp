@@ -1382,6 +1382,10 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp});
     ALOGV("%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersizs:%d, graphicblock:%p",
             __func__, bitstreamId, pictureBufferId, mPendingBuffersToWork.size(), info->mGraphicBlock->handle());
+    if (mComponentState == ComponentState::FLUSHING) {
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%s in flushing, pending bitstreamid=%lld first", __func__, bitstreamId);
+        return;
+    }
     if (!mIsTunnelMode) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else {
