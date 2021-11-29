@@ -360,7 +360,8 @@ private:
     // output buffer which the corresponding work is waiting for, this function detects these works
     // by comparing timestamps. If there are works with no-show frame, call reportWorkIfFinished()
     // to report to listener if finished.
-    void detectNoShowFrameWorksAndReportIfFinished(const C2WorkOrdinalStruct* currOrdinal);
+    void detectNoShowFrameWorksAndReportIfFinished(const C2WorkOrdinalStruct& currOrdinal);
+    void reportWorkForNoShowFrames();
     // Check if the corresponding work is finished by |bitstreamId|. If yes, make onWorkDone call to
     // listener and erase the work from |mPendingWorks|.
     void reportWorkIfFinished(int32_t bitstreamId);
@@ -371,7 +372,7 @@ private:
     // Make onError call to listener for reporting errors.
     void reportError(c2_status_t error);
     // Helper function to determine if the work indicates no-show output frame.
-    bool isNoShowFrameWork(const C2Work* work, const C2WorkOrdinalStruct* currOrdinal) const;
+    bool isNoShowFrameWork(const C2Work& work, const C2WorkOrdinalStruct& currOrdinal) const;
     // Helper function to determine if the work is finished.
     bool isWorkDone(const C2Work* work) const;
 
@@ -511,6 +512,7 @@ private:
     std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;
     uint32_t mPendingGraphicBlockBufferId;
     uint64_t mLastFlushTimeMs;
+    std::vector<int32_t> mNoShowFrameBitstreamIds;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

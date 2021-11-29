@@ -1628,11 +1628,9 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         }
 
         // Check no-show frame by timestamps for VP8/VP9 cases before reporting the current work.
-#if 0
         if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-            detectNoShowFrameWorksAndReportIfFinished(&(work->input.ordinal));
-}
-        #endif
+            detectNoShowFrameWorksAndReportIfFinished(work->input.ordinal);
+        }
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
         ATRACE_INT("c2workpts", timestamp);
         ALOGI("sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
@@ -2885,21 +2883,15 @@ void C2VDAComponent::NotifyEvent(uint32_t event, void *param, uint32_t paramsize
 }
 
 void C2VDAComponent::detectNoShowFrameWorksAndReportIfFinished(
-        const C2WorkOrdinalStruct* currOrdinal) {
+        const C2WorkOrdinalStruct& currOrdinal) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    std::vector<int32_t> noShowFrameBitstreamIds;
 
     {
         for (auto& work : mPendingWorks) {
             // A work in mPendingWorks would be considered to have no-show frame if there is no
             // corresponding output buffer returned while the one of the work with latter timestamp is
             // already returned. (VDA is outputted in display order.)
-            // Note: this fix is workable but not most appropriate because we rely on timestamps which
-            // may wrap around or be uncontinuous in adaptive skip-back case. The ideal fix should parse
-            // show_frame flag for each frame by either framework, component, or VDA, and propogate
-            // along the stack.
-            // TODO(johnylin): Discuss with framework team to handle no-show frame properly.
-            if (isNoShowFrameWork(work.get(), currOrdinal)) {
+            if (isNoShowFrameWork(*(work.get()), currOrdinal)) {
                 // Mark FLAG_DROP_FRAME for no-show frame work.
                 work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
 
@@ -2907,42 +2899,37 @@ void C2VDAComponent::detectNoShowFrameWorksAndReportIfFinished(
                 // we should do it after the detection loop since reportWorkIfFinished() may erase
                 // entries in mPendingWorks.
                 int32_t bitstreamId = frameIndexToBitstreamId(work->input.ordinal.frameIndex);
-                noShowFrameBitstreamIds.push_back(bitstreamId);
-                ALOGV("Detected no-show frame work index=%llu timestamp=%llu",
+                mNoShowFrameBitstreamIds.push_back(bitstreamId);
+                ALOGD("Detected no-show frame work index=%llu timestamp=%llu",
                       work->input.ordinal.frameIndex.peekull(),
                       work->input.ordinal.timestamp.peekull());
             }
         }
     }
+    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::reportWorkForNoShowFrames, ::base::Unretained(this)));
+}
 
-    for (int32_t bitstreamId : noShowFrameBitstreamIds) {
+void C2VDAComponent::reportWorkForNoShowFrames() {
+    for (int32_t bitstreamId : mNoShowFrameBitstreamIds) {
         // Try to report works with no-show frame.
         reportWorkIfFinished(bitstreamId);
     }
+    mNoShowFrameBitstreamIds.clear();
 }
 
-bool C2VDAComponent::isNoShowFrameWork(const C2Work* work,
-                                       const C2WorkOrdinalStruct* currOrdinal) const {
-    if (work->input.ordinal.timestamp >= currOrdinal->timestamp) {
-        // Only consider no-show frame if the timestamp is less than the current ordinal.
-        return false;
-    }
-    if (work->input.ordinal.frameIndex >= currOrdinal->frameIndex) {
-        // Only consider no-show frame if the frame index is less than the current ordinal. This is
-        // required to tell apart flushless skip-back case.
-        return false;
-    }
-    if (!work->worklets.front()->output.buffers.empty()) {
-        // The wrok already have the returned output buffer.
-        return false;
-    }
-    if ((work->input.flags & C2FrameData::FLAG_END_OF_STREAM) ||
-        (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) ||
-        (work->worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME)) {
-        // No-show frame should not be EOS work, CSD work, or work with dropped frame.
-        return false;
-    }
-    return true;  // This work contains no-show frame.
+bool C2VDAComponent::isNoShowFrameWork(const C2Work& work,
+                                       const C2WorkOrdinalStruct& currOrdinal) const {
+    // We consider Work contains no-show frame when all conditions meet:
+    // 1. Work's ordinal is smaller than current ordinal.
+    // 2. Work's output buffer is not returned.
+    // 3. Work is not EOS, CSD, or marked with dropped frame.
+    bool smallOrdinal = (work.input.ordinal.timestamp < currOrdinal.timestamp) &&
+                        (work.input.ordinal.frameIndex < currOrdinal.frameIndex);
+    bool outputReturned = !work.worklets.front()->output.buffers.empty();
+    bool specialWork = (work.input.flags & C2FrameData::FLAG_END_OF_STREAM) ||
+                       (work.input.flags & C2FrameData::FLAG_CODEC_CONFIG) ||
+                       (work.worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME);
+    return smallOrdinal && !outputReturned && !specialWork;
 }
 
 void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId) {
