@@ -188,9 +188,11 @@ public:
     //tunnel mode implement
     void onConfigureTunnelMode();
     static int fillVideoFrameCallback2(void* obj, void* args);
+    int postFillVideoFrameTunnelMode2(int medafd, bool rendered);
+    void onFillVideoFrameTunnelMode2(int medafd, bool rendered);
     static int notifyTunnelRenderTimeCallback(void* obj, void* args);
-    int fillVideoFrameTunnelMode2(int medafd, bool rendered);
-    int notifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime);
+    int postNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime);
+    void onNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime rendertime);
     c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
     c2_status_t sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime);
 
@@ -434,7 +436,6 @@ private:
     // sent out by onWorkDone call to listener.
     // TODO: maybe use priority_queue instead.
     std::deque<std::unique_ptr<C2Work>> mPendingWorks;
-    std::mutex mPendWorksMutex;
     // Store all abandoned works. When component gets flushed/stopped, remaining works in queue are
     // dumped here and sent out by onWorkDone call to listener after flush/stop is finished.
     std::vector<std::unique_ptr<C2Work>> mAbandonedWorks;
