@@ -623,8 +623,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
 
     //HDR
     if (mInputCodec == InputCodec::VP9
-        || mInputCodec == InputCodec::AV1
-        || mInputCodec == InputCodec::H265) {
+        || mInputCodec == InputCodec::AV1) {
             mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
             addParameter(
                     DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
@@ -668,6 +667,30 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                     })
                     .withSetter(HdrStaticInfoSetter)
                     .build());
+    } else if (mInputCodec == InputCodec::H265) {
+        // sample BT.2020 static info
+        mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
+        mHdrStaticInfo->mastering = {
+            .red   = { .x = 0.0,  .y = 0.0 },
+            .green = { .x = 0.0,  .y = 0.0 },
+            .blue  = { .x = 0.0,  .y = 0.0 },
+            .white = { .x = 0.0, .y = 0.0 },
+            .maxLuminance = 0.0,
+            .minLuminance = 0.0,
+        };
+        mHdrStaticInfo->maxCll = 0.0;
+        mHdrStaticInfo->maxFall = 0.0;
+
+        helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
+        addParameter(
+                DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
+                .withDefault(mHdrStaticInfo)
+                .withFields({
+                    C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
+                    // TODO
+                })
+                .withSetter(HdrStaticInfoSetter)
+                .build());
     }
 
     //out delay
@@ -1229,26 +1252,31 @@ void C2VDAComponent::onDequeueWork() {
         C2ReadView rView = mDefaultDummyReadView;
 
         for (const std::unique_ptr<C2Param> &param : work->input.configUpdate) {
-            if (param) {
-                C2StreamHdr10PlusInfo::input *hdr10PlusInfo =
-                    C2StreamHdr10PlusInfo::input::From(param.get());
-                if (hdr10PlusInfo != nullptr) {
-                    std::vector<std::unique_ptr<C2SettingResult>> failures;
-                    std::unique_ptr<C2Param> outParam = C2Param::CopyAsStream(*param.get(), true /* out put*/, param->stream());
+            switch (param->coreIndex().coreIndex()) {
+                case C2StreamHdr10PlusInfo::CORE_INDEX:
+                    {
+                        C2StreamHdr10PlusInfo::input *hdr10PlusInfo =
+                        C2StreamHdr10PlusInfo::input::From(param.get());
+                        if (hdr10PlusInfo != nullptr) {
+                            std::vector<std::unique_ptr<C2SettingResult>> failures;
+                            std::unique_ptr<C2Param> outParam = C2Param::CopyAsStream(*param.get(), true /* out put*/, param->stream());
 
-                    c2_status_t err = mIntfImpl->config({outParam.get()}, C2_MAY_BLOCK, &failures);
-                    if (err == C2_OK) {
-                        mHDR10PlusMeteDataNeedCheck = true;
-                        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*outParam.get()));
+                            c2_status_t err = mIntfImpl->config({outParam.get()}, C2_MAY_BLOCK, &failures);
+                            if (err == C2_OK) {
+                                mHDR10PlusMeteDataNeedCheck = true;
+                                work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*outParam.get()));
 
-                        rView = work->input.buffers[0]->data().linearBlocks().front().map().get();
-                        hdr10plusbuf = rView.data();
-                        hdr10pluslen = rView.capacity();
-                    } else {
-                        ALOGE("onQueueWork: Config update hdr10Plus size failed.");
+                                rView = work->input.buffers[0]->data().linearBlocks().front().map().get();
+                                hdr10plusbuf = rView.data();
+                                hdr10pluslen = rView.capacity();
+                            } else {
+                                ALOGE("onDequeueWork: Config update hdr10Plus size failed.");
+                            }
+                        }
                     }
                     break;
-                }
+                default:
+                    break;
             }
         }
         sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusbuf, hdr10pluslen);

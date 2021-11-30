@@ -314,7 +314,7 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
         return 0;
     }
 
-    bool enable = property_get_bool("vendor.c2.hdr.endian.enable", false);
+    bool enable = property_get_bool("vendor.c2.hdr.littleendian.enable", false);
 
     std::function<int(int)> BLEndianInt = [=] (int value) -> int {
         if (enable)
@@ -425,14 +425,16 @@ int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vde
         int32_t MaxDisplayLuminance = 0;
         if (mIntfImpl->getInputCodec() == InputCodec::H265) {
             MaxDisplayLuminance = min(50 * ((phdr->color_parms.luminance[0] + 250000) / 500000), 10000);
-        } else if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-            MaxDisplayLuminance = phdr->color_parms.luminance[0] / 1000;
+            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::VP9 || mIntfImpl->getInputCodec() == InputCodec::AV1) {
+            MaxDisplayLuminance = phdr->color_parms.luminance[0];
+            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
         } else {
             MaxDisplayLuminance = phdr->color_parms.luminance[0];
+            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
         }
-        hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
-        hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
 
+        hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
         hdr.maxCll =
             phdr->color_parms.content_light_level.max_content;
         hdr.maxFall =
