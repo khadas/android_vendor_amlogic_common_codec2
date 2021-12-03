@@ -148,6 +148,7 @@ public:
         media::VideoCodecProfile mCodecProfile;
         InputCodec mInputCodec;
         C2VDAComponent *mComponent;
+        bool mSecureMode;
         friend C2VDAComponent;
     };
 

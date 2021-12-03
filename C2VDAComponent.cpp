@@ -151,6 +151,7 @@ const int32_t kAllocateBufferMaxRetries = 10;  // Max retry time for fetchGraphi
 constexpr uint32_t kDefaultOutputDelay = 5;
 constexpr uint32_t kDefaultOutputDelayTunnel = 10;
 constexpr uint32_t kMaxOutputDelay = 32;
+constexpr uint32_t kMaxInputDelay = 4;
 }  // namespace
 
 static c2_status_t adaptorResultToC2Status(VideoDecodeAcceleratorAdaptor::Result result) {
@@ -354,6 +355,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     // TODO(johnylin): use factory function to determine whether V4L2 stream or slice API is.
     char inputMime[128];
     mInputCodec = getInputCodecFromDecoderName(name);
+    mSecureMode = name.find(".secure") != std::string::npos;
     //profile and level
     switch (mInputCodec)
     {
@@ -713,13 +715,30 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
             .withSetter(Setter<decltype(*mActualOutputDelay)>::StrictValueWithNoDeps)
             .build());
 
-    //secure buffer mode now we just support secure buffer mode
-    addParameter(
-            DefineParam(mSecureBufferMode, C2_PARAMKEY_SECURE_MODE)
-            .withDefault(new C2SecureModeTuning(C2Config::SM_READ_PROTECTED))
-            .withFields({C2F(mSecureBufferMode, value).inRange(C2Config::SM_UNPROTECTED, C2Config::SM_READ_PROTECTED)})
-            .withSetter(Setter<decltype(*mSecureBufferMode)>::StrictValueWithNoDeps)
-            .build());
+    if (mSecureMode) {
+        //in delay
+        int32_t secureInputDelayNum =
+            property_get_int32("vendor.codec2.secure.input.delay.num", 4);
+        if (secureInputDelayNum > kMaxInputDelay) {
+            ALOGE("%s:%d exceed max input delay num %d %d",
+                __func__, __LINE__, secureInputDelayNum, kMaxInputDelay);
+            secureInputDelayNum = kMaxInputDelay;
+        }
+        addParameter(
+                DefineParam(mActualInputDelay, C2_PARAMKEY_INPUT_DELAY)
+                .withDefault(new C2PortActualDelayTuning::input(secureInputDelayNum))
+                .withFields({C2F(mActualInputDelay, value).inRange(0, kMaxInputDelay)})
+                .withSetter(Setter<decltype(*mActualInputDelay)>::StrictValueWithNoDeps)
+                .build());
+        //secure buffer mode now we just support secure buffer mode
+        addParameter(
+                DefineParam(mSecureBufferMode, C2_PARAMKEY_SECURE_MODE)
+                .withDefault(new C2SecureModeTuning(C2Config::SM_READ_PROTECTED))
+                .withFields({C2F(mSecureBufferMode, value).inRange(C2Config::SM_UNPROTECTED, C2Config::SM_READ_PROTECTED)})
+                .withSetter(Setter<decltype(*mSecureBufferMode)>::StrictValueWithNoDeps)
+                .build());
+    }
+
     //tunnel mode
     mTunnelModeOutput =
         C2PortTunneledModeTuning::output::AllocShared(
