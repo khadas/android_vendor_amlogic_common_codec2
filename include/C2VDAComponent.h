@@ -519,6 +519,9 @@ private:
     std::vector<int64_t> mTunnelAbandonMediaTimeQueue;
     int32_t mOutBufferCount;
     bool mHDR10PlusMeteDataNeedCheck;
+    int64_t mInputWorkCount;
+    int32_t mInputCSDWorkCount;
+    int64_t mOutputWorkCount;
 
     C2ReadView mDefaultDummyReadView;
     std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;

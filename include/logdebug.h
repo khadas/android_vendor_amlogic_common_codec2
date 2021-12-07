@@ -4,6 +4,9 @@
 #include <cutils/properties.h>
 #include <stdint.h>
 
+#include <cutils/trace.h>
+#include <utils/Trace.h>
+
 static unsigned int gloglevel = 1;
 
 #define CODEC2_LOGDEBUG_PROPERTY "vendor.media.codec2.loglevels"
@@ -24,6 +27,20 @@ do { \
         if (level == CODEC2_LOG_ERR) \
             ALOGE(f, ##s); \
         } \
+} while(0)
+
+#define CODEC2_ATRACE_INT32(tag, num) \
+do { \
+    if (gloglevel & CODEC2_LOG_TRACE) {\
+        ATRACE_INT(tag, num); \
+    } \
+} while(0)
+
+#define CODEC2_ATRACE_INT64(tag, num) \
+do { \
+    if (gloglevel & CODEC2_LOG_TRACE) {\
+        ATRACE_INT64(tag, num); \
+    } \
 } while(0)
 
 static void propGetInt(const char* str, unsigned int* def) {

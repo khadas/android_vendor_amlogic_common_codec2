@@ -53,6 +53,8 @@
 #include <am_gralloc_ext.h>
 #include <cutils/properties.h>
 
+#define ATRACE_TAG ATRACE_TAG_VIDEO
+
 #include <C2VDAComponentMetaDataUtil.h>
 #include <logdebug.h>
 
@@ -147,6 +149,7 @@ const uint32_t kDpbOutputBufferExtraCount = 0;  // Use the same number as ACodec
 const int kDequeueRetryDelayUs = 10000;  // Wait time of dequeue buffer retry in microseconds.
 const int32_t kAllocateBufferMaxRetries = 10;  // Max retry time for fetchGraphicBlock timeout.
 constexpr uint32_t kDefaultOutputDelay = 5;
+constexpr uint32_t kDefaultOutputDelayTunnel = 10;
 constexpr uint32_t kMaxOutputDelay = 32;
 }  // namespace
 
@@ -327,6 +330,7 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                         mComponent->onConfigureTunnelMode();
                         // change to bufferpool
                         mOutputSurfaceAllocatorId->value = C2VDAAllocatorStore::V4L2_BUFFERPOOL;
+                        mActualOutputDelay->value = kDefaultOutputDelayTunnel;
                     }
                     break;
 #if 0
@@ -994,6 +998,9 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mIsTunnelMode(false),
         mCanQueueOutBuffer(false),
         mHDR10PlusMeteDataNeedCheck(false),
+        mInputWorkCount(0),
+        mInputCSDWorkCount(0),
+        mOutputWorkCount(0),
         mDefaultDummyReadView(DummyReadView()),
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
         mInterlacedFirstField(true),
@@ -1222,6 +1229,19 @@ void C2VDAComponent::onQueueWork(std::unique_ptr<C2Work> work) {
     if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) == 0 && (mFirstInputTimestamp == -1)) {
         mFirstInputTimestamp = work->input.ordinal.timestamp.peekull();
     }
+
+    CODEC2_ATRACE_INT64("c2InPTS", work->input.ordinal.timestamp.peekull());
+    CODEC2_ATRACE_INT64("c2BitstreamId", work->input.ordinal.frameIndex.peekull());
+    CODEC2_ATRACE_INT64("c2InPTS", 0);
+    CODEC2_ATRACE_INT64("c2BitstreamId", 0);
+    mInputWorkCount ++;
+    if (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) {
+        mInputCSDWorkCount ++;
+    }
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s in/out[%lld(%d)-%lld(%d)]", __func__,
+            mInputWorkCount, mInputCSDWorkCount,
+            mOutputWorkCount, mPendingBuffersToWork.size());
+
     mQueue.push({std::move(work), drainMode});
     // TODO(johnylin): set a maximum size of mQueue and check if mQueue is already full.
 
@@ -1453,12 +1473,21 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
         return;
     }
-    timestamp = work->input.ordinal.timestamp.peekull();
 
-    ATRACE_INT("c2outdoneid", pictureBufferId);
+    timestamp = work->input.ordinal.timestamp.peekull();
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp});
-    ALOGV("%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersizs:%d, graphicblock:%p",
-            __func__, bitstreamId, pictureBufferId, mPendingBuffersToWork.size(), info->mGraphicBlock->handle());
+    mOutputWorkCount ++;
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersize:%d",
+            __func__, bitstreamId, pictureBufferId,
+            mPendingBuffersToWork.size());
+
+    CODEC2_ATRACE_INT64("c2OutPTS", timestamp);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s in/out[%lld(%d)-%lld(%d)]",
+            __func__,
+            mInputWorkCount, mInputCSDWorkCount,
+            mOutputWorkCount, mPendingBuffersToWork.size());
+    CODEC2_ATRACE_INT64("c2OutPTS", 0);
+
     if (mComponentState == ComponentState::FLUSHING) {
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%s in flushing, pending bitstreamid=%lld first", __func__, bitstreamId);
         return;
@@ -1530,14 +1559,14 @@ c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId,
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR ||
         info->mState == GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER) {
-        ALOGE("Graphic block (id=%d) should not be owned by accelerator", info->mBlockId);
+        C2VDA_LOG(CODEC2_LOG_ERR, "Graphic block (id=%d) should not be owned by accelerator or tunnelrender", info->mBlockId);
         reportError(C2_BAD_STATE);
         return C2_BAD_STATE;
     }
 
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        ALOGE("%s:%d discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
@@ -1877,6 +1906,9 @@ void C2VDAComponent::onFlushDone() {
     }
     mPendingBuffersToWork.clear();
     mComponentState = ComponentState::STARTED;
+    mInputWorkCount = 0;
+    mInputCSDWorkCount = 0;
+    mOutputWorkCount = 0;
 
     //after flush we need reuse the buffer which owned by accelerator
     for (auto& info : mGraphicBlocks) {
@@ -2126,13 +2158,14 @@ void C2VDAComponent::tryChangeOutputFormat() {
 
     setOutputFormatCrop(mPendingOutputFormat->mVisibleRect);
 
-    C2PortActualDelayTuning::output outputDelay(mOutputFormat.mMinNumBuffers - mConfigParam.amldeccfg.cfg.ref_buf_margin + 2);
-    std::vector<std::unique_ptr<C2SettingResult>> failures;
-    c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
-    if (outputDelayErr == OK) {
-        mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
+    if (!mIsTunnelMode) {
+        C2PortActualDelayTuning::output outputDelay(mOutputFormat.mMinNumBuffers - mConfigParam.amldeccfg.cfg.ref_buf_margin + 2);
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+        c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
+        if (outputDelayErr == OK) {
+            mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
+        }
     }
-
 
     if (mBufferFirstAllocated) {
         //resolution change
@@ -2501,8 +2534,6 @@ void C2VDAComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool 
         CHECK_EQ(info->mState, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
         info->mState = GraphicBlockInfo::State::OWNED_BY_ACCELERATOR;
     }
-
-    ATRACE_INT("c2reusebufid", info->mBlockId);
 
     // mHandles is not empty for the first time the buffer is passed to VDA. In that case, VDA needs
     // to import the buffer first.
