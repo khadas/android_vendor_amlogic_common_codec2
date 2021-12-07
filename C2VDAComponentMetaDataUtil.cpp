@@ -41,6 +41,13 @@ C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mEnableDILocalBuf(false),
     mEnable8kNR(false),
     mIsInterlaced(false),
+    mInPtsInvalid(false),
+    mFirstOutputWork(false),
+    mDurationUs(0),
+    mLastOutPts(0),
+    mInPutWorkCount(0),
+    mOutputWorkCount(0),
+    mLastbitStreamId(0),
     mSignalType(0),
     mEnableAdaptivePlayback(false) {
     mIntfImpl = mComp->GetIntfImpl();
@@ -86,6 +93,19 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
     if (err != C2_OK) {
         C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamPictureSizeInfo size error", __func__, __LINE__);
     }
+
+    C2StreamFrameRateInfo::input inputFrameRateInfo;
+    err = mIntfImpl->query({&inputFrameRateInfo}, {}, C2_MAY_BLOCK, nullptr);
+    if (err != C2_OK) {
+        C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamFrameRateInfo message error", __func__, __LINE__);
+    }
+
+    if (inputFrameRateInfo.value != 0)
+       mDurationUs = 1000 * 1000 / inputFrameRateInfo.value;
+    else
+       mDurationUs = 33333; //default 30fps
+
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] query frame rate:%f updata mDurationUs = %d ",__func__, __LINE__, inputFrameRateInfo.value, mDurationUs);
 
     C2GlobalLowLatencyModeTuning lowLatency;
     err = mIntfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
@@ -399,6 +419,12 @@ void C2VDAComponent::MetaDataUtil::updateInterlacedInfo(bool isInterlaced) {
     mIsInterlaced = isInterlaced;
 }
 
+void C2VDAComponent::MetaDataUtil::flush() {
+    mLastOutPts = 0;
+    mFirstOutputWork = false;
+    mOutputWorkCount = 0;
+}
+
 int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vdec_hdr_infos* phdr) {
     bool isHdrChanged = false;
     bool isColorAspectsChanged = false;
@@ -556,6 +582,58 @@ int C2VDAComponent::MetaDataUtil::getVideoType() {
     return videotype;
 }
 
+int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work) {
+
+    int64_t out_pts = work->worklets.front()->output.ordinal.timestamp.peekull();
+    int64_t raw_pts = out_pts;
+    uint32_t bitstreamId = static_cast<int32_t>(work->input.ordinal.frameIndex.peeku() & 0x3FFFFFFF);
+    uint32_t duration = mDurationUs == 0 ? 33366 : mDurationUs;
+
+    if (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork) {
+
+        if (!(mInPtsInvalid || mIsInterlaced)) {
+            if (bitstreamId == mLastbitStreamId && out_pts == 0 && mFirstOutputWork == true) {
+                out_pts = mLastOutPts + duration / 2;
+            } else if (bitstreamId != mLastbitStreamId && out_pts == 0 && mFirstOutputWork == true) {
+                out_pts = mLastOutPts + duration;
+            }
+        }
+
+        if (mIsInterlaced && mFirstOutputWork) {
+            if (bitstreamId == mLastbitStreamId) {
+                out_pts = mLastOutPts + duration / 2;
+            } else if (bitstreamId != mLastbitStreamId) {
+                int64_t ptsTemp = ( raw_pts >= mLastOutPts) ?  (raw_pts - mLastOutPts) : (mLastOutPts - raw_pts);
+                int64_t harfStep = ptsTemp / (duration / 4);
+
+                if (harfStep == 1 || harfStep == 2) {
+                    if (raw_pts == 0)
+                        out_pts = mLastOutPts + duration / 2;
+                } else {
+                    out_pts = mLastOutPts + duration / 2;
+                }
+            }
+        }
+
+        //update flag
+        if (!mFirstOutputWork && mOutputWorkCount == 0) {
+            mFirstOutputWork = true;
+        }
+        mOutputWorkCount++;
+        mLastOutPts = out_pts;
+        mLastbitStreamId = bitstreamId;
+    }
+
+//for debug
+#if 0
+    int64_t render_pts = work->worklets.front()->output.ordinal.timestamp.peekull() + out_pts - work->input.ordinal.timestamp.peekull();
+    ALOGV("checkAndAdjustOutPts:index=%llu, input-pts:%llu output-pts:%llu customOrdinal-pts:%llu Final-pts:%llu",
+                work->input.ordinal.frameIndex.peekull(),work->input.ordinal.timestamp.peekull(),
+                work->worklets.front()->output.ordinal.timestamp.peekull(),out_pts,render_pts);
+#endif
+
+    return out_pts;
+}
 
 uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
     uint64_t usage = am_gralloc_get_video_decoder_full_buffer_usage();
@@ -767,6 +845,33 @@ bool C2VDAComponent::MetaDataUtil::getHDR10PlusData(std::string &data)
         return true;
     }
     return false;
+}
+
+void C2VDAComponent::MetaDataUtil::save_stream_info(uint64_t timestamp, int filledlen) {
+    if (mInPutWorkCount == 0) {
+        mAmlStreamInfo.pts_0 = timestamp;
+        mAmlStreamInfo.len_0 = filledlen;
+    } else if (mInPutWorkCount == 1) {
+        mAmlStreamInfo.pts_1 = timestamp;
+        mAmlStreamInfo.len_1 = filledlen;
+    } else if (mInPutWorkCount == 2) {
+        mAmlStreamInfo.pts_2 = timestamp;
+        mAmlStreamInfo.len_2 = filledlen;
+    } else if (mInPutWorkCount == 3) {
+        check_stream_info();
+    }
+    mInPutWorkCount++;
+}
+
+void C2VDAComponent::MetaDataUtil::check_stream_info() {
+    C2VDAMDU_LOG(CODEC2_LOG_INFO,"check_stream_info mInPutWorkCount %llu\n", mInPutWorkCount);
+    if (mInPutWorkCount == 3 && mAmlStreamInfo.pts_0 == 0
+            && mAmlStreamInfo.pts_1 == 0
+            && mAmlStreamInfo.pts_2 == 0) {
+        C2VDAMDU_LOG(CODEC2_LOG_INFO,"first 3 pts all 0, pts invaild, use default framerate");
+        mInPtsInvalid = true;
+        return;
+    }
 }
 
 void C2VDAComponent::MetaDataUtil::updateDurationUs(unsigned char *data, int size) {

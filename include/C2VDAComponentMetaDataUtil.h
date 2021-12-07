@@ -16,6 +16,20 @@
 #include <queue>
 
 namespace android {
+struct aml_stream_info {
+    uint32_t width;
+    uint32_t height;
+    uint32_t max_width;
+    uint32_t max_height;
+    uint64_t pts_0;
+    uint64_t pts_1;
+    uint64_t pts_2;
+    int len_0;
+    int len_1;
+    int len_2;
+    int delay_time;
+};
+
 class C2VDAComponent::MetaDataUtil {
 public:
     MetaDataUtil(C2VDAComponent* comp, bool secure);
@@ -24,6 +38,7 @@ public:
     /* configure decoder */
     void codecConfig(mediahal_cfg_parms* params);
     void updateDecParmInfo(aml_dec_params* params);
+    void flush();
     void updateInterlacedInfo(bool isInterlaced);
     bool isInterlaced() {return mIsInterlaced;};
     int getVideoType();
@@ -56,6 +71,8 @@ public:
 
         return false;
     }
+    /* check and adjust out pts */
+    int64_t checkAndAdjustOutPts(C2Work* work);
     //int check_color_aspects();
     uint64_t getPlatformUsage();
     uint32_t getOutAlignedSize(uint32_t size, bool forcealign = false);
@@ -70,7 +87,10 @@ public:
     void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
         mHDRStaticInfoColorAspects = coloraspect;
     }
+    void save_stream_info(uint64_t timestamp, int filledlen);
+    void check_stream_info();
 
+    aml_stream_info mAmlStreamInfo;
 private:
     /* set hdr static to decoder */
     int setHDRStaticInfo();
@@ -95,9 +115,16 @@ private:
     bool mEnable8kNR;
     bool mDisableErrPolicy;
 
-    /* for interlace stream */
+    /* for check pts */
     bool mIsInterlaced;
-    unsigned int mDurationUs;
+    bool mInPtsInvalid;
+    bool mFirstOutputWork;
+
+    uint32_t mDurationUs;
+    uint64_t mLastOutPts;
+    uint64_t mInPutWorkCount;
+    uint64_t mOutputWorkCount;
+    int32_t  mLastbitStreamId;
 
     /* for hdr10 plus */
     std::queue<std::string> mHDR10PlusData;

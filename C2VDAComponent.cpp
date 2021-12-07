@@ -693,6 +693,14 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                 .build());
     }
 
+    //frame rate
+    addParameter(
+    DefineParam(mFrameRateInfo,C2_PARAMKEY_FRAME_RATE)
+    .withDefault(new C2StreamFrameRateInfo::input(0u, 30.0))
+    .withFields({C2F(mFrameRateInfo,value).greaterThan(0.)})
+    .withSetter(Setter<decltype(*mFrameRateInfo)>::StrictValueWithNoDeps)
+    .build());
+
     //out delay
     addParameter(
             DefineParam(mActualOutputDelay, C2_PARAMKEY_OUTPUT_DELAY)
@@ -1302,6 +1310,7 @@ void C2VDAComponent::onDequeueWork() {
     work->worklets.front()->output.flags = static_cast<C2FrameData::flags_t>(0);
     work->worklets.front()->output.buffers.clear();
     work->worklets.front()->output.ordinal = work->input.ordinal;
+    work->input.ordinal.customOrdinal = work->input.ordinal.timestamp.peekull();
 
     if (drainMode != NO_DRAIN) {
         if (mVideoDecWraper) {
@@ -1687,6 +1696,7 @@ void C2VDAComponent::sendClonedWork(C2Work* work) {
     work->result = C2_OK;
     work->workletsProcessed = 1;
 
+    work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work);
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(std::unique_ptr<C2Work>(work)));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
@@ -1875,7 +1885,7 @@ void C2VDAComponent::onFlushDone() {
             sendOutputBufferToAccelerator(&info, false);
         }
     }
-
+    mMetaDataUtil->flush();
 
     // Work dequeueing was stopped while component flushing. Restart it.
     mTaskRunner->PostTask(FROM_HERE,
@@ -1959,9 +1969,10 @@ void C2VDAComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inpu
         reportError(C2_CORRUPTED);
         return;
     }
-    ALOGV("Decode bitstream ID: %d, offset: %u size: %u hdrlen:%d flags 0x%x", bitstreamId, input.offset(),
-          input.size(), hdrlen,flags);
+    ALOGV("[%s@%d]Decode bitstream ID: %d timstamp:%llu offset: %u size: %u hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
+    bitstreamId, timestamp, input.offset(), input.size(), hdrlen,flags);
     if (mVideoDecWraper) {
+        mMetaDataUtil->save_stream_info(timestamp,input.size());
         mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, hdrbuf, hdrlen, flags);
     }
 }
@@ -3011,7 +3022,7 @@ void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId) {
         }
         work->result = C2_OK;
         work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
-
+        work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work);
         ALOGV("Reported finished work index=%llu, %d", work->input.ordinal.frameIndex.peekull(), __LINE__);
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));

@@ -130,6 +130,9 @@ public:
         std::shared_ptr<C2StreamHdr10PlusInfo::output> mHdr10PlusInfoOutput;
         std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
 
+        //frame rate
+        std::shared_ptr<C2StreamFrameRateInfo::input> mFrameRateInfo;
+
         //std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
         std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
         //std::shared_ptr<C2ActualPipelineDelayTuning> mActualPipelineDelay
