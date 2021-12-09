@@ -100,6 +100,9 @@ private:
     // as C2Info in decoded output buffers.
     std::shared_ptr<C2StreamColorAspectsInfo::output> mHDRStaticInfoColorAspects;
 
+    // static
+    static const uint32_t kOutPutPtsValidNum = 5;
+
     int mUvmFd;
     C2VDAComponent::IntfImpl* mIntfImpl;
     mediahal_cfg_parms* mConfigParam;
@@ -119,12 +122,14 @@ private:
     bool mIsInterlaced;
     bool mInPtsInvalid;
     bool mFirstOutputWork;
+    bool mOutputPtsValid;
 
     uint32_t mDurationUs;
     uint64_t mLastOutPts;
     uint64_t mInPutWorkCount;
     uint64_t mOutputWorkCount;
     int32_t  mLastbitStreamId;
+    int32_t  mOutputPtsValidCount;
 
     /* for hdr10 plus */
     std::queue<std::string> mHDR10PlusData;

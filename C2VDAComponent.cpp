@@ -1726,6 +1726,9 @@ void C2VDAComponent::sendClonedWork(C2Work* work) {
     work->workletsProcessed = 1;
 
     work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work);
+    c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
+                            - work->input.ordinal.timestamp;
+    ALOGV("Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(std::unique_ptr<C2Work>(work)));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
@@ -3056,7 +3059,9 @@ void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId) {
         work->result = C2_OK;
         work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
         work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work);
-        ALOGV("Reported finished work index=%llu, %d", work->input.ordinal.frameIndex.peekull(), __LINE__);
+        c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
+                                - work->input.ordinal.timestamp;
+        ALOGV("Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));

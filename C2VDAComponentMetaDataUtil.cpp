@@ -43,11 +43,13 @@ C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mIsInterlaced(false),
     mInPtsInvalid(false),
     mFirstOutputWork(false),
+    mOutputPtsValid(false),
     mDurationUs(0),
     mLastOutPts(0),
     mInPutWorkCount(0),
     mOutputWorkCount(0),
     mLastbitStreamId(0),
+    mOutputPtsValidCount(0),
     mSignalType(0),
     mEnableAdaptivePlayback(false) {
     mIntfImpl = mComp->GetIntfImpl();
@@ -421,8 +423,10 @@ void C2VDAComponent::MetaDataUtil::updateInterlacedInfo(bool isInterlaced) {
 
 void C2VDAComponent::MetaDataUtil::flush() {
     mLastOutPts = 0;
+    mOutputPtsValid  = false;
     mFirstOutputWork = false;
     mOutputWorkCount = 0;
+    mOutputPtsValidCount = 0;
 }
 
 int C2VDAComponent::MetaDataUtil::checkHDRMetadataAndColorAspects(struct aml_vdec_hdr_infos* phdr) {
@@ -585,11 +589,24 @@ int C2VDAComponent::MetaDataUtil::getVideoType() {
 int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work) {
 
     int64_t out_pts = work->worklets.front()->output.ordinal.timestamp.peekull();
+    int64_t intput_timestamp = work->input.ordinal.timestamp.peekull();
+    int64_t custom_timestamp = work->input.ordinal.customOrdinal.peekull();
     int64_t raw_pts = out_pts;
+
     uint32_t bitstreamId = static_cast<int32_t>(work->input.ordinal.frameIndex.peeku() & 0x3FFFFFFF);
     uint32_t duration = mDurationUs == 0 ? 33366 : mDurationUs;
 
     if (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork) {
+
+        if (out_pts == 0 && intput_timestamp == 0 && custom_timestamp == 0) {
+            mOutputPtsValidCount++;
+            if (mOutputPtsValidCount >= kOutPutPtsValidNum) {
+                mOutputPtsValid = true;
+            }
+
+            if (mOutputPtsValid)
+                out_pts = mLastOutPts + duration;
+        }
 
         if (!(mInPtsInvalid || mIsInterlaced)) {
             if (bitstreamId == mLastbitStreamId && out_pts == 0 && mFirstOutputWork == true) {
