@@ -1813,7 +1813,9 @@ void C2VDAComponent::onFlush() {
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGV("onStop");
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
+    if (mComponentState == ComponentState::UNINITIALIZED) {
+        return;
+    }
     // Stop call should be processed even if component is in error state.
 
     // Pop all works in mQueue and put into mAbandonedWorks.
