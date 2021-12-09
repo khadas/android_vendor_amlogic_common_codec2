@@ -947,7 +947,9 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
 ////////////////////////////////////////////////////////////////////////////////
 #define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
     do {                                                                   \
-        if (mHasError || mComponentState == ComponentState::UNINITIALIZED) \
+        if (mHasError \
+            || mComponentState == ComponentState::UNINITIALIZED \
+            || mComponentState == ComponentState::DESTROYED) \
             return;                                                        \
     } while (0)
 
@@ -1064,6 +1066,7 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
 
 C2VDAComponent::~C2VDAComponent() {
     ALOGI("%s", __func__);
+    mComponentState = ComponentState::DESTROYING;
     if (mThread.IsRunning()) {
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VDAComponent::onDestroy, ::base::Unretained(this)));
@@ -1099,6 +1102,8 @@ void C2VDAComponent::onDestroy() {
         am_gralloc_destroy_sideband_handle(mTunnelHandle);
     }
     stopDequeueThread();
+
+    mComponentState = ComponentState::DESTROYED;
 }
 
 int C2VDAComponent::postFillVideoFrameTunnelMode2(int medafd, bool rendered) {

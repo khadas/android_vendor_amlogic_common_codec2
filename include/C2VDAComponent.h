@@ -238,6 +238,10 @@ private:
         // onStop() is called. VDA is shutting down. State will change to UNINITIALIZED after
         // onStopDone().
         STOPPING,
+        //when destructor is called, VDA is destroying.  state will change to DESTROYED after onDestroy
+        DESTROYING,
+        //after onDestroy is called, VDA is destroyed, state will change to DESTROYED
+        DESTROYED,
     };
 
     // This constant is used to tell apart from drain_mode_t enumerations in C2Component.h, which
