@@ -152,6 +152,7 @@ constexpr uint32_t kDefaultOutputDelay = 5;
 constexpr uint32_t kDefaultOutputDelayTunnel = 10;
 constexpr uint32_t kMaxOutputDelay = 32;
 constexpr uint32_t kMaxInputDelay = 4;
+constexpr uint32_t kTunnelModeMediaTimeQueueMax = 16;
 }  // namespace
 
 static c2_status_t adaptorResultToC2Status(VideoDecodeAcceleratorAdaptor::Result result) {
@@ -1133,7 +1134,7 @@ void C2VDAComponent::onFillVideoFrameTunnelMode2(int medafd, bool rendered) {
     for (auto &frame : mFillVideoFrameQueue) {
         GraphicBlockInfo* info = getGraphicBlockByFd(frame.fd);
         if (!info) {
-            C2VDA_LOG(CODEC2_LOG_ERR, "%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, medafd);
+            C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] cannot get graphicblock according fd:%d", __func__, __LINE__, medafd);
             reportError(C2_CORRUPTED);
             return;
         }
@@ -1388,7 +1389,7 @@ void C2VDAComponent::onInputBufferDone(int32_t bitstreamId) {
 
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        ALOGE("%s:%d can not get pending work with bitstreamid:%d", __func__, __LINE__,  bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get pending work with bitstreamid:%d", __func__, __LINE__,  bitstreamId);
         reportError(C2_CORRUPTED);
         return;
     }
@@ -1481,7 +1482,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     }
 
     if (!info) {
-        ALOGE("%s:%d can not get graphicblock  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
+        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get graphicblock  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
         reportError(C2_CORRUPTED);
         return;
     }
@@ -1492,7 +1493,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        ALOGE("%s:%d discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
         sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
         return;
@@ -1524,7 +1525,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 }
 
 c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
 
     if (mPendingBuffersToWork.empty() ||
         mPendingWorks.empty()) {
@@ -1542,24 +1543,46 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRende
         for (auto it = mTunnelAbandonMediaTimeQueue.begin(); it != mTunnelAbandonMediaTimeQueue.end(); it ++) {
             if (rendertime->mediaUs == *it) {
                 mTunnelAbandonMediaTimeQueue.erase(it);
-                C2VDA_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld, correct work have abandoed and report to framework", rendertime->mediaUs);
+                C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not find the correct work with mediaTime:%lld, correct work have abandoed and report to framework", rendertime->mediaUs);
+                erasePendingBuffersToWorkByTime(rendertime->mediaUs);
                 return C2_OK;
             }
         }
-        C2VDA_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld", rendertime->mediaUs);
-        reportError(C2_CORRUPTED);
-        return C2_CORRUPTED;
+
+        if (mMetaDataUtil->isInterlaced()
+            && (mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD))) {
+            auto time = std::find_if(mTunnelRenderMediaTimeQueue.begin(), mTunnelRenderMediaTimeQueue.end(),
+                    [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
+            if (time != mTunnelRenderMediaTimeQueue.end()) {
+                C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "have report mediaTime:%lld, ignore it", rendertime->mediaUs);
+                erasePendingBuffersToWorkByTime(rendertime->mediaUs);
+                return C2_OK;
+            }
+        }
+
+        C2VDA_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld, should have reported, discard report it", rendertime->mediaUs);
+        erasePendingBuffersToWorkByTime(rendertime->mediaUs);
+        return C2_OK;
     }
+    if (mMetaDataUtil->isInterlaced()
+        && (mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD))) {
+        auto time = std::find_if(mTunnelRenderMediaTimeQueue.begin(), mTunnelRenderMediaTimeQueue.end(),
+                [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
+        if (time == mTunnelRenderMediaTimeQueue.end()) {
+            mTunnelRenderMediaTimeQueue.push_back(rendertime->mediaUs);
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "tunnelmode push mediaTime:%lld", rendertime->mediaUs);
+        }
+        if (mTunnelRenderMediaTimeQueue.size() > kTunnelModeMediaTimeQueueMax) {
+            mTunnelRenderMediaTimeQueue.pop_front();
+        }
+    }
+
     mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs * 1000;
     work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
 
-    auto pendingbuffer = std::find_if(
-            mPendingBuffersToWork.begin(), mPendingBuffersToWork.end(),
-            [time=rendertime->mediaUs](const OutputBufferInfo& o) { return o.mMediaTimeUs == time;});
-
+    auto pendingbuffer = findPendingBuffersToWorkByTime(rendertime->mediaUs);
     if (pendingbuffer != mPendingBuffersToWork.end()) {
-        //info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, rendertime:%lld, bitstreamId:%d", __func__, __LINE__, rendertime->mediaUs, pendingbuffer->mBitstreamId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] rendertime:%lld, bitstreamId:%d", __func__, __LINE__, rendertime->mediaUs, pendingbuffer->mBitstreamId);
         reportWorkIfFinished(pendingbuffer->mBitstreamId);
         mPendingBuffersToWork.erase(pendingbuffer);
         /* EOS work check */
@@ -1590,14 +1613,14 @@ c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId,
 
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d, fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
     timestamp = work->input.ordinal.timestamp.peekull();
 
     if (mVideoTunnelRenderer) {
-        ALOGI("%s:%d, fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
         info->mState = GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER;
         mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
     }
@@ -1632,7 +1655,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
 
         C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
         if (!work) {
-            ALOGE("%s:%d discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
             info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
             sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
             return C2_OK;
@@ -1861,9 +1884,7 @@ void C2VDAComponent::onFlush() {
     }
     mComponentState = ComponentState::FLUSHING;
     mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-    mInterlacedType = C2_INTERLACED_TYPE_NONE;
     mInterlacedFirstField = true;
-    mFirstInputTimestamp = -1;
 }
 
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {
@@ -2059,7 +2080,7 @@ std::deque<std::unique_ptr<C2Work>>::iterator C2VDAComponent::findPendingWorkByM
 C2Work* C2VDAComponent::getPendingWorkByBitstreamId(int32_t bitstreamId) {
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
     if (workIter == mPendingWorks.end()) {
-        ALOGE("Can't find pending work by bitstream ID: %d", bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, [%s] "Can't find pending work by bitstream ID: %d", __func__, bitstreamId);
         return nullptr;
     }
     return workIter->get();
@@ -2068,7 +2089,7 @@ C2Work* C2VDAComponent::getPendingWorkByBitstreamId(int32_t bitstreamId) {
 C2Work* C2VDAComponent::getPendingWorkByMediaTime(int64_t mediaTime) {
     auto workIter = findPendingWorkByMediaTime(mediaTime);
     if (workIter == mPendingWorks.end()) {
-        ALOGE("Can't find pending work by mediaTime: %lld", mediaTime);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] Can't find pending work by mediaTime: %lld", __func__, mediaTime);
         return nullptr;
     }
     return workIter->get();
@@ -2076,7 +2097,7 @@ C2Work* C2VDAComponent::getPendingWorkByMediaTime(int64_t mediaTime) {
 
 C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockById(int32_t blockId) {
     if (blockId < 0 || blockId >= static_cast<int32_t>(mGraphicBlocks.size())) {
-        ALOGE("getGraphicBlockById failed: id=%d", blockId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s]get GraphicBloc failed: id=%d", __func__, blockId);
         return nullptr;
     }
     return &mGraphicBlocks[blockId];
@@ -2089,7 +2110,7 @@ C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockByPoolId(uint32
                                   });
 
     if (blockIter == mGraphicBlocks.end()) {
-        ALOGE("getGraphicBlockByPoolId failed: poolId=%u", poolId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s]get GraphicBlock failed: poolId=%u", __func__, poolId);
         return nullptr;
     }
     return &(*blockIter);
@@ -2102,11 +2123,27 @@ C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockByFd(int32_t fd
                                   });
 
     if (blockIter == mGraphicBlocks.end()) {
-        ALOGE("%s failed: fd=%u", __func__, fd);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] get GraphicBlock failed: fd=%u", __func__, fd);
         return nullptr;
     }
     return &(*blockIter);
 }
+
+std::deque<C2VDAComponent::OutputBufferInfo>::iterator C2VDAComponent::findPendingBuffersToWorkByTime(int64_t timeus) {
+    return std::find_if(mPendingBuffersToWork.begin(), mPendingBuffersToWork.end(),
+            [time=timeus](const OutputBufferInfo& o) {
+                return o.mMediaTimeUs == time;});
+}
+
+bool C2VDAComponent::erasePendingBuffersToWorkByTime(int64_t timeus) {
+   auto buffer = findPendingBuffersToWorkByTime(timeus);
+   if (buffer != mPendingBuffersToWork.end()) {
+       mPendingBuffersToWork.erase(buffer);
+   }
+
+   return C2_OK;
+}
+
 
 C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getUnbindGraphicBlock() {
     auto blockIter = std::find_if(mGraphicBlocks.begin(), mGraphicBlocks.end(),

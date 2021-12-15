@@ -332,6 +332,9 @@ private:
     // Helper function to get the specified GraphicBlockInfo object by its pool id.
     GraphicBlockInfo* getGraphicBlockByPoolId(uint32_t poolId);
     GraphicBlockInfo* getGraphicBlockByFd(int32_t fd);
+    std::deque<C2VDAComponent::OutputBufferInfo>::iterator findPendingBuffersToWorkByTime(int64_t timeus);
+    bool erasePendingBuffersToWorkByTime(int64_t timeus);
+
     //get first unbind graphicblock
     GraphicBlockInfo* getUnbindGraphicBlock();
     // Helper function to find the work iterator in |mPendingWorks| by bitstream id.
@@ -527,6 +530,7 @@ private:
     int64_t mInputWorkCount;
     int32_t mInputCSDWorkCount;
     int64_t mOutputWorkCount;
+    std::deque<int64_t> mTunnelRenderMediaTimeQueue;
 
     C2ReadView mDefaultDummyReadView;
     std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;
