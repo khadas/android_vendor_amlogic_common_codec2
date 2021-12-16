@@ -60,9 +60,19 @@ public:
 
         // interfaces for C2VDAComponent
         c2_status_t status() const { return mInitStatus; }
-        media::VideoCodecProfile getCodecProfile() const { return mCodecProfile; }
+        media::VideoCodecProfile getCodecProfile() { return mCodecProfile; }
         C2BlockPool::local_id_t getBlockPoolId() const { return mOutputBlockPoolIds->m.values[0]; }
-        InputCodec getInputCodec() const { return mInputCodec; }
+        InputCodec getInputCodec() { return mInputCodec; }
+
+        //for DolbyVision Only
+        void updateInputCodec(InputCodec videotype) {
+            if (InputCodec::DVHE <= videotype && videotype <= InputCodec::DVAV1){
+                mInputCodec = videotype;
+            }
+        }
+        void updateCodecProfile(media::VideoCodecProfile profile) {
+            mCodecProfile = profile;
+        }
         void setComponent(C2VDAComponent* comp) {mComponent = comp;}
         std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects() {
             return this->mColorAspects;
@@ -208,6 +218,10 @@ public:
     //for out use
     IntfImpl* GetIntfImpl() {
        return mIntfImpl.get();
+    }
+
+    bool isDolbyVision() {
+        return mIsDolbyVision;
     }
 
     static uint32_t mInstanceNum;
@@ -483,6 +497,9 @@ private:
 
     // The indicator of whether component is in secure mode.
     bool mSecureMode;
+
+    // The indicator of whether component is in DolbyVision stream.
+    bool mIsDolbyVision;
 
     // The following members should be utilized on parent thread.
 

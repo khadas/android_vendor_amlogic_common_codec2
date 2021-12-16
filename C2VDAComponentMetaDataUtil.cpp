@@ -135,6 +135,39 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABALE;
     }
 
+    if (mComp->isDolbyVision()) {
+        C2StreamProfileLevelInfo::input inputProfile;
+        err = mIntfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
+        if (inputProfile) {
+            InputCodec codecType;
+            switch (inputProfile.profile)
+            {
+                case C2Config::PROFILE_DV_AV_PER:
+                case C2Config::PROFILE_DV_AV_PEN:
+                case C2Config::PROFILE_DV_AV_09:
+                    codecType = InputCodec::DVAV;
+                    break;
+                case C2Config::PROFILE_DV_HE_DER:
+                case C2Config::PROFILE_DV_HE_DEN:
+                case C2Config::PROFILE_DV_HE_04:
+                case C2Config::PROFILE_DV_HE_05:
+                case C2Config::PROFILE_DV_HE_DTH:
+                case C2Config::PROFILE_DV_HE_07:
+                case C2Config::PROFILE_DV_HE_08:
+                    codecType = InputCodec::DVHE;
+                    break;
+                case C2Config::PROFILE_DV_AV1_10:
+                    codecType = InputCodec::DVAV1;
+                    break;
+                default:
+                    codecType = InputCodec::UNKNOWN;
+                    break;
+            }
+            C2VDAMDU_LOG(CODEC2_LOG_INFO,"update input Codec profile to %d",codecType);
+            mIntfImpl->updateInputCodec(codecType);
+        }
+    }
+
     bufwidth = output.width;
     bufheight = output.height;
     C2VDAMDU_LOG(CODEC2_LOG_INFO, "configure width:%d height:%d", output.width, output.height);
@@ -149,19 +182,19 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
     switch (mIntfImpl->getInputCodec())
     {
         case InputCodec::H264:
-            if (mSecure)
-                doubleWriteMode = 0x10;
-            else
-                doubleWriteMode = 1;
+        case InputCodec::DVAV:
+            doubleWriteMode = 0x10;
             break;
         case InputCodec::MP2V:
         case InputCodec::MP4V:
         case InputCodec::MJPG:
-            doubleWriteMode = 1;
+            doubleWriteMode = 0x10;
             break;
         case InputCodec::H265:
         case InputCodec::VP9:
         case InputCodec::AV1:
+        case InputCodec::DVAV1:
+        case InputCodec::DVHE:
             if (mUseSurfaceTexture || mNoSurface) {
                 doubleWriteMode = 1;
                 C2VDAMDU_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 1");
@@ -251,7 +284,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
             pAmlDecParam->cfg.ref_buf_margin = margin;
             pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
             pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;//TODO Check
+            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
             pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
             setHDRStaticInfo();
         } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
@@ -347,7 +380,7 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
         if (enable)
             return value;
         else
-            return ((value & 0x000F) << 12 ) | ((value & 0x00F0) << 4 ) | ((value & 0x0F00) >> 4) | ((value & 0xF000) >> 12);
+            return ((value & 0x00FF) << 8 ) | ((value & 0xFF00) >> 8);
     };
 
     struct aml_dec_params *pAmlDecParam = &mConfigParam->amldeccfg;
@@ -704,12 +737,15 @@ uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
                 case InputCodec::H264:
                 case InputCodec::MP2V:
                 case InputCodec::MP4V:
+                case InputCodec::DVAV:
                 case InputCodec::MJPG:
                     usage = am_gralloc_get_video_decoder_full_buffer_usage();
                     break;
                 case InputCodec::H265:
                 case InputCodec::VP9:
                 case InputCodec::AV1:
+                case InputCodec::DVHE:
+                case InputCodec::DVAV1:
                     usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
                     break;
                 default:

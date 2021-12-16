@@ -1048,6 +1048,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
     else
         sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
 
+    mIsDolbyVision = name.find(".dolby-vision") != std::string::npos;
+
    // TODO(johnylin): the client may need to know if init is failed.
     if (mIntfImpl->status() != C2_OK) {
         ALOGE("Component interface init failed (err code = %d)", mIntfImpl->status());
@@ -1213,13 +1215,29 @@ int C2VDAComponent::notifyTunnelRenderTimeCallback(void* obj, void* args) {
 
 void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onStart");
+    ALOGV("onStart DolbyVision:%d",mIsDolbyVision);
     CHECK_EQ(mComponentState, ComponentState::UNINITIALIZED);
 
     mVideoDecWraper = new VideoDecWraper();
     mMetaDataUtil =  std::make_shared<MetaDataUtil>(this, mSecureMode);
     mMetaDataUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
     mMetaDataUtil->codecConfig(&mConfigParam);
+
+    //update profile for DolbyVision
+    if (mIsDolbyVision) {
+        media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
+        InputCodec codec = mIntfImpl->getInputCodec();
+        supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)codec);
+        if (supportedProfiles.empty()) {
+            ALOGE("No supported profile from input codec: %d", mIntfImpl->getInputCodec());
+            return;
+        }
+        mCodecProfile = supportedProfiles[0].profile;
+        mIntfImpl->updateCodecProfile(mCodecProfile);
+        ALOGD("update profile(%d) to (%d)", profile, mCodecProfile);
+        profile = mCodecProfile;
+    }
+
     mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
             (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
     if (mVDAInitResult == VideoDecodeAcceleratorAdaptor::Result::SUCCESS) {
