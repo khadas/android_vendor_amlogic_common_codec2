@@ -293,16 +293,16 @@ void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
             uint32_t width, uint32_t height) {
     VDEC_LOGD("pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d", pictureBufferId, bitstreamId, mDecoderCallback,width, height);
     if (mDecoderCallback) {
-        mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height);
+        mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height, 0);
     }
 
 }
 void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t width, uint32_t height, int32_t flags) {
     (void)flags;
-    VDEC_LOGD("pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d", pictureBufferId, bitstreamId, mDecoderCallback, width, height);
+    VDEC_LOGD("pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d, flags:%d", pictureBufferId, bitstreamId, mDecoderCallback, width, height, flags);
     if (mDecoderCallback) {
-        mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height);
+        mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height,flags);
     }
 
 }

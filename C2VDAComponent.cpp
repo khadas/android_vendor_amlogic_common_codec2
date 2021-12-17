@@ -315,6 +315,11 @@ C2R C2VDAComponent::IntfImpl::TunnelSystemTimeSetter(bool mayBlock, C2P<C2PortTu
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
+C2R C2VDAComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2StreamUnstablePts::input> &me) {
+    (void)mayBlock;
+    (void)me;  // TODO: validate
+    return C2R::Ok();
+}
 
 
 c2_status_t C2VDAComponent::IntfImpl::config(
@@ -706,6 +711,14 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     .withDefault(new C2StreamFrameRateInfo::input(0u, 30.0))
     .withFields({C2F(mFrameRateInfo,value).greaterThan(0.)})
     .withSetter(Setter<decltype(*mFrameRateInfo)>::StrictValueWithNoDeps)
+    .build());
+
+    //unstable pts
+    addParameter(
+    DefineParam(mUnstablePts,C2_PARAMKEY_UNSTABLE_PTS)
+    .withDefault(new C2StreamUnstablePts::input(0))
+    .withFields({C2F(mUnstablePts,enable).any()})
+    .withSetter(StreamPtsUnstableSetter)
     .build());
 
     //out delay
@@ -1373,7 +1386,7 @@ void C2VDAComponent::onDequeueWork() {
     if (isEmptyCSDWork) {
         // Directly report the empty CSD work as finished.
         ALOGI("onDequeueWork empty csd work, bitid:%d\n", bitstreamId);
-        reportWorkIfFinished(bitstreamId);
+        reportWorkIfFinished(bitstreamId,0);
     }
 
     if (!mQueue.empty()) {
@@ -1397,7 +1410,7 @@ void C2VDAComponent::onInputBufferDone(int32_t bitstreamId) {
     // When the work is done, the input buffer shall be reset by component.
     work->input.buffers.front().reset();
 
-    reportWorkIfFinished(bitstreamId);
+    reportWorkIfFinished(bitstreamId,0);
 }
 
 void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block,
@@ -1466,9 +1479,9 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
     }
 }
 
-void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId) {
+void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onOutputBufferDone: picture id=%d, bitstream id=%lld", pictureBufferId, bitstreamId);
+    ALOGV("onOutputBufferDone: picture id=%d, bitstream id=%lld, flags: %d", pictureBufferId, bitstreamId, flags);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     int64_t timestamp = -1;
@@ -1500,7 +1513,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     }
 
     timestamp = work->input.ordinal.timestamp.peekull();
-    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp});
+    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp,flags});
     mOutputWorkCount ++;
     C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersize:%d",
             __func__, bitstreamId, pictureBufferId,
@@ -1582,8 +1595,9 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRende
 
     auto pendingbuffer = findPendingBuffersToWorkByTime(rendertime->mediaUs);
     if (pendingbuffer != mPendingBuffersToWork.end()) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] rendertime:%lld, bitstreamId:%d", __func__, __LINE__, rendertime->mediaUs, pendingbuffer->mBitstreamId);
-        reportWorkIfFinished(pendingbuffer->mBitstreamId);
+        //info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] rendertime:%lld, bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingbuffer->mBitstreamId,pendingbuffer->flags);
+        reportWorkIfFinished(pendingbuffer->mBitstreamId,pendingbuffer->flags);
         mPendingBuffersToWork.erase(pendingbuffer);
         /* EOS work check */
         if ((mPendingWorks.size() == 1u) &&
@@ -1650,7 +1664,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             reportError(C2_BAD_STATE);
             return C2_BAD_STATE;
         }
-        ALOGV("%s get pendting bitstream:%d, blockid(pictueid):%d",
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d",
             __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId);
 
         C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
@@ -1751,15 +1765,15 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         }
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
         ATRACE_INT("c2workpts", timestamp);
-        ALOGI("sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
         ATRACE_INT("c2workpts", 0);
 
         if (mMetaDataUtil->isInterlaced() &&
                 mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
                 mInterlacedFirstField) {
-            sendClonedWork(work);
+            sendClonedWork(work,nextBuffer.flags);
         } else {
-            reportWorkIfFinished(nextBuffer.mBitstreamId);
+            reportWorkIfFinished(nextBuffer.mBitstreamId,nextBuffer.flags);
         }
         mPendingBuffersToWork.pop_front();
         mInterlacedFirstField = !mInterlacedFirstField;
@@ -1767,15 +1781,15 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
     return C2_OK;
 }
 
-void C2VDAComponent::sendClonedWork(C2Work* work) {
+void C2VDAComponent::sendClonedWork(C2Work* work, int32_t flags) {
     work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
     work->result = C2_OK;
     work->workletsProcessed = 1;
 
-    work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work);
+    work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work,flags);
     c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                             - work->input.ordinal.timestamp;
-    ALOGV("Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(std::unique_ptr<C2Work>(work)));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
@@ -2984,7 +2998,7 @@ void C2VDAComponent::DismissPictureBuffer(int32_t pictureBufferId) {
 }
 
 void C2VDAComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
-                                  uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
+                                  uint32_t x, uint32_t y, uint32_t w, uint32_t h, int32_t flags) {
     UNUSED(pictureBufferId);
     UNUSED(bitstreamId);
 
@@ -2996,7 +3010,7 @@ void C2VDAComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
 
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onOutputBufferDone,
                                                   ::base::Unretained(this),
-                                                  pictureBufferId, bitstreamId));
+                                                  pictureBufferId, bitstreamId, flags));
 }
 
 void C2VDAComponent::UpdateDecInfo(const uint8_t* info, uint32_t isize) {
@@ -3078,7 +3092,7 @@ void C2VDAComponent::detectNoShowFrameWorksAndReportIfFinished(
 void C2VDAComponent::reportWorkForNoShowFrames() {
     for (int32_t bitstreamId : mNoShowFrameBitstreamIds) {
         // Try to report works with no-show frame.
-        reportWorkIfFinished(bitstreamId);
+        reportWorkIfFinished(bitstreamId,0);
     }
     mNoShowFrameBitstreamIds.clear();
 }
@@ -3098,7 +3112,7 @@ bool C2VDAComponent::isNoShowFrameWork(const C2Work& work,
     return smallOrdinal && !outputReturned && !specialWork;
 }
 
-void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId) {
+void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
@@ -3119,7 +3133,7 @@ void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId) {
         }
         work->result = C2_OK;
         work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
-        work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work);
+        work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work, flags);
         c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                                 - work->input.ordinal.timestamp;
         ALOGV("Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);

@@ -29,7 +29,7 @@ public:
         virtual void ProvidePictureBuffers(uint32_t minNumBuffers,  uint32_t width, uint32_t height)  = 0;
         virtual void DismissPictureBuffer(int32_t picture_buffer_id)  = 0;
         virtual void PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
-                                      uint32_t x, uint32_t y, uint32_t w, uint32_t h)  = 0;
+                                      uint32_t x, uint32_t y, uint32_t w, uint32_t h, int32_t flags)  = 0;
         virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize) = 0;
         virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id)  = 0;
         virtual void NotifyFlushDone()  = 0;

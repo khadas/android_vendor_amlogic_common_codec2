@@ -72,7 +72,7 @@ public:
         return false;
     }
     /* check and adjust out pts */
-    int64_t checkAndAdjustOutPts(C2Work* work);
+    int64_t checkAndAdjustOutPts(C2Work* work, int32_t flags);
     //int check_color_aspects();
     uint64_t getPlatformUsage();
     uint32_t getOutAlignedSize(uint32_t size, bool forcealign = false);
@@ -125,6 +125,8 @@ private:
     bool mOutputPtsValid;
 
     uint32_t mDurationUs;
+    bool     mCredibleDuration;
+    int32_t  mUnstablePts;
     uint64_t mLastOutPts;
     uint64_t mInPutWorkCount;
     uint64_t mOutputWorkCount;

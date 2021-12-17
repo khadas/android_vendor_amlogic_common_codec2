@@ -39,8 +39,10 @@
 #include <AmVideoDecBase.h>
 #include <VideoDecWraper.h>
 #include <VideoTunnelRendererWraper.h>
+#include <C2VendorConfig.h>
 
 namespace android {
+
 
 class C2VDAComponent : public C2Component,
                        public VideoDecWraper::VideoDecWraperCallback,
@@ -86,6 +88,7 @@ public:
         static C2R TunnelModeOutSetter(bool mayBlock, C2P<C2PortTunneledModeTuning::output> &me);
         static C2R TunnelHandleSetter(bool mayBlock, C2P<C2PortTunnelHandleTuning::output> &me);
         static C2R TunnelSystemTimeSetter(bool mayBlock, C2P<C2PortTunnelSystemTime::output> &me);
+        static C2R StreamPtsUnstableSetter(bool mayBlock, C2P<C2StreamUnstablePts::input> &me);
 
         // The kind of the component; should be C2Component::KIND_ENCODER.
           std::shared_ptr<C2ComponentKindSetting> mKind;
@@ -132,6 +135,8 @@ public:
 
         //frame rate
         std::shared_ptr<C2StreamFrameRateInfo::input> mFrameRateInfo;
+        //unstable pts
+        std::shared_ptr<C2StreamUnstablePts::input> mUnstablePts;
 
         //std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
         std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
@@ -181,7 +186,7 @@ public:
     virtual void ProvidePictureBuffers(uint32_t minNumBuffers,  uint32_t width, uint32_t height);
     virtual void DismissPictureBuffer(int32_t picture_buffer_id);
     virtual void PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
-            uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+            uint32_t x, uint32_t y, uint32_t w, uint32_t h, int32_t flags);
     virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize);
     virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id);
     virtual void NotifyFlushDone();
@@ -300,6 +305,7 @@ private:
         int32_t mBitstreamId;
         int32_t mBlockId;
         int64_t mMediaTimeUs;
+        int32_t flags;
     };
 
     // These tasks should be run on the component thread |mThread|.
@@ -308,7 +314,7 @@ private:
     void onQueueWork(std::unique_ptr<C2Work> work);
     void onDequeueWork();
     void onInputBufferDone(int32_t bitstreamId);
-    void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId);
+    void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags);
     void onDrain(uint32_t drainMode);
     void onDrainDone();
     void onFlush();
@@ -375,7 +381,7 @@ private:
     void reportWorkForNoShowFrames();
     // Check if the corresponding work is finished by |bitstreamId|. If yes, make onWorkDone call to
     // listener and erase the work from |mPendingWorks|.
-    void reportWorkIfFinished(int32_t bitstreamId);
+    void reportWorkIfFinished(int32_t bitstreamId, int32_t flags);
     // Make onWorkDone call to listener for reporting EOS work in |mPendingWorks|.
     c2_status_t reportEOSWork();
     // Abandon all works in |mPendingWorks| and |mAbandonedWorks|.
@@ -388,7 +394,7 @@ private:
     bool isWorkDone(const C2Work* work) const;
 
     C2Work* cloneWork(C2Work* ori);
-    void sendClonedWork(C2Work* work);
+    void sendClonedWork(C2Work* work, int32_t flags);
 
     // Start dequeue thread, return true on success. If |resetBuffersInClient|, reset the counter
     // |mBuffersInClient| on start.

@@ -12,6 +12,7 @@
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <am_gralloc_ext.h>
 #include <logdebug.h>
+#include <C2VendorConfig.h>
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
 
@@ -45,6 +46,8 @@ C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mFirstOutputWork(false),
     mOutputPtsValid(false),
     mDurationUs(0),
+    mCredibleDuration(0),
+    mUnstablePts(0),
     mLastOutPts(0),
     mInPutWorkCount(0),
     mOutputWorkCount(0),
@@ -102,12 +105,21 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
         C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamFrameRateInfo message error", __func__, __LINE__);
     }
 
-    if (inputFrameRateInfo.value != 0)
-       mDurationUs = 1000 * 1000 / inputFrameRateInfo.value;
-    else
-       mDurationUs = 33333; //default 30fps
+    C2StreamUnstablePts::input unstablePts;
+    err = mIntfImpl->query({&unstablePts}, {}, C2_MAY_BLOCK, nullptr);
+    if (err != C2_OK) {
+        C2VDAMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamUnstablePts message error", __func__, __LINE__);
+    } else {
+        mUnstablePts = unstablePts.enable;
+    }
 
-    C2VDAMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] query frame rate:%f updata mDurationUs = %d ",__func__, __LINE__, inputFrameRateInfo.value, mDurationUs);
+    if (inputFrameRateInfo.value != 0) {
+       mDurationUs = 1000 * 1000 / inputFrameRateInfo.value;
+       mCredibleDuration = true;
+    } else {
+       mDurationUs = 33333; //default 30fps
+    }
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] query frame rate:%f updata mDurationUs = %d, unstablePts :%d",__func__, __LINE__, inputFrameRateInfo.value, mDurationUs, mUnstablePts);
 
     C2GlobalLowLatencyModeTuning lowLatency;
     err = mIntfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
@@ -586,7 +598,7 @@ int C2VDAComponent::MetaDataUtil::getVideoType() {
     return videotype;
 }
 
-int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work) {
+int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work, int32_t flags) {
 
     int64_t out_pts = work->worklets.front()->output.ordinal.timestamp.peekull();
     int64_t intput_timestamp = work->input.ordinal.timestamp.peekull();
@@ -598,13 +610,14 @@ int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work) {
 
     if (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork) {
 
-        if (out_pts == 0 && intput_timestamp == 0 && custom_timestamp == 0) {
+        if ((out_pts == 0 && intput_timestamp == 0 && custom_timestamp == 0) ||
+            (mUnstablePts && !(flags & PICTURE_FLAG_KEYFRAME))) {
             mOutputPtsValidCount++;
             if (mOutputPtsValidCount >= kOutPutPtsValidNum) {
                 mOutputPtsValid = true;
             }
 
-            if (mOutputPtsValid)
+            if ((mOutputPtsValid || mCredibleDuration) && mFirstOutputWork)
                 out_pts = mLastOutPts + duration;
         }
 
@@ -642,12 +655,14 @@ int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work) {
     }
 
 //for debug
-#if 0
+    if (flags & PICTURE_FLAG_KEYFRAME) {
+        C2VDAMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"checkAndAdjustOutPts: I frame found. %x",flags);
+    }
     int64_t render_pts = work->worklets.front()->output.ordinal.timestamp.peekull() + out_pts - work->input.ordinal.timestamp.peekull();
-    ALOGV("checkAndAdjustOutPts:index=%llu, input-pts:%llu output-pts:%llu customOrdinal-pts:%llu Final-pts:%llu",
+    C2VDAMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"checkAndAdjustOutPts(%d):duration:%u(%u),mLastOutPts:%llu,index=%llu, input-pts:%llu output-pts:%llu customOrdinal-pts:%llu(%llu) Final-pts:%llu",
+                (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork),duration,mDurationUs,mLastOutPts,
                 work->input.ordinal.frameIndex.peekull(),work->input.ordinal.timestamp.peekull(),
-                work->worklets.front()->output.ordinal.timestamp.peekull(),out_pts,render_pts);
-#endif
+                work->worklets.front()->output.ordinal.timestamp.peekull(),out_pts,custom_timestamp,render_pts);
 
     return out_pts;
 }
@@ -907,6 +922,7 @@ void C2VDAComponent::MetaDataUtil::updateDurationUs(unsigned char *data, int siz
             rate64 = rate64 / (96000 * 1.0 / durationdata);
             if (rate64 != 0) {
                 mDurationUs = 2 * rate64;
+                mCredibleDuration = true;
                 C2VDAMDU_LOG(CODEC2_LOG_ERR,"update mDurationUs = %d by meta data", mDurationUs);
             }
         }
