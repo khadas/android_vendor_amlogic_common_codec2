@@ -1070,7 +1070,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mDefaultDummyReadView(DummyReadView()),
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
         mInterlacedFirstField(true),
-        mFirstInputTimestamp(-1) {
+        mFirstInputTimestamp(-1),
+        mLastOutputBitstreamId(-1) {
     ALOGI("%s(%s)", __func__, name.c_str());
 
     mSecureMode = name.find(".secure") != std::string::npos;
@@ -1581,14 +1582,27 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
     }
 
+    bool FoundWorkInPending = false;
+    C2Work BackWork;
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
-        info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-        sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
-        return;
+        if (mMetaDataUtil->getUnstablePts()) {
+            if (bitstreamId == mLastOutputBitstreamId && mLastOutputBitstreamId != -1) {
+                work = cloneWork(&mLastOutputC2Work);
+            }
+        }
+        if (!work) {
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
+            info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+            sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+            return;
+        }
+    } else {
+        FoundWorkInPending = true;
+        if (mMetaDataUtil->getUnstablePts()) {
+            cloneWork(work, &BackWork);
+        }
     }
-
     timestamp = work->input.ordinal.timestamp.peekull();
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp,flags});
     mOutputWorkCount ++;
@@ -1605,12 +1619,30 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 
     if (mComponentState == ComponentState::FLUSHING) {
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%s in flushing, pending bitstreamid=%lld first", __func__, bitstreamId);
+        if (mMetaDataUtil->getUnstablePts()) {
+            if (FoundWorkInPending) {
+                cloneWork(&BackWork, &mLastOutputC2Work);
+                mLastOutputBitstreamId = bitstreamId;
+            }
+            if (!FoundWorkInPending && work) {
+                delete work;
+            }
+        }
         return;
     }
     if (isNonTunnelMode()) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else if (isTunnelMode()) {
         sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
+    }
+    if (mMetaDataUtil->getUnstablePts()) {
+        if (FoundWorkInPending) {
+            cloneWork(&BackWork, &mLastOutputC2Work);
+            mLastOutputBitstreamId = bitstreamId;
+        }
+        if (!FoundWorkInPending && work) {
+            delete work;
+        }
     }
 }
 
@@ -1721,13 +1753,28 @@ c2_status_t C2VDAComponent::sendVideoFrameToVideoTunnel(int32_t pictureBufferId,
 
 C2Work* C2VDAComponent::cloneWork(C2Work* ori) {
     C2Work* n = new C2Work();
-
+    if (!n) {
+        ALOGE("C2VDAComponent::cloneWork, malloc memory failed.");
+        return NULL;
+    }
     n->input.flags = ori->input.flags;
     n->input.ordinal = ori->input.ordinal;
     n->worklets.emplace_back(new C2Worklet);
     n->worklets.front()->output.ordinal = n->input.ordinal;
 
     return n;
+}
+
+void C2VDAComponent::cloneWork(C2Work* ori, C2Work* out) {
+    if (out == NULL || ori == NULL)
+        return;
+
+    out->input.flags = ori->input.flags;
+    out->input.ordinal = ori->input.ordinal;
+    out->worklets.emplace_back(new C2Worklet);
+    out->worklets.front()->output.ordinal = out->input.ordinal;
+
+    return;
 }
 
 c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) {
@@ -1743,19 +1790,29 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         }
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d",
             __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId);
-
+        bool sendCloneWork = false;
         C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
         if (!work) {
-            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
-            info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-            sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
-            return C2_OK;
+            if (mMetaDataUtil->getUnstablePts()) {
+                if (nextBuffer.mBitstreamId == mLastOutputBitstreamId && mLastOutputBitstreamId != -1) {
+                    work = cloneWork(&mLastOutputC2Work);
+                    sendCloneWork = true;
+                }
+            }
+            if (!work) {
+                C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
+                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+                sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+                return C2_OK;
+            }
         }
         if (mMetaDataUtil->isInterlaced() &&
                 mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
-                mInterlacedFirstField) {
+                mInterlacedFirstField &&
+                !sendCloneWork) {
             ALOGD("%s#%d interlace one-in/two-out first field output, clone the work", __func__, __LINE__);
             work = cloneWork(work);
+            sendCloneWork = true;
         }
 
         if (info->mState == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
@@ -1845,9 +1902,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
         ATRACE_INT("c2workpts", 0);
 
-        if (mMetaDataUtil->isInterlaced() &&
-                mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
-                mInterlacedFirstField) {
+        if (sendCloneWork) {
             sendClonedWork(work,nextBuffer.flags);
         } else {
             reportWorkIfFinished(nextBuffer.mBitstreamId,nextBuffer.flags);
@@ -1976,6 +2031,7 @@ void C2VDAComponent::onFlush() {
     mComponentState = ComponentState::FLUSHING;
     mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
     mInterlacedFirstField = true;
+    mLastOutputBitstreamId = -1;
 }
 
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {

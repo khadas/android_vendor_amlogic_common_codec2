@@ -421,6 +421,7 @@ private:
     bool isTunnerPassthroughMode() const;
 
     C2Work* cloneWork(C2Work* ori);
+    void cloneWork(C2Work* ori, C2Work* out);
     void sendClonedWork(C2Work* work, int32_t flags);
 
     // Start dequeue thread, return true on success. If |resetBuffersInClient|, reset the counter
@@ -584,6 +585,8 @@ private:
     uint32_t mInterlacedType;
     bool mInterlacedFirstField;
     int64_t mFirstInputTimestamp;
+    int32_t mLastOutputBitstreamId;
+    C2Work  mLastOutputC2Work;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

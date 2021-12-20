@@ -87,6 +87,8 @@ public:
     void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
         mHDRStaticInfoColorAspects = coloraspect;
     }
+    int32_t getUnstablePts();
+
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();
 

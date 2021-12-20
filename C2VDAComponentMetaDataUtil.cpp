@@ -343,6 +343,10 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
     }
 }
 
+int32_t C2VDAComponent::MetaDataUtil::getUnstablePts() {
+    return mUnstablePts;
+}
+
 int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
         std::vector<std::unique_ptr<C2Param>> params;
     C2StreamHdrStaticInfo::output hdr;
