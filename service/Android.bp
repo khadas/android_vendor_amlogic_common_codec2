@@ -29,6 +29,29 @@
 // The seccomp_policy file name and its content can be modified, but note that
 // vendor.cpp also needs to be updated because it needs the absolute path to the
 // seccomp policy file on the device.
+bootstrap_go_package {
+    name: "c2_service_aml",
+    pkgPath: "android/soong/c2_service_aml",
+    deps: [
+        "blueprint",
+        "soong",
+        "soong-android",
+        "soong-cc",
+        "soong-genrule",
+        "blueprint-bootstrap",
+        "soong-cc-config"
+    ],
+    srcs: [
+        "c2_service_aml.go",
+    ],
+
+    pluginFor: ["soong_build"],
+}
+
+c2_service_aml_go_defaults {
+    name: "c2_service_aml_go_defaults",
+}
+
 cc_binary {
     name: "android.hardware.media.c2@1.2-service",
     vendor: true,
@@ -41,6 +64,7 @@ cc_binary {
         "hidl_defaults",
         "libcodec2-hidl-defaults",
         "c2_aml_defaults",
+        "c2_service_aml_go_defaults"
     ],
     header_libs:[
         "libcodec2_headers",
@@ -52,7 +76,6 @@ cc_binary {
 
     // minijail is used to protect against unexpected system calls.
     shared_libs: [
-        "libavservices_minijail_vendor",
         "libbinder",
         "libvda_c2componentstore",
     ],
