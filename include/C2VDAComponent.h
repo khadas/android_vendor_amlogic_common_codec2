@@ -271,6 +271,17 @@ private:
         DESTROYED,
     };
 
+    enum class PictureFlag : int32_t {
+      PICTURE_FLAG_NONE = 0,
+      PICTURE_FLAG_KEYFRAME = 0x0001,
+      PICTURE_FLAG_PFRAME = 0x0002,
+      PICTURE_FLAG_BFRAME = 0x0004,
+      PICTURE_FLAG_FIELD_NONE   = 0x0008,
+      PICTURE_FLAG_FIELD_TOP    = 0x0010,
+      PICTURE_FLAG_FIELD_BOTTOM = 0x0020,
+      PICTURE_FLAG_ERROR_FRAME = 0x0100,
+    };
+
     // This constant is used to tell apart from drain_mode_t enumerations in C2Component.h, which
     // means no drain request.
     // Note: this value must be different than all enumerations in drain_mode_t.
