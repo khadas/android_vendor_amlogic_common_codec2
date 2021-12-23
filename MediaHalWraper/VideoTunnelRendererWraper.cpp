@@ -52,8 +52,9 @@ static VideoTunnelRendererBase* getVideoTunnelRenderer() {
 
 
 
-VideoTunnelRendererWraper::VideoTunnelRendererWraper(bool secure)
-    : mVideoTunnelRenderer(NULL) {
+VideoTunnelRendererWraper::VideoTunnelRendererWraper(bool secure) {
+	mVideoTunnelRenderer = getVideoTunnelRenderer();
+    ALOGD("mVideoTunnelRenderer:%p\n", mVideoTunnelRenderer);
 }
 
 VideoTunnelRendererWraper::~VideoTunnelRendererWraper() {
@@ -66,10 +67,8 @@ VideoTunnelRendererWraper::~VideoTunnelRendererWraper() {
 
 bool VideoTunnelRendererWraper::init(int hwsyncid) {
     ALOGD("init:%d\n", hwsyncid);
-    if (!mVideoTunnelRenderer)
-        mVideoTunnelRenderer = getVideoTunnelRenderer();
     if (!mVideoTunnelRenderer) {
-        ALOGE("can not get VideoTunnelRendererWraper, init error\n");
+        ALOGE("mVideoTunnelRenderer is null, init error!\n");
         return false;
     }
     return mVideoTunnelRenderer->init(hwsyncid);

@@ -43,6 +43,7 @@ public:
     int regFillVideoFrameCallBack(callbackFunc funs, void* obj);
     int regNotifyTunnelRenderTimeCallBack(callbackFunc funs, void* obj);
     bool setFrameRate(int32_t framerate);
+    VideoTunnelRendererBase* getTunnelRenderer() { return mVideoTunnelRenderer;  };
 
 private:
     VideoTunnelRendererBase* mVideoTunnelRenderer;

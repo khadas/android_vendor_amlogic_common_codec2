@@ -33,8 +33,9 @@ cc_library_shared {
     srcs: [
         "amuvm.cpp",
         "C2VDAComponent.cpp",
-        "VideoDecWraper.cpp",
-        "VideoTunnelRendererWraper.cpp",
+        "MediaHalWraper/VideoDecWraper.cpp",
+        "MediaHalWraper/VideoTunnelRendererWraper.cpp",
+        "MediaHalWraper/TunerPassthroughWrapper.cpp",
         "C2VDAComponentMetaDataUtil.cpp",
        // "C2VEAComponent.cpp",
        // "C2VEAFormatConverter.cpp",
@@ -42,6 +43,7 @@ cc_library_shared {
 
     local_include_dirs: [
         "include",
+        "MediaHalWraper/include",
     ],
 
     shared_libs: [

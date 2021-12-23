@@ -39,10 +39,13 @@
 #include <AmVideoDecBase.h>
 #include <VideoDecWraper.h>
 #include <VideoTunnelRendererWraper.h>
+#include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
 
 namespace android {
 
+#define DECLARE_C2_DEFAUTL_UNSTRICT_SETTER(s,n) \
+    static C2R n##Setter(bool mayBlock, C2P<s> &me)
 
 class C2VDAComponent : public C2Component,
                        public VideoDecWraper::VideoDecWraperCallback,
@@ -100,6 +103,9 @@ public:
         static C2R TunnelSystemTimeSetter(bool mayBlock, C2P<C2PortTunnelSystemTime::output> &me);
         static C2R StreamPtsUnstableSetter(bool mayBlock, C2P<C2StreamUnstablePts::input> &me);
 
+        //declare some unstrict Setter
+        DECLARE_C2_DEFAUTL_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam);
+
         // The kind of the component; should be C2Component::KIND_ENCODER.
           std::shared_ptr<C2ComponentKindSetting> mKind;
         // The input format kind; should be C2FormatCompressed.
@@ -155,6 +161,7 @@ public:
         std::shared_ptr<C2PortTunneledModeTuning::output> mTunnelModeOutput;
         std::shared_ptr<C2PortTunnelHandleTuning::output> mTunnelHandleOutput;
         std::shared_ptr<C2PortTunnelSystemTime::output> mTunnelSystemTimeOut;
+        std::shared_ptr<C2VendorTunerHalParam::input> mVendorTunerHalParam;
 
         std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
         std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
@@ -206,6 +213,7 @@ public:
 
     //tunnel mode implement
     void onConfigureTunnelMode();
+    void onConfigureTunnerPassthroughMode();
     static int fillVideoFrameCallback2(void* obj, void* args);
     int postFillVideoFrameTunnelMode2(int medafd, bool rendered);
     void onFillVideoFrameTunnelMode2(int medafd, bool rendered);
@@ -407,6 +415,11 @@ private:
     // Helper function to determine if the work is finished.
     bool isWorkDone(const C2Work* work) const;
 
+
+    bool isNonTunnelMode() const;
+    bool isTunnelMode() const;
+    bool isTunnerPassthroughMode() const;
+
     C2Work* cloneWork(C2Work* ori);
     void sendClonedWork(C2Work* work, int32_t flags);
 
@@ -524,6 +537,11 @@ private:
         C2_INTERLACED_TYPE_2FIELD = 0x00000001,
         C2_INTERLACED_TYPE_SETUP  = 0x00000002,
     };
+    enum {
+        C2_SYNC_TYPE_NON_TUNNEL = 1,
+        C2_SYNC_TYPE_TUNNEL = 2,
+        C2_SYNC_TYPE_PASSTHROUTH = 4,
+    };
     std::shared_ptr<C2StreamHdrStaticInfo::output> mCurrentHdrStaticInfo;
     std::shared_ptr<C2StreamHdr10PlusInfo::output> mCurrentHdr10PlusInfo;
     std::shared_ptr<C2StreamPictureSizeInfo::output> mCurrentSize;
@@ -536,6 +554,7 @@ private:
     VideoTunnelRendererWraper* mVideoTunnelRenderer;
     std::shared_ptr<MetaDataUtil> mMetaDataUtil;
     int32_t mTunnelId;
+    int32_t mSyncId;
     native_handle_t* mTunnelHandle;
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;
@@ -544,7 +563,6 @@ private:
     c2_resch_stat mResChStat;
     bool mSurfaceUsageGeted;
     bool mVDAComponentStopDone;
-    bool mIsTunnelMode;
     std::vector<struct fillVideoFrame2> mFillVideoFrameQueue;
     bool mCanQueueOutBuffer;
     std::vector<int64_t> mTunnelAbandonMediaTimeQueue;
@@ -554,6 +572,9 @@ private:
     int32_t mInputCSDWorkCount;
     int64_t mOutputWorkCount;
     std::deque<int64_t> mTunnelRenderMediaTimeQueue;
+    int64_t mSyncType;
+    passthroughInitParams mTunerPassthroughparams;
+    TunerPassthroughWrapper *mTunerPassthrough;
 
     C2ReadView mDefaultDummyReadView;
     std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;

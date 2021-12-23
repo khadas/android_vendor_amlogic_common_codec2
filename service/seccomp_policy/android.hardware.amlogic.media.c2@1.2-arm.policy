@@ -87,4 +87,5 @@ getgid32: 1
 getegid32: 1
 getgroups32: 1
 eventfd2: 1
+statfs64: 1
 sched_setscheduler: 1
