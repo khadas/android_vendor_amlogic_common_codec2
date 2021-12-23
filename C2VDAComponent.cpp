@@ -1335,7 +1335,7 @@ void C2VDAComponent::onQueueWork(std::unique_ptr<C2Work> work) {
     if (!(mInterlacedType&C2_INTERLACED_TYPE_SETUP) && mFirstInputTimestamp != -1 &&
             (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) == 0) {
         mInterlacedType = C2_INTERLACED_TYPE_SETUP;
-        if (work->input.ordinal.timestamp.peekull() > mFirstInputTimestamp) {
+        if (work->input.ordinal.timestamp.peekull() != mFirstInputTimestamp) {
             mInterlacedType |= C2_INTERLACED_TYPE_2FIELD;
         }
         ALOGD("%s#%d setting up mInterlacedType:%08x, timestamp:%llu ->  %llu", __func__, __LINE__, mInterlacedType,
