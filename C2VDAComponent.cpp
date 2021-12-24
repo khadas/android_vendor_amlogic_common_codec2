@@ -993,6 +993,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     do {                                                                   \
         if (mHasError \
             || mComponentState == ComponentState::UNINITIALIZED \
+            || mComponentState == ComponentState::DESTROYING \
             || mComponentState == ComponentState::DESTROYED) \
             return;                                                        \
     } while (0)
@@ -1495,11 +1496,6 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
                                             uint32_t poolId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGV("onOutputBufferReturned: pool id=%u", poolId);
-    if (mComponentState == ComponentState::UNINITIALIZED) {
-        // Output buffer is returned from client after component is stopped. Just let the buffer be
-        // released.
-        return;
-    }
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if ((block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
@@ -1564,18 +1560,18 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 
     int64_t timestamp = -1;
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
+
+    if (!info) {
+        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get graphicblock  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
+        reportError(C2_CORRUPTED);
+        return;
+    }
     if (mHDR10PlusMeteDataNeedCheck) {
         unsigned char  buffer[META_DATA_SIZE];
         int buffer_size = 0;
         memset(buffer, 0, META_DATA_SIZE);
         mMetaDataUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
         mMetaDataUtil->parseAndprocessMetaData(buffer, buffer_size);
-    }
-
-    if (!info) {
-        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get graphicblock  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
-        reportError(C2_CORRUPTED);
-        return;
     }
 
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
@@ -2145,6 +2141,7 @@ void C2VDAComponent::onStopDone() {
         mVideoDecWraper = NULL;
         if (mMetaDataUtil) {
             mMetaDataUtil.reset();
+            mMetaDataUtil = NULL;
         }
     }
 
@@ -3178,6 +3175,13 @@ void C2VDAComponent::NotifyResetDone() {
                           ::base::Bind(&C2VDAComponent::onResetDone, ::base::Unretained(this)));
 }
 
+void C2VDAComponent::onReportError(c2_status_t error) {
+    if (mComponentState == ComponentState::DESTROYED) {
+        return;
+    }
+    reportError(error);
+}
+
 void C2VDAComponent::NotifyError(int error) {
     ALOGE("Got notifyError from VDA...");
     c2_status_t err = adaptorResultToC2Status((VideoDecodeAcceleratorAdaptor::Result)error);
@@ -3186,7 +3190,7 @@ void C2VDAComponent::NotifyError(int error) {
         return;
     }
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VDAComponent::reportError, ::base::Unretained(this), err));
+                          ::base::Bind(&C2VDAComponent::onReportError, ::base::Unretained(this), err));
 }
 
 void C2VDAComponent::NotifyEvent(uint32_t event, void *param, uint32_t paramsize) {
