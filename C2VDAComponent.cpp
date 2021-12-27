@@ -742,9 +742,10 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     .build());
 
     //out delay
+    int32_t propOutputDelay = property_get_int32("vendor.media.codec2.output.delay",kDefaultOutputDelay);
     addParameter(
             DefineParam(mActualOutputDelay, C2_PARAMKEY_OUTPUT_DELAY)
-            .withDefault(new C2PortActualDelayTuning::output(kDefaultOutputDelay))
+            .withDefault(new C2PortActualDelayTuning::output(propOutputDelay))
             .withFields({C2F(mActualOutputDelay, value).inRange(0, kMaxOutputDelay)})
             .withSetter(Setter<decltype(*mActualOutputDelay)>::StrictValueWithNoDeps)
             .build());
@@ -873,13 +874,18 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
         static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
                                      const C2P<C2StreamPictureSizeInfo::output>& size) {
             (void)mayBlock;
-            // TODO: Need larger size?
-            me.set().value = kLinearBufferSize;
-            const uint32_t width = size.v.width;
-            const uint32_t height = size.v.height;
-            // Enlarge the input buffer for 4k video
-            if ((width > 1920 && height > 1080)) {
-                me.set().value = 4 * kLinearBufferSize;
+            size_t maxInputsize = property_get_int32("vendor.codec2.max.input.size", 6291456);
+            size_t paddingsize = property_get_int32("vendor.codec2.max.input.paddingsize", 262144);
+            size_t defultsize = me.get().value;
+            if (defultsize > 0)
+                defultsize += paddingsize;
+            else
+                defultsize = kLinearBufferSize;
+            if (defultsize > maxInputsize) {
+                me.set().value = maxInputsize;
+                ALOGI("Force setting %d to max is %d", me.get().value, maxInputsize);
+            } else {
+                me.set().value = defultsize;
             }
             return C2R::Ok();
         }
