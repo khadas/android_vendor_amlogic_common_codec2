@@ -118,6 +118,7 @@ private:
     bool mSecure;
     bool mEnableNR;
     bool mEnableDILocalBuf;
+    bool mIs8k;
     bool mEnable8kNR;
     bool mDisableErrPolicy;
 

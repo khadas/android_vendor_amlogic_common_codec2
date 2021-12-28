@@ -24,8 +24,10 @@
 
 namespace android {
 
-constexpr int kMaxWidth = 4096;
-constexpr int kMaxHeight = 2304;
+constexpr int kMaxWidth8k = 8192;
+constexpr int kMaxHeight8k = 4352;
+constexpr int kMaxWidth4k = 4096;
+constexpr int kMaxHeight4k = 2304;
 constexpr int kMaxWidth1080p = 1920;
 constexpr int kMaxHeight1080p = 1088;
 
@@ -40,6 +42,7 @@ C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mSecure(secure),
     mEnableNR(false),
     mEnableDILocalBuf(false),
+    mIs8k(false),
     mEnable8kNR(false),
     mIsInterlaced(false),
     mInPtsInvalid(false),
@@ -209,9 +212,11 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
 
     if (bufwidth * bufheight > 4096 * 2304) {
         doubleWriteMode = 0x04;
+        mIs8k = true;
         if (!mEnable8kNR) {
             mEnableNR = false;
         }
+        C2VDAMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] is 8k",__func__, __LINE__);
     }
 
     if (mIntfImpl->getInputCodec() == InputCodec::H264) {
@@ -738,6 +743,9 @@ uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
                         break;
                 }
             }
+         }else if (mIs8k) {
+            usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
+            C2VDAMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] is 8k use 1/4 usage:%llx",__func__, __LINE__, usage);
          } else {
             switch (mIntfImpl->getInputCodec())
             {
@@ -827,8 +835,13 @@ bool C2VDAComponent::MetaDataUtil::getMaxBufWidthAndHeight(uint32_t* width, uint
     bool support_4k = property_get_bool("ro.vendor.platform.support.4k", true);
 
     if (support_4k) {
-        *width = kMaxWidth;
-        *height = kMaxHeight;
+        if (mIs8k) {
+            *width = kMaxWidth8k;
+            *height = kMaxHeight8k;
+        } else {
+            *width = kMaxWidth4k;
+            *height = kMaxHeight4k;
+        }
     } else {
         *width = kMaxWidth1080p;
         *height = kMaxHeight1080p;
