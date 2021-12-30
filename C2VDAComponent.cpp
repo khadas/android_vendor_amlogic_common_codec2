@@ -1081,9 +1081,11 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mSyncType(C2_SYNC_TYPE_NON_TUNNEL),
         mDefaultDummyReadView(DummyReadView()),
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
-        mInterlacedFirstField(true),
         mFirstInputTimestamp(-1),
         mLastOutputBitstreamId(-1),
+        mLastFinishedBitstreamId(-1),
+        mNeedFinishFirstWork4Interlaced(false),
+        mOutPutInfo4WorkIncomplete(NULL),
         mHasQueuedWork(false) {
     ALOGI("%s(%s)", __func__, name.c_str());
 
@@ -1342,20 +1344,10 @@ void C2VDAComponent::onQueueWork(std::unique_ptr<C2Work> work) {
 
     uint32_t drainMode = NO_DRAIN;
     if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
-        ALOGV("input EOS");
+        ALOGI("input EOS");
         drainMode = DRAIN_COMPONENT_WITH_EOS;
     }
 
-    // setup mInterlacedType
-    if (!(mInterlacedType&C2_INTERLACED_TYPE_SETUP) && mFirstInputTimestamp != -1 &&
-            (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) == 0) {
-        mInterlacedType = C2_INTERLACED_TYPE_SETUP;
-        if (work->input.ordinal.timestamp.peekull() != mFirstInputTimestamp) {
-            mInterlacedType |= C2_INTERLACED_TYPE_2FIELD;
-        }
-        ALOGD("%s#%d setting up mInterlacedType:%08x, timestamp:%llu ->  %llu", __func__, __LINE__, mInterlacedType,
-                mFirstInputTimestamp, work->input.ordinal.timestamp.peekull());
-    }
     if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) == 0 && (mFirstInputTimestamp == -1)) {
         mFirstInputTimestamp = work->input.ordinal.timestamp.peekull();
     }
@@ -1630,17 +1622,30 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
             mOutputWorkCount, mPendingBuffersToWork.size());
     CODEC2_ATRACE_INT64("c2OutPTS", 0);
 
+    if (mMetaDataUtil->isInterlaced()) {
+        //for interlaced video
+        if (mOutputWorkCount == 2) {
+            if (!(mInterlacedType&C2_INTERLACED_TYPE_SETUP)) {
+                mInterlacedType |= C2_INTERLACED_TYPE_SETUP;
+                if (bitstreamId != mLastOutputBitstreamId) {
+                    mInterlacedType |= C2_INTERLACED_TYPE_1FIELD;
+                } else {
+                    mInterlacedType |= C2_INTERLACED_TYPE_2FIELD;
+                }
+                ALOGD("%s#%d setting up mInterlacedType:%08x, bitstreamId:%lld(%d)", __func__, __LINE__, mInterlacedType,bitstreamId,mLastOutputBitstreamId);
+            }
+        }
+    }
+
+
     if (mComponentState == ComponentState::FLUSHING) {
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%s in flushing, pending bitstreamid=%lld first", __func__, bitstreamId);
         if (mMetaDataUtil->getUnstablePts()) {
-            if (FoundWorkInPending) {
-                cloneWork(&BackWork, &mLastOutputC2Work);
-                mLastOutputBitstreamId = bitstreamId;
-            }
             if (!FoundWorkInPending && work) {
                 delete work;
             }
         }
+        mLastOutputBitstreamId = bitstreamId;
         return;
     }
     if (isNonTunnelMode()) {
@@ -1651,12 +1656,12 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     if (mMetaDataUtil->getUnstablePts()) {
         if (FoundWorkInPending) {
             cloneWork(&BackWork, &mLastOutputC2Work);
-            mLastOutputBitstreamId = bitstreamId;
         }
         if (!FoundWorkInPending && work) {
             delete work;
         }
     }
+    mLastOutputBitstreamId = bitstreamId;
 }
 
 c2_status_t C2VDAComponent::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
@@ -1804,28 +1809,60 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d",
             __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId);
         bool sendCloneWork = false;
-        C2Work* work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
+        C2Work* work = NULL;
+
+        if (mMetaDataUtil->getUnstablePts()) {
+            //for one packet contains more than one frame.
+            if (mLastFinishedBitstreamId == -1 ||
+                mLastFinishedBitstreamId != nextBuffer.mBitstreamId) {
+                work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
+            } else {
+                work = cloneWork(&mLastFinishedC2Work);
+                sendCloneWork = true;
+            }
+        } else {
+            //default path
+            work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
+        }
         if (!work) {
-            if (mMetaDataUtil->getUnstablePts()) {
-                if (nextBuffer.mBitstreamId == mLastOutputBitstreamId && mLastOutputBitstreamId != -1) {
-                    work = cloneWork(&mLastOutputC2Work);
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
+            info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+            sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+            return C2_OK;
+        }
+
+        if (mMetaDataUtil->isInterlaced() && !mMetaDataUtil->getUnstablePts()) {
+            if (!sendCloneWork) {
+                if (mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
+                    (nextBuffer.mBitstreamId != mLastFinishedBitstreamId || mLastFinishedBitstreamId == -1)) {
+                    work = cloneWork(work);
                     sendCloneWork = true;
+                    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%s#%d interlace one-in/two-out first field output, clone the work", __func__, __LINE__);
+                } else if (!(mInterlacedType&C2_INTERLACED_TYPE_SETUP)) {
+                    ALOGD("for Interlaced, first frame must be cloned.");
+                    work = cloneWork(work);
+                    sendCloneWork = true;
+                    mNeedFinishFirstWork4Interlaced = true;
+                    mOutPutInfo4WorkIncomplete = new OutputBufferInfo();
+                    mOutPutInfo4WorkIncomplete->flags = nextBuffer.flags;
+                    mOutPutInfo4WorkIncomplete->mBitstreamId = nextBuffer.mBitstreamId;
+                    mOutPutInfo4WorkIncomplete->mBlockId = nextBuffer.mBlockId;
+                    mOutPutInfo4WorkIncomplete->mMediaTimeUs = nextBuffer.mMediaTimeUs;
                 }
             }
-            if (!work) {
-                C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
-                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-                sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
-                return C2_OK;
+            if (mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_1FIELD)) {
+                if (mNeedFinishFirstWork4Interlaced && mOutPutInfo4WorkIncomplete) {
+                    mNeedFinishFirstWork4Interlaced = false;
+                    ALOGD("for Interlaced, first frame cloned.must be finished");
+                    reportEmptyWork(mOutPutInfo4WorkIncomplete->mBitstreamId,mOutPutInfo4WorkIncomplete->flags);
+                    delete mOutPutInfo4WorkIncomplete;
+                    mOutPutInfo4WorkIncomplete = NULL;
+                }
             }
         }
-        if (mMetaDataUtil->isInterlaced() &&
-                mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
-                mInterlacedFirstField &&
-                !sendCloneWork) {
-            ALOGD("%s#%d interlace one-in/two-out first field output, clone the work", __func__, __LINE__);
-            work = cloneWork(work);
-            sendCloneWork = true;
+        mLastFinishedBitstreamId = nextBuffer.mBitstreamId;
+        if (mMetaDataUtil->getUnstablePts()) {
+            cloneWork(work, &mLastFinishedC2Work);
         }
 
         if (info->mState == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
@@ -1928,7 +1965,6 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             reportWorkIfFinished(nextBuffer.mBitstreamId,nextBuffer.flags);
         }
         mPendingBuffersToWork.pop_front();
-        mInterlacedFirstField = !mInterlacedFirstField;
     }
     return C2_OK;
 }
@@ -1987,25 +2023,22 @@ void C2VDAComponent::onDrain(uint32_t drainMode) {
 
 void C2VDAComponent::onDrainDone() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onDrainDone");
     RETURN_ON_UNINITIALIZED_OR_ERROR();
-
     if (mComponentState == ComponentState::DRAINING) {
         mComponentState = ComponentState::STARTED;
     } else if (mComponentState == ComponentState::STOPPING) {
-        // The client signals stop right before VDA notifies drain done. Let stop process goes.
+        ALOGV(" The client signals stop right before VDA notifies drain done. Let stop process goes.");
         return;
     } else if (mComponentState != ComponentState::FLUSHING) {
         // It is reasonable to get onDrainDone in FLUSHING, which means flush is already signaled
         // and component should still expect onFlushDone callback from VDA.
-        ALOGE("Unexpected state while onDrainDone(). State=%d", mComponentState);
+        ALOGV(" Unexpected state while onDrainDone(). State=%d", mComponentState);
         reportError(C2_BAD_STATE);
         return;
     }
 
     if (isTunnelMode()) {
         CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] tunnel mode reset done", __FUNCTION__, __LINE__);
-        // Work dequeueing was stopped while component draining. Restart it.
         mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VDAComponent::onDequeueWork, ::base::Unretained(this)));
         return;
@@ -2013,11 +2046,12 @@ void C2VDAComponent::onDrainDone() {
 
     // Drop all pending existing frames and return all finished works before drain done.
     if (sendOutputBufferToWorkIfAny(true /* dropIfUnavailable */) != C2_OK) {
+        ALOGV(" sendOutputBufferToWorkIfAny failed.") ;
         return;
     }
 
     if (mPendingOutputEOS) {
-        // Return EOS work.
+        ALOGI(" Return EOS work.");
         if (reportEOSWork() != C2_OK) {
             return;
         }
@@ -2050,14 +2084,18 @@ void C2VDAComponent::onFlush() {
     }
     mComponentState = ComponentState::FLUSHING;
     mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-    mInterlacedFirstField = true;
     mFirstInputTimestamp = -1;
     mLastOutputBitstreamId = -1;
+    mLastFinishedBitstreamId = -1;
+    if (mOutPutInfo4WorkIncomplete) {
+        delete mOutPutInfo4WorkIncomplete;
+        mOutPutInfo4WorkIncomplete = NULL;
+    }
 }
 
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onStop");
+    ALOGI(" EOS onStop");
     if (mComponentState == ComponentState::UNINITIALIZED) {
         return;
     }
@@ -3197,6 +3235,7 @@ void C2VDAComponent::NotifyEndOfBitstreamBuffer(int32_t bitstreamId) {
 }
 
 void C2VDAComponent::NotifyFlushDone() {
+    ALOGI("EOS NotifyFlushDone");
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VDAComponent::onDrainDone, ::base::Unretained(this)));
 }
@@ -3288,6 +3327,38 @@ bool C2VDAComponent::isNoShowFrameWork(const C2Work& work,
     return smallOrdinal && !outputReturned && !specialWork;
 }
 
+void C2VDAComponent::reportEmptyWork(int32_t bitstreamId, int32_t flags) {
+    DCHECK(mTaskRunner->BelongsToCurrentThread());
+    auto workIter = findPendingWorkByBitstreamId(bitstreamId);
+    if (workIter == mPendingWorks.end()) {
+        ALOGD("reportEmptyWork findPendingWorkByBitstreamId failed. bitstreamId:%d",bitstreamId);
+        return;
+    }
+    auto work = workIter->get();
+    work->result = C2_OK;
+    work->worklets.front()->output.buffers.clear();
+    work->workletsProcessed = 1;
+    work->input.ordinal.customOrdinal = mMetaDataUtil->getLastOutputPts();
+    c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
+                            - work->input.ordinal.timestamp;
+    ALOGD("reportEmptyWork index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
+
+    if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
+        ALOGE("reportEmptyWork: This is EOS work and should be processed by reportEOSWork().");
+    } else
+    if (work->input.buffers.front()) {
+        ALOGE("reportEmptyWork:  Input buffer is still owned by VDA.");
+    } else
+    if (mPendingOutputEOS && mPendingWorks.size() == 1u) {
+        ALOGE("reportEmptyWork:  If mPendingOutputEOS is true, the last returned work should be marked EOS flag and returned by reportEOSWork() instead.");
+    }
+
+    std::list<std::unique_ptr<C2Work>> finishedWorks;
+    finishedWorks.emplace_back(std::move(*workIter));
+    mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
+    mPendingWorks.erase(workIter);
+}
+
 void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
@@ -3370,7 +3441,7 @@ bool C2VDAComponent::isTunnerPassthroughMode() const {
 }
 
 c2_status_t C2VDAComponent::reportEOSWork() {
-    ALOGV("reportEOSWork");
+    ALOGI("reportEOSWork");
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
     if (mPendingWorks.empty()) {

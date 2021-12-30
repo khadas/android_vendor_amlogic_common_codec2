@@ -88,6 +88,7 @@ public:
         mHDRStaticInfoColorAspects = coloraspect;
     }
     int32_t getUnstablePts();
+    int64_t getLastOutputPts();
 
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();

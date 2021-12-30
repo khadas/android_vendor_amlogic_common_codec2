@@ -435,6 +435,7 @@ private:
     C2Work* cloneWork(C2Work* ori);
     void cloneWork(C2Work* ori, C2Work* out);
     void sendClonedWork(C2Work* work, int32_t flags);
+    void reportEmptyWork(int32_t bitstreamId, int32_t flags);
 
     // Start dequeue thread, return true on success. If |resetBuffersInClient|, reset the counter
     // |mBuffersInClient| on start.
@@ -546,8 +547,8 @@ private:
     } c2_resch_stat;
     enum {
         C2_INTERLACED_TYPE_NONE   = 0x00000000,
-        C2_INTERLACED_TYPE_1FIELD = 0x00000000,
-        C2_INTERLACED_TYPE_2FIELD = 0x00000001,
+        C2_INTERLACED_TYPE_1FIELD = 0x00000000,//one packet contains one field
+        C2_INTERLACED_TYPE_2FIELD = 0x00000001,//one packet contains two fields
         C2_INTERLACED_TYPE_SETUP  = 0x00000002,
     };
     enum {
@@ -595,11 +596,14 @@ private:
     uint64_t mLastFlushTimeMs;
     std::vector<int32_t> mNoShowFrameBitstreamIds;
     uint32_t mInterlacedType;
-    bool mInterlacedFirstField;
     int64_t mFirstInputTimestamp;
     int32_t mLastOutputBitstreamId;
-    C2Work  mLastOutputC2Work;
+    int32_t mLastFinishedBitstreamId;
+    bool    mNeedFinishFirstWork4Interlaced;
+    OutputBufferInfo * mOutPutInfo4WorkIncomplete;
     bool mHasQueuedWork;
+    C2Work  mLastOutputC2Work;
+    C2Work  mLastFinishedC2Work;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };
