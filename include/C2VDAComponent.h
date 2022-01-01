@@ -415,7 +415,7 @@ private:
     void reportWorkForNoShowFrames();
     // Check if the corresponding work is finished by |bitstreamId|. If yes, make onWorkDone call to
     // listener and erase the work from |mPendingWorks|.
-    void reportWorkIfFinished(int32_t bitstreamId, int32_t flags);
+    void reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork = false);
     // Make onWorkDone call to listener for reporting EOS work in |mPendingWorks|.
     c2_status_t reportEOSWork();
     // Abandon all works in |mPendingWorks| and |mAbandonedWorks|.
@@ -599,6 +599,7 @@ private:
     int64_t mFirstInputTimestamp;
     int32_t mLastOutputBitstreamId;
     C2Work  mLastOutputC2Work;
+    bool mHasQueuedWork;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

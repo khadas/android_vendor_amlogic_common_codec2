@@ -1083,7 +1083,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
         mInterlacedFirstField(true),
         mFirstInputTimestamp(-1),
-        mLastOutputBitstreamId(-1) {
+        mLastOutputBitstreamId(-1),
+        mHasQueuedWork(false) {
     ALOGI("%s(%s)", __func__, name.c_str());
 
     mSecureMode = name.find(".secure") != std::string::npos;
@@ -1149,6 +1150,7 @@ void C2VDAComponent::onDestroy() {
         mVideoDecWraper = NULL;
         if (mMetaDataUtil) {
             mMetaDataUtil.reset();
+            mMetaDataUtil = NULL;
         }
         if (mDumpYuvFp)
             fclose(mDumpYuvFp);
@@ -1401,12 +1403,16 @@ void C2VDAComponent::onDequeueWork() {
 
     CHECK_LE(work->input.buffers.size(), 1u);
     bool isEmptyCSDWork = false;
+    bool isEmptyWork = false;
     // Use frameIndex as bitstreamId.
     int32_t bitstreamId = frameIndexToBitstreamId(work->input.ordinal.frameIndex);
     if (work->input.buffers.empty()) {
         // Client may queue a work with no input buffer for either it's EOS or empty CSD, otherwise
         // every work must have one input buffer.
         isEmptyCSDWork = work->input.flags & C2FrameData::FLAG_CODEC_CONFIG;
+        if (work->input.flags == 0) {
+            isEmptyWork = true;
+        }
         //CHECK(drainMode != NO_DRAIN || isEmptyCSDWork);
         // Emplace a nullptr to unify the check for work done.
         ALOGV("Got a work with no input buffer! Emplace a nullptr inside.");
@@ -1473,10 +1479,10 @@ void C2VDAComponent::onDequeueWork() {
             work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
 
-    if (isEmptyCSDWork) {
+    if (isEmptyCSDWork || isEmptyWork) {
         // Directly report the empty CSD work as finished.
         ALOGI("onDequeueWork empty csd work, bitid:%d\n", bitstreamId);
-        reportWorkIfFinished(bitstreamId,0);
+        reportWorkIfFinished(bitstreamId, 0, isEmptyWork);
     }
 
     if (!mQueue.empty()) {
@@ -2125,6 +2131,7 @@ void C2VDAComponent::onFlushDone() {
     mInputWorkCount = 0;
     mInputCSDWorkCount = 0;
     mOutputWorkCount = 0;
+    mHasQueuedWork = false;
 
     //after flush we need reuse the buffer which owned by accelerator
     for (auto& info : mGraphicBlocks) {
@@ -2153,6 +2160,7 @@ void C2VDAComponent::onStopDone() {
     mPendingBuffersToWork.clear();
     mTunnelAbandonMediaTimeQueue.clear();
     stopDequeueThread();
+    mHasQueuedWork = false;
 
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
@@ -3013,6 +3021,7 @@ c2_status_t C2VDAComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const i
 
 
     while (!items->empty()) {
+        mHasQueuedWork = true;
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VDAComponent::onQueueWork, ::base::Unretained(this),
                                            ::base::Passed(&items->front())));
@@ -3033,6 +3042,9 @@ c2_status_t C2VDAComponent::flush_sm(flush_mode_t mode,
     }
     if (mState.load() != State::RUNNING) {
         return C2_BAD_STATE;
+    }
+    if (!mHasQueuedWork) {
+        return C2_OK;
     }
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onFlush,
                                                   ::base::Unretained(this)));
@@ -3276,7 +3288,7 @@ bool C2VDAComponent::isNoShowFrameWork(const C2Work& work,
     return smallOrdinal && !outputReturned && !specialWork;
 }
 
-void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags) {
+void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
@@ -3288,7 +3300,7 @@ void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags) {
 
     // EOS work will not be reported here. reportEOSWork() does it.
     auto work = workIter->get();
-    if (isWorkDone(work)) {
+    if (isEmptyWork || isWorkDone(work)) {
         if (work->worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME) {
             // A work with neither flags nor output buffer would be treated as no-corresponding
             // output by C2 framework, and regain pipeline capacity immediately.
@@ -3309,10 +3321,6 @@ void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags) {
 }
 
 bool C2VDAComponent::isWorkDone(const C2Work* work) const {
-    if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
-        // This is EOS work and should be processed by reportEOSWork().
-        return false;
-    }
     if (work->input.buffers.front()) {
         // Input buffer is still owned by VDA.
         return false;
@@ -3365,21 +3373,15 @@ c2_status_t C2VDAComponent::reportEOSWork() {
     ALOGV("reportEOSWork");
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
-    std::unique_ptr<C2Work> eosWork;
-    auto workIter = std::find_if(mPendingWorks.begin(), mPendingWorks.end(),
-                    [](const std::unique_ptr<C2Work>& w) {
-                        return w->input.flags & C2FrameData::FLAG_END_OF_STREAM;
-                    });
-    if (workIter == mPendingWorks.end()) {
+    if (mPendingWorks.empty()) {
         ALOGE("Failed to find EOS work.");
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
 
     mPendingOutputEOS = false;
-
-    eosWork = std::move(*workIter);
-    mPendingWorks.erase(workIter);
+    std::unique_ptr<C2Work> eosWork = std::move(mPendingWorks.back());
+    mPendingWorks.pop_back();
     if (!eosWork->input.buffers.empty()) {
         eosWork->input.buffers.front().reset();
     }
@@ -3502,9 +3504,12 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
         }
 
         std::shared_ptr<C2GraphicBlock> block;
-        auto err = blockPool->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
+        c2_status_t err = C2_TIMED_OUT;
+        if (mMetaDataUtil != NULL) {
+            err = blockPool->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
                                                 mMetaDataUtil->getOutAlignedSize(size.height()),
                                                 pixelFormat, usage, &block);
+        }
         if (err == C2_TIMED_OUT) {
             // Mutexes often do not care for FIFO. Practically the thread who is locking the mutex
             // usually will be granted to lock again right thereafter. To make this loop not too
