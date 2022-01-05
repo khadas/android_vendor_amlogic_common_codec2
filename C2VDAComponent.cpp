@@ -887,6 +887,11 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
             } else {
                 me.set().value = defultsize;
             }
+            //app may set too small
+            if (((size.v.width * size.v.height) > (1920 * 1088))
+                && (me.set().value < (4 * kLinearBufferSize))) {
+               me.set().value = 4 * kLinearBufferSize;
+            }
             return C2R::Ok();
         }
     };
