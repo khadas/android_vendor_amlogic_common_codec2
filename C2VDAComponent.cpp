@@ -2045,6 +2045,7 @@ void C2VDAComponent::onFlush() {
     mComponentState = ComponentState::FLUSHING;
     mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
     mInterlacedFirstField = true;
+    mFirstInputTimestamp = -1;
     mLastOutputBitstreamId = -1;
 }
 
