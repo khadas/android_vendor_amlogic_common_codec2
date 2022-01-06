@@ -236,6 +236,8 @@ public:
     static uint32_t mInstanceID;
     uint32_t mCurInstanceID;
 
+    static const uint32_t kUpdateDurationFramesNumMax = 10;
+    int mUpdateDurationUsCount;
 private:
     // The state machine enumeration on parent thread.
     enum class State : int32_t {

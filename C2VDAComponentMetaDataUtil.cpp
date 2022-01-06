@@ -895,12 +895,9 @@ void C2VDAComponent::MetaDataUtil::parseAndprocessMetaData(unsigned char *data, 
         }
         memset(buf, 0, meta_size);
         memcpy(buf, (data + total_size + AML_META_HEAD_SIZE), meta_size);
-        /*
         if (meta_type == UVM_META_DATA_VF_BASE_INFOS) {
             updateDurationUs(buf, meta_size);
-        }
-        else */
-        if (meta_type == UVM_META_DATA_HDR10P_DATA) {
+        } else if (meta_type == UVM_META_DATA_HDR10P_DATA) {
             updateHDR10plus(buf, meta_size);
         }
 
@@ -973,14 +970,15 @@ void C2VDAComponent::MetaDataUtil::updateDurationUs(unsigned char *data, int siz
 
     if (baseinfo != NULL && baseinfo->duration != 0) {
         durationdata = baseinfo->duration;
-        if (mIsInterlaced && durationdata != 0) {
+        if (durationdata != 0) {
             uint64_t rate64 = 1000000;
             rate64 = rate64 / (96000 * 1.0 / durationdata);
-            if (rate64 != 0) {
+            if (mIsInterlaced)
                 mDurationUs = 2 * rate64;
-                mCredibleDuration = true;
-                C2VDAMDU_LOG(CODEC2_LOG_ERR,"update mDurationUs = %d by meta data", mDurationUs);
-            }
+            else
+                mDurationUs = rate64;
+            mCredibleDuration = true;
+            C2VDAMDU_LOG(CODEC2_LOG_ERR,"update mDurationUs = %d by meta data", mDurationUs);
         }
     }
 }

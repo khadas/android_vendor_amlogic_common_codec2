@@ -1113,6 +1113,7 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
     mCurInstanceID = mInstanceID;
     mInstanceNum ++;
     mInstanceID ++;
+    mUpdateDurationUsCount = 0;
 
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
     C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
@@ -1576,12 +1577,13 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         reportError(C2_CORRUPTED);
         return;
     }
-    if (mHDR10PlusMeteDataNeedCheck) {
+    if (mHDR10PlusMeteDataNeedCheck || (mUpdateDurationUsCount < kUpdateDurationFramesNumMax)) {
         unsigned char  buffer[META_DATA_SIZE];
         int buffer_size = 0;
         memset(buffer, 0, META_DATA_SIZE);
         mMetaDataUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
         mMetaDataUtil->parseAndprocessMetaData(buffer, buffer_size);
+        mUpdateDurationUsCount++;
     }
 
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
@@ -2171,6 +2173,7 @@ void C2VDAComponent::onFlushDone() {
     mInputCSDWorkCount = 0;
     mOutputWorkCount = 0;
     mHasQueuedWork = false;
+    mUpdateDurationUsCount = 0;
 
     //after flush we need reuse the buffer which owned by accelerator
     for (auto& info : mGraphicBlocks) {
