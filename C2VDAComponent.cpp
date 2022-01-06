@@ -1277,25 +1277,26 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
         mMetaDataUtil =  std::make_shared<MetaDataUtil>(this, mSecureMode);
         mMetaDataUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
         mMetaDataUtil->codecConfig(&mConfigParam);
+
+        //update profile for DolbyVision
+        if (mIsDolbyVision) {
+            media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
+            InputCodec codec = mIntfImpl->getInputCodec();
+            supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)codec);
+            if (supportedProfiles.empty()) {
+                ALOGE("No supported profile from input codec: %d", mIntfImpl->getInputCodec());
+                return;
+            }
+            mCodecProfile = supportedProfiles[0].profile;
+            mIntfImpl->updateCodecProfile(mCodecProfile);
+            ALOGD("update profile(%d) to (%d) mime(%s)", profile, mCodecProfile, VideoCodecProfileToMime(mCodecProfile));
+            profile = mCodecProfile;
+        }
+
         mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
                 (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
     } else {
         mVDAInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
-    }
-
-    //update profile for DolbyVision
-    if (mIsDolbyVision) {
-        media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
-        InputCodec codec = mIntfImpl->getInputCodec();
-        supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)codec);
-        if (supportedProfiles.empty()) {
-            ALOGE("No supported profile from input codec: %d", mIntfImpl->getInputCodec());
-            return;
-        }
-        mCodecProfile = supportedProfiles[0].profile;
-        mIntfImpl->updateCodecProfile(mCodecProfile);
-        ALOGD("update profile(%d) to (%d)", profile, mCodecProfile);
-        profile = mCodecProfile;
     }
 
     if (mVideoTunnelRenderer) {
