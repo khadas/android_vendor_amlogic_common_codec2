@@ -92,6 +92,7 @@ public:
 
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();
+    void setForceFullUsage(bool isFullUsage);
 
     aml_stream_info mAmlStreamInfo;
 private:
@@ -121,6 +122,7 @@ private:
     bool mIs8k;
     bool mEnable8kNR;
     bool mDisableErrPolicy;
+    bool mForceFullUsage;
 
     /* for check pts */
     bool mIsInterlaced;

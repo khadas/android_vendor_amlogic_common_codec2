@@ -453,6 +453,7 @@ private:
     c2_status_t videoResolutionChange();
     bool getVideoResolutionChanged();
     int getDefaultMaxBufNum(InputCodec videotype);
+    c2_status_t reallocateBuffersForUsageChanged(const media::Size& size, uint32_t pixelFormat);
 
     static std::atomic<int32_t> sConcurrentInstances;
     static std::atomic<int32_t> sConcurrentInstanceSecures;

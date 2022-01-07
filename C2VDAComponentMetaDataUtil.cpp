@@ -44,6 +44,7 @@ C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mEnableDILocalBuf(false),
     mIs8k(false),
     mEnable8kNR(false),
+    mForceFullUsage(false),
     mIsInterlaced(false),
     mInPtsInvalid(false),
     mFirstOutputWork(false),
@@ -746,6 +747,9 @@ uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
          }else if (mIs8k) {
             usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
             C2VDAMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] is 8k use 1/4 usage:%llx",__func__, __LINE__, usage);
+         }else if (mForceFullUsage) {
+             usage = am_gralloc_get_video_decoder_full_buffer_usage();
+             C2VDAMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] force use full usage:%llx",__func__, __LINE__, usage);
          } else {
             switch (mIntfImpl->getInputCodec())
             {
@@ -776,6 +780,11 @@ uint64_t C2VDAComponent::MetaDataUtil::getPlatformUsage() {
 void C2VDAComponent::MetaDataUtil::setNoSurface(bool isNoSurface) {
     mNoSurface = isNoSurface;
 }
+
+void C2VDAComponent::MetaDataUtil::setForceFullUsage(bool isFullUsage) {
+    mForceFullUsage = isFullUsage;
+}
+
 
 uint32_t C2VDAComponent::MetaDataUtil::getOutAlignedSize(uint32_t size, bool forcealign) {
     if ((mSecure && mIntfImpl->getInputCodec() == InputCodec::H264) || forcealign)
