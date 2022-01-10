@@ -1065,11 +1065,15 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mWeakThisFactory(this),
         mOutputDelay(nullptr),
         mDumpYuvFp(NULL),
+        mVideoDecWraper(NULL),
+        mVideoTunnelRenderer(NULL),
+        mMetaDataUtil(NULL),
         mTunnelId(-1),
         mSyncId(0),
         mTunnelHandle(NULL),
         mUseBufferQueue(false),
         mBufferFirstAllocated(false),
+        mPictureSizeChanged(false),
         mResChStat(C2_RESOLUTION_CHANGE_NONE),
         mSurfaceUsageGeted(false),
         mVDAComponentStopDone(false),
@@ -1079,6 +1083,7 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mInputCSDWorkCount(0),
         mOutputWorkCount(0),
         mSyncType(C2_SYNC_TYPE_NON_TUNNEL),
+        mTunerPassthrough(NULL),
         mDefaultDummyReadView(DummyReadView()),
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
         mFirstInputTimestamp(-1),
@@ -1577,12 +1582,18 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         reportError(C2_CORRUPTED);
         return;
     }
-    if (mHDR10PlusMeteDataNeedCheck || (mUpdateDurationUsCount < kUpdateDurationFramesNumMax)) {
+    if (mHDR10PlusMeteDataNeedCheck/* || (mUpdateDurationUsCount < kUpdateDurationFramesNumMax)*/) {
         unsigned char  buffer[META_DATA_SIZE];
         int buffer_size = 0;
         memset(buffer, 0, META_DATA_SIZE);
         mMetaDataUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
-        mMetaDataUtil->parseAndprocessMetaData(buffer, buffer_size);
+        if (buffer_size > META_DATA_SIZE) {
+            C2VDA_LOG(CODEC2_LOG_ERR, "uvm metadata size error, please check");
+        } else if (buffer_size <= 0) {
+            //nothing to do now
+        } else {
+            mMetaDataUtil->parseAndprocessMetaData(buffer, buffer_size);
+        }
         mUpdateDurationUsCount++;
     }
 
@@ -1939,7 +1950,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
                 buffer->setInfo(mCurrentHdr10PlusInfo);
             }
 
-            if (mPictureSizeChanged) {
+            if (mPictureSizeChanged && mCurrentSize != nullptr) {
                 mPictureSizeChanged = false;
                 work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
                 ALOGI("video size changed");
@@ -2595,10 +2606,10 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     c2_status_t err = mIntfImpl->config({&videoSize}, C2_MAY_BLOCK, &failures);
     mPictureSizeChanged = true;
-    if (err == OK) {
-       mCurrentSize = std::make_shared<C2StreamPictureSizeInfo::output>(0u, mOutputFormat.mCodedSize.width(),
-               mOutputFormat.mCodedSize.height());
-       ALOGI("video size changed, update to params");
+    mCurrentSize = std::make_shared<C2StreamPictureSizeInfo::output>(0u, mOutputFormat.mCodedSize.width(),
+            mOutputFormat.mCodedSize.height());
+    if (err != OK) {
+       ALOGV("video size changed, update to params fail");
     }
 
     return C2_OK;
@@ -3523,6 +3534,12 @@ void C2VDAComponent::reportAbandonedWorks() {
 
 void C2VDAComponent::reportError(c2_status_t error) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
+    if (mComponentState == ComponentState::DESTROYING ||
+        mComponentState == ComponentState::DESTROYED ||
+        mComponentState == ComponentState::UNINITIALIZED) {
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s have been in destrory or stop state", __func__);
+        return;
+    }
     mListener->onError_nb(shared_from_this(), static_cast<uint32_t>(error));
     mHasError = true;
     mState.store(State::ERROR);

@@ -871,47 +871,45 @@ bool C2VDAComponent::MetaDataUtil::getUvmMetaData(int fd, unsigned char *data, i
 }
 
 void C2VDAComponent::MetaDataUtil::parseAndprocessMetaData(unsigned char *data, int size) {
-    unsigned char buffer[size];
     struct aml_meta_head_s *meta_head;
-    uint32_t total_size = 0;
+    uint32_t offset = 0;
     uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
 
     if (data == NULL || size <= 0) {
         C2VDAMDU_LOG(CODEC2_LOG_ERR,"parse and process meta data faild");
         return;
     }
-    memset(buffer, 0, size);
-    memcpy(buffer, data, size);
-    meta_head = (struct aml_meta_head_s *)buffer;
-    while (total_size < size)
-    {
+    meta_head = (struct aml_meta_head_s *)data;
+    while ((offset + AML_META_HEAD_SIZE) < size) {
         meta_magic = meta_head->magic;
         meta_type  = meta_head->type;
         meta_size  = meta_head->data_size;
-        unsigned char buf[meta_size];
-        if (meta_magic != META_DATA_MAGIC || (meta_size > META_DATA_SIZE)) {
+        if (meta_magic != META_DATA_MAGIC ||
+            (meta_size > META_DATA_SIZE) ||
+            (meta_size <= 0)) {
             C2VDAMDU_LOG(CODEC2_LOG_ERR,"get mate head error");
             break;
         }
+        unsigned char buf[meta_size];
         memset(buf, 0, meta_size);
-        memcpy(buf, (data + total_size + AML_META_HEAD_SIZE), meta_size);
+        if ((offset + AML_META_HEAD_SIZE + meta_size) > size) {
+            C2VDAMDU_LOG(CODEC2_LOG_ERR,"metadata oversize %d > %d, please check",
+                    offset + AML_META_HEAD_SIZE + meta_size, size);
+            break;
+        }
+
+        memcpy(buf, (data + offset + AML_META_HEAD_SIZE), meta_size);
+        offset = offset + AML_META_HEAD_SIZE + meta_size;
+        meta_head = (struct aml_meta_head_s *)(&data[offset]);
+
         if (meta_type == UVM_META_DATA_VF_BASE_INFOS) {
             updateDurationUs(buf, meta_size);
         } else if (meta_type == UVM_META_DATA_HDR10P_DATA) {
             updateHDR10plus(buf, meta_size);
         }
-
-        total_size = total_size + AML_META_HEAD_SIZE + meta_size;
-
-        if (total_size <= META_DATA_SIZE) {
-            memset(buffer, 0, size);
-            memcpy(buffer, data + total_size, (size - total_size));
-            meta_head = (struct aml_meta_head_s *)buffer;
-        } else {
-            break;
-        }
     }
 }
+
 void C2VDAComponent::MetaDataUtil::updateHDR10plus(unsigned char *data, int size) {
     std::lock_guard<std::mutex> lock(mMutex);
     if (size > 0) {
