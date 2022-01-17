@@ -83,6 +83,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
     uint32_t bufwidth = 4096;
     uint32_t bufheight = 2304;
     uint32_t margin = default_margin;
+    bool dvUseTwolaryer = false;
     char value[PROPERTY_VALUE_MAX];
 
     mEnableNR = property_get_bool("vendor.c2.nr.enable", false);
@@ -168,6 +169,9 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
                     break;
             }
             C2VDAMDU_LOG(CODEC2_LOG_INFO,"update input Codec profile to %d",codecType);
+            if (inputProfile.profile == C2Config::PROFILE_DV_HE_04) {
+                dvUseTwolaryer = true;
+            }
             mIntfImpl->updateInputCodec(codecType);
         }
     }
@@ -317,6 +321,9 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
             pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
             pAmlDecParam->cfg.canvas_mem_endian = 0;
             pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+            if (dvUseTwolaryer) {
+                pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_TWOLARYER;
+            }
         } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV) {
             pAmlDecParam->cfg.init_height = bufwidth;
             pAmlDecParam->cfg.init_width = bufheight;
