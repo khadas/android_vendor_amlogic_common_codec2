@@ -1178,7 +1178,7 @@ void C2VDAComponent::onDestroy() {
         am_gralloc_destroy_sideband_handle(mTunnelHandle);
     }
     stopDequeueThread();
-
+    reportAbandonedWorks();
     mComponentState = ComponentState::DESTROYED;
 }
 
