@@ -43,14 +43,15 @@ do { \
     } \
 } while(0)
 
-static void propGetInt(const char* str, unsigned int* def) {
-    char value[PROPERTY_VALUE_MAX];
-    if (property_get(str, value, NULL) > 0) {
-        *def = atoi(value);
-        ALOGI("%s set = %d\n", str, *def);
-    } else {
-        ALOGI("%s is not set used def = %d\n", str, *def);
-    }
-}
+#define propGetInt(str,def) \
+do { \
+    char value[PROPERTY_VALUE_MAX]; \
+    if (property_get(str, value, NULL) > 0) { \
+        *def = atoi(value); \
+        ALOGI("%s set = %d\n", str, *def); \
+    } else { \
+        ALOGI("%s is not set used def = %d\n", str, *def); \
+    } \
+} while(0)
 
 #endif

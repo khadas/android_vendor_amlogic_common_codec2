@@ -1,5 +1,5 @@
 #define LOG_NDEBUG 0
-#define LOG_TAG "C2VDAComponentMetaDataUtil"
+#define LOG_TAG "C2VDAMetaDataUtil"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +7,7 @@
 #include <Codec2Mapper.h>
 #include <cutils/properties.h>
 
-#include <C2VDAComponentMetaDataUtil.h>
+#include <C2VDAMetaDataUtil.h>
 #include <VideoDecodeAcceleratorAdaptor.h>
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <am_gralloc_ext.h>

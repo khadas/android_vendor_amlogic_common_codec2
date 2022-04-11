@@ -5,7 +5,6 @@
 #ifndef ANDROID_C2_VDA_COMPONENT_H
 #define ANDROID_C2_VDA_COMPONENT_H
 
-//#include <C2VDACommon.h>
 #include <VideoDecodeAcceleratorAdaptor.h>
 
 #include <rect.h>
@@ -41,6 +40,7 @@
 #include <VideoTunnelRendererWraper.h>
 #include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
+#include <C2VDABlockPoolUtil.h>
 
 namespace android {
 
@@ -362,7 +362,7 @@ private:
     void onStopDone();
     void onOutputFormatChanged(std::unique_ptr<VideoFormat> format);
     void onVisibleRectChanged(const media::Rect& cropRect);
-    void onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId);
+    void onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId);
     void onReportError(c2_status_t error);
 
     // Send input buffer to accelerator with specified bitstream id.
@@ -375,7 +375,7 @@ private:
     // Helper function to get the specified GraphicBlockInfo object by its id.
     GraphicBlockInfo* getGraphicBlockById(int32_t blockId);
     // Helper function to get the specified GraphicBlockInfo object by its pool id.
-    GraphicBlockInfo* getGraphicBlockByPoolId(uint32_t poolId);
+    GraphicBlockInfo* getGraphicBlockByBlockId(uint32_t poolId,uint32_t blockId);
     GraphicBlockInfo* getGraphicBlockByFd(int32_t fd);
     std::deque<C2VDAComponent::OutputBufferInfo>::iterator findPendingBuffersToWorkByTime(int64_t timeus);
     bool erasePendingBuffersToWorkByTime(int64_t timeus);
@@ -390,10 +390,10 @@ private:
     C2Work* getPendingWorkByMediaTime(int64_t mediaTime);
     // Try to apply the output format change.
     void tryChangeOutputFormat();
-    // Allocate output buffers (graphic blocks) from block allocator.
-    c2_status_t allocateBuffersFromBlockAllocator(const media::Size& size, uint32_t pixelFormat);
+    // Allocate output buffers (graphic blocks) from block pool.
+    c2_status_t allocateBuffersFromBlockPool(const media::Size& size, uint32_t pixelFormat);
     // Append allocated buffer (graphic block) to |mGraphicBlocks|.
-    void appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId, bool bind);
+    void appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId, bool bind);
     // Append allocated buffer (graphic block) to |mGraphicBlocks| in secure mode.
     void appendSecureOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId);
     // Parse coded color aspects from bitstream and configs parameter if applicable.
@@ -444,13 +444,11 @@ private:
 
     // Start dequeue thread, return true on success. If |resetBuffersInClient|, reset the counter
     // |mBuffersInClient| on start.
-    bool startDequeueThread(const media::Size& size, uint32_t pixelFormat,
-                            std::shared_ptr<C2BlockPool> blockPool, bool resetBuffersInClient);
+    bool startDequeueThread(const media::Size& size, uint32_t pixelFormat, bool resetBuffersInClient);
     // Stop dequeue thread.
     void stopDequeueThread();
     // The rountine task running on dequeue thread.
-    void dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat,
-                           std::shared_ptr<C2BlockPool> blockPool);
+    void dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat);
     //convert codec profiel to mime
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
@@ -477,6 +475,9 @@ private:
     ::base::Thread mDequeueThread;
     // The stop signal for dequeue loop which should be atomic (toggled by main thread).
     std::atomic<bool> mDequeueLoopStop;
+    // The run signal for dequeue loop which should be atomic (toggled by main thread).
+    std::atomic<bool> mDequeueLoopRunning;
+
     // The count of buffers owned by client which should be atomic.
     std::atomic<uint32_t> mBuffersInClient;
 
@@ -573,6 +574,8 @@ private:
     VideoDecWraper* mVideoDecWraper;
     VideoTunnelRendererWraper* mVideoTunnelRenderer;
     std::shared_ptr<MetaDataUtil> mMetaDataUtil;
+    std::shared_ptr<C2VDABlockPoolUtil> mBlockPoolUtil;
+
     int32_t mTunnelId;
     int32_t mSyncId;
     native_handle_t* mTunnelHandle;

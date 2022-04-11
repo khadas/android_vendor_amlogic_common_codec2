@@ -1,5 +1,5 @@
-#ifndef _C2_VDA_COMPONENT_METADATA_UTIL_H_
-#define _C2_VDA_COMPONENT_METADATA_UTIL_H_
+#ifndef _C2_VDA__METADATA_UTIL_H_
+#define _C2_VDA__METADATA_UTIL_H_
 
 #include <mutex>
 
