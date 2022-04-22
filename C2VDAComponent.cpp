@@ -724,6 +724,16 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                 .withSetter(HdrStaticInfoSetter)
                 .build());
     }
+    //base setting
+    addParameter(
+            DefineParam(mApiFeatures, C2_PARAMKEY_API_FEATURES)
+            .withConstValue(new C2ApiFeaturesSetting(C2Config::api_feature_t(
+                    API_REFLECTION |
+                    API_VALUES |
+                    API_CURRENT_VALUES |
+                    API_DEPENDENCY |
+                    API_SAME_INPUT_BUFFER)))
+            .build());
 
     //frame rate
     addParameter(

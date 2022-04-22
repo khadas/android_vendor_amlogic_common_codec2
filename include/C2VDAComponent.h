@@ -106,8 +106,11 @@ public:
         //declare some unstrict Setter
         DECLARE_C2_DEFAUTL_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam);
 
+        std::shared_ptr<C2ApiLevelSetting> mApiLevel;
+        std::shared_ptr<C2ApiFeaturesSetting> mApiFeatures;
+
         // The kind of the component; should be C2Component::KIND_ENCODER.
-          std::shared_ptr<C2ComponentKindSetting> mKind;
+        std::shared_ptr<C2ComponentKindSetting> mKind;
         // The input format kind; should be C2FormatCompressed.
         std::shared_ptr<C2StreamBufferTypeSetting::input> mInputFormat;
         // The output format kind; should be C2FormatVideo.
