@@ -242,7 +242,7 @@ void VideoDecWraper::importBufferForPicture(
 #else
         VDEC_LOGD("outbuf color format %s", isNV21? "NV21" : "NV12");
         mAmVideoDec->createOutputBuffer(pictureBufferId,
-                dup(fd), isNV21, metafd >= 0 ? metafd : -1);
+                dup(fd), isNV21, metafd >= 0 ? dup(metafd) : -1);
 #endif
     }
 }

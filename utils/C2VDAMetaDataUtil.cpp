@@ -57,6 +57,7 @@ C2VDAComponent::MetaDataUtil::MetaDataUtil(C2VDAComponent* comp, bool secure):
     mOutputWorkCount(0),
     mLastbitStreamId(0),
     mOutputPtsValidCount(0),
+    mMarginBufferNum(0),
     mSignalType(0),
     mEnableAdaptivePlayback(false) {
     mIntfImpl = mComp->GetIntfImpl();
@@ -257,6 +258,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
     }
 #endif
 
+    mMarginBufferNum = margin;
     C2VDAMDU_LOG(CODEC2_LOG_INFO, "doubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
     if (mUseSurfaceTexture || mNoSurface) {
         mEnableNR = false;

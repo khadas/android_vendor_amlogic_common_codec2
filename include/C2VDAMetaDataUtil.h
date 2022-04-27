@@ -71,6 +71,11 @@ public:
 
         return false;
     }
+
+    int32_t getMarginBufferNum() {
+        return mMarginBufferNum;
+    }
+
     /* check and adjust out pts */
     int64_t checkAndAdjustOutPts(C2Work* work, int32_t flags);
     //int check_color_aspects();
@@ -138,6 +143,8 @@ private:
     uint64_t mOutputWorkCount;
     int32_t  mLastbitStreamId;
     int32_t  mOutputPtsValidCount;
+
+    int32_t mMarginBufferNum;
 
     /* for hdr10 plus */
     std::queue<std::string> mHDR10PlusData;

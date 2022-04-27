@@ -10,10 +10,12 @@
 #include <logdebug.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 
 namespace android {
 
-const size_t kDefaultFetchGraphicBlockDelay = 9; // kDefaultSmoothnessFactor + 2
+const size_t kDefaultFetchGraphicBlockDelay = 9; // Default smoothing margin for dequeue block.
+                                                 // kDefaultSmoothnessFactor + 2
 
 int64_t GetNowUs() {
     struct timespec t;
@@ -93,6 +95,11 @@ public:
         return usage;
     }
 
+    void resetPool(std::shared_ptr<C2BlockPool> blockpool) {
+        mBase.reset();
+        mBase = blockpool;
+    }
+
 private:
     std::shared_ptr<C2BlockPool> mBase;
 };
@@ -109,6 +116,15 @@ C2VDABlockPoolUtil::C2VDABlockPoolUtil(bool useSurface, std::shared_ptr<C2BlockP
 C2VDABlockPoolUtil::~C2VDABlockPoolUtil() {
     ALOGV("%s", __func__);
     mGraphicBufferId = 0;
+
+    auto iter = mRawGraphicBlockInfo.begin();
+    for (;iter != mRawGraphicBlockInfo.end(); iter++) {
+        ALOGE("%s graphicblock use count:%ld", __func__, iter->second.mGraphicBlock.use_count());
+        close(iter->second.mFd);
+        close(iter->second.mDupFd);
+        iter->second.mGraphicBlock.reset();
+    }
+
     mRawGraphicBlockInfo.clear();
     mBlockingPool.reset();
 }
@@ -124,43 +140,44 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
     std::lock_guard<std::mutex> lock(mMutex);
     std::shared_ptr<C2GraphicBlock> fetchBlock;
     c2_status_t err = C2_TIMED_OUT;
-    while (1) {
-        if (mNextFetchTimeUs != 0) {
-            int delayUs = GetNowUs() - mNextFetchTimeUs;
-            if (delayUs > 0) {
-                ::usleep(delayUs);
-            }
-            mNextFetchTimeUs = 0;
+    if (mNextFetchTimeUs != 0) {
+        int delayUs = GetNowUs() - mNextFetchTimeUs;
+        if (delayUs > 0) {
+            ::usleep(delayUs);
         }
-
-        err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock);
-        if (err == C2_OK) {
-            ALOG_ASSERT(fetchBlock != nullptr);
-            uint64_t inode;
-            int fd = fetchBlock->handle()->data[0];
-            getINodeFromFd(fd, &inode);
-            auto iter = mRawGraphicBlockInfo.find(inode);
-            if (iter != mRawGraphicBlockInfo.end()) {
-                struct BlockBufferInfo info = mRawGraphicBlockInfo[inode];
-                ALOGV("Fetch used block success, block inode: %llu fd:%d --> %d id:%d", inode, info.mFd, fd, info.mBlockId);
-                break;
-            }
-            else if (mRawGraphicBlockInfo.size() < mMaxDequeuedBufferNum) {
-                appendOutputGraphicBlock(fetchBlock, inode, fd);
-                break;
-            }
-        }
-        else if (err == C2_TIMED_OUT) {
-            ALOGE("Fetch block time out and try again...");
-        }
-        else {
-            ALOGE("No buffer could be recycled now, wait for retry err = %d", err);
-        }
-
-        fetchBlock.reset();
-        mNextFetchTimeUs = GetNowUs() + kFetchRetryDelayUs;
+        mNextFetchTimeUs = 0;
     }
 
+    err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock);
+    if (err == C2_OK) {
+        ALOG_ASSERT(fetchBlock != nullptr);
+        uint64_t inode;
+        int fd = fetchBlock->handle()->data[0];
+        getINodeFromFd(fd, &inode);
+        auto iter = mRawGraphicBlockInfo.find(inode);
+        if (iter != mRawGraphicBlockInfo.end()) {
+            struct BlockBufferInfo info = mRawGraphicBlockInfo[inode];
+            ALOGV("Fetch used block success, block inode: %llu fd:%d --> %d id:%d", inode, info.mFd, fd, info.mBlockId);
+        }
+        else if (mRawGraphicBlockInfo.size() < mMaxDequeuedBufferNum) {
+            appendOutputGraphicBlock(fetchBlock, inode, fd);
+        }
+        else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
+            fetchBlock.reset();
+            return C2_BLOCKING;
+        }
+    }
+    else if (err == C2_TIMED_OUT) {
+        ALOGE("Fetch block time out and try again...");
+        return err;
+    }
+    else {
+        ALOGE("No buffer could be recycled now, err = %d", err);
+        return err;
+    }
+
+    mNextFetchTimeUs = 0;
+    ALOG_ASSERT(fetchBlock != nullptr);
     *block = std::move(fetchBlock);
     return C2_OK;
 }
@@ -260,6 +277,11 @@ void C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock
         // pool buffer
     }
     ALOGI("Fetch new block and append, block info: %llu fd:%d id:%d", inode, info.mFd, info.mBlockId);
+}
+
+C2Allocator::id_t C2VDABlockPoolUtil::getAllocatorId() {
+    ALOG_ASSERT(mBlockingPool != nullptr);
+    return mBlockingPool->getAllocatorId();
 }
 
 }

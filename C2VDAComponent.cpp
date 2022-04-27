@@ -153,15 +153,19 @@ const C2String kDVAVSecureDecoderName = "c2.amlogic.dolby-vision.dvav.decoder.se
 const C2String kDVAV1SecureDecoderName = "c2.amlogic.dolby-vision.dav1.decoder.secure";
 
 
-const uint32_t kDpbOutputBufferExtraCount = 0;  // Use the same number as ACodec.
-const int kDequeueRetryDelayUs = 10000;  // Wait time of dequeue buffer retry in microseconds.
-const int32_t kAllocateBufferMaxRetries = 10;  // Max retry time for fetchGraphicBlock timeout.
-constexpr uint32_t kDefaultOutputDelay = 3;
-constexpr uint32_t kDefaultOutputDelayTunnel = 10;
-constexpr uint32_t kMaxOutputDelay = 32;
-constexpr uint32_t kMaxInputDelay = 4;
-constexpr uint32_t kTunnelModeMediaTimeQueueMax = 16;
-constexpr uint32_t kDefaultSmoothnessFactor = 7; // kRenderingDepth + kSmoothnessFactor
+//No-Tunnel Mode
+const uint32_t kDpbOutputBufferExtraCount = 0;          // Use the same number as ACodec.
+const int kDequeueRetryDelayUs = 10000;                 // Wait time of dequeue buffer retry in microseconds.
+const int32_t kAllocateBufferMaxRetries = 10;           // Max retry time for fetchGraphicBlock timeout.
+constexpr uint32_t kDefaultOutputDelay = 3;             // The output buffer margin during initialization.
+                                                        // Will be updated during playback.
+constexpr uint32_t kMaxOutputDelay = 32;                // Max ouput delay.
+constexpr uint32_t kMaxInputDelay = 4;                  // Max input delay for no-secure.
+constexpr uint32_t kDefaultSmoothnessFactor = 7;        // Default smoothing margin.(kRenderingDepth + kSmoothnessFactor)
+
+//Tunnel Mode
+constexpr uint32_t kDefaultOutputDelayTunnel = 10;      // Default output delay on tunnel mode.
+constexpr uint32_t kTunnelModeMediaTimeQueueMax = 16;   // Max queue size for tunnel mode render time.
 
 }  // namespace
 
@@ -2838,8 +2842,8 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
 
     ALOGV("usage %llx", usage.expected);
-    int32_t dequeue_buffer_num = kDefaultOutputDelay + kDefaultSmoothnessFactor;
-    ALOGV("Minimum undequeued buffer count = %zu buffer count = %d first_bufferNum = %d", minBuffersForDisplay, bufferCount, dequeue_buffer_num);
+    int32_t dequeue_buffer_num = bufferCount - mMetaDataUtil->getMarginBufferNum() + 1;
+    ALOGV("Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d", minBuffersForDisplay, bufferCount, dequeue_buffer_num);
     for (size_t i = 0; i < dequeue_buffer_num; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
 
@@ -3664,6 +3668,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
     ALOGV("%s usage %llx report out put work num:%lld", __func__, usage.expected, mOutputWorkCount);
     while (!mDequeueLoopStop.load()) {
+
         if (mBuffersInClient.load() == 0) {
             ::usleep(kDequeueRetryDelayUs);  // wait for retry
             //continue;
@@ -3704,24 +3709,33 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             continue;  // wait for retry
         }
         if (err == C2_OK) {
-            ALOGV("dequeueThreadLoop  getblock poolid:%" PRId64 " blockid: %d,w:%d h:%d, count:%ld", poolId, blockId, block->width(), block->height(), block.use_count());
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+            bool block_used = false;
+            int width = block->width();
+            int height = block->height();
+            int use_count = block.use_count();
             if (info == nullptr) { //fetch unused block
                 appendOutputBuffer(std::move(block), poolId, blockId, true);
                 info = getGraphicBlockByBlockId(poolId, blockId);
                 sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
-                ALOGE("dequeueThreadLoop New Block poolId:%llu blockId:%d", poolId, blockId);
             } else { //fetch used block
-                ALOGE("dequeueThreadLoop Old Block poolId:%llu BlockId:%d", poolId, blockId);
                 mTaskRunner->PostTask(FROM_HERE,
                                   ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
                                                ::base::Unretained(this), std::move(block), poolId, blockId));
                 mBuffersInClient--;
             }
+            ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d)",
+                    (block_used ? "used" : "unused"), blockId, width, height, use_count);
+        } else if (err == C2_BLOCKING) {
+            ALOGV("fetch block retry.");
+            ::usleep(1);
+            continue;  // wait for retry
         } else {
             ALOGE("dequeueThreadLoop got error: %d", err);
             //break;
         }
+
+        ::usleep(5000);
     }
     ALOGV("dequeueThreadLoop terminates");
 }

@@ -84,6 +84,11 @@ public:
     */
     c2_status_t getBlockFd(std::shared_ptr<C2GraphicBlock> block, int *fd);
 
+    /**
+     * Get the pool allocator id.
+     */
+    C2Allocator::id_t getAllocatorId();
+
 
 private:
 
