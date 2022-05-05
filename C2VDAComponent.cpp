@@ -161,6 +161,7 @@ constexpr uint32_t kDefaultOutputDelay = 3;             // The output buffer mar
                                                         // Will be updated during playback.
 constexpr uint32_t kMaxOutputDelay = 32;                // Max ouput delay.
 constexpr uint32_t kMaxInputDelay = 4;                  // Max input delay for no-secure.
+constexpr uint32_t kMaxInputDelaySecure = 4;            // Max input delay for secure.
 constexpr uint32_t kDefaultSmoothnessFactor = 7;        // Default smoothing margin.(kRenderingDepth + kSmoothnessFactor)
 
 //Tunnel Mode
@@ -764,21 +765,17 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
             .withSetter(Setter<decltype(*mActualOutputDelay)>::StrictValueWithNoDeps)
             .build());
 
+    // input delay
+    int32_t inputDelayNum = 0;
+    int32_t inputDelayMax = 0;
     if (mSecureMode) {
-        //in delay
-        int32_t secureInputDelayNum =
-            property_get_int32("vendor.codec2.secure.input.delay.num", 4);
-        if (secureInputDelayNum > kMaxInputDelay) {
-            ALOGE("%s:%d exceed max input delay num %d %d",
-                __func__, __LINE__, secureInputDelayNum, kMaxInputDelay);
-            secureInputDelayNum = kMaxInputDelay;
+        inputDelayNum =
+            property_get_int32("vendor.media.c2.vdec.input.delay_num_secure", 4);
+        if (inputDelayNum > kMaxInputDelaySecure) {
+            ALOGE("%s:%d exceed max secure input delay num %d %d",
+                __func__, __LINE__, inputDelayNum, kMaxInputDelaySecure);
+            inputDelayNum = kMaxInputDelaySecure;
         }
-        addParameter(
-                DefineParam(mActualInputDelay, C2_PARAMKEY_INPUT_DELAY)
-                .withDefault(new C2PortActualDelayTuning::input(secureInputDelayNum))
-                .withFields({C2F(mActualInputDelay, value).inRange(0, kMaxInputDelay)})
-                .withSetter(Setter<decltype(*mActualInputDelay)>::StrictValueWithNoDeps)
-                .build());
         //secure buffer mode now we just support secure buffer mode
         addParameter(
                 DefineParam(mSecureBufferMode, C2_PARAMKEY_SECURE_MODE)
@@ -786,7 +783,24 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
                 .withFields({C2F(mSecureBufferMode, value).inRange(C2Config::SM_UNPROTECTED, C2Config::SM_READ_PROTECTED)})
                 .withSetter(Setter<decltype(*mSecureBufferMode)>::StrictValueWithNoDeps)
                 .build());
+        inputDelayMax = kMaxInputDelaySecure;
+    } else {
+        inputDelayNum =
+            property_get_int32("vendor.media.c2.vdec.input.delay_num", 4);
+        if (inputDelayNum > kMaxInputDelay) {
+            ALOGE("%s:%d exceed max no-secure input delay num %d %d",
+                __func__, __LINE__, inputDelayNum, kMaxInputDelay);
+            inputDelayNum = kMaxInputDelay;
+        }
+        inputDelayMax = kMaxInputDelay;
     }
+
+    addParameter(
+        DefineParam(mActualInputDelay, C2_PARAMKEY_INPUT_DELAY)
+        .withDefault(new C2PortActualDelayTuning::input(inputDelayNum))
+        .withFields({C2F(mActualInputDelay, value).inRange(0, inputDelayMax)})
+        .withSetter(Setter<decltype(*mActualInputDelay)>::StrictValueWithNoDeps)
+        .build());
 
     //tunnel mode
     mTunnelModeOutput =
