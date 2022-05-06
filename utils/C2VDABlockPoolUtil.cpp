@@ -164,15 +164,18 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
         }
         else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
             fetchBlock.reset();
+            mNextFetchTimeUs = GetNowUs();
             return C2_BLOCKING;
         }
     }
     else if (err == C2_TIMED_OUT) {
         ALOGE("Fetch block time out and try again...");
+        mNextFetchTimeUs = GetNowUs();
         return err;
     }
     else {
         ALOGE("No buffer could be recycled now, err = %d", err);
+        mNextFetchTimeUs = GetNowUs();
         return err;
     }
 
@@ -194,9 +197,20 @@ c2_status_t C2VDABlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
 }
 
 c2_status_t C2VDABlockPoolUtil::resetGraphicBlock(int32_t blockId) {
-    // TODO
-    ALOGI("%s reset block success", __func__);
-    return C2_OK;
+    c2_status_t ret = C2_BAD_VALUE;
+    auto info = mRawGraphicBlockInfo.begin();
+    for (;info != mRawGraphicBlockInfo.end(); info++) {
+        if (info->second.mBlockId == blockId) {
+            close(info->second.mFd);
+            close(info->second.mDupFd);
+            info->second.mGraphicBlock.reset();
+            mRawGraphicBlockInfo.erase(info);
+            ret = C2_OK;
+            break;
+        }
+    }
+    ALOGV("%s reset block blockId:%d ret:%d", __func__, blockId,ret);
+    return ret;
 }
 
 uint64_t C2VDABlockPoolUtil::getConsumerUsage() {
@@ -282,6 +296,12 @@ void C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock
 C2Allocator::id_t C2VDABlockPoolUtil::getAllocatorId() {
     ALOG_ASSERT(mBlockingPool != nullptr);
     return mBlockingPool->getAllocatorId();
+}
+
+bool C2VDABlockPoolUtil::isBufferQueue() {
+    bool ret = C2PlatformAllocatorStore::BUFFERQUEUE == getAllocatorId();
+    ALOGV("%s ret:%d", __func__, ret);
+    return ret;
 }
 
 }

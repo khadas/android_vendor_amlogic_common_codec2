@@ -1539,7 +1539,7 @@ void C2VDAComponent::onInputBufferDone(int32_t bitstreamId) {
 void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block,uint32_t poolId,
                                             uint32_t blockId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onOutputBufferReturned: pool id=%u", blockId);
+    ALOGV("onOutputBufferReturned: block id:%u", blockId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if ((block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
@@ -1705,7 +1705,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     }
 
     // The first two frames are CSD data.
-    if (mOutputWorkCount >= 1) {
+    if (mOutputWorkCount == 2) {
         mDequeueLoopRunning.store(true);
         ALOGD("Enable queuethread Running...");
     }
@@ -2284,8 +2284,6 @@ void C2VDAComponent::onStopDone() {
     mBufferFirstAllocated = false;
 
     mBlockPoolUtil.reset();
-    mBlockPool.reset();
-
     mSurfaceUsageGeted = false;
 
     mStopDoneEvent->Signal();
@@ -2536,7 +2534,6 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
         if (mVideoDecWraper) {
             mVideoDecWraper->assignPictureBuffers(bufferCount);
         }
-        DCHECK(mBlockPool->getAllocatorId() != C2PlatformAllocatorStore::BUFFERQUEUE);
         for (auto& info : mGraphicBlocks) {
             info.mFdHaveSet = false;
             if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
@@ -2548,16 +2545,14 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
     }
 
     stopDequeueThread();
-    if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
+    if (mBlockPoolUtil->isBufferQueue()) {
         if (mMetaDataUtil->getNeedReallocBuffer()) {
             for (auto& info : mGraphicBlocks) {
                 info.mFdHaveSet = false;
                 info.mBind = false;
                 info.mGraphicBlock.reset();
-                if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
-                    mBlockPoolUtil->resetGraphicBlock(info.mBlockId);
-                    ALOGI("change reset block id:%d, count:%ld", info.mPoolId, info.mGraphicBlock.use_count());
-                }
+                mBlockPoolUtil->resetGraphicBlock(info.mBlockId);
+                ALOGI("change reset block id:%d, count:%ld", info.mBlockId, info.mGraphicBlock.use_count());
                 if (mPendingGraphicBlockBuffer) {
                     ALOGV("change reset pending block id: %d, count:%ld",
                         mPendingGraphicBlockBufferId, mPendingGraphicBlockBuffer.use_count());
@@ -2567,12 +2562,8 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
                 }
             }
             size_t inc_buf_num = mOutputFormat.mMinNumBuffers - mLastOutputFormat.mMinNumBuffers;
-            if (inc_buf_num > 0) {
-                ALOGV("resolution change increase buf num is %d", inc_buf_num);
-                for (int i = 0; i < inc_buf_num; i++)
-                    appendOutputBuffer(NULL, 0, 0, false);
-            }
             size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
+            ALOGV("increase buffer num:%d graphic blocks size: %d", inc_buf_num, mGraphicBlocks.size());
             auto err = mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount));
             if (err != C2_OK) {
                 ALOGE("failed to request new buffer set to block pool: %d", err);
@@ -2684,7 +2675,7 @@ c2_status_t C2VDAComponent::reallocateBuffersForUsageChanged(const media::Size& 
     std::shared_ptr<C2BlockPool> blockPool;
     int64_t poolId = -1;
     c2_status_t err;
-    if (!mBlockPool) {
+    if (!mBlockPoolUtil) {
         poolId = mIntfImpl->getBlockPoolId();
         err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
         if (err != C2_OK) {
@@ -2692,8 +2683,6 @@ c2_status_t C2VDAComponent::reallocateBuffersForUsageChanged(const media::Size& 
             reportError(err);
             return err;
         }
-    } else {
-        blockPool = mBlockPool;
     }
 
     bool useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
@@ -2820,7 +2809,7 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
     std::shared_ptr<C2BlockPool> blockPool;
     C2BlockPool::local_id_t poolId = -1;
     c2_status_t err;
-    if (!mBlockPool) {
+    if (!mBlockPoolUtil) {
         poolId = mIntfImpl->getBlockPoolId();
         err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
         if (err != C2_OK) {
@@ -2828,8 +2817,6 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             reportError(err);
             return err;
         }
-    } else {
-        blockPool = mBlockPool;
     }
 
     ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
@@ -2920,8 +2907,6 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
     }
 
     mOutputFormat.mMinNumBuffers = bufferCount;
-    if (!mBlockPool)
-        mBlockPool = std::move(blockPool);
     if (isNonTunnelMode() && !startDequeueThread(size, pixelFormat,
                             true /* resetBuffersInClient */)) {
 
@@ -3110,7 +3095,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
     if (mSurfaceUsageGeted)
         return;
 
-    if (!mBlockPool) {
+    if (!mBlockPoolUtil) {
         std::shared_ptr<C2BlockPool> blockPool;
         auto poolId = mIntfImpl->getBlockPoolId();
         auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
@@ -3122,22 +3107,18 @@ void C2VDAComponent::checkVideoDecReconfig() {
                 reportError(err);
             }
         }
-        mBlockPool = std::move(blockPool);
-        if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
+        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (mUseBufferQueue, blockPool);
+        if (mBlockPoolUtil->isBufferQueue()) {
             ALOGI("Bufferqueue-backed block pool is used. blockPool->getAllocatorId() %d, C2PlatformAllocatorStore::BUFFERQUEUE %d",
                   blockPool->getAllocatorId(), C2PlatformAllocatorStore::BUFFERQUEUE);
         } else {
             ALOGI("Bufferpool-backed block pool is used.");
         }
     }
-    if (mBlockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
-        bool usersurfacetexture = false; //property_get_bool("vendor.media.codec2.surfacetexture", true);
+    if (mBlockPoolUtil->isBufferQueue()) {
+        bool usersurfacetexture = false;
         uint64_t usage = 0;
-
-        std::shared_ptr<C2BufferQueueBlockPool> bqPool =
-            std::static_pointer_cast<C2BufferQueueBlockPool>(mBlockPool);
-        bqPool->getConsumerUsage(&usage);
-
+        usage = mBlockPoolUtil->getConsumerUsage();
         if (!(usage & GRALLOC_USAGE_HW_COMPOSER)) {
             usersurfacetexture = true;
         }
@@ -3656,7 +3637,11 @@ bool C2VDAComponent::startDequeueThread(const media::Size& size, uint32_t pixelF
         return false;
     }
     mDequeueLoopStop.store(false);
-    mDequeueLoopRunning.store(false);
+
+    if (!mBufferFirstAllocated) {
+        mDequeueLoopRunning.store(false);
+    }
+
     if (resetBuffersInClient) {
         mBuffersInClient.store(0u);
     }
@@ -3680,7 +3665,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
-    ALOGV("%s usage %llx report out put work num:%lld", __func__, usage.expected, mOutputWorkCount);
+    ALOGV("%s usage %llx size(%d*%d)report out put work num:%lld", __func__, usage.expected, size.width(), size.height(),mOutputWorkCount);
     while (!mDequeueLoopStop.load()) {
 
         if (mBuffersInClient.load() == 0) {
@@ -3737,6 +3722,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                                   ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
                                                ::base::Unretained(this), std::move(block), poolId, blockId));
                 mBuffersInClient--;
+                block_used = true;
             }
             ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d)",
                     (block_used ? "used" : "unused"), blockId, width, height, use_count);

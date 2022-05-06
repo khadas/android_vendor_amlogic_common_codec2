@@ -89,6 +89,10 @@ public:
      */
     C2Allocator::id_t getAllocatorId();
 
+    /**
+    * is buffer queue pool.
+    */
+    bool isBufferQueue();
 
 private:
 

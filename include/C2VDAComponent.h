@@ -582,7 +582,6 @@ private:
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;
     bool mPictureSizeChanged;
-    std::shared_ptr<C2BlockPool> mBlockPool;
     c2_resch_stat mResChStat;
     bool mSurfaceUsageGeted;
     bool mVDAComponentStopDone;
