@@ -1,3 +1,16 @@
 Major_V=1
-Minor_V=0
-BaseCommitId=44e80e88375b6a0672bfdc8b715bea8c6c65896b
+Minor_V=1
+BaseCommitId=ced386f31002a72cea43db1493b0c6f106b0387b
+
+#history version
+#V1.0.92-g315baa5 ReleaseNote
+#Release_ChangeId_V1_1= I07816ddb74e11b5d29371e3c1070baa9a62f6560
+#CommitId: ced386f31002a72cea43db1493b0c6f106b0387b
+#Feature develop detail information:
+#   support codec2 on android T.
+#   support resolution change.
+#   add base codec2 apifeature support.
+#Fixed BUG detail information:
+#   add input buffer delay for clear stream.
+#   close fd when playback exit.
+#   fix codec2 build error on android T.
