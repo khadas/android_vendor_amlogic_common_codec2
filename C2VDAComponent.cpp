@@ -2693,17 +2693,16 @@ c2_status_t C2VDAComponent::reallocateBuffersForUsageChanged(const media::Size& 
     }
 
     size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-
     mGraphicBlocks.clear();
-    ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
+
+    if (useBufferQueue) {
+        mUseBufferQueue = true;
+        ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, blockpooolid:%d",
+                poolId, blockPool->getAllocatorId());
+    }
 
     size_t minBuffersForDisplay = 0;
-    mUseBufferQueue = true;
-    ALOGI("Bufferqueue-backed block pool is used. ->() %d, C2PlatformAllocatorStore::BUFFERQUEUE %d",
-        blockPool->getAllocatorId(), C2PlatformAllocatorStore::BUFFERQUEUE);
     // Set requested buffer count to C2BlockPool.
-
-
     err = mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount));
     if (err != C2_OK) {
         ALOGE("failed to request new buffer set to block pool: %d", err);
@@ -2819,19 +2818,19 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
         }
     }
 
-    ALOGI("Using C2BlockPool ID = %" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
+    ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
     bool useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
     if (isTunnelMode()) {
         DCHECK(useBufferQueue == false);
     }
-    size_t minBuffersForDisplay = 0;
+
+    mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (useBufferQueue, blockPool);
+
     int64_t surfaceUsage = 0;
+    size_t minBuffersForDisplay = 0;
     if (useBufferQueue) {
         mUseBufferQueue = true;
-        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (mUseBufferQueue, blockPool);
         surfaceUsage = mBlockPoolUtil->getConsumerUsage();
-    } else {
-        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (mUseBufferQueue, blockPool);
     }
 
     mBlockPoolUtil->requestNewBufferSet(bufferCount);
@@ -3693,10 +3692,9 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
         std::shared_ptr<C2GraphicBlock> block;
         if (mMetaDataUtil != NULL && mBlockPoolUtil != NULL) {
             mBlockPoolUtil->getPoolId(&poolId);
-            mBlockPoolUtil->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
+            err = mBlockPoolUtil->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
                                             mMetaDataUtil->getOutAlignedSize(size.height()),
                                             pixelFormat, usage, &block);
-            err = mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
             ALOGI("dequeueThreadLoop fetchOutputBlock %d state:%d", __LINE__, err);
         }
         if (err == C2_TIMED_OUT) {
@@ -3708,6 +3706,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             continue;  // wait for retry
         }
         if (err == C2_OK) {
+            mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
             bool block_used = false;
             int width = block->width();

@@ -12,6 +12,9 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <bufferpool/BufferPoolTypes.h>
+
+using ::android::hardware::media::bufferpool::BufferPoolData;
 namespace android {
 
 const size_t kDefaultFetchGraphicBlockDelay = 9; // Default smoothing margin for dequeue block.
@@ -58,34 +61,22 @@ public:
         uint32_t capacity,
         C2MemoryUsage usage,
         std::shared_ptr<C2LinearBlock> *block) {
-        c2_status_t status;
-        do {
-            status = mBase->fetchLinearBlock(capacity, usage, block);
-        } while (status == C2_BLOCKING);
-        return status;
+        return mBase->fetchLinearBlock(capacity, usage, block);
     }
 
     c2_status_t fetchCircularBlock(
         uint32_t capacity,
         C2MemoryUsage usage,
         std::shared_ptr<C2CircularBlock> *block) {
-        c2_status_t status;
-        do {
-            status = mBase->fetchCircularBlock(capacity, usage, block);
-        } while (status == C2_BLOCKING);
-        return status;
+        return mBase->fetchCircularBlock(capacity, usage, block);
     }
 
     c2_status_t fetchGraphicBlock(
         uint32_t width, uint32_t height, uint32_t format,
         C2MemoryUsage usage,
         std::shared_ptr<C2GraphicBlock> *block) {
-        c2_status_t status;
-        do {
-            status = mBase->fetchGraphicBlock(width, height, format, usage,
-                                              block);
-        } while (status == C2_BLOCKING);
-        return status;
+        return mBase->fetchGraphicBlock(width, height, format, usage,
+                                            block);
     }
 
     uint64_t getConsumerUsage() {
@@ -110,7 +101,7 @@ C2VDABlockPoolUtil::C2VDABlockPoolUtil(bool useSurface, std::shared_ptr<C2BlockP
       mMaxDequeuedBufferNum(0),
       mUseSurface(useSurface) {
 
-    ALOGI("%s blockPool id:%llu", __func__, mBlockingPool->getLocalId());
+    ALOGI("%s blockPool id:%llu use surface:%d", __func__, blockpool->getLocalId(), useSurface);
 }
 
 C2VDABlockPoolUtil::~C2VDABlockPoolUtil() {
@@ -160,7 +151,10 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
             ALOGV("Fetch used block success, block inode: %llu fd:%d --> %d id:%d", inode, info.mFd, fd, info.mBlockId);
         }
         else if (mRawGraphicBlockInfo.size() < mMaxDequeuedBufferNum) {
-            appendOutputGraphicBlock(fetchBlock, inode, fd);
+            c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
+            if (ret != C2_OK) {
+                return ret;
+            }
         }
         else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
             fetchBlock.reset();
@@ -191,7 +185,13 @@ c2_status_t C2VDABlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
         ALOGE("Invalid requested buffer count:%d", bufferCount);
         return C2_BAD_VALUE;
     }
-    mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay;
+    if (mUseSurface) {
+        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay;
+    } else {
+        //TODO
+        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay;
+    }
+
     ALOGV("block pool deque buffer number max:%d", mMaxDequeuedBufferNum);
     return C2_OK;
 }
@@ -274,10 +274,15 @@ c2_status_t C2VDABlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> block
     return C2_OK;
 }
 
-void C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint64_t inode, int fd) {
-    ALOG_ASSERT(block != nullptr);
+c2_status_t C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint64_t inode, int fd) {
+    if (block == nullptr) {
+        ALOGV("%s block is null", __func__);
+        return C2_BAD_VALUE;
+    }
 
     struct BlockBufferInfo info;
+    uint32_t blockId = 0;
+    c2_status_t  err;
     if (mUseSurface) {
         info.mFd = fd;
         info.mDupFd = dup(block->handle()->data[0]);
@@ -285,12 +290,45 @@ void C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock
         info.mGraphicBlock = block;
         mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
         mGraphicBufferId++;
+        err = C2_OK;
     }
     else {
-        // TODO
-        // pool buffer
+        err = getBlockIdFromGraphicBlock(block, &blockId);
+        if (err != C2_OK) {
+            ALOGE("get block id falied, return  errr:%d", err);
+            return err;
+        }
+        info.mFd = fd;
+        info.mDupFd = fd;//dup(block->handle()->data[0]);
+        info.mBlockId = blockId;
+        //info.mGraphicBlock = block;
+        mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
+        err = C2_OK;
     }
     ALOGI("Fetch new block and append, block info: %llu fd:%d id:%d", inode, info.mFd, info.mBlockId);
+    return err;
+}
+
+c2_status_t C2VDABlockPoolUtil::getBlockIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* blockId) {
+    if (block == nullptr) {
+        ALOGE("block is null, get block id failed.");
+        return C2_BAD_VALUE;
+    }
+
+    std::shared_ptr<_C2BlockPoolData> blockPoolData =
+            _C2BlockFactory::GetGraphicBlockPoolData(*block);
+    if (blockPoolData->getType() != _C2BlockPoolData::TYPE_BUFFERPOOL) {
+        ALOGE("Obtained C2GraphicBlock is not bufferpool-backed.");
+        return C2_BAD_VALUE;
+    }
+    std::shared_ptr<BufferPoolData> bpData;
+    if (!_C2BlockFactory::GetBufferPoolData(blockPoolData, &bpData) || !bpData) {
+        ALOGE("BufferPoolData unavailable in block.");
+        return C2_BAD_VALUE;
+    }
+    *blockId = bpData->mId;
+    ALOGV("%s get block id:%d", __func__, *blockId);
+    return C2_OK;
 }
 
 C2Allocator::id_t C2VDABlockPoolUtil::getAllocatorId() {

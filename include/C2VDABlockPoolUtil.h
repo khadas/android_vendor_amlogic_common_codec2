@@ -103,7 +103,15 @@ private:
      * \param inode  the node of block.
      * \param fd the fd of block.
     */
-    void appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block,uint64_t inode, int fd);
+    c2_status_t appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block,uint64_t inode, int fd);
+
+     /**
+     * get block id from graphic block.
+     *
+     * \param block graphic block.
+     * \param blockid the block id.
+    */
+    c2_status_t getBlockIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* blockId);
 
     class BlockingBlockPool;
     std::shared_ptr<BlockingBlockPool> mBlockingPool;
