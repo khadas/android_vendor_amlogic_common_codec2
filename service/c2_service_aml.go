@@ -3,6 +3,8 @@ package c2_service_aml
 import (
     "android/soong/android"
     "android/soong/cc"
+    "fmt"
+    "strconv"
 )
 
 func init() {
@@ -20,14 +22,14 @@ func c2_service_aml_Defaults(ctx android.LoadHookContext) {
         Shared_libs  []string
     }
     p := &propsE{}
-    PlatformVndkVersion := ctx.DeviceConfig().PlatformVndkVersion()
+    PlatformVndkVersion,_ := strconv.Atoi(ctx.DeviceConfig().PlatformVndkVersion());
 	//fmt.Println("PlatformVndkVersion:", PlatformVndkVersion)
 	//fmt.Println("len(PlatformVndkVersion:", len(PlatformVndkVersion)
-    // After Andriod T, PlatformVndkVersion return string like "Tiramisu", not string number like "32"
+    // After Andriod T, libavservices name changed
     // minijail is used to protect against unexpected system calls.
-    if len(PlatformVndkVersion) > 2 {
+    if (PlatformVndkVersion > 31) {
         p.Shared_libs = append(p.Shared_libs, "libavservices_minijail")
-		//fmt.Println("use libavservices_minijail")
+		fmt.Println("use libavservices_minijail")
     } else {
         p.Shared_libs = append(p.Shared_libs, "libavservices_minijail_vendor")
     }
