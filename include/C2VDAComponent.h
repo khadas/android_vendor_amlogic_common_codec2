@@ -456,6 +456,9 @@ private:
     int getDefaultMaxBufNum(InputCodec videotype);
     c2_status_t reallocateBuffersForUsageChanged(const media::Size& size, uint32_t pixelFormat);
 
+    //convert graphicblock state.
+    const char* GraphicBlockState(GraphicBlockInfo::State state);
+
     static std::atomic<int32_t> sConcurrentInstances;
     static std::atomic<int32_t> sConcurrentInstanceSecures;
 

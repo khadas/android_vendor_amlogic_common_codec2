@@ -2221,8 +2221,8 @@ void C2VDAComponent::onFlushDone() {
 
     //after flush we need reuse the buffer which owned by accelerator
     for (auto& info : mGraphicBlocks) {
-        ALOGV("%s index:%d,graphic block status:%d (0:comp 1:vda 2:client), count:%ld", __func__,
-                info.mBlockId, info.mState, info.mGraphicBlock.use_count());
+        ALOGV("%s index:%d,graphic block status:%s count:%ld", __func__,
+                info.mBlockId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
         if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
             ALOGE("sendOutputBufferToAccelerator ");
             sendOutputBufferToAccelerator(&info, false);
@@ -2273,20 +2273,18 @@ void C2VDAComponent::onStopDone() {
         mPendingGraphicBlockBuffer.reset();
     }
 
-    for (auto& info : mGraphicBlocks) {
-        ALOGI("info.mGraphicBlock.reset()");
-        info.mGraphicBlock.reset();
-    }
-
-    ALOGI("mGraphicBlocks.clear();");
-    mGraphicBlocks.clear();
-
     mBufferFirstAllocated = false;
-
-    mBlockPoolUtil.reset();
     mSurfaceUsageGeted = false;
 
     mStopDoneEvent->Signal();
+    for (auto& info : mGraphicBlocks) {
+        ALOGV("GraphicBlock reset, block Info Id:%d Fd:%d poolId:%d State:%s",
+            info.mBlockId, info.mFd, info.mPoolId, GraphicBlockState(info.mState));
+        info.mGraphicBlock.reset();
+    }
+    ALOGI("mGraphicBlocks.clear();");
+    mGraphicBlocks.clear();
+    mBlockPoolUtil.reset();
     mStopDoneEvent = nullptr;
     mComponentState = ComponentState::UNINITIALIZED;
     ALOGI("onStopDone OK");
@@ -2435,9 +2433,9 @@ void C2VDAComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format) 
 
     mCanQueueOutBuffer = false;
     for (auto& info : mGraphicBlocks) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] index:%d,graphic block status:%d (0:comp 1:vda 2:client 3:tunnelrender), count:%ld",
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] index:%d,graphic block status:%s count:%ld",
                 __func__, __LINE__,
-                info.mBlockId, info.mState, info.mGraphicBlock.use_count());
+                info.mBlockId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
         if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR)
             info.mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
     }
@@ -3737,6 +3735,20 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
         ::usleep(5000);
     }
     ALOGV("dequeueThreadLoop terminates");
+}
+
+const char* C2VDAComponent::GraphicBlockState(GraphicBlockInfo::State state) {
+    if (state == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+        return "Component";
+    } else if (state == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+        return "Accelerator";
+    } else if (state == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
+        return "Client";
+    } else if (state == GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER) {
+        return "Tunnelrender";
+    } else {
+        return "Unknown";
+    }
 }
 
 const char* C2VDAComponent::VideoCodecProfileToMime(media::VideoCodecProfile profile) {
