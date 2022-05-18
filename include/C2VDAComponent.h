@@ -41,6 +41,7 @@
 #include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
 #include <C2VDABlockPoolUtil.h>
+#include <C2VDASupport.h>
 
 namespace android {
 
@@ -175,6 +176,32 @@ public:
         C2VDAComponent *mComponent;
         bool mSecureMode;
         friend C2VDAComponent;
+
+        void onAvcDeclareParam();
+        void onHevcDeclareParam();
+        void onVp9DeclareParam();
+        void onAv1DeclareParam();
+        void onDvheDeclareParam();
+        void onDvavDeclareParam();
+        void onDvav1DeclareParam();
+        void onMp2vDeclareParam();
+        void onMp4vDeclareParam();
+        void onMjpgDeclareParam();
+        void onAvsDeclareParam();
+        void onAvs2DeclareParam();
+
+        void onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper);
+        void onApiFeatureDeclareParam();
+        void onFrameRateDeclareParam();
+        void onUnstablePtsDeclareParam();
+        void onOutputDelayDeclareParam();
+        void onInputDelayDeclareParam();
+        void onTunnelDeclareParam();
+        void onTunnelPassthroughDeclareParam();
+        void onBufferSizeDeclareParam(const char* mine);
+        void onBufferPoolDeclareParam();
+        void onColorAspectsDeclareParam();
+        void onLowLatencyDeclareParam();
     };
 
     static std::shared_ptr<C2Component> create(const std::string& name, c2_node_id_t id,

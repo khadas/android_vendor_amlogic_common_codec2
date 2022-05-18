@@ -36,6 +36,7 @@ cc_library_shared {
         "MediaHalWraper/VideoDecWraper.cpp",
         "MediaHalWraper/VideoTunnelRendererWraper.cpp",
         "MediaHalWraper/TunerPassthroughWrapper.cpp",
+        "utils/C2VDAInterfaceImpl.cpp",
         "utils/C2VDAMetaDataUtil.cpp",
         "utils/C2VDABlockPoolUtil.cpp",
        // "C2VEAComponent.cpp",
@@ -45,6 +46,7 @@ cc_library_shared {
     local_include_dirs: [
         "include",
         "MediaHalWraper/include",
+        "componentstore/include",
     ],
 
     shared_libs: [
