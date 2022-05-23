@@ -8,6 +8,7 @@
 #include <cutils/properties.h>
 
 #include <C2VDAMetaDataUtil.h>
+#include <C2VDAInterfaceImpl.h>
 #include <VideoDecodeAcceleratorAdaptor.h>
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <am_gralloc_ext.h>

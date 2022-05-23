@@ -27,6 +27,7 @@
 #include <C2ComponentFactory.h>
 #include <C2PlatformSupport.h>
 #include <Codec2Mapper.h>
+#include <C2VDAInterfaceImpl.h>
 
 #include <base/bind.h>
 #include <base/bind_helpers.h>

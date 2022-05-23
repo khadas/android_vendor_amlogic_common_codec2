@@ -3,6 +3,7 @@
 
 #include <media/stagefright/MediaDefs.h>
 #include <C2VDASupport.h>
+#include <C2VDAInterfaceImpl.h>
 #include <C2VDAComponent.h>
 #include <logdebug.h>
 
