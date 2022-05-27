@@ -5,11 +5,13 @@
 #include <C2Enum.h>
 #include <C2Param.h>
 #include <C2ParamDef.h>
+
 enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexStreamPtsUnstable = C2Param::TYPE_INDEX_VENDOR_START,
-    kParamIndexVendorTunerHal,
+    kParamIndexVendorTunerHal = C2Param::TYPE_INDEX_VENDOR_START + 1,
+    kParamIndexVendorVdecWorkMode = C2Param:: TYPE_INDEX_VENDOR_START + 2,
+    kParamIndexVendorDataSourceType = C2Param:: TYPE_INDEX_VENDOR_START + 3,
 };
-
 
 struct C2StreamPtsUnstableStruct {
     inline C2StreamPtsUnstableStruct() = default;
@@ -43,5 +45,22 @@ constexpr char C2_PARAMKEY_VENDOR_TunerHal[] = "tunerhal";
 constexpr char KEY_VENDOR_FILTERID[] = "vendor.tunerhal.video-filter-id";
 constexpr char KEY_VENDOR_TunerHal_SYNCID[] = "vendor.tunerhal.hw-av-sync-id";
 
+enum VDEC_WORKMODE {
+    VDEC_FRAMEMODE,
+    VDEC_STREAMMODE,
+};
+
+enum DATASOURCE_TYPE {
+    DATASOURCE_DEFAULT,
+    DATASOURCE_DMX,
+};
+
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorVdecWorkMode> C2VdecWorkMode;
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorDataSourceType> C2DataSourceType;
+
+constexpr char C2_PARAMKEY_VENDOR_VDEC_WORK_MODE[] = "vdec.workmode";
+constexpr char KEY_VENDOR_WORK_MODE[] = "vendor.vdec.workmode.value";
+constexpr char C2_PARAMKEY_VENDOR_DATASOURCE_TYPE[] = "datasource.type";
+constexpr char KEY_VENDOR_DATASOURCE_TYPE[] = "vendor.datasource.type.value";
 
 #endif//C2_VENDOR_CONFIG_H_

@@ -161,7 +161,8 @@ c2_status_t C2VDAComponent::IntfImpl::config(
     for (C2Param* const param : params) {
         switch (param->coreIndex().coreIndex()) {
             case C2PortTunneledModeTuning::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config", C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config",
+                        C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
                 if (mComponent) {
                     mComponent->onConfigureTunnelMode();
                     // change to bufferpool
@@ -169,24 +170,26 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                     mActualOutputDelay->value = kDefaultOutputDelayTunnel;
                 }
                 break;
-
-                case C2VendorTunerHalParam::CORE_INDEX:
-                    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config", C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
-                    if (mComponent) {
-                        mComponent->onConfigureTunnerPassthroughMode();
-                    }
-                    break;
-#if 0
-                case C2StreamPictureSizeInfo::CORE_INDEX:
-                    ALOGI("picturesize config:%dx%d", ((C2StreamPictureSizeInfo*)param)->width,
-                            ((C2StreamPictureSizeInfo*)param)->height);
-                    break;
-#endif
-                default:
-                    break;
+            case C2VendorTunerHalParam::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
+                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
+                if (mComponent) {
+                    mComponent->onConfigureTunnerPassthroughMode();
+                }
+                break;
+            case C2VdecWorkMode::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
+                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID, mVdecWorkMode->value);
+                break;
+            case C2DataSourceType::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d",
+                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID, mDataSourceType->value);
+                break;
+            default:
+                break;
         }
     }
-        return C2_OK;
+    return C2_OK;
 }
 
 C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
@@ -281,6 +284,9 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
 
     //lowlatency
     onLowLatencyDeclareParam();
+
+    //Register vendor extend paras
+    onVendorExtendParam();
 }
 
 void C2VDAComponent::IntfImpl::onAvcDeclareParam() {
@@ -926,6 +932,21 @@ void C2VDAComponent::IntfImpl::onLowLatencyDeclareParam() {
                 .withFields({C2F(mLowLatencyMode, value).oneOf({true, false})})
                 .withSetter(LowLatencyModeSetter)
         .build());
+}
+
+void C2VDAComponent::IntfImpl::onVendorExtendParam() {
+    addParameter(
+    DefineParam(mVdecWorkMode, C2_PARAMKEY_VENDOR_VDEC_WORK_MODE)
+            .withDefault(new C2VdecWorkMode::input(0))
+            .withFields({C2F(mVdecWorkMode, value).any()})
+    .withSetter(Setter<decltype(*mVdecWorkMode)>::StrictValueWithNoDeps)
+    .build());
+    addParameter(
+    DefineParam(mDataSourceType, C2_PARAMKEY_VENDOR_DATASOURCE_TYPE)
+            .withDefault(new C2DataSourceType::input(0))
+            .withFields({C2F(mDataSourceType, value).any()})
+    .withSetter(Setter<decltype(*mDataSourceType)>::StrictValueWithNoDeps)
+    .build());
 }
 
 }

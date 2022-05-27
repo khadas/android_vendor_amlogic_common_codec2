@@ -112,7 +112,10 @@ private:
     std::shared_ptr<C2StreamFrameRateInfo::input> mFrameRateInfo;
     //unstable pts
     std::shared_ptr<C2StreamUnstablePts::input> mUnstablePts;
-
+    //stream mode
+    std::shared_ptr<C2VdecWorkMode::input> mVdecWorkMode;
+    //dmx source
+    std::shared_ptr<C2DataSourceType::input> mDataSourceType;
     //std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
     std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
     //std::shared_ptr<C2ActualPipelineDelayTuning> mActualPipelineDelay
@@ -157,6 +160,7 @@ private:
     void onBufferPoolDeclareParam();
     void onColorAspectsDeclareParam();
     void onLowLatencyDeclareParam();
+    void onVendorExtendParam();
 };
 }
 

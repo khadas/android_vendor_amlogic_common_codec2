@@ -455,9 +455,15 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
             ALOGD("update profile(%d) to (%d) mime(%s)", profile, mCodecProfile, VideoCodecProfileToMime(mCodecProfile));
             profile = mCodecProfile;
         }
-
+        uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
+        if (mIntfImpl) {
+            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
+                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+            if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
+                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
+        }
         mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
-                (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
+                (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
     } else {
         mVDAInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
     }
@@ -2261,8 +2267,15 @@ void C2VDAComponent::checkVideoDecReconfig() {
             }
             mMetaDataUtil->setUseSurfaceTexture(usersurfacetexture);
             mMetaDataUtil->codecConfig(&mConfigParam);
+            uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
+            if (mIntfImpl) {
+                if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
+                    vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+                if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
+                    vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
+            }
             mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                        (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
+                        (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
         }
     } else {
         //use BUFFERPOOL, no surface
@@ -2275,8 +2288,15 @@ void C2VDAComponent::checkVideoDecReconfig() {
             mMetaDataUtil->setNoSurface(true);
         }
         mMetaDataUtil->codecConfig(&mConfigParam);
+        uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
+        if (mIntfImpl) {
+            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
+                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+            if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
+                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
+        }
         mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                  (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, AM_VIDEO_DEC_INIT_FLAG_CODEC2);
+                  (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
     }
 
     mSurfaceUsageGeted = true;
