@@ -22,16 +22,21 @@ func c2_service_aml_Defaults(ctx android.LoadHookContext) {
         Shared_libs  []string
     }
     p := &propsE{}
-    PlatformVndkVersion,_ := strconv.Atoi(ctx.DeviceConfig().PlatformVndkVersion());
-	//fmt.Println("PlatformVndkVersion:", PlatformVndkVersion)
-	//fmt.Println("len(PlatformVndkVersion:", len(PlatformVndkVersion)
-    // After Andriod T, libavservices name changed
-    // minijail is used to protect against unexpected system calls.
-    if (PlatformVndkVersion > 31) {
-        p.Shared_libs = append(p.Shared_libs, "libavservices_minijail")
-		fmt.Println("use libavservices_minijail")
-    } else {
+    PlatformVndkVersion,err := strconv.Atoi(ctx.DeviceConfig().PlatformVndkVersion());
+    //fmt.Println("PlatformVndkVersion:", PlatformVndkVersion)
+    //fmt.Println("len(PlatformVndkVersion:", len(PlatformVndkVersion)
+    //After Andriod T, libavservices name changed
+    //minijail is used to protect against unexpected system calls.
+    if err != nil {
+        fmt.Printf("%v like UpsideDownCake may fail to convert", PlatformVndkVersion)
         p.Shared_libs = append(p.Shared_libs, "libavservices_minijail_vendor")
+    } else {
+        if (PlatformVndkVersion > 31) {
+            p.Shared_libs = append(p.Shared_libs, "libavservices_minijail")
+            fmt.Println("use libavservices_minijail")
+        } else {
+            p.Shared_libs = append(p.Shared_libs, "libavservices_minijail_vendor")
+        }
     }
     ctx.AppendProperties(p)
 }
