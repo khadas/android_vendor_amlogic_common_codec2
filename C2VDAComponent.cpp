@@ -1900,6 +1900,8 @@ c2_status_t C2VDAComponent::reallocateBuffersForUsageChanged(const media::Size& 
             mCanQueueOutBuffer = true;
         }
         appendOutputBuffer(std::move(block), poolId, blockId,true);
+        GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+        sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
     }
 
     mOutputFormat.mMinNumBuffers = bufferCount;
@@ -1955,9 +1957,15 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
 
     int64_t surfaceUsage = 0;
     size_t minBuffersForDisplay = 0;
+    bool usersurfacetexture = false;
     if (useBufferQueue) {
         mUseBufferQueue = true;
         surfaceUsage = mBlockPoolUtil->getConsumerUsage();
+        ALOGV("get block pool usage:%lld", surfaceUsage);
+        if (!(surfaceUsage & GRALLOC_USAGE_HW_COMPOSER)) {
+            usersurfacetexture = true;
+            mMetaDataUtil->setUseSurfaceTexture(true);
+        }
     }
 
     mBlockPoolUtil->requestNewBufferSet(bufferCount);
@@ -1984,15 +1992,10 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 ALOGD("allocate buffer timeout, %d retry time(s) left...", retries_left);
                 if (retries_left == kAllocateBufferMaxRetries && useBufferQueue) {
-                    //TODO
-                    /*
-                    std::shared_ptr<C2BlockPool> bqPool =
-                        std::static_pointer_cast<C2BlockPool>(blockPool);
-                    int64_t newSurfaceUsage = 0;// = bqPool->getSurfaceUsage();
+                    int64_t newSurfaceUsage = mBlockPoolUtil->getConsumerUsage();
                     if (newSurfaceUsage != surfaceUsage) {
                         return reallocateBuffersForUsageChanged(size, pixelFormat);
                     }
-                    */
                 }
                 retries_left--;
             } else if (err == EAGAIN) {
@@ -2218,6 +2221,7 @@ void C2VDAComponent::setOutputFormatCrop(const media::Rect& cropRect) {
 }
 
 void C2VDAComponent::checkVideoDecReconfig() {
+    ALOGV("%s",__func__);
     if (mSurfaceUsageGeted)
         return;
 
@@ -2281,6 +2285,10 @@ void C2VDAComponent::checkVideoDecReconfig() {
 c2_status_t C2VDAComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
     if (mState.load() != State::RUNNING) {
         return C2_BAD_STATE;
+    }
+
+    if (!mSurfaceUsageGeted) {
+        checkVideoDecReconfig();
     }
 
     while (!items->empty()) {
