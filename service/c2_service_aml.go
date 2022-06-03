@@ -29,7 +29,7 @@ func c2_service_aml_Defaults(ctx android.LoadHookContext) {
     //minijail is used to protect against unexpected system calls.
     if err != nil {
         fmt.Printf("%v like UpsideDownCake may fail to convert", PlatformVndkVersion)
-        p.Shared_libs = append(p.Shared_libs, "libavservices_minijail_vendor")
+        p.Shared_libs = append(p.Shared_libs, "libavservices_minijail")
     } else {
         if (PlatformVndkVersion > 31) {
             p.Shared_libs = append(p.Shared_libs, "libavservices_minijail")
