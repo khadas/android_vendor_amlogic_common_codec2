@@ -2,6 +2,8 @@
     "features": [
         "Secure Playback",
         "DolbyVision",
-        "Adaptive Playback"
+        "Adaptive Playback",
+        "SurfaceTexture",
+        "No-Surface Playback"
     ]
 }

@@ -1,8 +1,23 @@
 Major_V=1
-Minor_V=1
-BaseCommitId=ced386f31002a72cea43db1493b0c6f106b0387b
+Minor_V=2
+BaseCommitId=53a7e20c7e587ecf045178cfdaa37e2b1f868cb5
 
 #history version
+#V1.1.9-g499ae92 ReleaseNote
+#Release_ChangeId_V1_2=I280a949aca396c52a3faef3fcdf629f30b605e67
+#CommitId:53a7e20c7e587ecf045178cfdaa37e2b1f868cb5
+#Feature develop detail information:
+#   support play with SurfaceTexture.
+#   optimize ccodec code interface design.
+#   optimize ccodec code design.
+#   support no-surface stream playback.
+#   release version :V1.0.92-g315baa5
+#Fixed BUG detail information:
+#   fix go file should be compatible.
+#   go file should be compatible
+#   fix compile error.
+#   fix the caton bug after seek.
+
 #V1.0.92-g315baa5 ReleaseNote
 #Release_ChangeId_V1_1= I07816ddb74e11b5d29371e3c1070baa9a62f6560
 #CommitId: ced386f31002a72cea43db1493b0c6f106b0387b
