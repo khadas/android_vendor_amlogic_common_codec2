@@ -4,6 +4,7 @@
 #include <cutils/properties.h>
 #include <stdint.h>
 
+#include <utils/Log.h>
 #include <cutils/trace.h>
 #include <utils/Trace.h>
 

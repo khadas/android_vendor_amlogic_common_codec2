@@ -41,6 +41,7 @@
 #include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
 #include <C2VDABlockPoolUtil.h>
+#include <C2VDATunnelBufferUtil.h>
 #include <C2VDASupport.h>
 
 namespace android {
@@ -62,6 +63,7 @@ public:
     virtual ~C2VDAComponent() override;
 
     class MetaDataUtil;
+    class TunnelModeHelper;
 
     // Implementation of C2Component interface
     virtual c2_status_t setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -90,21 +92,16 @@ public:
     virtual void NotifyError(int error);
     virtual void NotifyEvent(uint32_t event, void *param, uint32_t paramsize);
 
-    //tunnel mode implement
+    //config
     void onConfigureTunnelMode();
-    void onConfigureTunnerPassthroughMode();
-    static int fillVideoFrameCallback2(void* obj, void* args);
-    int postFillVideoFrameTunnelMode2(int medafd, bool rendered);
-    void onFillVideoFrameTunnelMode2(int medafd, bool rendered);
-    static int notifyTunnelRenderTimeCallback(void* obj, void* args);
-    int postNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime);
-    void onNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime rendertime);
-    c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
-    c2_status_t sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime);
 
     //for out use
     IntfImpl* GetIntfImpl() {
        return mIntfImpl.get();
+    }
+
+    scoped_refptr<::base::SingleThreadTaskRunner> GetTaskRunner() {
+        return mTaskRunner;
     }
 
     bool isDolbyVision() {
@@ -118,6 +115,7 @@ public:
     static const uint32_t kUpdateDurationFramesNumMax = 10;
     int mUpdateDurationUsCount;
 private:
+    friend TunnelModeHelper;
     // The state machine enumeration on parent thread.
     enum class State : int32_t {
         // The initial state of component. State will change to LOADED after the component is
@@ -199,6 +197,7 @@ private:
         int32_t mFd;
         bool mFdHaveSet;
         bool mBind;
+        bool mNeedRealloc;
         // VideoFramePlane information for importing to VDA.
         std::vector<VideoFramePlane> mPlanes;
     };
@@ -450,29 +449,26 @@ private:
     mediahal_cfg_parms mConfigParam;
     FILE* mDumpYuvFp;
     static uint32_t mDumpFileCnt;
-    VideoDecWraper* mVideoDecWraper;
-    VideoTunnelRendererWraper* mVideoTunnelRenderer;
+
+    std::shared_ptr<VideoDecWraper> mVideoDecWraper;
     std::shared_ptr<MetaDataUtil> mMetaDataUtil;
     std::shared_ptr<C2VDABlockPoolUtil> mBlockPoolUtil;
+    std::shared_ptr<TunnelModeHelper> mTunnelHelper;
+    std::shared_ptr<TunnelBufferUtil> mTunnelBufferUtil;
 
-    int32_t mTunnelId;
-    int32_t mSyncId;
-    native_handle_t* mTunnelHandle;
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;
     bool mPictureSizeChanged;
     c2_resch_stat mResChStat;
     bool mSurfaceUsageGeted;
     bool mVDAComponentStopDone;
-    std::vector<struct fillVideoFrame2> mFillVideoFrameQueue;
     bool mCanQueueOutBuffer;
-    std::vector<int64_t> mTunnelAbandonMediaTimeQueue;
     int32_t mOutBufferCount;
     bool mHDR10PlusMeteDataNeedCheck;
     int64_t mInputWorkCount;
     int32_t mInputCSDWorkCount;
     int64_t mOutputWorkCount;
-    std::deque<int64_t> mTunnelRenderMediaTimeQueue;
+    int32_t mSyncId;
     int64_t mSyncType;
     passthroughInitParams mTunerPassthroughparams;
     TunerPassthroughWrapper *mTunerPassthrough;

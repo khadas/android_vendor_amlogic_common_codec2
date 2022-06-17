@@ -252,8 +252,22 @@ void VideoDecWraper::reusePictureBuffer(int32_t pictureBufferId) {
     if (mAmVideoDec) {
         mAmVideoDec->queueOutputBuffer(pictureBufferId);
     }
-
 }
+
+int32_t VideoDecWraper::allocTunnelBuffer(int usage, uint32_t format, int stride, uint32_t width, uint32_t height, bool secure, int* fd) {
+    if (mAmVideoDec) {
+        return mAmVideoDec->allocTunnelBuffer(usage, format, stride, width, height, secure, fd);
+    }
+    return -1;
+}
+
+int32_t VideoDecWraper::freeTunnelBuffer(int fd) {
+    if (mAmVideoDec) {
+        return mAmVideoDec->freeTunnelBuffer(fd);
+    }
+    return -1;
+}
+
 void VideoDecWraper::flush() {
     VDEC_LOGD("flush");
 

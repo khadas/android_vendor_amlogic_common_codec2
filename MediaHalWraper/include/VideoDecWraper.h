@@ -62,6 +62,8 @@ public:
                                 size_t size,
                                 bool isNV21);
     void reusePictureBuffer(int32_t pictureBufferId);
+    int32_t allocTunnelBuffer(int usage, uint32_t format, int stride, uint32_t width, uint32_t height, bool secure, int* fd);
+    int32_t freeTunnelBuffer(int fd);
     void flush();
     void reset(uint32_t flags = 0);
     void destroy();

@@ -205,7 +205,8 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
         case InputCodec::AV1:
         case InputCodec::DVAV1:
         case InputCodec::DVHE:
-            if (mUseSurfaceTexture || mNoSurface) {
+            if (mComp->isNonTunnelMode() &
+                (mUseSurfaceTexture || mNoSurface)) {
                 doubleWriteMode = 1;
                 C2VDAMDU_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 1");
             } else {

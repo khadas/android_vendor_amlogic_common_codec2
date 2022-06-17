@@ -170,6 +170,7 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                     mActualOutputDelay->value = kDefaultOutputDelayTunnel;
                 }
                 break;
+#if 0
             case C2VendorTunerHalParam::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
                     C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
@@ -177,6 +178,7 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                     mComponent->onConfigureTunnerPassthroughMode();
                 }
                 break;
+#endif
             case C2VdecWorkMode::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
                     C2VDAComponent::mInstanceID, mComponent->mCurInstanceID, mVdecWorkMode->value);

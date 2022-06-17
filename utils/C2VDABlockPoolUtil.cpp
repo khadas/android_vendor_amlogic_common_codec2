@@ -17,6 +17,7 @@
 using ::android::hardware::media::bufferpool::BufferPoolData;
 namespace android {
 
+
 const size_t kDefaultFetchGraphicBlockDelay = 9; // Default smoothing margin for dequeue block.
                                                  // kDefaultSmoothnessFactor + 2
 
