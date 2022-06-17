@@ -710,14 +710,14 @@ void C2VDAComponent::IntfImpl::onInputDelayDeclareParam() {
 void C2VDAComponent::IntfImpl::onReorderBufferDepthDeclareParam() {
         addParameter(
                 DefineParam(mReorderBufferDepth, C2_PARAMKEY_OUTPUT_REORDER_DEPTH)
-                .withConstValue(new C2PortReorderBufferDepthTuning(4u))
+                .withConstValue(new C2PortReorderBufferDepthTuning(0u))
         .build());
 }
 
 void C2VDAComponent::IntfImpl::onPipelineDelayDeclareParam() {
         addParameter(
                 DefineParam(mActualPipelineDelay, C2_PARAMKEY_PIPELINE_DELAY_REQUEST)
-                .withConstValue(new C2ActualPipelineDelayTuning(4u))
+                .withConstValue(new C2ActualPipelineDelayTuning(0u))
         .build());
 }
 

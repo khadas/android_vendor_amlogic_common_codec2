@@ -327,6 +327,7 @@ void C2VDAComponent::onDestroy() {
         mTunnelHelper = NULL;
     }
 
+    displayGraphicBlockInfo();
     for (auto& info : mGraphicBlocks) {
         info.mGraphicBlock.reset();
     }
@@ -607,6 +608,7 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
             getVideoResolutionChanged()) {
         ALOGE("Graphic block (id=%d) (state=%s) (fd=%d) (fdset=%d)should be owned by client on return",
                 info->mBlockId, GraphicBlockState(info->mState), info->mFd,info->mFdHaveSet);
+        displayGraphicBlockInfo();
         reportError(C2_BAD_STATE);
         return;
     }
@@ -1198,8 +1200,7 @@ void C2VDAComponent::onStopDone() {
             info.mBlockId, info.mFd, info.mPoolId, GraphicBlockState(info.mState));
         info.mGraphicBlock.reset();
     }
-    ALOGI("mGraphicBlocks.clear();");
-
+    ALOGV("clear GraphicBlocks");
     mGraphicBlocks.clear();
     if (mBlockPoolUtil != NULL) {
         mBlockPoolUtil->cancelAllGraphicBlock();
@@ -1209,7 +1210,7 @@ void C2VDAComponent::onStopDone() {
 
     mStopDoneEvent = nullptr;
     mComponentState = ComponentState::UNINITIALIZED;
-    ALOGI("onStopDone OK");
+    ALOGV("onStopDone OK");
 }
 
 c2_status_t C2VDAComponent::setListener_vb(const std::shared_ptr<C2Component::Listener>& listener,
@@ -2654,76 +2655,75 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             //continue;
         }
 
-        while (!mDequeueLoopRunning.load()) {
-            usleep(kDequeueRetryDelayUs); // wait for running
-            //continue;
-        }
-
-        //we reuse this to check reset is complete or not it timeout will force reset once time
         uint64_t nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+        //we reuse this to check reset is complete or not it timeout will force reset once time
         if (mComponentState == ComponentState::FLUSHING &&
             mLastFlushTimeMs > 0 && nowTimeMs - mLastFlushTimeMs >= 2000) {
             ALOGI("onFlush timeout we need force flush once time");
             mLastFlushTimeMs = 0;
             mVideoDecWraper->reset(RESET_FLAG_NOWAIT);
+        } else if (mComponentState == ComponentState::STOPPING) {
+            ALOGV("%s@%d", __func__, __LINE__);
+            break;
         }
-
-        uint32_t blockId = 0;
-        c2_status_t err = C2_TIMED_OUT;
-        C2BlockPool::local_id_t poolId;
-        std::shared_ptr<C2GraphicBlock> block;
-        if (mMetaDataUtil != NULL && mBlockPoolUtil != NULL) {
-            mBlockPoolUtil->getPoolId(&poolId);
-            err = mBlockPoolUtil->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
-                                            mMetaDataUtil->getOutAlignedSize(size.height()),
-                                            pixelFormat, usage, &block);
-            ALOGI("dequeueThreadLoop fetchOutputBlock %d state:%d", __LINE__, err);
-        }
-        if (err == C2_TIMED_OUT) {
-            // Mutexes often do not care for FIFO. Practically the thread who is locking the mutex
-            // usually will be granted to lock again right thereafter. To make this loop not too
-            // bossy, the simpliest way is to add a short delay to the next time acquiring the
-            // lock. TODO (b/118354314): replace this if there is better solution.
-            ::usleep(1);
-            continue;  // wait for retry
-        }
-        if (err == C2_OK) {
-            mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
-            GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
-            bool block_used = false;
-            int width = block->width();
-            int height = block->height();
-            int use_count = block.use_count();
-            if (info == nullptr) { //fetch unused block
-                appendOutputBuffer(std::move(block), poolId, blockId, true);
-                info = getGraphicBlockByBlockId(poolId, blockId);
-                sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
-            } else { //fetch used block
-                mTaskRunner->PostTask(FROM_HERE,
-                                  ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
-                                               ::base::Unretained(this), std::move(block), poolId, blockId));
-                mBuffersInClient--;
-                block_used = true;
+        // wait for running
+        if (mDequeueLoopRunning.load()) {
+            uint32_t blockId = 0;
+            c2_status_t err = C2_TIMED_OUT;
+            C2BlockPool::local_id_t poolId;
+            std::shared_ptr<C2GraphicBlock> block;
+            if (mMetaDataUtil != NULL && mBlockPoolUtil != NULL) {
+                mBlockPoolUtil->getPoolId(&poolId);
+                err = mBlockPoolUtil->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
+                                                mMetaDataUtil->getOutAlignedSize(size.height()),
+                                                pixelFormat, usage, &block);
+                ALOGI("dequeueThreadLoop fetchOutputBlock %d state:%d", __LINE__, err);
             }
-            ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d)",
-                    (block_used ? "used" : "unused"), blockId, width, height, use_count);
-            timeOutCount = 0;
-        } else if (err == C2_BLOCKING) {
-            ALOGV("fetch block retry.");
-            ::usleep(1);
-            timeOutCount++;
-
-            if (timeOutCount >= 1000) {
-                displayGraphicBlockInfo();
-                reportError(C2_TIMED_OUT);
-                break;
+            if (err == C2_TIMED_OUT) {
+                // Mutexes often do not care for FIFO. Practically the thread who is locking the mutex
+                // usually will be granted to lock again right thereafter. To make this loop not too
+                // bossy, the simpliest way is to add a short delay to the next time acquiring the
+                // lock. TODO (b/118354314): replace this if there is better solution.
+                ::usleep(1);
+                continue;  // wait for retry
             }
-            continue;  // wait for retry
-        } else {
-            ALOGE("dequeueThreadLoop got error: %d", err);
-            //break;
+            if (err == C2_OK) {
+                mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
+                GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+                bool block_used = false;
+                int width = block->width();
+                int height = block->height();
+                int use_count = block.use_count();
+                if (info == nullptr) { //fetch unused block
+                    appendOutputBuffer(std::move(block), poolId, blockId, true);
+                    info = getGraphicBlockByBlockId(poolId, blockId);
+                    sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
+                } else { //fetch used block
+                    mTaskRunner->PostTask(FROM_HERE,
+                                    ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
+                                                ::base::Unretained(this), std::move(block), poolId, blockId));
+                    mBuffersInClient--;
+                    block_used = true;
+                }
+                ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d)",
+                        (block_used ? "used" : "unused"), blockId, width, height, use_count);
+                timeOutCount = 0;
+            } else if (err == C2_BLOCKING) {
+                ALOGV("fetch block retry.");
+                ::usleep(1);
+                timeOutCount++;
+                if (timeOutCount >= 1000 && (mUseBufferQueue == false)) {
+                    displayGraphicBlockInfo();
+                    reportError(C2_TIMED_OUT);
+                    break;
+                }
+                continue;  // wait for retry
+            } else {
+                ALOGE("dequeueThreadLoop got error: %d", err);
+                //break;
+            }
         }
-        ::usleep(1000);
+        ::usleep(2000);
     }
     ALOGV("dequeueThreadLoop terminates");
 }
