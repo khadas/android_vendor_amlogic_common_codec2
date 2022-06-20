@@ -94,6 +94,11 @@ public:
     */
     bool isBufferQueue();
 
+    /**
+     * @brief clear all graphic block.
+     */
+    void  cancelAllGraphicBlock();
+
 private:
 
     /**
@@ -128,8 +133,8 @@ private:
 
     // Internal struct to keep the information of a specific buffer.
     struct BlockBufferInfo {
-        int mFd;
-        int mDupFd;
+        int mFd = -1;
+        int mDupFd = -1;
         uint32_t mBlockId;
         std::shared_ptr<C2GraphicBlock> mGraphicBlock;
     };

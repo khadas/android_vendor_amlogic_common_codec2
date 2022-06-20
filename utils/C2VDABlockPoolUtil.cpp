@@ -112,8 +112,13 @@ C2VDABlockPoolUtil::~C2VDABlockPoolUtil() {
     auto iter = mRawGraphicBlockInfo.begin();
     for (;iter != mRawGraphicBlockInfo.end(); iter++) {
         ALOGE("%s graphicblock use count:%ld", __func__, iter->second.mGraphicBlock.use_count());
-        close(iter->second.mFd);
-        close(iter->second.mDupFd);
+        if (iter->second.mFd >= 0) {
+            close(iter->second.mFd);
+        }
+
+        if (iter->second.mDupFd >= 0) {
+            close(iter->second.mDupFd);
+        }
         iter->second.mGraphicBlock.reset();
     }
 
@@ -202,8 +207,14 @@ c2_status_t C2VDABlockPoolUtil::resetGraphicBlock(int32_t blockId) {
     auto info = mRawGraphicBlockInfo.begin();
     for (;info != mRawGraphicBlockInfo.end(); info++) {
         if (info->second.mBlockId == blockId) {
-            close(info->second.mFd);
-            close(info->second.mDupFd);
+            if (info->second.mFd >= 0) {
+                close(info->second.mFd);
+            }
+
+            if (info->second.mDupFd >= 0) {
+                close(info->second.mDupFd);
+            }
+            info->second.mBlockId = -1;
             info->second.mGraphicBlock.reset();
             mRawGraphicBlockInfo.erase(info);
             ret = C2_OK;
@@ -270,7 +281,11 @@ c2_status_t C2VDABlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> block
         return C2_BAD_VALUE;
     }
 
-    *fd = info->second.mDupFd;
+    if (mUseSurface) {
+        *fd = info->second.mDupFd;
+    } else {
+        *fd = info->second.mFd;
+    }
     ALOGI("%s get fd success %d", __func__, *fd);
     return C2_OK;
 }
@@ -280,10 +295,7 @@ c2_status_t C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Graph
         ALOGV("%s block is null", __func__);
         return C2_BAD_VALUE;
     }
-
     struct BlockBufferInfo info;
-    uint32_t blockId = 0;
-    c2_status_t  err;
     if (mUseSurface) {
         info.mFd = fd;
         info.mDupFd = dup(block->handle()->data[0]);
@@ -291,23 +303,17 @@ c2_status_t C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Graph
         info.mGraphicBlock = block;
         mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
         mGraphicBufferId++;
-        err = C2_OK;
     }
     else {
-        err = getBlockIdFromGraphicBlock(block, &blockId);
-        if (err != C2_OK) {
-            ALOGE("get block id falied, return  errr:%d", err);
-            return err;
-        }
         info.mFd = fd;
         info.mDupFd = fd;//dup(block->handle()->data[0]);
-        info.mBlockId = blockId;
+        info.mBlockId = mGraphicBufferId;
         //info.mGraphicBlock = block;
         mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
-        err = C2_OK;
+        mGraphicBufferId++;
     }
     ALOGI("Fetch new block and append, block info: %llu fd:%d id:%d", inode, info.mFd, info.mBlockId);
-    return err;
+    return C2_OK;
 }
 
 c2_status_t C2VDABlockPoolUtil::getBlockIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* blockId) {
@@ -341,6 +347,25 @@ bool C2VDABlockPoolUtil::isBufferQueue() {
     bool ret = C2PlatformAllocatorStore::BUFFERQUEUE == getAllocatorId();
     ALOGV("%s ret:%d", __func__, ret);
     return ret;
+}
+
+void C2VDABlockPoolUtil::cancelAllGraphicBlock() {
+    auto info = mRawGraphicBlockInfo.begin();
+    for (;info != mRawGraphicBlockInfo.end(); info++) {
+        if (info->second.mFd >= 0) {
+            close(info->second.mFd);
+        }
+
+        if (info->second.mDupFd >= 0) {
+            close(info->second.mDupFd);
+        }
+
+        info->second.mBlockId = -1;
+        info->second.mGraphicBlock.reset();
+    }
+    mGraphicBufferId = 0;
+    mMaxDequeuedBufferNum = 0;
+    mRawGraphicBlockInfo.clear();
 }
 
 }

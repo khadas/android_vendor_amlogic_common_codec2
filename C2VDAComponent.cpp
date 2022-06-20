@@ -1698,7 +1698,8 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
     std::shared_ptr<C2BlockPool> blockPool;
     C2BlockPool::local_id_t poolId = -1;
     c2_status_t err;
-    if (!mBlockPoolUtil) {
+    bool useBufferQueue = false;
+    if (mBlockPoolUtil == nullptr) {
         poolId = mIntfImpl->getBlockPoolId();
         err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
         if (err != C2_OK) {
@@ -1706,11 +1707,13 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             reportError(err);
             return err;
         }
+        ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
+        useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
+        if (isTunnelMode()) {
+            DCHECK(useBufferQueue == false);
+        }
+        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (useBufferQueue, blockPool);
     }
-
-    ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
-    bool useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
-    mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (useBufferQueue, blockPool);
 
     int64_t surfaceUsage = 0;
     size_t minBuffersForDisplay = 0;
@@ -1724,9 +1727,14 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             mMetaDataUtil->setUseSurfaceTexture(true);
         }
     }
-
-    mBlockPoolUtil->requestNewBufferSet(bufferCount);
-    ALOGV("Minimum undequeued buffer count = %zu buffer count = %d", minBuffersForDisplay, bufferCount);
+    mBlockPoolUtil->requestNewBufferSet(bufferCount - kDefaultSmoothnessFactor);
+    err = mBlockPoolUtil->getMinBuffersForDisplay(&minBuffersForDisplay);
+    if (err != C2_OK) {
+        ALOGE("Graphic block allocator is invalid");
+        reportError(err);
+        return err;
+    }
+    ALOGV("Minimum undequeued buffer count:%zu buffer count:%d", minBuffersForDisplay, bufferCount);
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
     uint64_t platformUsage = mMetaDataUtil->getPlatformUsage();
     C2MemoryUsage usage = {
@@ -1734,7 +1742,8 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
 
     ALOGV("usage %llx", usage.expected);
-    int32_t dequeue_buffer_num = bufferCount - mMetaDataUtil->getMarginBufferNum() + 1;
+    // The number of buffers requested for the first time is the number defined in the framework.
+    int32_t dequeue_buffer_num = 3 + kDefaultSmoothnessFactor;
     ALOGV("Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d", minBuffersForDisplay, bufferCount, dequeue_buffer_num);
     for (size_t i = 0; i < dequeue_buffer_num; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
@@ -1984,7 +1993,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
     if (mSurfaceUsageGeted)
         return;
 
-    if (!mBlockPoolUtil) {
+    if (mBlockPoolUtil == nullptr) {
         std::shared_ptr<C2BlockPool> blockPool;
         auto poolId = mIntfImpl->getBlockPoolId();
         auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
@@ -1996,6 +2005,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
                 reportError(err);
             }
         }
+        mUseBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
         mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (mUseBufferQueue, blockPool);
         if (mBlockPoolUtil->isBufferQueue()) {
             ALOGI("Bufferqueue-backed block pool is used. blockPool->getAllocatorId() %d, C2PlatformAllocatorStore::BUFFERQUEUE %d",
