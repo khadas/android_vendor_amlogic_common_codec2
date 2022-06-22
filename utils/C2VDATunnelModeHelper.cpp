@@ -31,11 +31,17 @@ constexpr uint32_t kTunnelModeMediaTimeQueueMax = 16;   // Max queue size for tu
 C2VDAComponent::TunnelModeHelper::TunnelModeHelper(C2VDAComponent* comp, bool secure):
     mComp(comp),
     mSecure(secure) {
+    DCHECK(mComp != NULL);
     mSyncId = mComp->mSyncId;
     mTaskRunner = mComp->GetTaskRunner();
+    DCHECK(mTaskRunner != NULL);
+
     mVideoTunnelRenderer = new VideoTunnelRendererWraper(mSecure);
     mIntfImpl = mComp->GetIntfImpl();
+    DCHECK(mIntfImpl != NULL);
     mReallocWhenResChange = false;
+    mTunnelBufferUtil = NULL;
+
     if (mIntfImpl->getInputCodec() == InputCodec::H264) {
         mReallocWhenResChange = true;
     }
@@ -60,7 +66,6 @@ C2VDAComponent::TunnelModeHelper::~TunnelModeHelper() {
     }
     mTaskRunner = NULL;
     mIntfImpl = NULL;
-    //mMetaDataUtil = NULL;
     C2VDATMH_LOG(CODEC2_LOG_INFO, "%s:%d", __func__, __LINE__);
 }
 
@@ -96,8 +101,8 @@ bool C2VDAComponent::TunnelModeHelper::stop() {
 
 void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int medafd, bool rendered) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, render:%d", __func__, __LINE__, medafd, rendered);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
+    C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, render:%d", __func__, __LINE__, medafd, rendered);
 
     struct fillVideoFrame2 frame = {
         .fd = medafd,
@@ -210,6 +215,8 @@ int C2VDAComponent::TunnelModeHelper::postNotifyRenderTimeTunnelMode(struct Vide
 
 
 c2_status_t C2VDAComponent::TunnelModeHelper::sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId) {
+    DCHECK(mComp != NULL);
+    DCHECK(mVideoTunnelRenderer != NULL);
     int64_t timestamp = -1;
 
     C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d pictureId:%d, bitstreamId:%lld", __func__, __LINE__,
@@ -248,6 +255,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::flush() {
 }
 
 c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
+    DCHECK(mComp != NULL);
     C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
 
     if (mComp->mPendingBuffersToWork.empty() ||
@@ -335,6 +343,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::storeAbandonedFrame(int64_t timeus
 
 c2_status_t C2VDAComponent::TunnelModeHelper::allocateTunnelBufferFromBlockPool(const media::Size& size,
                                                               uint32_t pixelFormat) {
+    DCHECK(mTunnelBufferUtil != NULL);
     size_t bufferCount = mComp->mOutputFormat.mMinNumBuffers;
     mOutBufferCount = mComp->getDefaultMaxBufNum(mIntfImpl->getInputCodec());
     mPixelFormat = pixelFormat;
@@ -374,8 +383,9 @@ c2_status_t C2VDAComponent::TunnelModeHelper::allocateTunnelBufferFromBlockPool(
 
 
 c2_status_t C2VDAComponent::TunnelModeHelper::freeTunnelBuffers() {
+    DCHECK(mComp != NULL);
     for (auto& info : mComp->mGraphicBlocks) {
-        if (info.mFd >= 0) {
+        if (mTunnelBufferUtil && (info.mFd >= 0)) {
             mTunnelBufferUtil->freeTunnelBuffer(info.mFd);
             info.mFd = -1;
         }
@@ -385,6 +395,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::freeTunnelBuffers() {
 }
 
 c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
+    DCHECK(mTunnelBufferUtil != NULL);
     bool sizeChanged = false;
     bool bufferNumLarged = false;
     uint64_t platformUsage = getPlatformUsage();
@@ -484,6 +495,7 @@ bool C2VDAComponent::TunnelModeHelper::checkReallocOutputBuffer(VideoFormat vide
 }
 
 void C2VDAComponent::TunnelModeHelper::appendTunnelOutputBuffer(int fd, uint32_t blockId) {
+    DCHECK(mComp != NULL);
     C2VDAComponent::GraphicBlockInfo info;
 
     info.mBlockId = blockId;

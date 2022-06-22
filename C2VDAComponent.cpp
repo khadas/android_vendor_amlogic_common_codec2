@@ -315,6 +315,7 @@ void C2VDAComponent::onDestroy() {
             fclose(mDumpYuvFp);
     }
     if (mTunnelHelper) {
+        mTunnelHelper->freeTunnelBuffers();
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
     }
@@ -704,7 +705,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 
     if (isNonTunnelMode()) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
-    } else if (isTunnelMode()) {
+    } else if (isTunnelMode() && mTunnelHelper) {
         mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
     }
     if (mMetaDataUtil->getUnstablePts()) {
@@ -1158,6 +1159,7 @@ void C2VDAComponent::onStopDone() {
         }
     }
     if (mTunnelHelper) {
+        mTunnelHelper->freeTunnelBuffers();
         mTunnelHelper->stop();
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
@@ -1172,7 +1174,6 @@ void C2VDAComponent::onStopDone() {
 
     mBufferFirstAllocated = false;
     mSurfaceUsageGeted = false;
-
     mStopDoneEvent->Signal();
     for (auto& info : mGraphicBlocks) {
         ALOGV("GraphicBlock reset, block Info Id:%d Fd:%d poolId:%d State:%s",
@@ -1180,9 +1181,7 @@ void C2VDAComponent::onStopDone() {
         info.mGraphicBlock.reset();
     }
     ALOGI("mGraphicBlocks.clear();");
-    if (isTunnelMode()) {
-        mTunnelHelper->freeTunnelBuffers();
-    }
+
     mGraphicBlocks.clear();
     mBlockPoolUtil.reset();
     mStopDoneEvent = nullptr;
@@ -2703,8 +2702,8 @@ void C2VDAComponent::onConfigureTunnelMode() {
         if (syncId >= 0) {
             if (((syncId & 0x0000FF00) == 0xFF00)
                 || (syncId == 0x0)) {
-                mTunnelHelper =  std::make_shared<TunnelModeHelper>(this, mSecureMode);
                 mSyncId = syncId;
+                mTunnelHelper =  std::make_shared<TunnelModeHelper>(this, mSecureMode);
                 mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
                 mSyncType |= C2_SYNC_TYPE_TUNNEL;
             }

@@ -12,6 +12,7 @@ namespace android {
 
 TunnelBufferUtil::TunnelBufferUtil(std::shared_ptr<VideoDecWraper> wrap):
     mVideoDecWraper(wrap) {
+    DCHECK(mVideoDecWraper != NULL);
     //propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
     //CODEC2_LOG(CODEC2_LOG_INFO, "%s:%d", __func__, __LINE__);
 }
@@ -26,6 +27,7 @@ c2_status_t TunnelBufferUtil::fetchTunnelBuffer(
     C2MemoryUsage usage,
     int* sharefd) {
     (void)format;
+    DCHECK(mVideoDecWraper != NULL);
     int halUsage = 0;
     C2AndroidMemoryUsage androidUsage = usage;
     uint64_t grallocUsage = androidUsage.asGrallocUsage();
@@ -47,7 +49,10 @@ c2_status_t TunnelBufferUtil::fetchTunnelBuffer(
 }
 
 c2_status_t TunnelBufferUtil::freeTunnelBuffer(int fd) {
-    mVideoDecWraper->freeTunnelBuffer(fd);
+    DCHECK(mVideoDecWraper != NULL);
+    if (fd >= 0) {
+        mVideoDecWraper->freeTunnelBuffer(fd);
+    }
     return C2_OK;
 }
 
