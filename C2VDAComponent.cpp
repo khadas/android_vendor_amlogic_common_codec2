@@ -322,7 +322,6 @@ void C2VDAComponent::onDestroy() {
             fclose(mDumpYuvFp);
     }
     if (mTunnelHelper) {
-        mTunnelHelper->freeTunnelBuffers();
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
     }
@@ -351,7 +350,6 @@ void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableE
     if (!isTunnerPassthroughMode()) {
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
         mMetaDataUtil =  std::make_shared<MetaDataUtil>(this, mSecureMode);
-        mTunnelBufferUtil = std::make_shared<TunnelBufferUtil>(mVideoDecWraper);
         mMetaDataUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
         mMetaDataUtil->codecConfig(&mConfigParam);
 
@@ -1179,7 +1177,6 @@ void C2VDAComponent::onStopDone() {
         }
     }
     if (mTunnelHelper) {
-        mTunnelHelper->freeTunnelBuffers();
         mTunnelHelper->stop();
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
@@ -1434,16 +1431,10 @@ void C2VDAComponent::tryChangeOutputFormat() {
         return;
     }
 
-    c2_status_t err = C2_OK;
-    if (isNonTunnelMode()) {
-        err = allocateBuffersFromBlockPool(
-                mPendingOutputFormat->mCodedSize,
-                static_cast<uint32_t>(mPendingOutputFormat->mPixelFormat));
-    } else if (isTunnelMode() && mTunnelHelper) {
-        mTunnelHelper->allocateTunnelBufferFromBlockPool(
-                mPendingOutputFormat->mCodedSize,
-                static_cast<uint32_t>(mPendingOutputFormat->mPixelFormat));
-    }
+    c2_status_t err =  allocateBuffersFromBlockPool(
+            mPendingOutputFormat->mCodedSize,
+            static_cast<uint32_t>(mPendingOutputFormat->mPixelFormat));
+
     if (err != C2_OK) {
         reportError(err);
         return;
@@ -1714,59 +1705,14 @@ c2_status_t C2VDAComponent::reallocateBuffersForUsageChanged(const media::Size& 
     return C2_OK;
 }
 
-
-c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size,
-                                                              uint32_t pixelFormat) {
-    ALOGI("allocateBuffersFromBlockPool(%s, 0x%x)", size.ToString().c_str(), pixelFormat);
-    stopDequeueThread();
-    size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-    if (!mMetaDataUtil->getNeedReallocBuffer()) {
-        mOutBufferCount = getDefaultMaxBufNum(GetIntfImpl()->getInputCodec());
-        if (bufferCount > mOutBufferCount) {
-            C2VDA_LOG(CODEC2_LOG_INFO, "required outbuffer count %d large than default num %d", bufferCount, mOutBufferCount);
-            mOutBufferCount = bufferCount;
-        } else {
-            bufferCount = mOutBufferCount;
-        }
-    }
-
-    mGraphicBlocks.clear();
-
-    // Get block pool ID configured from the client.
-    std::shared_ptr<C2BlockPool> blockPool;
-    C2BlockPool::local_id_t poolId = -1;
-    c2_status_t err;
-    bool useBufferQueue = false;
-    if (mBlockPoolUtil == nullptr) {
-        poolId = mIntfImpl->getBlockPoolId();
-        err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
-        if (err != C2_OK) {
-            ALOGE("Graphic block allocator is invalid");
-            reportError(err);
-            return err;
-        }
-        ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
-        useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
-        if (isTunnelMode()) {
-            DCHECK(useBufferQueue == false);
-        }
-        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (useBufferQueue, blockPool);
-    }
-
+c2_status_t C2VDAComponent::allocNonTunnelBuffers(const media::Size& size, uint32_t pixelFormat) {
+    size_t bufferCount = mOutBufferCount;
     int64_t surfaceUsage = 0;
     size_t minBuffersForDisplay = 0;
-    bool usersurfacetexture = false;
-    if (useBufferQueue) {
-        mUseBufferQueue = true;
-        surfaceUsage = mBlockPoolUtil->getConsumerUsage();
-        ALOGV("get block pool usage:%lld", surfaceUsage);
-        if (!(surfaceUsage & GRALLOC_USAGE_HW_COMPOSER)) {
-            usersurfacetexture = true;
-            mMetaDataUtil->setUseSurfaceTexture(true);
-        }
-    }
+    C2BlockPool::local_id_t poolId = -1;
+
     mBlockPoolUtil->requestNewBufferSet(bufferCount - kDefaultSmoothnessFactor);
-    err = mBlockPoolUtil->getMinBuffersForDisplay(&minBuffersForDisplay);
+    c2_status_t err = mBlockPoolUtil->getMinBuffersForDisplay(&minBuffersForDisplay);
     if (err != C2_OK) {
         ALOGE("Graphic block allocator is invalid");
         reportError(err);
@@ -1798,7 +1744,7 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
                                             pixelFormat, usage, &block);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 ALOGD("allocate buffer timeout, %d retry time(s) left...", retries_left);
-                if (retries_left == kAllocateBufferMaxRetries && useBufferQueue) {
+                if (retries_left == kAllocateBufferMaxRetries && mUseBufferQueue) {
                     int64_t newSurfaceUsage = mBlockPoolUtil->getConsumerUsage();
                     if (newSurfaceUsage != surfaceUsage) {
                         return reallocateBuffersForUsageChanged(size, pixelFormat);
@@ -1843,13 +1789,73 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
     }
 
     mOutputFormat.mMinNumBuffers = bufferCount;
-    if (isNonTunnelMode() && !startDequeueThread(size, pixelFormat,
+    if (!startDequeueThread(size, pixelFormat,
                             true /* resetBuffersInClient */)) {
 
         ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
+
+    return C2_OK;
+}
+
+c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size,
+                                                              uint32_t pixelFormat) {
+    ALOGI("allocateBuffersFromBlockPool(%s, 0x%x)", size.ToString().c_str(), pixelFormat);
+    stopDequeueThread();
+    size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
+    if (isTunnelMode() || !mMetaDataUtil->getNeedReallocBuffer()) {
+        mOutBufferCount = getDefaultMaxBufNum(GetIntfImpl()->getInputCodec());
+        if (bufferCount > mOutBufferCount) {
+            C2VDA_LOG(CODEC2_LOG_INFO, "required outbuffer count %d large than default num %d", bufferCount, mOutBufferCount);
+            mOutBufferCount = bufferCount;
+        } else {
+            bufferCount = mOutBufferCount;
+        }
+    }
+    mOutBufferCount = bufferCount;
+    mGraphicBlocks.clear();
+
+    // Get block pool ID configured from the client.
+    std::shared_ptr<C2BlockPool> blockPool;
+    C2BlockPool::local_id_t poolId = -1;
+    c2_status_t err;
+    bool useBufferQueue = false;
+    if (mBlockPoolUtil == nullptr) {
+        poolId = mIntfImpl->getBlockPoolId();
+        err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
+        if (err != C2_OK) {
+            ALOGE("Graphic block allocator is invalid");
+            reportError(err);
+            return err;
+        }
+        ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
+        useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
+        if (isTunnelMode()) {
+            DCHECK(useBufferQueue == false);
+        }
+        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (useBufferQueue, blockPool);
+    }
+
+    int64_t surfaceUsage = 0;
+    bool usersurfacetexture = false;
+    if (useBufferQueue) {
+        mUseBufferQueue = true;
+        surfaceUsage = mBlockPoolUtil->getConsumerUsage();
+        ALOGV("get block pool usage:%lld", surfaceUsage);
+        if (!(surfaceUsage & GRALLOC_USAGE_HW_COMPOSER)) {
+            usersurfacetexture = true;
+            mMetaDataUtil->setUseSurfaceTexture(true);
+        }
+    }
+
+    if (isNonTunnelMode()) {
+        allocNonTunnelBuffers(size, pixelFormat);
+    } else if (isTunnelMode() && mTunnelHelper){
+        mTunnelHelper->allocTunnelBuffersAndSendToDecoder(size, pixelFormat);
+    }
+
     return C2_OK;
 }
 

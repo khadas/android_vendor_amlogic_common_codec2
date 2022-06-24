@@ -41,7 +41,6 @@
 #include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
 #include <C2VDABlockPoolUtil.h>
-#include <C2VDATunnelBufferUtil.h>
 #include <C2VDASupport.h>
 
 namespace android {
@@ -265,6 +264,8 @@ private:
     C2Work* getPendingWorkByMediaTime(int64_t mediaTime);
     // Try to apply the output format change.
     void tryChangeOutputFormat();
+    //
+    c2_status_t allocNonTunnelBuffers(const media::Size& size, uint32_t pixelFormat);
     // Allocate output buffers (graphic blocks) from block pool.
     c2_status_t allocateBuffersFromBlockPool(const media::Size& size, uint32_t pixelFormat);
     // Append allocated buffer (graphic block) to |mGraphicBlocks|.
@@ -459,7 +460,7 @@ private:
     std::shared_ptr<MetaDataUtil> mMetaDataUtil;
     std::shared_ptr<C2VDABlockPoolUtil> mBlockPoolUtil;
     std::shared_ptr<TunnelModeHelper> mTunnelHelper;
-    std::shared_ptr<TunnelBufferUtil> mTunnelBufferUtil;
+    //std::shared_ptr<TunnelBufferUtil> mTunnelBufferUtil;
 
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;

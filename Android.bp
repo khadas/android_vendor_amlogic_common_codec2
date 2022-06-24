@@ -40,7 +40,6 @@ cc_library_shared {
         "utils/C2VDAMetaDataUtil.cpp",
         "utils/C2VDABlockPoolUtil.cpp",
         "utils/C2VDATunnelModeHelper.cpp",
-        "utils/C2VDATunnelBufferUtil.cpp",
        // "C2VEAComponent.cpp",
        // "C2VEAFormatConverter.cpp",
     ],
