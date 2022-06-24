@@ -29,6 +29,14 @@
 // The seccomp_policy file name and its content can be modified, but note that
 // vendor.cpp also needs to be updated because it needs the absolute path to the
 // seccomp policy file on the device.
+
+// *** THIS PACKAGE HAS SPECIAL LICENSING CONDITIONS.  PLEASE
+//     CONSULT THE OWNERS AND opensource-licensing@google.com BEFORE
+//     DEPENDING ON IT IN YOUR PROJECT. ***
+package {
+    default_applicable_licenses: ["vendor_amlogic_common_license"],
+}
+
 bootstrap_go_package {
     name: "c2_service_aml",
     pkgPath: "android/soong/c2_service_aml",
