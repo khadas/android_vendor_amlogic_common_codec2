@@ -287,6 +287,8 @@ private:
     void updateUndequeuedBlockIds(int32_t blockId);
     void checkVideoDecReconfig();
 
+    void checkVideoResolution(uint32_t width, uint32_t height,uint32_t *decwidth,uint32_t *decheight);
+
     // Specific to VP8/VP9, since for no-show frame cases VDA will not call PictureReady to return
     // output buffer which the corresponding work is waiting for, this function detects these works
     // by comparing timestamps. If there are works with no-show frame, call reportWorkIfFinished()
@@ -324,6 +326,9 @@ private:
     void stopDequeueThread();
     // The rountine task running on dequeue thread.
     void dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat);
+
+    //display all graphic block information.
+    void displayGraphicBlockInfo();
     //convert codec profiel to mime
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();

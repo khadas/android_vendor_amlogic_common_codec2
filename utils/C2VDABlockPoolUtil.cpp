@@ -48,7 +48,24 @@ bool getINodeFromFd(int32_t fd, uint64_t *ino) {
 class C2VDABlockPoolUtil::BlockingBlockPool
 {
 public:
-    BlockingBlockPool(const std::shared_ptr<C2BlockPool> &base) : mBase{base} {}
+    BlockingBlockPool(const std::shared_ptr<C2BlockPool> &base) {
+        bool useSurface = C2PlatformAllocatorStore::BUFFERQUEUE == base->getAllocatorId();
+        std::shared_ptr<C2AllocatorStore> allocatorStore = GetCodec2PlatformAllocatorStore();
+        c2_status_t status = allocatorStore->fetchAllocator(base->getAllocatorId(), &mAllocatorBase);
+
+        if (status != C2_OK) {
+            ALOGV("create block block pool fail.");
+            return;
+        }
+
+        if (useSurface)
+            mBase = base;
+        else
+            mBase = std::make_shared<C2PooledBlockPool> (mAllocatorBase, base->getLocalId());
+
+        ALOGV("create block pool success, allocatorId:%d poolId:%llu use surface:%d",
+            mBase->getAllocatorId(), mBase->getLocalId(), useSurface);
+    }
 
     C2BlockPool::local_id_t getLocalId() {
         return mBase->getLocalId();
@@ -94,6 +111,7 @@ public:
 
 private:
     std::shared_ptr<C2BlockPool> mBase;
+    std::shared_ptr<C2Allocator> mAllocatorBase;
 };
 
 C2VDABlockPoolUtil::C2VDABlockPoolUtil(bool useSurface, std::shared_ptr<C2BlockPool> blockpool)
@@ -214,7 +232,6 @@ c2_status_t C2VDABlockPoolUtil::resetGraphicBlock(int32_t blockId) {
             if (info->second.mDupFd >= 0) {
                 close(info->second.mDupFd);
             }
-            info->second.mBlockId = -1;
             info->second.mGraphicBlock.reset();
             mRawGraphicBlockInfo.erase(info);
             ret = C2_OK;

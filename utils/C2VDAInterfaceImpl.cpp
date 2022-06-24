@@ -7,6 +7,8 @@
 #include <C2VDAComponent.h>
 #include <logdebug.h>
 
+#include <C2PlatformSupport.h>
+#include <SimpleC2Interface.h>
 
 namespace android {
 
@@ -268,6 +270,12 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
 
     //input delay
     onInputDelayDeclareParam();
+
+    //pipe delay
+    onPipelineDelayDeclareParam();
+
+    //record buf depth
+    onReorderBufferDepthDeclareParam();
 
     //tunnel mode
     onTunnelDeclareParam();
@@ -697,6 +705,20 @@ void C2VDAComponent::IntfImpl::onInputDelayDeclareParam() {
             .withFields({C2F(mActualInputDelay, value).inRange(0, inputDelayMax)})
             .withSetter(Setter<decltype(*mActualInputDelay)>::StrictValueWithNoDeps)
     .build());
+}
+
+void C2VDAComponent::IntfImpl::onReorderBufferDepthDeclareParam() {
+        addParameter(
+                DefineParam(mReorderBufferDepth, C2_PARAMKEY_OUTPUT_REORDER_DEPTH)
+                .withConstValue(new C2PortReorderBufferDepthTuning(4u))
+        .build());
+}
+
+void C2VDAComponent::IntfImpl::onPipelineDelayDeclareParam() {
+        addParameter(
+                DefineParam(mActualPipelineDelay, C2_PARAMKEY_PIPELINE_DELAY_REQUEST)
+                .withConstValue(new C2ActualPipelineDelayTuning(4u))
+        .build());
 }
 
 void C2VDAComponent::IntfImpl::onTunnelDeclareParam() {

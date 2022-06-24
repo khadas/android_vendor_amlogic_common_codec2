@@ -65,6 +65,9 @@
 #define AM_SIDEBAND_HANDLE_NUM_FD (0)
 #define HWSYNCID_PASSTHROUGH_FLAG (1u << 16)
 
+#define CODEC_OUTPUT_BUFS_ALIGN_64 64
+
+
 #define UNUSED(expr)  \
     do {              \
         (void)(expr); \
@@ -302,7 +305,11 @@ C2VDAComponent::~C2VDAComponent() {
 
 void C2VDAComponent::onDestroy() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onDestroy");
+
+    mPendingOutputFormat.reset();
+    mPendingBuffersToWork.clear();
+    stopDequeueThread();
+
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
         mVideoDecWraper.reset();
@@ -320,9 +327,19 @@ void C2VDAComponent::onDestroy() {
         mTunnelHelper = NULL;
     }
 
-    stopDequeueThread();
-    reportAbandonedWorks();
+    for (auto& info : mGraphicBlocks) {
+        info.mGraphicBlock.reset();
+    }
+
+    mGraphicBlocks.clear();
+    if (mBlockPoolUtil != NULL) {
+        mBlockPoolUtil->cancelAllGraphicBlock();
+        mBlockPoolUtil.reset();
+        mBlockPoolUtil = NULL;
+    }
+
     mComponentState = ComponentState::DESTROYED;
+    ALOGV("onDestroy");
 }
 
 void C2VDAComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done) {
@@ -588,7 +605,8 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
 
     if (info->mState != GraphicBlockInfo::State::OWNED_BY_CLIENT &&
             getVideoResolutionChanged()) {
-        ALOGE("Graphic block (id=%d) should be owned by client on return", info->mBlockId);
+        ALOGE("Graphic block (id=%d) (state=%s) (fd=%d) (fdset=%d)should be owned by client on return",
+                info->mBlockId, GraphicBlockState(info->mState), info->mFd,info->mFdHaveSet);
         reportError(C2_BAD_STATE);
         return;
     }
@@ -1183,7 +1201,12 @@ void C2VDAComponent::onStopDone() {
     ALOGI("mGraphicBlocks.clear();");
 
     mGraphicBlocks.clear();
-    mBlockPoolUtil.reset();
+    if (mBlockPoolUtil != NULL) {
+        mBlockPoolUtil->cancelAllGraphicBlock();
+        mBlockPoolUtil.reset();
+        mBlockPoolUtil = NULL;
+    }
+
     mStopDoneEvent = nullptr;
     mComponentState = ComponentState::UNINITIALIZED;
     ALOGI("onStopDone OK");
@@ -1388,6 +1411,9 @@ void C2VDAComponent::tryChangeOutputFormat() {
 
     if (isNonTunnelMode()) {
         uint32_t dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor + 2;
+        if (!mUseBufferQueue) {
+            dequeueBufferNum = mOutputFormat.mMinNumBuffers;
+        }
         ALOGI("update deque buffer count:%d", dequeueBufferNum);
         C2PortActualDelayTuning::output outputDelay(dequeueBufferNum);
         std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -1478,7 +1504,24 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
             return C2_CORRUPTED;
         }
     } else {
-        if (mMetaDataUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat)) {
+        bool reallocOutputBuffer = mMetaDataUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat);
+        ALOGV("realloc output buffer:%d", reallocOutputBuffer);
+        if (reallocOutputBuffer) {
+            for (auto& info : mGraphicBlocks) {
+                ALOGV("info state: BlockId(%d) Fd(%d) State(%s) FdHaveSet(%d)",
+                    info.mBlockId, info.mFd, GraphicBlockState(info.mState), info.mFdHaveSet);
+            }
+
+            for (auto& info : mGraphicBlocks) {
+                mBlockPoolUtil->resetGraphicBlock(info.mBlockId);
+                info.mFdHaveSet = false;
+                info.mBind = false;
+                info.mBlockId = -1;
+                info.mGraphicBlock.reset();
+            }
+            /* clear all block */
+            mGraphicBlocks.clear();
+            mBlockPoolUtil->cancelAllGraphicBlock();
             auto err = allocateBuffersFromBlockPool(
                                 mOutputFormat.mCodedSize,
                                 static_cast<uint32_t>(mOutputFormat.mPixelFormat));
@@ -1486,12 +1529,7 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
                 ALOGE("failed to allocate new buffer err: %d", err);
                 reportError(err);
             }
-
-            for (auto& info : mGraphicBlocks) {
-                sendOutputBufferToAccelerator(&info, true /* ownByAccelerator */);
-            }
         } else {
-
             for (auto& info : mGraphicBlocks) {
                 info.mFdHaveSet = false;
                 if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
@@ -1743,6 +1781,9 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
     ALOGV("usage %llx", usage.expected);
     // The number of buffers requested for the first time is the number defined in the framework.
     int32_t dequeue_buffer_num = 3 + kDefaultSmoothnessFactor;
+    if (!mUseBufferQueue) {
+        dequeue_buffer_num = bufferCount;
+    }
     ALOGV("Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d", minBuffersForDisplay, bufferCount, dequeue_buffer_num);
     for (size_t i = 0; i < dequeue_buffer_num; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
@@ -1826,7 +1867,7 @@ void C2VDAComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, u
     info.mBind = bind;
     info.mFdHaveSet = false;
     mGraphicBlocks.push_back(std::move(info));
-    ALOGI("C2VDAComponent@ %s %d GraphicBlock Size:%d", __func__, __LINE__, mGraphicBlocks.size());
+    ALOGI("%s %d GraphicBlock Size:%d", __func__, __LINE__, mGraphicBlocks.size());
 }
 
 
@@ -2121,6 +2162,7 @@ c2_status_t C2VDAComponent::drain_nb(drain_mode_t mode) {
 
 c2_status_t C2VDAComponent::start() {
     // Use mStartStopLock to block other asynchronously start/stop calls.
+    ALOGV("%s",__func__);
     std::lock_guard<std::mutex> lock(mStartStopLock);
 
     if (mState.load() != State::LOADED) {
@@ -2151,11 +2193,13 @@ c2_status_t C2VDAComponent::start() {
     }
     mState.store(State::RUNNING);
     mVDAComponentStopDone = false;
+    ALOGV("%s done",__func__);
     return C2_OK;
 }
 
 // Stop call should be valid in all states (even in error).
 c2_status_t C2VDAComponent::stop() {
+    ALOGV("%s",__func__);
     // Use mStartStopLock to block other asynchronously start/stop calls.
     std::lock_guard<std::mutex> lock(mStartStopLock);
 
@@ -2175,10 +2219,12 @@ c2_status_t C2VDAComponent::stop() {
     done.Wait();
     mState.store(State::LOADED);
     mVDAComponentStopDone = true;
+    ALOGV("%s done",__func__);
     return C2_OK;
 }
 
 c2_status_t C2VDAComponent::reset() {
+    ALOGV("%s",__func__);
     mVDAComponentStopDone = false;
     return stop();
     // TODO(johnylin): reset is different than stop that it could be called in any state.
@@ -2186,6 +2232,7 @@ c2_status_t C2VDAComponent::reset() {
 }
 
 c2_status_t C2VDAComponent::release() {
+    ALOGV("%s",__func__);
     return reset();
 }
 
@@ -2193,18 +2240,31 @@ std::shared_ptr<C2ComponentInterface> C2VDAComponent::intf() {
     return mIntf;
 }
 
+void C2VDAComponent::checkVideoResolution(uint32_t width, uint32_t height,
+                                            uint32_t *decwidth,uint32_t *decheight) {
+    *decwidth = (width + (CODEC_OUTPUT_BUFS_ALIGN_64 - 1)) & (~(CODEC_OUTPUT_BUFS_ALIGN_64 - 1));
+    *decheight = (height + (CODEC_OUTPUT_BUFS_ALIGN_64 - 1)) & (~(CODEC_OUTPUT_BUFS_ALIGN_64 - 1));
+}
+
 void C2VDAComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t width, uint32_t height) {
     // Always use fexible pixel 420 format YCbCr_420_888 in Android.
     // Uses coded size for crop rect while it is not available.
     if (mBufferFirstAllocated && minNumBuffers < mOutputFormat.mMinNumBuffers)
         minNumBuffers = mOutputFormat.mMinNumBuffers;
-    uint32_t max_width = width;
-    uint32_t max_height = height;
+
+    uint32_t decWidth = width;
+    uint32_t decHeight = height;
+
+    checkVideoResolution(width, height, &decWidth, &decHeight);
+
+    uint32_t max_width = decWidth;
+    uint32_t max_height = decHeight;
+
     if (!mMetaDataUtil->getNeedReallocBuffer()) {
         mMetaDataUtil->getMaxBufWidthAndHeight(&max_width, &max_height);
     }
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,
-                                                media::Size(max_width, max_height), media::Rect(width, height));
+                                                media::Size(max_width, max_height), media::Rect(decWidth, decHeight));
 
     // Set mRequestedVisibleRect to default.
     mRequestedVisibleRect = media::Rect();
@@ -2586,6 +2646,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
     ALOGV("%s usage %llx size(%d*%d)report out put work num:%lld", __func__, usage.expected, size.width(), size.height(),mOutputWorkCount);
+    uint64_t timeOutCount = 0;
     while (!mDequeueLoopStop.load()) {
 
         if (mBuffersInClient.load() == 0) {
@@ -2646,16 +2707,23 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             }
             ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d)",
                     (block_used ? "used" : "unused"), blockId, width, height, use_count);
+            timeOutCount = 0;
         } else if (err == C2_BLOCKING) {
             ALOGV("fetch block retry.");
             ::usleep(1);
+            timeOutCount++;
+
+            if (timeOutCount >= 1000) {
+                displayGraphicBlockInfo();
+                reportError(C2_TIMED_OUT);
+                break;
+            }
             continue;  // wait for retry
         } else {
             ALOGE("dequeueThreadLoop got error: %d", err);
             //break;
         }
-
-        ::usleep(5000);
+        ::usleep(1000);
     }
     ALOGV("dequeueThreadLoop terminates");
 }
@@ -2671,6 +2739,15 @@ const char* C2VDAComponent::GraphicBlockState(GraphicBlockInfo::State state) {
         return "Tunnelrender";
     } else {
         return "Unknown";
+    }
+}
+
+void C2VDAComponent::displayGraphicBlockInfo() {
+    for (auto & blockItem : mGraphicBlocks) {
+        ALOGD("%s PoolId(%d) BlockId(%d) Fd(%d) State(%s) Blind(%d) FdHaveSet(%d)",
+            __func__, blockItem.mPoolId, blockItem.mBlockId,
+            blockItem.mFd, GraphicBlockState(blockItem.mState),
+            blockItem.mBind, blockItem.mFdHaveSet);
     }
 }
 
