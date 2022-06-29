@@ -114,13 +114,12 @@ private:
     std::shared_ptr<C2Allocator> mAllocatorBase;
 };
 
-C2VDABlockPoolUtil::C2VDABlockPoolUtil(bool useSurface, std::shared_ptr<C2BlockPool> blockpool)
+C2VDABlockPoolUtil::C2VDABlockPoolUtil(std::shared_ptr<C2BlockPool> blockpool)
     : mBlockingPool(std::make_shared<BlockingBlockPool>(blockpool)),
       mGraphicBufferId(0),
-      mMaxDequeuedBufferNum(0),
-      mUseSurface(useSurface) {
-
-    ALOGI("%s blockPool id:%llu use surface:%d", __func__, blockpool->getLocalId(), useSurface);
+      mMaxDequeuedBufferNum(0) {
+    mUseSurface = blockpool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
+    ALOGI("%s blockPool id:%llu use surface:%d", __func__, blockpool->getLocalId(), mUseSurface);
 }
 
 C2VDABlockPoolUtil::~C2VDABlockPoolUtil() {
@@ -212,8 +211,7 @@ c2_status_t C2VDABlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
     if (mUseSurface) {
         mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay;
     } else {
-        //TODO
-        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay;
+        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay - 2;
     }
 
     ALOGV("block pool deque buffer number max:%d", mMaxDequeuedBufferNum);

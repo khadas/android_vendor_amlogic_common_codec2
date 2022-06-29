@@ -1821,7 +1821,6 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
     std::shared_ptr<C2BlockPool> blockPool;
     C2BlockPool::local_id_t poolId = -1;
     c2_status_t err;
-    bool useBufferQueue = false;
     if (mBlockPoolUtil == nullptr) {
         poolId = mIntfImpl->getBlockPoolId();
         err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
@@ -1830,17 +1829,13 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             reportError(err);
             return err;
         }
-        ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, blockpooolid:%d", poolId, blockPool->getAllocatorId());
-        useBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
-        if (isTunnelMode()) {
-            DCHECK(useBufferQueue == false);
-        }
-        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (useBufferQueue, blockPool);
+        ALOGI("Using C2BlockPool ID:%" PRIu64 " for allocating output buffers, allocator id:%d", poolId, blockPool->getAllocatorId());
+        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (blockPool);
     }
 
     int64_t surfaceUsage = 0;
     bool usersurfacetexture = false;
-    if (useBufferQueue) {
+    if (mBlockPoolUtil->isBufferQueue()) {
         mUseBufferQueue = true;
         surfaceUsage = mBlockPoolUtil->getConsumerUsage();
         ALOGV("get block pool usage:%lld", surfaceUsage);
@@ -2035,7 +2030,7 @@ void C2VDAComponent::setOutputFormatCrop(const media::Rect& cropRect) {
     mOutputFormat.mVisibleRect = cropRect;
 }
 
-void C2VDAComponent::checkVideoDecReconfig() {
+void C2VDAComponent::onCheckVideoDecReconfig() {
     ALOGV("%s",__func__);
     if (mSurfaceUsageGeted)
         return;
@@ -2053,7 +2048,7 @@ void C2VDAComponent::checkVideoDecReconfig() {
             }
         }
         mUseBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
-        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (mUseBufferQueue, blockPool);
+        mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (blockPool);
         if (mBlockPoolUtil->isBufferQueue()) {
             ALOGI("Bufferqueue-backed block pool is used. blockPool->getAllocatorId() %d, C2PlatformAllocatorStore::BUFFERQUEUE %d",
                   blockPool->getAllocatorId(), C2PlatformAllocatorStore::BUFFERQUEUE);
@@ -2118,7 +2113,8 @@ c2_status_t C2VDAComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const i
     }
 
     if (!mSurfaceUsageGeted) {
-        checkVideoDecReconfig();
+        mTaskRunner->PostTask(FROM_HERE,
+                        ::base::Bind(&C2VDAComponent::onCheckVideoDecReconfig, ::base::Unretained(this)));
     }
 
     while (!items->empty()) {

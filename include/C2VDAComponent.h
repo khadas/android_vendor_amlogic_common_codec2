@@ -286,7 +286,7 @@ private:
     c2_status_t sendOutputBufferToWorkIfAny(bool dropIfUnavailable);
     // Update |mUndequeuedBlockIds| FIFO by pushing |blockId|.
     void updateUndequeuedBlockIds(int32_t blockId);
-    void checkVideoDecReconfig();
+    void onCheckVideoDecReconfig();
 
     void checkVideoResolution(uint32_t width, uint32_t height,uint32_t *decwidth,uint32_t *decheight);
 

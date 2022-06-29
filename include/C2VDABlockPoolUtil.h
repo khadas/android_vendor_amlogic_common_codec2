@@ -22,7 +22,7 @@ const int64_t kFetchRetryDelayUs = 10 * 1000;
 
 class C2VDABlockPoolUtil {
 public:
-    explicit C2VDABlockPoolUtil(bool useSurface,std::shared_ptr<C2BlockPool> blockpool);
+    explicit C2VDABlockPoolUtil(std::shared_ptr<C2BlockPool> blockpool);
     ~C2VDABlockPoolUtil();
 
     /**
