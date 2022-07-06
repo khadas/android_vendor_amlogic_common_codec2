@@ -627,6 +627,25 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
     }
 }
 
+void C2VDAComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,
+                                            uint32_t blockId) {
+
+    DCHECK(mTaskRunner->BelongsToCurrentThread());
+    ALOGV("onNewBlockBufferFetched: block id:%u", blockId);
+    RETURN_ON_UNINITIALIZED_OR_ERROR();
+
+    if (getVideoResolutionChanged()) {
+        appendOutputBuffer(std::move(block), poolId, blockId, true);
+        GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+        info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+        sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
+    } else {
+        ALOGV("resolution changing. reset this %d block.", blockId);
+        mBlockPoolUtil->resetGraphicBlock(blockId);
+        block.reset();
+    }
+}
+
 void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGV("onOutputBufferDone: picture id=%d, bitstream id=%lld, flags: %d", pictureBufferId, bitstreamId, flags);
@@ -2650,6 +2669,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
     ALOGV("%s usage %llx size(%d*%d)report out put work num:%lld", __func__, usage.expected, size.width(), size.height(),mOutputWorkCount);
     uint64_t timeOutCount = 0;
+    uint64_t lastFetchBlockTimeMs = 0;
     while (!mDequeueLoopStop.load()) {
 
         if (mBuffersInClient.load() == 0) {
@@ -2697,9 +2717,8 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                 int height = block->height();
                 int use_count = block.use_count();
                 if (info == nullptr) { //fetch unused block
-                    appendOutputBuffer(std::move(block), poolId, blockId, true);
-                    info = getGraphicBlockByBlockId(poolId, blockId);
-                    sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
+                    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onNewBlockBufferFetched,
+                                        ::base::Unretained(this), std::move(block), poolId, blockId));
                 } else { //fetch used block
                     mTaskRunner->PostTask(FROM_HERE,
                                     ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
@@ -2707,9 +2726,12 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                     mBuffersInClient--;
                     block_used = true;
                 }
-                ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d)",
-                        (block_used ? "used" : "unused"), blockId, width, height, use_count);
+                nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+                ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d), time interval:%lld",
+                        (block_used ? "used" : "unused"), blockId, width, height, use_count,
+                        nowTimeMs - lastFetchBlockTimeMs);
                 timeOutCount = 0;
+                lastFetchBlockTimeMs = nowTimeMs;
             } else if (err == C2_BLOCKING) {
                 ALOGV("fetch block retry.");
                 ::usleep(1);
