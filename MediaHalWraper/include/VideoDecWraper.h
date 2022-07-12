@@ -33,7 +33,7 @@ public:
         virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize) = 0;
         virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id)  = 0;
         virtual void NotifyFlushDone()  = 0;
-        virtual void NotifyResetDone()  = 0;
+        virtual void NotifyFlushOrStopDone()  = 0;
         virtual void NotifyError(int error)  = 0;
         virtual void NotifyEvent(uint32_t event, void* param, uint32_t paramsize) = 0;
 
@@ -64,8 +64,10 @@ public:
     void reusePictureBuffer(int32_t pictureBufferId);
     int32_t allocTunnelBuffer(int usage, uint32_t format, int stride, uint32_t width, uint32_t height, bool secure, int* fd);
     int32_t freeTunnelBuffer(int fd);
-    void flush();
+    void eosFlush();
     void reset(uint32_t flags = 0);
+    void flush(uint32_t flags = 0);
+    void stop(uint32_t flags = 0);
     void destroy();
     //media::VideoDecodeAccelerator::SupportedProfiles GetSupportedProfiles(InputCodec inputCodec);
 

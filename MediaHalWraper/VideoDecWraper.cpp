@@ -268,8 +268,8 @@ int32_t VideoDecWraper::freeTunnelBuffer(int fd) {
     return -1;
 }
 
-void VideoDecWraper::flush() {
-    VDEC_LOGD("flush");
+void VideoDecWraper::eosFlush() {
+    VDEC_LOGD("eosFlush");
 
     if (mAmVideoDec) {
         mAmVideoDec->flush();
@@ -278,6 +278,22 @@ void VideoDecWraper::flush() {
 }
 void VideoDecWraper::reset(uint32_t flags) {
     VDEC_LOGD("reset");
+
+    if (mAmVideoDec) {
+        mAmVideoDec->reset(flags);
+    }
+
+}
+void VideoDecWraper::flush(uint32_t flags) {
+    VDEC_LOGD("flush");
+
+    if (mAmVideoDec) {
+        mAmVideoDec->reset(flags);
+    }
+
+}
+void VideoDecWraper::stop(uint32_t flags) {
+    VDEC_LOGD("stop");
 
     if (mAmVideoDec) {
         mAmVideoDec->reset(flags);
@@ -351,7 +367,7 @@ void VideoDecWraper::onResetDone() {
     VDEC_LOGD("onResetDone\n");
 
     if (mDecoderCallback) {
-        mDecoderCallback->NotifyResetDone();
+        mDecoderCallback->NotifyFlushOrStopDone();
     }
 
 }

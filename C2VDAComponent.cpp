@@ -523,7 +523,7 @@ void C2VDAComponent::onDequeueWork() {
 
     if (drainMode != NO_DRAIN) {
         if (mVideoDecWraper) {
-            mVideoDecWraper->flush();
+            mVideoDecWraper->eosFlush();
         }
         mComponentState = ComponentState::DRAINING;
         mPendingOutputEOS = drainMode == DRAIN_COMPONENT_WITH_EOS;
@@ -998,7 +998,7 @@ void C2VDAComponent::onDrain(uint32_t drainMode) {
         // mode and signal VDA flush immediately.
         if (mComponentState == ComponentState::STARTED) {
             if (mVideoDecWraper) {
-                mVideoDecWraper->flush();
+                mVideoDecWraper->eosFlush();
             }
             mComponentState = ComponentState::DRAINING;
             mPendingOutputEOS = drainMode == DRAIN_COMPONENT_WITH_EOS;
@@ -1066,7 +1066,7 @@ void C2VDAComponent::onFlush() {
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if (mVideoDecWraper) {
-        mVideoDecWraper->reset();
+        mVideoDecWraper->flush();
     }
 
     if (mTunnelHelper) {
@@ -1116,12 +1116,20 @@ void C2VDAComponent::onStop(::base::WaitableEvent* done) {
         // by onFlush(), just regard the following NotifyResetDone callback as for stopping.
         uint32_t flags = 0;
         if (mVideoDecWraper) {
-            mVideoDecWraper->reset(flags|RESET_FLAG_NOWAIT);
+            mVideoDecWraper->stop(flags|RESET_FLAG_NOWAIT);
         }
     }
 }
 
-void C2VDAComponent::onResetDone() {
+void C2VDAComponent::resetInputAndOutputBufInfo() {
+    mInputWorkCount = 0;
+    mInputCSDWorkCount = 0;
+    mOutputWorkCount = 0;
+    mHasQueuedWork = false;
+    mUpdateDurationUsCount = 0;
+}
+
+void C2VDAComponent::onFlushOrStopDone() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     if (mComponentState == ComponentState::UNINITIALIZED) {
         return;  // component is already stopped.
@@ -1129,8 +1137,10 @@ void C2VDAComponent::onResetDone() {
     if (mComponentState == ComponentState::FLUSHING) {
         mLastFlushTimeMs = 0;
         onFlushDone();
+        resetInputAndOutputBufInfo();
     } else if (mComponentState == ComponentState::STOPPING) {
         onStopDone();
+        resetInputAndOutputBufInfo();
     } else {
         ALOGE("%s:%d", __FUNCTION__, __LINE__);
         reportError(C2_CORRUPTED);
@@ -1152,11 +1162,7 @@ void C2VDAComponent::onFlushDone() {
     }
     mPendingBuffersToWork.clear();
     mComponentState = ComponentState::STARTED;
-    mInputWorkCount = 0;
-    mInputCSDWorkCount = 0;
-    mOutputWorkCount = 0;
-    mHasQueuedWork = false;
-    mUpdateDurationUsCount = 0;
+
 
     //after flush we need reuse the buffer which owned by accelerator
     for (auto& info : mGraphicBlocks) {
@@ -2337,9 +2343,9 @@ void C2VDAComponent::NotifyFlushDone() {
                           ::base::Bind(&C2VDAComponent::onDrainDone, ::base::Unretained(this)));
 }
 
-void C2VDAComponent::NotifyResetDone() {
+void C2VDAComponent::NotifyFlushOrStopDone() {
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VDAComponent::onResetDone, ::base::Unretained(this)));
+                          ::base::Bind(&C2VDAComponent::onFlushOrStopDone, ::base::Unretained(this)));
 }
 
 void C2VDAComponent::onReportError(c2_status_t error) {
@@ -2683,7 +2689,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             mLastFlushTimeMs > 0 && nowTimeMs - mLastFlushTimeMs >= 2000) {
             ALOGI("onFlush timeout we need force flush once time");
             mLastFlushTimeMs = 0;
-            mVideoDecWraper->reset(RESET_FLAG_NOWAIT);
+            mVideoDecWraper->stop(RESET_FLAG_NOWAIT);
         } else if (mComponentState == ComponentState::STOPPING) {
             ALOGV("%s@%d", __func__, __LINE__);
             break;

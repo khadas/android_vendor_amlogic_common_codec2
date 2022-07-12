@@ -87,7 +87,7 @@ public:
     virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize);
     virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id);
     virtual void NotifyFlushDone();
-    virtual void NotifyResetDone();
+    virtual void NotifyFlushOrStopDone();
     virtual void NotifyError(int error);
     virtual void NotifyEvent(uint32_t event, void *param, uint32_t paramsize);
 
@@ -231,7 +231,7 @@ private:
     void onDrainDone();
     void onFlush();
     void onStop(::base::WaitableEvent* done);
-    void onResetDone();
+    void onFlushOrStopDone();
     void onFlushDone();
     void onStopDone();
     void onOutputFormatChanged(std::unique_ptr<VideoFormat> format);
@@ -311,6 +311,7 @@ private:
     // Helper function to determine if the work is finished.
     bool isWorkDone(const C2Work* work) const;
 
+    void resetInputAndOutputBufInfo(void);
 
     bool isNonTunnelMode() const;
     bool isTunnelMode() const;
