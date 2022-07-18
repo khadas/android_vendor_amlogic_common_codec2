@@ -67,6 +67,9 @@
 
 #define CODEC_OUTPUT_BUFS_ALIGN_64 64
 
+#define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
+#define DEFAULT_RETRYBLOCK_TIMEOUT_MS (60*1000)// default timeout 1min
+
 
 #define UNUSED(expr)  \
     do {              \
@@ -287,6 +290,9 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
             ALOGV("open file %s error:%s", pathfile, strerror(errno));
         }
     }
+    //default 1min
+    mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32("vendor.codec2.default.retryblock.timeout", DEFAULT_RETRYBLOCK_TIMEOUT_MS);
+
 }
 
 C2VDAComponent::~C2VDAComponent() {
@@ -2140,6 +2146,7 @@ void C2VDAComponent::onCheckVideoDecReconfig() {
 
 c2_status_t C2VDAComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
     if (mState.load() != State::RUNNING) {
+        ALOGI("queue_nb State[%d].", mState.load());
         return C2_BAD_STATE;
     }
 
@@ -2661,16 +2668,44 @@ void C2VDAComponent::stopDequeueThread() {
     }
 }
 
+int32_t C2VDAComponent::getFetchGraphicBlockDelayTimeUs(c2_status_t err) {
+    // Variables used to exponential backoff retry when buffer fetching times out.
+    constexpr int kFetchRetryDelayInit = 64;    // Initial delay: 64us
+    int kFetchRetryDelayMax = DEFAULT_FRAME_DURATION;
+    float frameRate = 0.0f;
+    int perFrameDur = 0;
+    static int sDelay = kFetchRetryDelayInit;
+
+    if (mIntfImpl)
+        frameRate = mIntfImpl->getInputFrameRate();
+    if (frameRate > 0.0f) {
+        perFrameDur = (int) (1000 / frameRate) * 1000;
+        if (mMetaDataUtil->isInterlaced())
+            perFrameDur = perFrameDur / 2;
+        perFrameDur = std::max(perFrameDur, 2 * kFetchRetryDelayInit);
+        kFetchRetryDelayMax = std::min(perFrameDur, kFetchRetryDelayMax);
+    }
+    if (err == C2_TIMED_OUT || err == C2_BLOCKING) {
+        ALOGV("%s: fetchGraphicBlock() timeout, waiting %zuus frameRate:%f", __func__, sDelay, frameRate);
+        sDelay = std::min(sDelay * 2, kFetchRetryDelayMax);  // Exponential backoff
+        return sDelay;
+    }
+    sDelay = kFetchRetryDelayInit;
+    return sDelay;
+}
+
 void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat) {
     ALOGV("dequeueThreadLoop starts");
     DCHECK(mDequeueThread.task_runner()->BelongsToCurrentThread());
     uint64_t platformUsage = mMetaDataUtil->getPlatformUsage();
+    int      delayTime = 10 * 1000;//10ms
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
     ALOGV("%s usage %llx size(%d*%d)report out put work num:%lld", __func__, usage.expected, size.width(), size.height(),mOutputWorkCount);
     uint64_t timeOutCount = 0;
     uint64_t lastFetchBlockTimeMs = 0;
+    uint64_t timeOutMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
     while (!mDequeueLoopStop.load()) {
 
         if (mBuffersInClient.load() == 0) {
@@ -2695,6 +2730,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             c2_status_t err = C2_TIMED_OUT;
             C2BlockPool::local_id_t poolId;
             std::shared_ptr<C2GraphicBlock> block;
+
             if (mMetaDataUtil != NULL && mBlockPoolUtil != NULL) {
                 mBlockPoolUtil->getPoolId(&poolId);
                 err = mBlockPoolUtil->fetchGraphicBlock(mMetaDataUtil->getOutAlignedSize(size.width()),
@@ -2702,12 +2738,13 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                                                 pixelFormat, usage, &block);
                 ALOGI("dequeueThreadLoop fetchOutputBlock %d state:%d", __LINE__, err);
             }
+            delayTime = getFetchGraphicBlockDelayTimeUs(err);
             if (err == C2_TIMED_OUT) {
                 // Mutexes often do not care for FIFO. Practically the thread who is locking the mutex
                 // usually will be granted to lock again right thereafter. To make this loop not too
                 // bossy, the simpliest way is to add a short delay to the next time acquiring the
                 // lock. TODO (b/118354314): replace this if there is better solution.
-                ::usleep(1);
+                ::usleep(delayTime);
                 continue;  // wait for retry
             }
             if (err == C2_OK) {
@@ -2734,10 +2771,17 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                 timeOutCount = 0;
                 lastFetchBlockTimeMs = nowTimeMs;
             } else if (err == C2_BLOCKING) {
-                ALOGV("fetch block retry.");
-                ::usleep(1);
+                ::usleep(delayTime);
+                if (timeOutCount == 0)
+                    timeOutMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
                 timeOutCount++;
-                if (timeOutCount >= 1000 && (mUseBufferQueue == false)) {
+                ALOGV("fetch block retry timeout[%lld][%lld][%lld]timeOutCount[%lld].",
+                        (systemTime(SYSTEM_TIME_MONOTONIC) / 1000000) - timeOutMs,
+                        (systemTime(SYSTEM_TIME_MONOTONIC) / 1000000),
+                        timeOutMs,
+                        timeOutCount);
+                if (((systemTime(SYSTEM_TIME_MONOTONIC) / 1000000) - timeOutMs) > mDefaultRetryBlockTimeOutMs
+                    && (mUseBufferQueue == false)) {
                     displayGraphicBlockInfo();
                     reportError(C2_TIMED_OUT);
                     break;
@@ -2748,7 +2792,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                 //break;
             }
         }
-        ::usleep(2000);
+        ::usleep(delayTime);
     }
     ALOGV("dequeueThreadLoop terminates");
 }
@@ -2766,6 +2810,7 @@ const char* C2VDAComponent::GraphicBlockState(GraphicBlockInfo::State state) {
         return "Unknown";
     }
 }
+
 
 void C2VDAComponent::displayGraphicBlockInfo() {
     for (auto & blockItem : mGraphicBlocks) {

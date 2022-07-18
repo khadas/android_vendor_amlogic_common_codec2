@@ -36,6 +36,8 @@ public:
     std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects() {
         return this->mColorAspects;
     }
+    float getInputFrameRate() {  return  mFrameRateInfo->value; }
+
 private:
     // Configurable parameter setters.
     static C2R ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::input>& info);

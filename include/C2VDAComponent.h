@@ -339,7 +339,8 @@ private:
 
     //convert graphicblock state.
     const char* GraphicBlockState(GraphicBlockInfo::State state);
-
+    //get the delay time of fetch block
+    int32_t getFetchGraphicBlockDelayTimeUs(c2_status_t err);
     static std::atomic<int32_t> sConcurrentInstances;
     static std::atomic<int32_t> sConcurrentInstanceSecures;
 
@@ -493,6 +494,8 @@ private:
     bool mHasQueuedWork;
     C2Work  mLastOutputC2Work;
     C2Work  mLastFinishedC2Work;
+
+    uint64_t mDefaultRetryBlockTimeOutMs;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };
