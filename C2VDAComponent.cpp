@@ -283,6 +283,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mDumpYuvFp = fopen(pathfile, "wb");
         if (mDumpYuvFp) {
             ALOGV("open file %s", pathfile);
+        } else {
+            ALOGV("open file %s error:%s", pathfile, strerror(errno));
         }
     }
 }
@@ -1862,6 +1864,10 @@ c2_status_t C2VDAComponent::allocateBuffersFromBlockPool(const media::Size& size
             usersurfacetexture = true;
             mMetaDataUtil->setUseSurfaceTexture(true);
         }
+    } else {
+        if (isNonTunnelMode()) {
+            mMetaDataUtil->setNoSurface(true);
+        }
     }
 
     if (isNonTunnelMode()) {
@@ -2262,31 +2268,20 @@ std::shared_ptr<C2ComponentInterface> C2VDAComponent::intf() {
     return mIntf;
 }
 
-void C2VDAComponent::checkVideoResolution(uint32_t width, uint32_t height,
-                                            uint32_t *decwidth,uint32_t *decheight) {
-    *decwidth = (width + (CODEC_OUTPUT_BUFS_ALIGN_64 - 1)) & (~(CODEC_OUTPUT_BUFS_ALIGN_64 - 1));
-    *decheight = (height + (CODEC_OUTPUT_BUFS_ALIGN_64 - 1)) & (~(CODEC_OUTPUT_BUFS_ALIGN_64 - 1));
-}
-
 void C2VDAComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t width, uint32_t height) {
     // Always use fexible pixel 420 format YCbCr_420_888 in Android.
     // Uses coded size for crop rect while it is not available.
     if (mBufferFirstAllocated && minNumBuffers < mOutputFormat.mMinNumBuffers)
         minNumBuffers = mOutputFormat.mMinNumBuffers;
 
-    uint32_t decWidth = width;
-    uint32_t decHeight = height;
-
-    checkVideoResolution(width, height, &decWidth, &decHeight);
-
-    uint32_t max_width = decWidth;
-    uint32_t max_height = decHeight;
+    uint32_t max_width = width;
+    uint32_t max_height = height;
 
     if (!mMetaDataUtil->getNeedReallocBuffer()) {
         mMetaDataUtil->getMaxBufWidthAndHeight(&max_width, &max_height);
     }
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,
-                                                media::Size(max_width, max_height), media::Rect(decWidth, decHeight));
+                                                media::Size(max_width, max_height), media::Rect(width, height));
 
     // Set mRequestedVisibleRect to default.
     mRequestedVisibleRect = media::Rect();
