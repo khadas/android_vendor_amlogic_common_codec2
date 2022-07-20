@@ -18,8 +18,8 @@ using ::android::hardware::media::bufferpool::BufferPoolData;
 namespace android {
 
 
-const size_t kDefaultFetchGraphicBlockDelay = 9; // Default smoothing margin for dequeue block.
-                                                 // kDefaultSmoothnessFactor + 2
+const size_t kDefaultFetchGraphicBlockDelay = 10; // Default smoothing margin for dequeue block.
+                                                  // kDefaultSmoothnessFactor + 2
 
 int64_t GetNowUs() {
     struct timespec t;
@@ -149,7 +149,7 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
     ALOG_ASSERT(block != nullptr);
     ALOG_ASSERT(mBlockingPool != nullptr);
 
-    ALOGV("%s (%dx%d) block", __func__, width, height);
+    ALOGV("%s (%dx%d) block,current block size:%d max:%d ", __func__, width, height, mRawGraphicBlockInfo.size(), mMaxDequeuedBufferNum);
 
     std::lock_guard<std::mutex> lock(mMutex);
     std::shared_ptr<C2GraphicBlock> fetchBlock;
@@ -172,17 +172,25 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
         if (iter != mRawGraphicBlockInfo.end()) {
             struct BlockBufferInfo info = mRawGraphicBlockInfo[inode];
             ALOGV("Fetch used block success, block inode: %llu fd:%d --> %d id:%d", inode, info.mFd, fd, info.mBlockId);
-        }
-        else if (mRawGraphicBlockInfo.size() < mMaxDequeuedBufferNum) {
-            c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
-            if (ret != C2_OK) {
-                return ret;
+        } else {
+            if (mUseSurface) {
+                c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
+                if (ret != C2_OK) {
+                    return ret;
+                }
+            } else {
+                if (mRawGraphicBlockInfo.size() < mMaxDequeuedBufferNum) {
+                    c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
+                    if (ret != C2_OK) {
+                        return ret;
+                    }
+                }
+                else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
+                    fetchBlock.reset();
+                    mNextFetchTimeUs = GetNowUs();
+                    return C2_BLOCKING;
+                }
             }
-        }
-        else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
-            fetchBlock.reset();
-            mNextFetchTimeUs = GetNowUs();
-            return C2_BLOCKING;
         }
     }
     else if (err == C2_TIMED_OUT) {

@@ -129,7 +129,7 @@ media::Size getFrameSizeFromC2GraphicBlock(const C2GraphicBlock& block) {
 const uint32_t kDpbOutputBufferExtraCount = 0;          // Use the same number as ACodec.
 const int kDequeueRetryDelayUs = 10000;                 // Wait time of dequeue buffer retry in microseconds.
 const int32_t kAllocateBufferMaxRetries = 10;           // Max retry time for fetchGraphicBlock timeout.
-constexpr uint32_t kDefaultSmoothnessFactor = 7;        // Default smoothing margin.(kRenderingDepth + kSmoothnessFactor)
+constexpr uint32_t kDefaultSmoothnessFactor = 8;        // Default smoothing margin.(kRenderingDepth + kSmoothnessFactor + 1)
 
 }  // namespace
 
@@ -1441,7 +1441,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
     setOutputFormatCrop(mPendingOutputFormat->mVisibleRect);
 
     if (isNonTunnelMode()) {
-        uint32_t dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor + 2;
+        uint32_t dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor;
         if (!mUseBufferQueue) {
             dequeueBufferNum = mOutputFormat.mMinNumBuffers;
         }
@@ -1760,7 +1760,7 @@ c2_status_t C2VDAComponent::allocNonTunnelBuffers(const media::Size& size, uint3
 
     ALOGV("usage %llx", usage.expected);
     // The number of buffers requested for the first time is the number defined in the framework.
-    int32_t dequeue_buffer_num = 3 + kDefaultSmoothnessFactor;
+    int32_t dequeue_buffer_num = 2 + kDefaultSmoothnessFactor;
     if (!mUseBufferQueue) {
         dequeue_buffer_num = bufferCount;
     }
