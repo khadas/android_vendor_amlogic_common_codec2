@@ -1090,6 +1090,11 @@ void C2VDAComponent::onDrainDone() {
 void C2VDAComponent::onFlush() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGV("onFlush");
+   // Pop all works in mQueue and put into mAbandonedWorks.
+    while (!mQueue.empty()) {
+        mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
+        mQueue.pop();
+    }
     if (mComponentState == ComponentState::FLUSHING ||
         mComponentState == ComponentState::STOPPING) {
         return;  // Ignore other flush request when component is flushing or stopping.
@@ -1103,12 +1108,8 @@ void C2VDAComponent::onFlush() {
     if (mTunnelHelper) {
         mTunnelHelper->flush();
     }
-
-    // Pop all works in mQueue and put into mAbandonedWorks.
-    while (!mQueue.empty()) {
-        mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
-        mQueue.pop();
-    }
+    mInputWorkCount = 0;
+    mInputCSDWorkCount = 0;
     mComponentState = ComponentState::FLUSHING;
     mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
     mFirstInputTimestamp = -1;
@@ -1133,7 +1134,8 @@ void C2VDAComponent::onStop(::base::WaitableEvent* done) {
         mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
         mQueue.pop();
     }
-
+    mInputWorkCount = 0;
+    mInputCSDWorkCount = 0;
     mStopDoneEvent = done;  // restore done event which shoud be signaled in onStopDone().
     mComponentState = ComponentState::STOPPING;
 
@@ -1153,8 +1155,6 @@ void C2VDAComponent::onStop(::base::WaitableEvent* done) {
 }
 
 void C2VDAComponent::resetInputAndOutputBufInfo() {
-    mInputWorkCount = 0;
-    mInputCSDWorkCount = 0;
     mOutputWorkCount = 0;
     mHasQueuedWork = false;
     mUpdateDurationUsCount = 0;
