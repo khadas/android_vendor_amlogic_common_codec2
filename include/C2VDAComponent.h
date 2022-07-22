@@ -330,6 +330,7 @@ private:
 
     //display all graphic block information.
     void displayGraphicBlockInfo();
+    void getCurrentProcessFdInfo();
     //convert codec profiel to mime
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
@@ -413,6 +414,9 @@ private:
     std::deque<int32_t> mUndequeuedBlockIds;
     // The error state indicator which sets to true when an error is occured.
     bool mHasError = false;
+
+    // The indicator of enable dump current process information.
+    bool mFdInfoDebugEnable;
 
     // The indicator of whether component is in secure mode.
     bool mSecureMode;

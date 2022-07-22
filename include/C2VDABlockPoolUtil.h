@@ -138,6 +138,7 @@ private:
         uint32_t mBlockId;
         std::shared_ptr<C2GraphicBlock> mGraphicBlock;
     };
+    std::mutex mBlockBufferMutex;
 
     // The map of storing fetch output buffer information.
     std::map<uint64_t, BlockBufferInfo> mRawGraphicBlockInfo;

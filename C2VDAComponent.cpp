@@ -61,6 +61,10 @@
 #define ATRACE_TAG ATRACE_TAG_VIDEO
 #include <utils/Trace.h>
 
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <fstream>
 
 #define AM_SIDEBAND_HANDLE_NUM_FD (0)
 #define HWSYNCID_PASSTHROUGH_FLAG (1u << 16)
@@ -292,12 +296,21 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
     }
     //default 1min
     mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32("vendor.codec2.default.retryblock.timeout", DEFAULT_RETRYBLOCK_TIMEOUT_MS);
+    mFdInfoDebugEnable =  property_get_bool("debug.vendor.media.codec2.vdec.fd_info_debug", false);
 
+    if (mFdInfoDebugEnable) {
+        getCurrentProcessFdInfo();
+    }
 }
 
 C2VDAComponent::~C2VDAComponent() {
     ALOGI("%s", __func__);
     mComponentState = ComponentState::DESTROYING;
+
+    if (mFdInfoDebugEnable) {
+        getCurrentProcessFdInfo();
+    }
+
     if (mThread.IsRunning()) {
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VDAComponent::onDestroy, ::base::Unretained(this)));
@@ -648,9 +661,15 @@ void C2VDAComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> blo
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
         sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
     } else {
-        ALOGV("resolution changing. reset this %d block.", blockId);
-        mBlockPoolUtil->resetGraphicBlock(blockId);
-        block.reset();
+        if (mOutputFormat.mCodedSize.width() == block->width() && mOutputFormat.mCodedSize.height() == block->height()) {
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "current resolution (%d*%d) new block(%d*%d) and add it", mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height(), block->width(), block->height());
+            appendOutputBuffer(std::move(block), poolId, blockId, true);
+            GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+            info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+            sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
+        } else {
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"fetch current block(%d*%d) is pending", block->width(), block->height());
+        }
     }
 }
 
@@ -1226,9 +1245,9 @@ void C2VDAComponent::onStopDone() {
     mSurfaceUsageGeted = false;
     mStopDoneEvent->Signal();
     for (auto& info : mGraphicBlocks) {
-        ALOGV("GraphicBlock reset, block Info Id:%d Fd:%d poolId:%d State:%s",
-            info.mBlockId, info.mFd, info.mPoolId, GraphicBlockState(info.mState));
-        info.mGraphicBlock.reset();
+        ALOGV("GraphicBlock reset, block Info Id:%d Fd:%d poolId:%d State:%s block use count:%ld",
+            info.mBlockId, info.mFd, info.mPoolId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
+            info.mGraphicBlock.reset();
     }
     ALOGV("clear GraphicBlocks");
     mGraphicBlocks.clear();
@@ -1311,11 +1330,17 @@ C2Work* C2VDAComponent::getPendingWorkByMediaTime(int64_t mediaTime) {
 }
 
 C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockById(int32_t blockId) {
-    if (blockId < 0 || blockId >= static_cast<int32_t>(mGraphicBlocks.size())) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s]get GraphicBloc failed: id=%d", __func__, blockId);
+    auto blockIter = std::find_if(mGraphicBlocks.begin(), mGraphicBlocks.end(),
+        [blockId](const GraphicBlockInfo& gb) {
+            return gb.mBlockId == blockId;
+    });
+
+    if (blockIter == mGraphicBlocks.end()) {
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s]get GraphicBlock failed: blockId=%d", __func__, blockId);
         return nullptr;
     }
-    return &mGraphicBlocks[blockId];
+
+    return &(*blockIter);
 }
 
 C2VDAComponent::GraphicBlockInfo* C2VDAComponent::getGraphicBlockByBlockId(uint32_t poolId,uint32_t blockId) {
@@ -1532,9 +1557,9 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
         bool reallocOutputBuffer = mMetaDataUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat);
         ALOGV("realloc output buffer:%d", reallocOutputBuffer);
         if (reallocOutputBuffer) {
-            for (auto& info : mGraphicBlocks) {
-                ALOGV("info state: BlockId(%d) Fd(%d) State(%s) FdHaveSet(%d)",
-                    info.mBlockId, info.mFd, GraphicBlockState(info.mState), info.mFdHaveSet);
+             for (auto& info : mGraphicBlocks) {
+                ALOGV("info state: BlockId(%d) Fd(%d) State(%s) FdHaveSet(%d) use_count(%ld)",
+                info.mBlockId, info.mFd, GraphicBlockState(info.mState), info.mFdHaveSet, info.mGraphicBlock.use_count());
             }
 
             for (auto& info : mGraphicBlocks) {
@@ -2811,13 +2836,42 @@ const char* C2VDAComponent::GraphicBlockState(GraphicBlockInfo::State state) {
     }
 }
 
-
+// for debug
 void C2VDAComponent::displayGraphicBlockInfo() {
     for (auto & blockItem : mGraphicBlocks) {
-        ALOGD("%s PoolId(%d) BlockId(%d) Fd(%d) State(%s) Blind(%d) FdHaveSet(%d)",
-            __func__, blockItem.mPoolId, blockItem.mBlockId,
+        ALOGD("%s PoolId(%d) BlockId(%d) Fd(%d) State(%s) Blind(%d) FdHaveSet(%d) UseCount(%ld)",
+             __func__, blockItem.mPoolId, blockItem.mBlockId,
             blockItem.mFd, GraphicBlockState(blockItem.mState),
-            blockItem.mBind, blockItem.mFdHaveSet);
+            blockItem.mBind, blockItem.mFdHaveSet, blockItem.mGraphicBlock.use_count());
+    }
+}
+
+void C2VDAComponent::getCurrentProcessFdInfo() {
+    int iPid = (int)getpid();
+    std::string path;
+    struct dirent *dir_info;
+    path.append("/proc/" + std::to_string(iPid) + "/fdinfo/");
+    DIR *dir= opendir(path.c_str());
+    dir_info = readdir(dir);
+    while (dir_info != NULL) {
+        if (strcmp(dir_info->d_name, ".") != 0 && strcmp(dir_info->d_name, "..") != 0) {
+            std::string p = path;
+            p.append(dir_info->d_name);
+
+            std::ifstream  srcFile(p.c_str(), std::ios::in | std::ios::binary);
+            std::string data;
+            if (!srcFile.fail()) {
+                std::string tmp;
+                while (srcFile.peek() != EOF) {
+                    srcFile >> tmp;
+                    data.append(" " + tmp);
+                    tmp.clear();
+                }
+            }
+            srcFile.close();
+            ALOGD("%s info: fd(%s) %s", __func__ ,dir_info->d_name, data.c_str());
+        }
+        dir_info = readdir(dir);
     }
 }
 
