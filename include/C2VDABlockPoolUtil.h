@@ -99,6 +99,12 @@ public:
      */
     void  cancelAllGraphicBlock();
 
+    /**
+     * @brief  get block inode.
+     * @param  blockId the block id.
+     */
+    uint64_t getBlockInodeByBlockId(uint32_t blockId);
+
 private:
 
     /**

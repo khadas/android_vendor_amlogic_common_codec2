@@ -82,7 +82,7 @@ public:
     uint64_t getPlatformUsage();
     uint32_t getOutAlignedSize(uint32_t size, bool forcealign = false);
     bool getNeedReallocBuffer();
-    bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat old_video_format_new);
+    bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new);
     bool getMaxBufWidthAndHeight(uint32_t *width, uint32_t *height);
     bool getUvmMetaData(int fd,unsigned char *data,int *size);
     void parseAndprocessMetaData(unsigned char *data, int size);

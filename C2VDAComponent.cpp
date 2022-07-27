@@ -830,8 +830,8 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             reportError(C2_BAD_STATE);
             return C2_BAD_STATE;
         }
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d",
-            __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d blockinode:%llu",
+            __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId, mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId));
         bool sendCloneWork = false;
         C2Work* work = NULL;
 
@@ -1526,14 +1526,9 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
             return C2_CORRUPTED;
         }
     } else {
-        bool reallocOutputBuffer = mMetaDataUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat);
+        bool  reallocOutputBuffer = mMetaDataUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat);
         ALOGV("realloc output buffer:%d", reallocOutputBuffer);
         if (reallocOutputBuffer) {
-             for (auto& info : mGraphicBlocks) {
-                ALOGV("info state: BlockId(%d) Fd(%d) State(%s) FdHaveSet(%d) use_count(%ld)",
-                info.mBlockId, info.mFd, GraphicBlockState(info.mState), info.mFdHaveSet, info.mGraphicBlock.use_count());
-            }
-
             for (auto& info : mGraphicBlocks) {
                 mBlockPoolUtil->resetGraphicBlock(info.mBlockId);
                 info.mFdHaveSet = false;
@@ -1541,15 +1536,29 @@ c2_status_t C2VDAComponent::videoResolutionChange() {
                 info.mBlockId = -1;
                 info.mGraphicBlock.reset();
             }
-            /* clear all block */
+
             mGraphicBlocks.clear();
             mBlockPoolUtil->cancelAllGraphicBlock();
-            auto err = allocateBuffersFromBlockPool(
-                                mOutputFormat.mCodedSize,
-                                static_cast<uint32_t>(mOutputFormat.mPixelFormat));
+
+            resetBlockPoolUtil();
+            size_t inc_buf_num = mOutputFormat.mMinNumBuffers - mLastOutputFormat.mMinNumBuffers;
+            size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
+            ALOGV("increase buffer num:%d graphic blocks size: %d", inc_buf_num, mGraphicBlocks.size());
+            auto err = mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount - kDefaultSmoothnessFactor));
             if (err != C2_OK) {
-                ALOGE("failed to allocate new buffer err: %d", err);
+                ALOGE("failed to request new buffer set to block pool: %d", err);
                 reportError(err);
+            }
+
+            if (mVideoDecWraper) {
+                mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
+            }
+
+            if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat),
+                        false /* resetBuffersInClient */)) {
+                ALOGE("%s:%d startDequeueThread failed", __func__, __LINE__);
+                reportError(C2_CORRUPTED);
+                return C2_CORRUPTED;
             }
         } else {
             for (auto& info : mGraphicBlocks) {
@@ -1735,6 +1744,28 @@ c2_status_t C2VDAComponent::reallocateBuffersForUsageChanged(const media::Size& 
     return C2_OK;
 }
 
+void C2VDAComponent::resetBlockPoolUtil() {
+
+    mBlockPoolUtil.reset();
+    mBlockPoolUtil = nullptr;
+
+    ::usleep(1 * 1000);
+    std::shared_ptr<C2BlockPool> blockPool;
+    auto poolId = mIntfImpl->getBlockPoolId();
+    auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
+    if (err != C2_OK || !blockPool) {
+        ALOGI("get block pool ok, id:%lld", poolId);
+        err = CreateCodec2BlockPool(poolId, shared_from_this(), &blockPool);
+        if (err != C2_OK) {
+            ALOGE("Graphic block allocator is invalid");
+            reportError(err);
+        }
+    }
+    mUseBufferQueue = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
+    mBlockPoolUtil = std::make_shared<C2VDABlockPoolUtil> (blockPool);
+    ALOGV("reset block pool util success.");
+}
+
 c2_status_t C2VDAComponent::allocNonTunnelBuffers(const media::Size& size, uint32_t pixelFormat) {
     size_t bufferCount = mOutBufferCount;
     int64_t surfaceUsage = 0;
@@ -1790,7 +1821,7 @@ c2_status_t C2VDAComponent::allocNonTunnelBuffers(const media::Size& size, uint3
                 ::usleep(kDequeueRetryDelayUs);
                 //reportError(err);
                 //return err;
-                //break;
+                break;
             }
         }
 
@@ -2717,7 +2748,7 @@ int32_t C2VDAComponent::getFetchGraphicBlockDelayTimeUs(c2_status_t err) {
         perFrameDur = std::max(perFrameDur, 2 * kFetchRetryDelayInit);
         kFetchRetryDelayMax = std::min(perFrameDur, kFetchRetryDelayMax);
     }
-    if (err == C2_TIMED_OUT || err == C2_BLOCKING) {
+    if (err == C2_TIMED_OUT || err == C2_BLOCKING || err == C2_NO_MEMORY) {
         ALOGV("%s: fetchGraphicBlock() timeout, waiting %zuus frameRate:%f", __func__, sDelay, frameRate);
         sDelay = std::min(sDelay * 2, kFetchRetryDelayMax);  // Exponential backoff
         return sDelay;
@@ -2780,28 +2811,33 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                 continue;  // wait for retry
             }
             if (err == C2_OK) {
-                mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
-                GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
-                bool block_used = false;
                 int width = block->width();
                 int height = block->height();
-                int use_count = block.use_count();
-                if (info == nullptr) { //fetch unused block
-                    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onNewBlockBufferFetched,
-                                        ::base::Unretained(this), std::move(block), poolId, blockId));
-                } else { //fetch used block
-                    mTaskRunner->PostTask(FROM_HERE,
-                                    ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
-                                                ::base::Unretained(this), std::move(block), poolId, blockId));
-                    mBuffersInClient--;
-                    block_used = true;
+                if (mOutputFormat.mVisibleRect.width() == width &&
+                                mOutputFormat.mVisibleRect.height() == height) {
+                    mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
+                    GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+                    bool old = false;
+                    if (info == nullptr) { //fetch unused block
+                        mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onNewBlockBufferFetched,
+                                            ::base::Unretained(this), std::move(block), poolId, blockId));
+                    } else { //fetch used block
+                        mTaskRunner->PostTask(FROM_HERE,
+                                        ::base::Bind(&C2VDAComponent::onOutputBufferReturned,
+                                                    ::base::Unretained(this), std::move(block), poolId, blockId));
+                        mBuffersInClient--;
+                        old = true;
+                    }
+                    nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+                    ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%lld",
+                            (old ? "old" : "new"), blockId, width, height, block.use_count(),
+                            nowTimeMs - lastFetchBlockTimeMs);
+                    timeOutCount = 0;
+                    lastFetchBlockTimeMs = nowTimeMs;
+                } else {
+                    ALOGV("The allocated block size(%d*%d) does not match the current resolution(%d*%d), so discarded it.", block->width(), block->height(),
+                        mOutputFormat.mVisibleRect.width(), mOutputFormat.mVisibleRect.height());
                 }
-                nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-                ALOGV("dequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%d), time interval:%lld",
-                        (block_used ? "used" : "unused"), blockId, width, height, use_count,
-                        nowTimeMs - lastFetchBlockTimeMs);
-                timeOutCount = 0;
-                lastFetchBlockTimeMs = nowTimeMs;
             } else if (err == C2_BLOCKING) {
                 ::usleep(delayTime);
                 if (timeOutCount == 0)
@@ -2819,6 +2855,9 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
                     break;
                 }
                 continue;  // wait for retry
+            } else if (err == C2_NO_MEMORY) {
+                ALOGE("the block pool no memory to fetch.");
+                ::usleep(delayTime);
             } else {
                 ALOGE("dequeueThreadLoop got error: %d", err);
                 //break;

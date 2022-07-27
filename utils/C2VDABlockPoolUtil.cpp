@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+#include <iostream>
+#include <algorithm>
 
 #include <bufferpool/BufferPoolTypes.h>
 
@@ -61,10 +63,14 @@ public:
 
         if (useSurface)
             mBase = base;
-        else
+        else {
             mBase = std::make_shared<C2PooledBlockPool> (mAllocatorBase, base->getLocalId());
+            C2String name = mAllocatorBase->getName();
+            C2Allocator::id_t id = mAllocatorBase->getId();
+            ALOGV("allocate name:%s id:%d", name.c_str(), id);
+        }
 
-        CODEC2_LOG(CODEC2_LOG_INFO, "create block pool success, allocatorId:%d poolId:%llu use surface:%d",
+        ALOGV("create block pool success, allocatorId:%d poolId:%llu use surface:%d",
             mBase->getAllocatorId(), mBase->getLocalId(), useSurface);
     }
 
@@ -107,6 +113,7 @@ public:
 
     void resetPool(std::shared_ptr<C2BlockPool> blockpool) {
         mBase.reset();
+        mBase = NULL;
         mBase = blockpool;
     }
 
@@ -190,6 +197,7 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
                     }
                 }
                 else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
+                    ALOGV("current block info size:%d", mRawGraphicBlockInfo.size());
                     fetchBlock.reset();
                     mNextFetchTimeUs = GetNowUs();
                     return C2_BLOCKING;
@@ -226,7 +234,7 @@ c2_status_t C2VDABlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
         mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay - 2;
     }
 
-    CODEC2_LOG(CODEC2_LOG_INFO,"block pool deque buffer number max:%d", mMaxDequeuedBufferNum);
+    ALOGV("block pool deque buffer number max:%d", mMaxDequeuedBufferNum);
     return C2_OK;
 }
 
@@ -248,6 +256,10 @@ c2_status_t C2VDABlockPoolUtil::resetGraphicBlock(int32_t blockId) {
             ret = C2_OK;
             break;
         }
+    }
+
+    if (mRawGraphicBlockInfo.size() == 0) {
+        mGraphicBufferId = 0;
     }
     CODEC2_LOG(CODEC2_LOG_INFO,"%s reset block blockid:%d ret:%d", __func__, blockId,ret);
     return ret;
@@ -341,7 +353,7 @@ c2_status_t C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Graph
         mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
         mGraphicBufferId++;
     }
-    CODEC2_LOG(CODEC2_LOG_INFO,"fetch the new block(ino:%llu fd:%d dupfd:%d id:%d) and append.", inode, info.mFd, info.mDupFd, info.mBlockId);
+    ALOGV("fetch the new block(ino:%llu fd:%d dupfd:%d id:%d) and append.", inode, info.mFd, info.mDupFd, info.mBlockId);
     return C2_OK;
 }
 
@@ -399,9 +411,20 @@ void C2VDABlockPoolUtil::cancelAllGraphicBlock() {
     mGraphicBufferId = 0;
     mMaxDequeuedBufferNum = 0;
     mRawGraphicBlockInfo.clear();
-    if (mBlockingPool != nullptr) {
-        mBlockingPool.reset();
-        mBlockingPool = nullptr;
-    }
 }
+
+uint64_t C2VDABlockPoolUtil::getBlockInodeByBlockId(uint32_t blockId) {
+    auto blockIter = std::find_if(mRawGraphicBlockInfo.begin(), mRawGraphicBlockInfo.end(),
+        [blockId](const std::pair<uint64_t, BlockBufferInfo> &gb) {
+        return gb.second.mBlockId == blockId;
+    });
+
+    if (blockIter != mRawGraphicBlockInfo.end()) {
+        CODEC2_LOG(CODEC2_LOG_INFO, "[%s] get block %d inode:%llu", __func__, blockId, blockIter->first);
+        return blockIter->first;
+    }
+
+    return 0;
+}
+
 }

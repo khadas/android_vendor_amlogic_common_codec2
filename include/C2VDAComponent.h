@@ -337,6 +337,7 @@ private:
     bool getVideoResolutionChanged();
     int getDefaultMaxBufNum(InputCodec videotype);
     c2_status_t reallocateBuffersForUsageChanged(const media::Size& size, uint32_t pixelFormat);
+    void resetBlockPoolUtil();
 
     //convert graphicblock state.
     const char* GraphicBlockState(GraphicBlockInfo::State state);
