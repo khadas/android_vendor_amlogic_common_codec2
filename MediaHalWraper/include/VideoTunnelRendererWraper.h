@@ -40,6 +40,7 @@ public:
 
     int getTunnelId();
     bool sendVideoFrame(const int metafd, int64_t timestampNs, bool renderAtonce=false);
+    bool peekFirstFrame();
     int regFillVideoFrameCallBack(callbackFunc funs, void* obj);
     int regNotifyTunnelRenderTimeCallBack(callbackFunc funs, void* obj);
     bool setFrameRate(int32_t framerate);

@@ -151,7 +151,7 @@ C2R C2VDAComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2Strea
 
 //define some unstrict Setter
 DEFINE_C2_DEFAUTL_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam)
-
+DEFINE_C2_DEFAUTL_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender)
 
 c2_status_t C2VDAComponent::IntfImpl::config(
     const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
@@ -189,6 +189,12 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d",
                     C2VDAComponent::mInstanceID, mComponent->mCurInstanceID, mDataSourceType->value);
                 break;
+            case C2StreamTunnelStartRender::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config tunnel startRender",
+                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
+                mComponent->onAndroidVideoPeek();
+                break;
+
             default:
                 break;
         }
@@ -753,6 +759,13 @@ void C2VDAComponent::IntfImpl::onTunnelDeclareParam() {
                 .withFields({C2F(mTunnelSystemTimeOut, value).any()})
                 .withSetter(TunnelSystemTimeSetter)
         .build());
+
+        addParameter(
+        DefineParam(mTunnelStartRender, C2_PARAMKEY_TUNNEL_START_RENDER)
+                .withDefault(new C2StreamTunnelStartRender::output(0))
+                .withFields({C2F(mTunnelStartRender, value).any()})
+                .withSetter(C2_DEFAUTL_UNSTRICT_SETTER(TunnelStartRender))
+                .build());
 }
 
 void C2VDAComponent::IntfImpl::onTunnelPassthroughDeclareParam() {

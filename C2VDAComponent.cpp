@@ -1007,6 +1007,12 @@ void C2VDAComponent::sendClonedWork(C2Work* work, int32_t flags) {
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
 }
 
+void C2VDAComponent::onAndroidVideoPeek() {
+    if (mTunnelHelper) {
+        mTunnelHelper->onAndroidVideoPeek();
+    }
+}
+
 void C2VDAComponent::updateUndequeuedBlockIds(int32_t blockId) {
     // The size of |mUndequedBlockIds| will always be the minimum buffer count for display.
     mUndequeuedBlockIds.push_back(blockId);

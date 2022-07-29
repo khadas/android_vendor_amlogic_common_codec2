@@ -40,6 +40,8 @@ public:
     c2_status_t allocTunnelBuffersAndSendToDecoder(const media::Size& size, uint32_t pixelFormat);
     c2_status_t videoResolutionChangeTunnel();
 
+    c2_status_t onAndroidVideoPeek();
+
 private:
     bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new, bool *sizeChanged, bool *bufferNumLarged);
     void appendTunnelOutputBuffer(int fd, uint32_t blockId);
@@ -68,6 +70,8 @@ private:
     uint32_t mOutBufferCount;
     uint32_t mPixelFormat;
     bool mReallocWhenResChange;
+
+    bool mAndroidPeekFrameReady;
 };
 }
 #endif

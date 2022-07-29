@@ -102,6 +102,12 @@ bool VideoTunnelRendererWraper::sendVideoFrame(int metafd, int64_t timestampNs, 
     return mVideoTunnelRenderer->sendVideoFrame(metafd, timestampNs, renderAtonce);
 }
 
+bool VideoTunnelRendererWraper::peekFirstFrame() {
+    if (!mVideoTunnelRenderer)
+        return false;
+    return mVideoTunnelRenderer->peekFirstFrame();
+}
+
 bool VideoTunnelRendererWraper::flush() {
     if (!mVideoTunnelRenderer)
         return false;

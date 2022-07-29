@@ -55,6 +55,7 @@ C2VDAComponent::TunnelModeHelper::TunnelModeHelper(C2VDAComponent* comp, bool se
             memcpy(mIntfImpl->mTunnelHandleOutput->m.values, &mTunnelHandle->data[mTunnelHandle->numFds], sizeof(int32_t) * mTunnelHandle->numInts);
         }
     }
+    mAndroidPeekFrameReady = false;
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
     C2VDATMH_LOG(CODEC2_LOG_INFO, "%s:%d", __func__, __LINE__);
 }
@@ -92,6 +93,7 @@ bool C2VDAComponent::TunnelModeHelper::stop() {
         }
     }
     mOutBufferFdMap.clear();
+    mAndroidPeekFrameReady = false;
 
     if (mVideoTunnelRenderer) {
         mVideoTunnelRenderer->stop();
@@ -258,6 +260,17 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendVideoFrameToVideoTunnel(int32_
         return C2_CORRUPTED;
     }
     timestamp = work->input.ordinal.timestamp.peekull();
+
+    // implement Android Video Peek
+    if (!mAndroidPeekFrameReady) {
+        mAndroidPeekFrameReady = true;
+        work = mComp->cloneWork(work);
+        std::unique_ptr<C2StreamTunnelHoldRender::output> frameReady = std::make_unique<C2StreamTunnelHoldRender::output>();
+        frameReady->value = C2_TRUE;
+        work->worklets.front()->output.configUpdate.push_back(std::move(frameReady));
+        mComp->sendClonedWork(work, 0);
+        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d send cloned work for FirstFrameReady", __func__, __LINE__);
+    }
 
     if (mVideoTunnelRenderer) {
         C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
@@ -466,6 +479,13 @@ c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
     return C2_OK;
 }
 
+c2_status_t C2VDAComponent::TunnelModeHelper::onAndroidVideoPeek() {
+    if (mVideoTunnelRenderer) {
+        mVideoTunnelRenderer->peekFirstFrame();
+    }
+
+    return C2_OK;
+}
 
 c2_status_t C2VDAComponent::TunnelModeHelper::resetBlockPoolBuffers() {
     mBlockPoolUtil->cancelAllGraphicBlock();

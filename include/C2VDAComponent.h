@@ -314,6 +314,7 @@ private:
     bool isNonTunnelMode() const;
     bool isTunnelMode() const;
     bool isTunnerPassthroughMode() const;
+    void onAndroidVideoPeek();
 
     C2Work* cloneWork(C2Work* ori);
     void cloneWork(C2Work* ori, C2Work* out);
