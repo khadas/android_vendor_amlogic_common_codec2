@@ -661,8 +661,12 @@ void C2VDAComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> blo
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
         sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
     } else {
-        if (mOutputFormat.mCodedSize.width() == block->width() && mOutputFormat.mCodedSize.height() == block->height()) {
-            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "current resolution (%d*%d) new block(%d*%d) and add it", mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height(), block->width(), block->height());
+        if ((mOutputFormat.mCodedSize.width() == block->width() &&
+             mOutputFormat.mCodedSize.height() == block->height()) ||
+            (mMetaDataUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width(), true) == block->width() &&
+             mMetaDataUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true) == block->height())){
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "current resolution (%d*%d) new block(%d*%d) and add it",
+                mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height(), block->width(), block->height());
             appendOutputBuffer(std::move(block), poolId, blockId, true);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
             info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
