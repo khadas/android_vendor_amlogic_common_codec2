@@ -42,7 +42,7 @@
 #include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
 #include <C2VDABlockPoolUtil.h>
-#include <C2VDASupport.h>
+#include <C2VendorSupport.h>
 
 namespace android {
 
@@ -104,7 +104,7 @@ public:
         return mTaskRunner;
     }
 
-    bool isDolbyVision() {
+    bool isAmDolbyVision() {
         return mIsDolbyVision;
     }
 

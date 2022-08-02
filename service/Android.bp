@@ -71,12 +71,11 @@ cc_binary {
     defaults: [
         "hidl_defaults",
         "libcodec2-hidl-defaults",
-        "c2_aml_defaults",
         "c2_service_aml_go_defaults"
     ],
     header_libs:[
         "libcodec2_headers",
-        "libvda_c2componentstore_headers"
+        "libvendor_c2componentstore_headers"
     ],
     srcs: [
         "service.cpp",
@@ -85,7 +84,7 @@ cc_binary {
     // minijail is used to protect against unexpected system calls.
     shared_libs: [
         "libbinder",
-        "libvda_c2componentstore",
+        "libvendor_c2componentstore",
     ],
     //required: ["android.hardware.amlogic.media.c2@1.2-seccomp_policy"],
 

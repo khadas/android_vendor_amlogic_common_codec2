@@ -1,0 +1,15 @@
+// *** THIS PACKAGE HAS SPECIAL LICENSING CONDITIONS.  PLEASE
+//     CONSULT THE OWNERS AND opensource-licensing@google.com BEFORE
+//     DEPENDING ON IT IN YOUR PROJECT. ***
+package {
+    default_applicable_licenses: ["vendor_amlogic_common_license"],
+}
+
+cc_library_headers {
+    name: "libvendor_component_headers",
+    export_include_dirs: [
+        "include",
+    ],
+    vendor_available: true,
+}
+

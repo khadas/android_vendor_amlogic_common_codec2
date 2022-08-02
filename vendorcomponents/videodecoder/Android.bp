@@ -5,35 +5,11 @@ package {
     default_applicable_licenses: ["vendor_amlogic_common_license"],
 }
 
-bootstrap_go_package {
-    name: "c2_aml",
-    pkgPath: "android/soong/c2_aml",
-    deps: [
-        "blueprint",
-        "soong",
-        "soong-android",
-        "soong-cc",
-        "soong-genrule",
-        "blueprint-bootstrap",
-        "soong-cc-config"
-    ],
-    srcs: [
-        "c2_aml.go",
-    ],
-
-    pluginFor: ["soong_build"],
-}
-
-c2_aml_defaults {
-    name: "c2_aml_defaults",
-}
-
 cc_library_shared {
-    name: "libcodec2_aml",
+    name: "libcodec2_aml_video_decoder",
     defaults: [
         "libchrome-defaults",
         "libcodec2-impl-defaults",
-        "c2_aml_defaults"
     ],
     vendor: true,
 
@@ -47,14 +23,11 @@ cc_library_shared {
         "utils/C2VDAMetaDataUtil.cpp",
         "utils/C2VDABlockPoolUtil.cpp",
         "utils/C2VDATunnelModeHelper.cpp",
-       // "C2VEAComponent.cpp",
-       // "C2VEAFormatConverter.cpp",
     ],
 
     local_include_dirs: [
         "include",
         "MediaHalWraper/include",
-        "componentstore/include",
     ],
 
     shared_libs: [
@@ -78,7 +51,7 @@ cc_library_shared {
         "libutilscallstack",
         "libchrome",
         "libevent",
-        "libvda_c2componentstore",
+        "libvendor_c2componentstore",
         "libamgralloc_ext",
     ],
 
@@ -90,6 +63,8 @@ cc_library_shared {
         "libnativewindow_headers",
         "libnativebase_headers",
         "libmediahal_headers",
+        "libvendor_c2componentstore_headers",
+        "libvendor_component_headers"
     ],
 
     // -Wno-unused-parameter is needed for libchrome/base codes

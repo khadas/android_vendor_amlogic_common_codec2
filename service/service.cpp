@@ -17,7 +17,7 @@
 #define LOG_NDEBUG 0
 #define LOG_TAG "android.hardware.media.c2@1.2-service"
 
-#include <C2VDASupport.h>
+#include <C2VendorSupport.h>
 
 #include <android-base/logging.h>
 #include <binder/ProcessState.h>
@@ -89,11 +89,11 @@ int main(int /* argc */, char** /* argv */) {
         using namespace ::android::hardware::media::c2::V1_2;
         android::sp<IComponentStore> store;
 
-        LOG(DEBUG) << "Instantiating Codec2's VDA IComponentStore service...";
-        store = new utils::ComponentStore(android::GetCodec2VDAComponentStore());
+        LOG(DEBUG) << "Instantiating Codec2's Vendor IComponentStore service...";
+        store = new utils::ComponentStore(android::GetCodec2VendorComponentStore());
 
         if (store == nullptr) {
-           LOG(ERROR) << "Cannot create Codec2's VDA IComponentStore service.";
+           LOG(ERROR) << "Cannot create Codec2's Vendor IComponentStore service.";
         } else {
             constexpr char const* serviceName = "default";
             if (store->registerAsService(serviceName) != android::OK) {

@@ -6,7 +6,7 @@ package {
 }
 
 cc_library_headers {
-    name: "libvda_c2componentstore_headers",
+    name: "libvendor_c2componentstore_headers",
     export_include_dirs: [
         "include",
     ],
@@ -14,10 +14,10 @@ cc_library_headers {
 }
 
 cc_library_shared {
-    name: "libvda_c2componentstore",
+    name: "libvendor_c2componentstore",
     vendor_available: true,
     srcs: [
-        "C2VDAComponentStore.cpp",
+        "C2VendorComponentStore.cpp",
     ],
     defaults: [
         "libcodec2-hidl-defaults",

@@ -142,7 +142,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABALE;
     }
 
-    if (mComp->isDolbyVision()) {
+    if (mComp->isAmDolbyVision()) {
         C2StreamProfileLevelInfo::input inputProfile;
         err = mIntfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
         if (inputProfile) {

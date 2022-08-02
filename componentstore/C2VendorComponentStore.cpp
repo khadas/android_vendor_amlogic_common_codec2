@@ -3,11 +3,11 @@
 // found in the LICENSE file.
 
 #define LOG_NDEBUG 0
-#define LOG_TAG "C2VDAComponentStore"
+#define LOG_TAG "C2VendorComponentStore"
 #include <C2Component.h>
 #include <C2ComponentFactory.h>
 #include <C2Config.h>
-#include <C2VDASupport.h>
+#include <C2VendorSupport.h>
 #include <util/C2InterfaceHelper.h>
 
 #include <cutils/properties.h>
@@ -34,12 +34,15 @@ namespace android {
 typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc2)(bool);
 typedef void (*DestroyCodec2FactoryFunc2)(::C2ComponentFactory*);
 
-const C2String kCompomentLoadLibray = "libcodec2_aml.so";
+const C2String kCompomentLoadVideoDecoderLibray = "libcodec2_aml_video_decoder.so";
+const C2String kCompomentLoadVideoEncoderLibray = "libcodec2_aml_video_encoder.so";
+const C2String kCompomentLoadAudioDecoderLibray = "libcodec2_aml_audio_decoder.so";
 
-class C2VDAComponentStore : public C2ComponentStore {
+
+class C2VendorComponentStore : public C2ComponentStore {
 public:
-    C2VDAComponentStore();
-    ~C2VDAComponentStore() override = default;
+    C2VendorComponentStore();
+    ~C2VendorComponentStore() override = default;
 
     // The implementation of C2ComponentStore.
     C2String getName() const override;
@@ -74,12 +77,13 @@ private:
         ComponentModule()
               : mInit(C2_NO_INIT),
                 mLibHandle(nullptr),
+                mIsAudio(false),
                 createFactory(nullptr),
                 destroyFactory(nullptr),
                 mComponentFactory(nullptr) {}
 
         ~ComponentModule() override;
-        c2_status_t init(std::string libPath, C2VDACodec codec, bool secure);
+        c2_status_t init(std::string libPath, C2VendorCodec codec, bool secure, bool isAudio);
 
         // Return the traits of the component in this module.
         std::shared_ptr<const C2Component::Traits> getTraits();
@@ -99,6 +103,7 @@ private:
         c2_status_t mInit;  ///< initialization result
 
         void* mLibHandle;                                             ///< loaded library handle
+        bool mIsAudio;
         CreateCodec2FactoryFunc2 createFactory;    ///< loaded create function
         DestroyCodec2FactoryFunc2 destroyFactory;  ///< loaded destroy function
         C2ComponentFactory* mComponentFactory;  ///< loaded/created component factory
@@ -111,7 +116,7 @@ private:
      */
     class ComponentLoader {
     public:
-        ComponentLoader(std::string libPath, C2VDACodec codec) : mLibPath(libPath), mCodec(codec) {}
+        ComponentLoader(std::string libPath, C2VendorCodec codec, bool isAudio = false) : mLibPath(libPath), mCodec(codec),  mIsAudio(isAudio){}
 
         /**
          * Load the component module.
@@ -134,7 +139,8 @@ private:
         std::mutex mMutex;                       ///< mutex guarding the module
         std::weak_ptr<ComponentModule> mModule;  ///< weak reference to the loaded module
         std::string mLibPath;                    ///< library path (or name)
-        C2VDACodec mCodec = C2VDACodec::UNKNOWN;
+        C2VendorCodec mCodec = C2VendorCodec::UNKNOWN;
+        bool mIsAudio;
     };
 
     struct Interface : public C2InterfaceHelper {
@@ -205,7 +211,7 @@ private:
     Interface mInterface;
 };
 
-C2VDAComponentStore::ComponentModule::~ComponentModule() {
+C2VendorComponentStore::ComponentModule::~ComponentModule() {
     ALOGV("in %s", __func__);
     if (destroyFactory && mComponentFactory) {
         destroyFactory(mComponentFactory);
@@ -216,8 +222,9 @@ C2VDAComponentStore::ComponentModule::~ComponentModule() {
     }
 }
 
-c2_status_t C2VDAComponentStore::ComponentModule::init(std::string libPath, C2VDACodec codec, bool secure) {
+c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C2VendorCodec codec, bool secure,  bool isAudio) {
     ALOGV("loading dll");
+    mIsAudio = isAudio;
     mLibHandle = dlopen(libPath.c_str(), RTLD_NOW | RTLD_NODELETE);
     if (mLibHandle == nullptr) {
         ALOGD("could not dlopen %s: %s", libPath.c_str(), dlerror());
@@ -226,39 +233,39 @@ c2_status_t C2VDAComponentStore::ComponentModule::init(std::string libPath, C2VD
         std::string createFactoryName;
         std::string destroyFactoryName;
         switch (codec) {
-          case C2VDACodec::H264:
+          case C2VendorCodec::VDEC_H264:
               createFactoryName = "CreateC2VDAH264Factory";
               destroyFactoryName = "DestroyC2VDAH264Factory";
               break;
-          case C2VDACodec::H265:
+          case C2VendorCodec::VDEC_H265:
               createFactoryName = "CreateC2VDAH265Factory";
               destroyFactoryName = "DestroyC2VDAH265Factory";
               break;
-          case C2VDACodec::VP9:
+          case C2VendorCodec::VDEC_VP9:
               createFactoryName = "CreateC2VDAVP9Factory";
               destroyFactoryName = "DestroyC2VDAVP9Factory";
               break;
-          case C2VDACodec::AV1:
+          case C2VendorCodec::VDEC_AV1:
               createFactoryName = "CreateC2VDAAV1Factory";
               destroyFactoryName = "DestroyC2VDAAV1Factory";
               break;
-          case C2VDACodec::DVHE:
+          case C2VendorCodec::VDEC_DVHE:
               createFactoryName = "CreateC2VDADVHEFactory";
               destroyFactoryName = "DestroyC2VDADVHEFactory";
               break;
-          case C2VDACodec::DVAV:
+          case C2VendorCodec::VDEC_DVAV:
               createFactoryName = "CreateC2VDADVAVFactory";
               destroyFactoryName = "DestroyC2VDADVAVFactory";
               break;
-          case C2VDACodec::DVAV1:
+          case C2VendorCodec::VDEC_DVAV1:
               createFactoryName = "CreateC2VDADVAV1Factory";
               destroyFactoryName = "DestroyC2VDADVAV1Factory";
               break;
-          case C2VDACodec::MP2V:
+          case C2VendorCodec::VDEC_MP2V:
               createFactoryName = "CreateC2VDAMP2VFactory";
               destroyFactoryName = "DestroyC2VDAMP2VFactory";
               break;
-          case C2VDACodec::MP4V:
+          case C2VendorCodec::VDEC_MP4V:
               createFactoryName = "CreateC2VDAMP4VFactory";
               destroyFactoryName = "DestroyC2VDAMP4VFactory";
               break;
@@ -282,7 +289,7 @@ c2_status_t C2VDAComponentStore::ComponentModule::init(std::string libPath, C2VD
     return mInit;
 }
 
-std::shared_ptr<const C2Component::Traits> C2VDAComponentStore::ComponentModule::getTraits() {
+std::shared_ptr<const C2Component::Traits> C2VendorComponentStore::ComponentModule::getTraits() {
     std::unique_lock<std::recursive_mutex> lock(mLock);
     if (!mTraits) {
         std::shared_ptr<C2ComponentInterface> intf;
@@ -314,7 +321,7 @@ std::shared_ptr<const C2Component::Traits> C2VDAComponentStore::ComponentModule:
                 ALOGE("failed to query media type");
                 return nullptr;
             }
-            traits->domain = C2Component::DOMAIN_VIDEO;
+            traits->domain = mIsAudio ? C2Component::DOMAIN_AUDIO : C2Component::DOMAIN_VIDEO;
             traits->kind = encoder ? C2Component::KIND_ENCODER : C2Component::KIND_DECODER;
             traits->mediaType = mediaTypeConfig->m.value;
             // TODO: get this properly.
@@ -328,7 +335,7 @@ std::shared_ptr<const C2Component::Traits> C2VDAComponentStore::ComponentModule:
     return mTraits;
 }
 
-c2_status_t C2VDAComponentStore::ComponentModule::createComponent(
+c2_status_t C2VendorComponentStore::ComponentModule::createComponent(
         c2_node_id_t id, std::shared_ptr<C2Component>* component,
         std::function<void(::C2Component*)> deleter) {
     UNUSED(deleter);
@@ -340,7 +347,7 @@ c2_status_t C2VDAComponentStore::ComponentModule::createComponent(
                                               C2ComponentFactory::ComponentDeleter());
 }
 
-c2_status_t C2VDAComponentStore::ComponentModule::createInterface(
+c2_status_t C2VendorComponentStore::ComponentModule::createInterface(
         c2_node_id_t id, std::shared_ptr<C2ComponentInterface>* interface,
         std::function<void(::C2ComponentInterface*)> deleter) {
     UNUSED(deleter);
@@ -352,7 +359,7 @@ c2_status_t C2VDAComponentStore::ComponentModule::createInterface(
                                               C2ComponentFactory::InterfaceDeleter());
 }
 
-c2_status_t C2VDAComponentStore::ComponentLoader::fetchModule(
+c2_status_t C2VendorComponentStore::ComponentLoader::fetchModule(
         std::shared_ptr<ComponentModule>* module, bool secure) {
     c2_status_t res = C2_OK;
     std::lock_guard<std::mutex> lock(mMutex);
@@ -361,7 +368,7 @@ c2_status_t C2VDAComponentStore::ComponentLoader::fetchModule(
         localModule = std::make_shared<ComponentModule>();
 
         ALOGI("localModule libpath %s %d\n", mLibPath.c_str(), mCodec);
-        res = localModule->init(mLibPath, mCodec, secure);
+        res = localModule->init(mLibPath, mCodec, secure, mIsAudio);
         if (res == C2_OK) {
             mModule = localModule;
         }
@@ -370,32 +377,46 @@ c2_status_t C2VDAComponentStore::ComponentLoader::fetchModule(
     return res;
 }
 
-C2VDAComponentStore::C2VDAComponentStore()
+C2VendorComponentStore::C2VendorComponentStore()
       :
       mReflector(std::make_shared<C2ReflectorHelper>()),
       mInterface(mReflector) {
     // TODO: move this also into a .so so it can be updated
-    bool supportc2 = property_get_bool("vendor.media.codec2.support", true);
-    bool disablec2secure = property_get_bool("vendor.media.codec2.disable_secure", false);
-    if (supportc2) {
-        for (int i = 0; i < sizeof(gC2DecoderCompoments) / sizeof(C2DecoderCompoment); i++) {
-            if (disablec2secure && strstr(gC2DecoderCompoments[i].compname.c_str(), (const char *)".secure"))
+    bool supportC2Vdec = property_get_bool("vendor.media.c2.vdec.support", true);
+    bool disableC2SecureVdec = property_get_bool("vendor.media.c2.vdec.secure.disable", false);
+    bool supportC2VEnc = property_get_bool("vendor.media.c2.vdec.support", false);
+    bool supportC2Adec = property_get_bool("vendor.media.c2.adec.support", false);
+    if (supportC2Vdec) {
+        for (int i = 0; i < sizeof(gC2VideoDecoderCompoments) / sizeof(C2VendorCompoment); i++) {
+            if (disableC2SecureVdec && strstr(gC2VideoDecoderCompoments[i].compname.c_str(), (const char *)".secure"))
                 continue;
-            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2DecoderCompoments[i].compname),
-                    std::forward_as_tuple(kCompomentLoadLibray, gC2DecoderCompoments[i].codec));
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoDecoderCompoments[i].compname),
+                    std::forward_as_tuple(kCompomentLoadVideoDecoderLibray, gC2VideoDecoderCompoments[i].codec));
         }
     }
-    ALOGI("C2VDAComponentStore::C2VDAComponentStore\n");
+    if (supportC2VEnc) {
+        for (int i = 0; i < sizeof(gC2VideoEncoderCompoments) / sizeof(C2VendorCompoment); i++) {
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoEncoderCompoments[i].compname),
+                    std::forward_as_tuple(kCompomentLoadVideoDecoderLibray, gC2VideoEncoderCompoments[i].codec));
+        }
+    }
+    if (supportC2Adec) {
+        for (int i = 0; i < sizeof(gC2AudioDecoderCompoments) / sizeof(C2VendorCompoment); i++) {
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderCompoments[i].compname),
+                    std::forward_as_tuple(kCompomentLoadVideoDecoderLibray, gC2AudioDecoderCompoments[i].codec, true));
+        }
+    }
+    ALOGI("C2VendorComponentStore::C2VendorComponentStore\n");
 }
 
-C2String C2VDAComponentStore::getName() const {
-    return "android.componentStore.vda";
+C2String C2VendorComponentStore::getName() const {
+    return "android.componentStore.vendor";
 }
 
-std::vector<std::shared_ptr<const C2Component::Traits>> C2VDAComponentStore::listComponents() {
+std::vector<std::shared_ptr<const C2Component::Traits>> C2VendorComponentStore::listComponents() {
     // This method SHALL return within 500ms.
     std::vector<std::shared_ptr<const C2Component::Traits>> list;
-    ALOGV("C2VDAComponentStore::listComponents\n");
+    ALOGV("C2VendorComponentStore::listComponents\n");
     if (!property_get_bool("debug.vdastore.enable-c2", true)) {
         // Temporarily disable all VDA components.
         return list;
@@ -408,7 +429,7 @@ std::vector<std::shared_ptr<const C2Component::Traits>> C2VDAComponentStore::lis
         if (res == C2_OK) {
             std::shared_ptr<const C2Component::Traits> traits = module->getTraits();
             if (traits) {
-                ALOGI("C2VDAComponentStore::listComponents traits push name %s\n", traits->name.c_str());
+                ALOGI("C2VendorComponentStore::listComponents traits push name %s\n", traits->name.c_str());
                 list.push_back(traits);
             }
         }
@@ -416,7 +437,7 @@ std::vector<std::shared_ptr<const C2Component::Traits>> C2VDAComponentStore::lis
     return list;
 }
 
-c2_status_t C2VDAComponentStore::findComponent(C2String name, ComponentLoader** loader) {
+c2_status_t C2VendorComponentStore::findComponent(C2String name, ComponentLoader** loader) {
     *loader = nullptr;
     ALOGI("findComponent\n");
     auto pos = mComponents.find(name);
@@ -428,17 +449,17 @@ c2_status_t C2VDAComponentStore::findComponent(C2String name, ComponentLoader** 
     return C2_OK;
 }
 
-c2_status_t C2VDAComponentStore::createComponent(C2String name,
+c2_status_t C2VendorComponentStore::createComponent(C2String name,
                                                  std::shared_ptr<C2Component>* const component) {
     // This method SHALL return within 100ms.
-    ALOGI("C2VDAComponentStore::createComponent name %s\n", name.c_str());
+    ALOGI("C2VendorComponentStore::createComponent name %s\n", name.c_str());
     component->reset();
     ComponentLoader* loader;
     c2_status_t res = findComponent(name, &loader);
     bool secure = name.find(".secure") != std::string::npos;
     if (res == C2_OK) {
         std::shared_ptr<ComponentModule> module;
-        ALOGI("C2VDAComponentStore::createComponent fetchModule\n");
+        ALOGI("C2VendorComponentStore::createComponent fetchModule\n");
         res = loader->fetchModule(&module, secure);
         if (res == C2_OK) {
             // TODO: get a unique node ID
@@ -448,7 +469,7 @@ c2_status_t C2VDAComponentStore::createComponent(C2String name,
     return res;
 }
 
-c2_status_t C2VDAComponentStore::createInterface(
+c2_status_t C2VendorComponentStore::createInterface(
         C2String name, std::shared_ptr<C2ComponentInterface>* const interface) {
     // This method SHALL return within 100ms.
     interface->reset();
@@ -466,14 +487,14 @@ c2_status_t C2VDAComponentStore::createInterface(
     return res;
 }
 
-c2_status_t C2VDAComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer> src,
+c2_status_t C2VendorComponentStore::copyBuffer(std::shared_ptr<C2GraphicBuffer> src,
                                             std::shared_ptr<C2GraphicBuffer> dst) {
     UNUSED(src);
     UNUSED(dst);
     return C2_OMITTED;
 }
 
-c2_status_t C2VDAComponentStore::query_sm(
+c2_status_t C2VendorComponentStore::query_sm(
         const std::vector<C2Param*>& stackParams,
         const std::vector<C2Param::Index>& heapParamIndices,
         std::vector<std::unique_ptr<C2Param>>* const heapParams) const {
@@ -481,37 +502,37 @@ c2_status_t C2VDAComponentStore::query_sm(
     return mInterface.query(stackParams, heapParamIndices, C2_MAY_BLOCK, heapParams);
 }
 
-c2_status_t C2VDAComponentStore::config_sm(
+c2_status_t C2VendorComponentStore::config_sm(
         const std::vector<C2Param*>& params,
         std::vector<std::unique_ptr<C2SettingResult>>* const failures) {
     // there are no supported configs
     return mInterface.config(params, C2_MAY_BLOCK, failures);
 }
 
-std::shared_ptr<C2ParamReflector> C2VDAComponentStore::getParamReflector() const {
+std::shared_ptr<C2ParamReflector> C2VendorComponentStore::getParamReflector() const {
     return mReflector;
 }
 
-c2_status_t C2VDAComponentStore::querySupportedParams_nb(
+c2_status_t C2VendorComponentStore::querySupportedParams_nb(
         std::vector<std::shared_ptr<C2ParamDescriptor>>* const params) const {
     // there are no supported config params
     return mInterface.querySupportedParams(params);
 }
 
-c2_status_t C2VDAComponentStore::querySupportedValues_sm(
+c2_status_t C2VendorComponentStore::querySupportedValues_sm(
         std::vector<C2FieldSupportedValuesQuery>& fields) const {
     // there are no supported config params
     return mInterface.querySupportedValues(fields, C2_MAY_BLOCK);
 }
 
-std::shared_ptr<C2ComponentStore> GetCodec2VDAComponentStore() {
+std::shared_ptr<C2ComponentStore> GetCodec2VendorComponentStore() {
     static std::mutex mutex;
     static std::weak_ptr<C2ComponentStore> platformStore;
     std::lock_guard<std::mutex> lock(mutex);
-    ALOGI("GetCodec2VDAComponentStore\n");
+    ALOGI("GetCodec2VendorComponentStore\n");
     std::shared_ptr<C2ComponentStore> store = platformStore.lock();
     if (store == nullptr) {
-        store = std::make_shared<C2VDAComponentStore>();
+        store = std::make_shared<C2VendorComponentStore>();
         platformStore = store;
     }
     return store;
