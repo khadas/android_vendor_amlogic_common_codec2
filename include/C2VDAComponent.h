@@ -27,6 +27,7 @@
 #include <base/single_thread_task_runner.h>
 #include <base/synchronization/waitable_event.h>
 #include <base/threading/thread.h>
+#include <utils/threads.h>
 
 #include <atomic>
 #include <deque>
@@ -229,7 +230,6 @@ private:
     void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags);
     void onDrain(uint32_t drainMode);
     void onDrainDone();
-    void onFlush();
     void onStop(::base::WaitableEvent* done);
     void onFlushOrStopDone();
     void onFlushDone();
@@ -500,6 +500,8 @@ private:
     C2Work  mLastFinishedC2Work;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
+    Mutex mFlushDoneLock;
+    Condition mFlushDoneCond;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

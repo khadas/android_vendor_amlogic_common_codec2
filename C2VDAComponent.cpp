@@ -1087,40 +1087,6 @@ void C2VDAComponent::onDrainDone() {
                           ::base::Bind(&C2VDAComponent::onDequeueWork, ::base::Unretained(this)));
 }
 
-void C2VDAComponent::onFlush() {
-    DCHECK(mTaskRunner->BelongsToCurrentThread());
-    ALOGV("onFlush");
-   // Pop all works in mQueue and put into mAbandonedWorks.
-    while (!mQueue.empty()) {
-        mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
-        mQueue.pop();
-    }
-    if (mComponentState == ComponentState::FLUSHING ||
-        mComponentState == ComponentState::STOPPING) {
-        return;  // Ignore other flush request when component is flushing or stopping.
-    }
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
-
-    if (mVideoDecWraper) {
-        mVideoDecWraper->flush();
-    }
-
-    if (mTunnelHelper) {
-        mTunnelHelper->flush();
-    }
-    mInputWorkCount = 0;
-    mInputCSDWorkCount = 0;
-    mComponentState = ComponentState::FLUSHING;
-    mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-    mFirstInputTimestamp = -1;
-    mLastOutputBitstreamId = -1;
-    mLastFinishedBitstreamId = -1;
-    if (mOutPutInfo4WorkIncomplete) {
-        delete mOutPutInfo4WorkIncomplete;
-        mOutPutInfo4WorkIncomplete = NULL;
-    }
-}
-
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     ALOGI(" EOS onStop");
@@ -1206,6 +1172,8 @@ void C2VDAComponent::onFlushDone() {
     }
     mMetaDataUtil->flush();
 
+    AutoMutex l(mFlushDoneLock);
+    mFlushDoneCond.signal();
     // Work dequeueing was stopped while component flushing. Restart it.
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VDAComponent::onDequeueWork, ::base::Unretained(this)));
@@ -2210,8 +2178,43 @@ c2_status_t C2VDAComponent::flush_sm(flush_mode_t mode,
     if (!mHasQueuedWork) {
         return C2_OK;
     }
-    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onFlush,
-                                                  ::base::Unretained(this)));
+
+    if (mComponentState == ComponentState::FLUSHING ||
+        mComponentState == ComponentState::STOPPING) {
+        return C2_BAD_STATE;
+        // Ignore other flush request when component is flushing or stopping.
+    }
+
+    mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+    mFirstInputTimestamp = -1;
+    mLastOutputBitstreamId = -1;
+    mLastFinishedBitstreamId = -1;
+    mComponentState = ComponentState::FLUSHING;
+    if (mVideoDecWraper) {
+        mVideoDecWraper->flush();
+    }
+
+    if (mTunnelHelper) {
+        mTunnelHelper->flush();
+    }
+
+    // Pop all works in mQueue and put into mAbandonedWorks.
+    while (!mQueue.empty()) {
+        mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
+        mQueue.pop();
+    }
+
+    AutoMutex l(mFlushDoneLock);
+    if (mFlushDoneCond.waitRelative(mFlushDoneLock, 500000000ll) == ETIMEDOUT) {  // 500ms Time out
+        uint64_t nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+        ALOGV("%s:last flush time:%lld, now time:%lld", __func__, mLastFlushTimeMs, nowTimeMs);
+        return C2_TIMED_OUT;
+    }
+
+    if (mOutPutInfo4WorkIncomplete) {
+        delete mOutPutInfo4WorkIncomplete;
+        mOutPutInfo4WorkIncomplete = NULL;
+    }
     // Instead of |flushedWork|, abandoned works will be returned via onWorkDone_nb() callback.
     return C2_OK;
 }
