@@ -2248,11 +2248,6 @@ c2_status_t C2VDAComponent::flush_sm(flush_mode_t mode,
         return C2_TIMED_OUT;
     }
 
-    if (mOutPutInfo4WorkIncomplete) {
-        delete mOutPutInfo4WorkIncomplete;
-        mOutPutInfo4WorkIncomplete = NULL;
-    }
-    // Instead of |flushedWork|, abandoned works will be returned via onWorkDone_nb() callback.
     return C2_OK;
 }
 
@@ -2819,8 +2814,8 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             if (err == C2_OK) {
                 int width = block->width();
                 int height = block->height();
-                if (mOutputFormat.mVisibleRect.width() == width &&
-                                mOutputFormat.mVisibleRect.height() == height) {
+                if (mOutputFormat.mCodedSize.width() <= width &&
+                                mOutputFormat.mCodedSize.height() <= height) {
                     mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
                     GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
                     bool old = false;
