@@ -7,18 +7,13 @@
  * Description:
  */
 
-
-
 #define LOG_NDEBUG 0
 #define LOG_TAG "VideoDecWraper"
-//#include <media/stagefright/foundation/ADebug.h>
 #include <utils/Log.h>
 #include <VideoDecWraper.h>
 #include <video_decode_accelerator.h>
-
 #include <dlfcn.h>
 #include <unistd.h>
-
 
 namespace android {
 
@@ -28,46 +23,46 @@ void* gMediaHal = NULL;
 uint32_t VideoDecWraper::gInstanceNum = 0;
 uint32_t VideoDecWraper::gInstanceCnt = 0;
 
-
 #define VDEC_LOGV(format, ...) ALOGV("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define VDEC_LOGW(format, ...) ALOGW("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define VDEC_LOGD(format, ...) ALOGD("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define VDEC_LOGI(format, ...) ALOGI("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define VDEC_LOGE(format, ...) ALOGE("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
+bool VideoDecWraper::loadMediaHalLibrary(void) {
+    if (!gMediaHal) {
+        gMediaHal = dlopen("libmediahal_videodec.so", RTLD_NOW);
+        if (gMediaHal == NULL) {
+            ALOGE("unable to dlopen libmediahal_videodec: %s", dlerror());
+            return false;
+        }
+    }
+    return true;
+}
 
 static AmVideoDecBase* getAmVideoDec(AmVideoDecCallback* callback) {
     //default version is 1.0
     uint32_t versionM = 1;
     uint32_t versionL = 0;
-    if (!gMediaHal) {
-        gMediaHal = dlopen("libmediahal_videodec.so", RTLD_NOW);
 
-        if (gMediaHal == NULL) {
-            ALOGW("try to dlopen libvideo_dec");
-            gMediaHal = dlopen("libvideo_dec.so", RTLD_NOW);
-            if (gMediaHal == NULL) {
-                ALOGE("unable to dlopen libmediahal_videodec: %s", dlerror());
-                return NULL;
-            }
-        }
-    }
+    if (!VideoDecWraper::loadMediaHalLibrary())
+        return NULL;
 
     typedef AmVideoDecBase *(*createAmVideoDecFunc)(AmVideoDecCallback* callback);
     typedef uint32_t (*getVersionFunc)(uint32_t* versionM, uint32_t* verionL);
 
     getVersionFunc getVersion = (getVersionFunc)dlsym(gMediaHal, "AmVideoDec_getVersion");
-    if (getVersion != NULL) {
+    if (getVersion != NULL)
         (*getVersion)(&versionM, &versionL);
-    }
+
     createAmVideoDecFunc getAmVideoDec = NULL;
 
     if ((versionM == 1) && (versionL == 0)) {
-        ALOGD("version 1.0 use create AmMediaHal\n");
+        ALOGE("version 1.0 use create AmMediaHal\n");
         getAmVideoDec =
             (createAmVideoDecFunc)dlsym(gMediaHal, "createAmMediaHal");
     } else if ((versionM == 1) && (versionL == 1)){
-        ALOGD("version 1.1 use create AmVideoDec_create\n");
+        ALOGE("version 1.1 use create AmVideoDec_create\n");
         getAmVideoDec =
             (createAmVideoDecFunc)dlsym(gMediaHal, "AmVideoDec_create");
     } else {
@@ -77,7 +72,6 @@ static AmVideoDecBase* getAmVideoDec(AmVideoDecCallback* callback) {
         return NULL;
     }
 
-
     if (getAmVideoDec == NULL) {
         dlclose(gMediaHal);
         gMediaHal = NULL;
@@ -86,20 +80,14 @@ static AmVideoDecBase* getAmVideoDec(AmVideoDecCallback* callback) {
     }
 
     AmVideoDecBase* halHanle = (*getAmVideoDec)(callback);
-    ALOGD("getAmVideoDec ok\n");
+    ALOGE("getAmVideoDec ok\n");
     return halHanle;
 }
 
 media::VideoDecodeAccelerator::SupportedProfiles VideoDecWraper::AmVideoDec_getSupportedProfiles(uint32_t inputcodec) {
-    if (!gMediaHal) {
-        gMediaHal = dlopen("libmediahal_videodec.so", RTLD_NOW);
-
-        if (gMediaHal == NULL) {
-            ALOGW("try to dlopen libvideo_dec");
-                ALOGE("unable to dlopen libmediahal_videodec: %s", dlerror());
-                media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
-                return supportedProfiles;
-        }
+    if (!VideoDecWraper::loadMediaHalLibrary()) {
+        media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
+        return supportedProfiles;
     }
 
     typedef void (*fGetSupportedProfiles)(uint32_t inputcodec, uint32_t** data, uint32_t* size);
@@ -115,16 +103,8 @@ media::VideoDecodeAccelerator::SupportedProfiles VideoDecWraper::AmVideoDec_getS
 }
 
 uint32_t VideoDecWraper::AmVideoDec_getResolveBufferFormat(bool crcb, bool semiplanar) {
-
-    if (!gMediaHal) {
-        gMediaHal = dlopen("libmediahal_videodec.so", RTLD_NOW);
-
-        if (gMediaHal == NULL) {
-            ALOGW("try to dlopen libvideo_dec");
-                ALOGE("unable to dlopen libmediahal_videodec: %s", dlerror());
-                return 0;
-        }
-    }
+    if (!VideoDecWraper::loadMediaHalLibrary())
+        return 0;
 
     typedef uint32_t (*fGetResolveBufferFormat)(bool crcb, bool semiplanar);
     fGetResolveBufferFormat getResolveBufferFormat = (fGetResolveBufferFormat)dlsym(gMediaHal, "AmVideoDec_getResolveBufferFormat");
@@ -133,18 +113,16 @@ uint32_t VideoDecWraper::AmVideoDec_getResolveBufferFormat(bool crcb, bool semip
 }
 
 VideoDecWraper::VideoDecWraper() :
-mAmVideoDec(NULL),
-mDecoderCallback(NULL) {
+    mAmVideoDec(NULL),
+    mDecoderCallback(NULL) {
     gInstanceCnt++;
     gInstanceNum++;
     mInstanceCnt = gInstanceCnt;
     VDEC_LOGD("VideoDecWraper");
 }
 
-
 VideoDecWraper::~VideoDecWraper() {
     VDEC_LOGD("~VideoDecWraper");
-
     if (mAmVideoDec) {
         delete mAmVideoDec;
         mAmVideoDec = NULL;
@@ -160,22 +138,18 @@ int VideoDecWraper::initialize(
     VideoDecWraperCallback* client,
     int32_t flags) {
     VDEC_LOGD("initialize:mime:%s secureMode is %d flags is 0x%x", mime, secureMode, flags);
-    //mAmVideoDec = new AmVideoDec(this);
     if (!mAmVideoDec)
         mAmVideoDec = getAmVideoDec(this);
     if (!mAmVideoDec) {
         VDEC_LOGE("can not get AmVideoDec, init error\n");
         return -1;
     }
-
     int ret = mAmVideoDec->initialize(mime, config, configLen, secureMode, true, flags);
-    if (ret != 0) {
+    if (ret != 0)
         return -1;
-    }
     mAmVideoDec->setQueueCount(64);
-    if (client) {
+    if (client)
         mDecoderCallback = client;
-    }
     return 0;
 }
 
@@ -190,10 +164,9 @@ int32_t VideoDecWraper::decode(
     int32_t flags) {
     VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
         bitstreamId, bytesUsed, timestamp, flags);
-
     if (mAmVideoDec) {
         if (hdrlen > 0)
-            return mAmVideoDec->queueInputBuffer(bitstreamId, pbuf, offset, bytesUsed, timestamp, hdrbuf, hdrlen,flags);
+            return mAmVideoDec->queueInputBuffer(bitstreamId,pbuf, offset, bytesUsed, timestamp, hdrbuf, hdrlen,flags);
         else
             return mAmVideoDec->queueInputBuffer(bitstreamId, pbuf, offset, bytesUsed,timestamp, flags);
     }
@@ -211,7 +184,6 @@ int32_t VideoDecWraper::decode(
     int32_t flags) {
     VDEC_LOGD("decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
         bitstreamId, bytesUsed, timestamp, flags);
-
     if (mAmVideoDec) {
         if (hdrlen > 0)
             return mAmVideoDec->queueInputBuffer(bitstreamId, ashmemFd, offset,bytesUsed, timestamp, hdrbuf, hdrlen,flags);
@@ -223,11 +195,10 @@ int32_t VideoDecWraper::decode(
 
 void VideoDecWraper::assignPictureBuffers(uint32_t numOutputBuffers) {
     VDEC_LOGD("assignPictureBuffers:%d", numOutputBuffers);
-
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         mAmVideoDec->setupOutputBufferNum(numOutputBuffers);
-    }
 }
+
 void VideoDecWraper::importBufferForPicture(
     int32_t pictureBufferId,
     int fd,
@@ -235,114 +206,91 @@ void VideoDecWraper::importBufferForPicture(
     uint8_t* buf,
     size_t size,
     bool isNV21) {
-    VDEC_LOGI("importBufferForPicture:%d, fd:%d, metafd:%d", pictureBufferId, fd, metafd);
+    VDEC_LOGD("importBufferForPicture:%d, fd:%d, metafd:%d", pictureBufferId, fd, metafd);
     if (mAmVideoDec) {
-#if 0
-        mAmVideoDec->createOutputBuffer(pictureBufferId, buf, size);
-#else
         VDEC_LOGD("outbuf color format %s", isNV21? "NV21" : "NV12");
         mAmVideoDec->createOutputBuffer(pictureBufferId,
                 dup(fd), isNV21, metafd >= 0 ? dup(metafd) : -1);
-#endif
     }
 }
+
 void VideoDecWraper::reusePictureBuffer(int32_t pictureBufferId) {
     VDEC_LOGD("reusePictureBuffer pictureBufferId:%d", pictureBufferId);
-
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         mAmVideoDec->queueOutputBuffer(pictureBufferId);
-    }
 }
 
 int32_t VideoDecWraper::allocTunnelBuffer(int usage, uint32_t format, int stride, uint32_t width, uint32_t height, bool secure, int* fd) {
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         return mAmVideoDec->allocTunnelBuffer(usage, format, stride, width, height, secure, fd);
-    }
     return -1;
 }
 
 int32_t VideoDecWraper::freeTunnelBuffer(int fd) {
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         return mAmVideoDec->freeTunnelBuffer(fd);
-    }
     return -1;
 }
 
 void VideoDecWraper::eosFlush() {
     VDEC_LOGD("eosFlush");
-
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         mAmVideoDec->flush();
-    }
-
 }
+
 void VideoDecWraper::reset(uint32_t flags) {
     VDEC_LOGD("reset");
-
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         mAmVideoDec->reset(flags);
-    }
-
 }
+
 void VideoDecWraper::flush(uint32_t flags) {
     VDEC_LOGD("flush");
-
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         mAmVideoDec->reset(flags);
-    }
-
 }
+
 void VideoDecWraper::stop(uint32_t flags) {
     VDEC_LOGD("stop");
-
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         mAmVideoDec->reset(flags);
-    }
-
 }
+
 void VideoDecWraper::destroy() {
     VDEC_LOGD("destroy");
-
-    if (mAmVideoDec) {
+    if (mAmVideoDec)
         mAmVideoDec->destroy();
-    }
-
 }
-
 
 // callbak.
 void VideoDecWraper::onOutputFormatChanged(uint32_t requested_num_of_buffers,
             int32_t width, uint32_t height) {
     VDEC_LOGD("providePictureBuffers:minNumBuffers:%d, w:%d, h:%d", requested_num_of_buffers, width, height);
-    if (mDecoderCallback) {
+    if (mDecoderCallback)
         mDecoderCallback->ProvidePictureBuffers(requested_num_of_buffers, width, height);
-    }
 }
 
 void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t width, uint32_t height) {
-    VDEC_LOGD("pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d", pictureBufferId, bitstreamId, mDecoderCallback,width, height);
-    if (mDecoderCallback) {
+    VDEC_LOGD("pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d",
+        pictureBufferId, bitstreamId, mDecoderCallback,width, height);
+    if (mDecoderCallback)
         mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height, 0);
-    }
-
 }
+
 void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t width, uint32_t height, int32_t flags) {
     (void)flags;
-    VDEC_LOGD("pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d, flags:%d", pictureBufferId, bitstreamId, mDecoderCallback, width, height, flags);
-    if (mDecoderCallback) {
+    VDEC_LOGD("pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d, flags:%d",
+        pictureBufferId, bitstreamId, mDecoderCallback, width, height, flags);
+    if (mDecoderCallback)
         mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height,flags);
-    }
-
 }
+
 void VideoDecWraper::onInputBufferDone(int32_t bitstream_buffer_id) {
     VDEC_LOGD("notifyEndOfBitstreamBuffer:bitstream_buffer_id:%d", bitstream_buffer_id);
-
-    if (mDecoderCallback) {
+    if (mDecoderCallback)
         mDecoderCallback->NotifyEndOfBitstreamBuffer(bitstream_buffer_id);
-    }
-
 }
 
 void VideoDecWraper::onUserdataReady(const uint8_t* userdata, uint32_t usize) {
@@ -351,44 +299,33 @@ void VideoDecWraper::onUserdataReady(const uint8_t* userdata, uint32_t usize) {
 
 void VideoDecWraper::onUpdateDecInfo(const uint8_t* info, uint32_t isize) {
     VDEC_LOGD("onUpdateDecInfo info %p, size %d\n", info, isize);
-    if (mDecoderCallback) {
+    if (mDecoderCallback)
         mDecoderCallback->UpdateDecInfo(info, isize);
-    }
 }
 
 void VideoDecWraper::onFlushDone() {
     VDEC_LOGD("onFlushDone\n");
-    if (mDecoderCallback) {
+    if (mDecoderCallback)
         mDecoderCallback->NotifyFlushDone();
-    }
-
 }
+
 void VideoDecWraper::onResetDone() {
     VDEC_LOGD("onResetDone\n");
-
-    if (mDecoderCallback) {
+    if (mDecoderCallback)
         mDecoderCallback->NotifyFlushOrStopDone();
-    }
-
 }
+
 void VideoDecWraper::onError(int32_t error) {
     VDEC_LOGD("notifyError:%d", error);
-
-    if (mDecoderCallback) {
+    if (mDecoderCallback)
         mDecoderCallback->NotifyError((int)error);
-    }
-
 }
 
 void VideoDecWraper::onEvent(uint32_t event, void* param, uint32_t paramsize) {
     VDEC_LOGD("event %d, param %p, paramsize:%d\n", event, param, paramsize);
-
-    if (mDecoderCallback) {
+    if (mDecoderCallback)
         mDecoderCallback->NotifyEvent(event, param, paramsize);
-    }
 }
-
-
 
 }
 

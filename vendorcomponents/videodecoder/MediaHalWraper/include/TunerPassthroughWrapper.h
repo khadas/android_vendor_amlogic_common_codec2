@@ -28,7 +28,11 @@ public:
     int getSyncInstansNo(int *no);
 
 private:
+    static uint32_t gInstanceCnt;
+    static uint32_t gInstanceNum;
+    uint32_t mInstanceCnt;
     TunerPassthroughBase* mTunerPassthrough;
 };
+
 }
 #endif

@@ -46,6 +46,7 @@ public:
 
     VideoDecWraper();
     ~VideoDecWraper();
+    static bool loadMediaHalLibrary(void);
     static media::VideoDecodeAccelerator::SupportedProfiles AmVideoDec_getSupportedProfiles(uint32_t inputcodec);
     static uint32_t AmVideoDec_getResolveBufferFormat(bool crcb, bool semiplanar);
 

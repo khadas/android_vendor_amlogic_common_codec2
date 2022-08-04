@@ -172,15 +172,6 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                     mActualOutputDelay->value = kDefaultOutputDelayTunnel;
                 }
                 break;
-#if 0
-            case C2VendorTunerHalParam::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
-                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
-                if (mComponent) {
-                    mComponent->onConfigureTunnerPassthroughMode();
-                }
-                break;
-#endif
             case C2VdecWorkMode::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
                     C2VDAComponent::mInstanceID, mComponent->mCurInstanceID, mVdecWorkMode->value);
@@ -254,7 +245,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
             onMjpgDeclareParam();
             break;
         default:
-            ALOGE("Invalid component name: %s", name.c_str());
+            CODEC2_LOG(CODEC2_LOG_ERR, "Invalid component name: %s", name.c_str());
             mInitStatus = C2_BAD_VALUE;
             return;
     }
@@ -683,7 +674,7 @@ void C2VDAComponent::IntfImpl::onInputDelayDeclareParam() {
     if (mSecureMode) {
         inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num_secure", 4);
         if (inputDelayNum > kMaxInputDelaySecure) {
-                ALOGE("%s:%d exceed max secure input delay num %d %d",
+            CODEC2_LOG(CODEC2_LOG_ERR, "%s:%d exceed max secure input delay num %d %d",
                 __func__, __LINE__, inputDelayNum, kMaxInputDelaySecure);
                 inputDelayNum = kMaxInputDelaySecure;
         }
@@ -698,7 +689,7 @@ void C2VDAComponent::IntfImpl::onInputDelayDeclareParam() {
     } else {
         inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num", 4);
         if (inputDelayNum > kMaxInputDelay) {
-                ALOGE("%s:%d exceed max no-secure input delay num %d %d",
+            CODEC2_LOG(CODEC2_LOG_ERR, "%s:%d exceed max no-secure input delay num %d %d",
                 __func__, __LINE__, inputDelayNum, kMaxInputDelay);
                 inputDelayNum = kMaxInputDelay;
         }
@@ -786,7 +777,7 @@ void C2VDAComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
         media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
         supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)mInputCodec);
         if (supportedProfiles.empty()) {
-            ALOGE("No supported profile from input codec: %d", mInputCodec);
+            CODEC2_LOG(CODEC2_LOG_ERR, "No supported profile from input codec: %d", mInputCodec);
             mInitStatus = C2_BAD_VALUE;
             return;
         }
@@ -847,15 +838,15 @@ void C2VDAComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
                         else
                         defultsize = kLinearBufferSize;
                         if (defultsize > maxInputsize) {
-                                me.set().value = maxInputsize;
-                                ALOGI("Force setting %d to max is %d", me.get().value, maxInputsize);
+                            me.set().value = maxInputsize;
+                            CODEC2_LOG(CODEC2_LOG_INFO,"Force setting %d to max is %d", me.get().value, maxInputsize);
                         } else {
-                                me.set().value = defultsize;
+                            me.set().value = defultsize;
                         }
                         //app may set too small
                         if (((size.v.width * size.v.height) > (1920 * 1088))
-                                && (me.set().value < (4 * kLinearBufferSize))) {
-                                me.set().value = 4 * kLinearBufferSize;
+                            && (me.set().value < (4 * kLinearBufferSize))) {
+                            me.set().value = 4 * kLinearBufferSize;
                         }
                         return C2R::Ok();
                 }

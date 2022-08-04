@@ -19,6 +19,16 @@ namespace android {
 
 static void *gMediaHal = NULL;
 
+uint32_t TunerPassthroughWrapper::gInstanceNum = 0;
+uint32_t TunerPassthroughWrapper::gInstanceCnt = 0;
+
+#define TUNERHAL_LOGV(format, ...) ALOGV("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define TUNERHAL_LOGW(format, ...) ALOGW("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define TUNERHAL_LOGD(format, ...) ALOGD("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define TUNERHAL_LOGI(format, ...) ALOGI("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define TUNERHAL_LOGE(format, ...) ALOGE("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+
+
 static TunerPassthroughBase* getTunerPassthrough() {
     //default version is 1.0
     //uint32_t versionM = 1;
@@ -26,8 +36,7 @@ static TunerPassthroughBase* getTunerPassthrough() {
     if (gMediaHal == NULL) {
         gMediaHal = dlopen("libmediahal_passthrough.so", RTLD_NOW);
         if (gMediaHal == NULL) {
-            ALOGE("[%s/%d] unable to dlopen libmediahal_passthrough: %s",
-                __FUNCTION__, __LINE__, dlerror());
+            ALOGE("unable to dlopen libmediahal_passthrough: %s", dlerror());
             return NULL;
         }
     }
@@ -42,7 +51,7 @@ static TunerPassthroughBase* getTunerPassthrough() {
     if (getTunerPassthrough == NULL) {
         dlclose(gMediaHal);
         gMediaHal = NULL;
-        ALOGE("[%s/%d] can not get TunerPassthroughBase_create\n", __FUNCTION__, __LINE__);
+        ALOGE("xcan not get TunerPassthroughBase_create\n");
         return NULL;
     }
 
@@ -53,61 +62,60 @@ static TunerPassthroughBase* getTunerPassthrough() {
 
 TunerPassthroughWrapper::TunerPassthroughWrapper() {
     mTunerPassthrough = getTunerPassthrough();
-    ALOGD("[%s/%d]", __FUNCTION__, __LINE__);
+    gInstanceCnt++;
+    gInstanceNum++;
+    mInstanceCnt = gInstanceCnt;
+    TUNERHAL_LOGD("Create");
 }
 
 TunerPassthroughWrapper::~TunerPassthroughWrapper() {
-    ALOGD("[%s/%d]", __FUNCTION__, __LINE__);
+    TUNERHAL_LOGD("Destory");
     if (mTunerPassthrough) {
         delete mTunerPassthrough;
         mTunerPassthrough = NULL;
     }
+    gInstanceNum--;
 }
 
 int TunerPassthroughWrapper::initialize(passthroughInitParams* params) {
-
+    TUNERHAL_LOGD("initialize");
     if (!mTunerPassthrough) {
-        ALOGE("[%s/%d] mTunerPassthrough is NULL!\n", __FUNCTION__, __LINE__);
+        TUNERHAL_LOGE("mTunerPassthrough is NULL!\n");
         return -1;
     }
-
     if (mTunerPassthrough->Init(params) != 0) {
-        ALOGE("[%s/%d] init tuner passthrough error!\n", __FUNCTION__, __LINE__);
+        TUNERHAL_LOGE("init tuner passthrough error!\n");
         return -1;
     }
-
     return 0;
 }
 
 int TunerPassthroughWrapper::regNotifyTunnelRenderTimeCallBack(callbackFunc funs, void* obj) {
+    TUNERHAL_LOGD("regNotifyTunnelRenderTimeCallBack");
     if (!mTunerPassthrough)
         return false;
     return mTunerPassthrough->RegCallBack(VideoTunnelRendererBase::CB_NODIFYRENDERTIME, funs, obj);
 }
 
 int TunerPassthroughWrapper::start() {
-    ALOGD("[%s/%d]", __FUNCTION__, __LINE__);
-
-    if (mTunerPassthrough) {
+    TUNERHAL_LOGD("start");
+    if (mTunerPassthrough)
         mTunerPassthrough->Start();
-    }
     return 0;
 }
+
 int TunerPassthroughWrapper::stop() {
-    ALOGD("[%s/%d]", __FUNCTION__, __LINE__);
-
-    if (mTunerPassthrough) {
+    TUNERHAL_LOGD("stop");
+    if (mTunerPassthrough)
         mTunerPassthrough->Stop();
-    }
     return 0;
 
 }
-int TunerPassthroughWrapper::getSyncInstansNo(int *no) {
-    ALOGD("[%s/%d]", __FUNCTION__, __LINE__);
 
-    if (mTunerPassthrough) {
+int TunerPassthroughWrapper::getSyncInstansNo(int *no) {
+    TUNERHAL_LOGD("getSyncInstansNo");
+    if (mTunerPassthrough)
         mTunerPassthrough->GetSyncInstansNo(no);
-    }
     return 0;
 }
 

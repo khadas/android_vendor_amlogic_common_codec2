@@ -51,7 +51,6 @@ static VideoTunnelRendererBase* getVideoTunnelRenderer() {
 }
 
 
-
 VideoTunnelRendererWraper::VideoTunnelRendererWraper(bool secure) {
 	mVideoTunnelRenderer = getVideoTunnelRenderer();
     ALOGD("mVideoTunnelRenderer:%p\n", mVideoTunnelRenderer);

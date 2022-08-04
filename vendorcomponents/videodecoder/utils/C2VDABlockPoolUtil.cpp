@@ -33,14 +33,12 @@ int64_t GetNowUs() {
 }
 
 bool getINodeFromFd(int32_t fd, uint64_t *ino) {
-    //ALOGV("getInode");
     struct stat st;
     int ret = fstat(fd, &st);
     if (ret == -1) {
         ALOGE("fstat error %d :%s", fd, strerror(errno));
         return false;
-    }
-    else {
+    } else {
         *ino = st.st_ino;
         //ALOGV("[%d]==fstat: st_ino:%llu st_uid:%u st_gid:%u", fd, st.st_ino, st.st_uid, st.st_gid);
     }
@@ -56,8 +54,7 @@ public:
         c2_status_t status = allocatorStore->fetchAllocator(base->getAllocatorId(), &mAllocatorBase);
 
         if (status != C2_OK) {
-            ALOGE("create block block pool fail.");
-
+            CODEC2_LOG(CODEC2_LOG_ERR, "create block block pool fail.");
             return;
         }
 
@@ -67,10 +64,9 @@ public:
             mBase = std::make_shared<C2PooledBlockPool> (mAllocatorBase, base->getLocalId());
             C2String name = mAllocatorBase->getName();
             C2Allocator::id_t id = mAllocatorBase->getId();
-            ALOGV("allocate name:%s id:%d", name.c_str(), id);
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "allocate name:%s id:%d", name.c_str(), id);
         }
-
-        ALOGV("create block pool success, allocatorId:%d poolId:%llu use surface:%d",
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "create block pool success, allocatorId:%d poolId:%llu use surface:%d",
             mBase->getAllocatorId(), mBase->getLocalId(), useSurface);
     }
 
@@ -131,7 +127,6 @@ C2VDABlockPoolUtil::C2VDABlockPoolUtil(std::shared_ptr<C2BlockPool> blockpool)
 }
 
 C2VDABlockPoolUtil::~C2VDABlockPoolUtil() {
-    ALOGV("%s", __func__);
     mGraphicBufferId = 0;
 
     auto iter = mRawGraphicBlockInfo.begin();
@@ -197,7 +192,7 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
                     }
                 }
                 else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
-                    ALOGV("current block info size:%d", mRawGraphicBlockInfo.size());
+                    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "current block info size:%d", mRawGraphicBlockInfo.size());
                     fetchBlock.reset();
                     mNextFetchTimeUs = GetNowUs();
                     return C2_BLOCKING;
@@ -206,12 +201,12 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
         }
     }
     else if (err == C2_TIMED_OUT) {
-        ALOGE("Fetch block time out and try again...");
+        CODEC2_LOG(CODEC2_LOG_ERR, "Fetch block time out and try again...");
         mNextFetchTimeUs = GetNowUs();
         return err;
     }
     else {
-        ALOGE("No buffer could be recycled now, err = %d", err);
+        CODEC2_LOG(CODEC2_LOG_ERR, "No buffer could be recycled now, err = %d", err);
         mNextFetchTimeUs = GetNowUs();
         return err;
     }
@@ -225,7 +220,7 @@ c2_status_t C2VDABlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heigh
 c2_status_t C2VDABlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
     std::lock_guard<std::mutex> lock(mMutex);
     if (bufferCount <= 0) {
-        ALOGE("Invalid requested buffer count:%d", bufferCount);
+        CODEC2_LOG(CODEC2_LOG_ERR, "Invalid requested buffer count:%d", bufferCount);
         return C2_BAD_VALUE;
     }
     if (mUseSurface) {
@@ -234,7 +229,7 @@ c2_status_t C2VDABlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
         mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay - 2;
     }
 
-    ALOGV("block pool deque buffer number max:%d", mMaxDequeuedBufferNum);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "block pool deque buffer number max:%d", mMaxDequeuedBufferNum);
     return C2_OK;
 }
 
@@ -288,7 +283,7 @@ c2_status_t C2VDABlockPoolUtil::getBlockIdByGraphicBlock(std::shared_ptr<C2Graph
     getINodeFromFd(fd, &inode);
     auto info = mRawGraphicBlockInfo.find(inode);
     if (info == mRawGraphicBlockInfo.end()) {
-        ALOGI("get block id failed,this is unknow block");
+        CODEC2_LOG(CODEC2_LOG_ERR, "get block id failed,this is unknow block");
         return C2_BAD_VALUE;
     }
 
@@ -301,7 +296,7 @@ c2_status_t C2VDABlockPoolUtil::getPoolId(C2BlockPool::local_id_t *poolId) {
     ALOG_ASSERT(mBlockingPool != nullptr);
 
     if (!mBlockingPool) {
-        ALOGE("C2BufferQueueBlockPool Pool is Invalid, get pool id fail");
+        CODEC2_LOG(CODEC2_LOG_ERR, "C2BufferQueueBlockPool Pool is Invalid, get pool id fail");
         return C2_BAD_VALUE;
     }
 
@@ -317,7 +312,7 @@ c2_status_t C2VDABlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> block
     getINodeFromFd(block->handle()->data[0], &inode);
     auto info = mRawGraphicBlockInfo.find(inode);
     if (info == mRawGraphicBlockInfo.end()) {
-        ALOGE("get fd fail, unknown block");
+        CODEC2_LOG(CODEC2_LOG_ERR, "get fd fail, unknown block");
         return C2_BAD_VALUE;
     }
 
@@ -326,13 +321,12 @@ c2_status_t C2VDABlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> block
     } else {
         *fd = info->second.mFd;
     }
-    //ALOGI("%s get fd success %d", __func__, *fd);
     return C2_OK;
 }
 
 c2_status_t C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint64_t inode, int fd) {
     if (block == nullptr) {
-        ALOGE("%s block is null", __func__);
+        CODEC2_LOG(CODEC2_LOG_ERR, "%s block is null", __func__);
         return C2_BAD_VALUE;
     }
     struct BlockBufferInfo info;
@@ -353,25 +347,25 @@ c2_status_t C2VDABlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Graph
         mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
         mGraphicBufferId++;
     }
-    ALOGV("fetch the new block(ino:%llu fd:%d dupfd:%d id:%d) and append.", inode, info.mFd, info.mDupFd, info.mBlockId);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "fetch the new block(ino:%llu fd:%d dupfd:%d id:%d) and append.", inode, info.mFd, info.mDupFd, info.mBlockId);
     return C2_OK;
 }
 
 c2_status_t C2VDABlockPoolUtil::getBlockIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* blockId) {
     if (block == nullptr) {
-        ALOGE("block is null, get block id failed.");
+        CODEC2_LOG(CODEC2_LOG_ERR, "block is null, get block id failed.");
         return C2_BAD_VALUE;
     }
 
     std::shared_ptr<_C2BlockPoolData> blockPoolData =
             _C2BlockFactory::GetGraphicBlockPoolData(*block);
     if (blockPoolData->getType() != _C2BlockPoolData::TYPE_BUFFERPOOL) {
-        ALOGE("Obtained C2GraphicBlock is not bufferpool-backed.");
+        CODEC2_LOG(CODEC2_LOG_ERR, "Obtained C2GraphicBlock is not bufferpool-backed.");
         return C2_BAD_VALUE;
     }
     std::shared_ptr<BufferPoolData> bpData;
     if (!_C2BlockFactory::GetBufferPoolData(blockPoolData, &bpData) || !bpData) {
-        ALOGE("BufferPoolData unavailable in block.");
+        CODEC2_LOG(CODEC2_LOG_ERR, "BufferPoolData unavailable in block.");
         return C2_BAD_VALUE;
     }
     *blockId = bpData->mId;
