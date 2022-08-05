@@ -195,18 +195,15 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
         mInputWorkCount(0),
         mInputCSDWorkCount(0),
         mOutputWorkCount(0),
+        mOutputFinishedWorkCount(0),
         mSyncType(C2_SYNC_TYPE_NON_TUNNEL),
         mTunerPassthrough(NULL),
         mDefaultDummyReadView(DummyReadView()),
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
         mFirstInputTimestamp(-1),
-        mLastOutputBitstreamId(-1),
-        mLastFinishedBitstreamId(-1),
-        mNeedFinishFirstWork4Interlaced(false),
-        mOutPutInfo4WorkIncomplete(NULL),
-        mHasQueuedWork(false) {
+        mLastOutputBitstreamId(-1) {
 
-    C2VDA_LOG(CODEC2_LOG_INFO, "Create");
+    C2VDA_LOG(CODEC2_LOG_INFO, "Create %s(%s)", __func__, name.c_str());
     mSecureMode = name.find(".secure") != std::string::npos;
     if (mSecureMode)
         sConcurrentInstanceSecures.fetch_add(1, std::memory_order_relaxed);
@@ -235,8 +232,8 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
 
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
     C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
-    bool dump = property_get_bool("vendor.media.codec2.dumpyuv", false);
-    if (dump) {
+    bool mDumpYuvEnable = property_get_bool("vendor.media.codec2.dumpyuv", false);
+    if (mDumpYuvEnable) {
         char pathfile[1024] = { '\0'  };
         sprintf(pathfile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
         mDumpYuvFp = fopen(pathfile, "wb");
@@ -504,7 +501,7 @@ void C2VDAComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork, put pendtingwokr bitid:%lld, pending worksize:%d",
+    C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork, put pendingwork bitid:%lld, pending worksize:%d",
             work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
 
@@ -662,80 +659,42 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
     }
 
-    bool FoundWorkInPending = false;
-    C2Work BackWork;
-    C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
-    if (!work) {
-        if (mMetaDataUtil->getUnstablePts()) {
-            if (bitstreamId == mLastOutputBitstreamId && mLastOutputBitstreamId != -1) {
-                work = cloneWork(&mLastOutputC2Work);
-            }
-        }
+    if (mLastOutputBitstreamId == bitstreamId) {
+        timestamp = 0;
+    } else {
+        C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
-            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%lld", __FUNCTION__, __LINE__, bitstreamId);
-            info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-            sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%d not find the correct work with bitstreamid:%lld", __LINE__,bitstreamId);
+            reportError(C2_CORRUPTED);
             return;
         }
-    } else {
-        FoundWorkInPending = true;
-        if (mMetaDataUtil->getUnstablePts()) {
-            cloneWork(work, &BackWork);
-        }
+        timestamp = work->input.ordinal.timestamp.peekull();
     }
-    timestamp = work->input.ordinal.timestamp.peekull();
-    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp,flags});
+
+    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags});
     mOutputWorkCount ++;
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s bitstreamid=%lld, blockid(pictureid):%d, pendindbuffersize:%d",
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s bitstreamid=%lld, blockid(pictureid):%d, pendingbuffersize:%d",
             __func__, bitstreamId, pictureBufferId,
             mPendingBuffersToWork.size());
 
     CODEC2_ATRACE_INT64("c2OutPTS", timestamp);
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s in/out[%lld(%d)-%lld(%d)]",
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s in/out[%lld(%d)-%lld(%d) -> (%lld)]",
             __func__,
             mInputWorkCount, mInputCSDWorkCount,
-            mOutputWorkCount, mPendingBuffersToWork.size());
+            mOutputWorkCount, mPendingBuffersToWork.size(), mOutputFinishedWorkCount);
     CODEC2_ATRACE_INT64("c2OutPTS", 0);
-
-    if (mMetaDataUtil->isInterlaced()) {
-        //for interlaced video
-        if (mOutputWorkCount == 2) {
-            if (!(mInterlacedType&C2_INTERLACED_TYPE_SETUP)) {
-                mInterlacedType |= C2_INTERLACED_TYPE_SETUP;
-                if (bitstreamId != mLastOutputBitstreamId) {
-                    mInterlacedType |= C2_INTERLACED_TYPE_1FIELD;
-                } else {
-                    mInterlacedType |= C2_INTERLACED_TYPE_2FIELD;
-                }
-                C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s#%d setting up mInterlacedType:%08x, bitstreamId:%lld(%d)", __func__, __LINE__, mInterlacedType,bitstreamId,mLastOutputBitstreamId);
-            }
-        }
-    }
-
 
     if (mComponentState == ComponentState::FLUSHING) {
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s in flushing, pending bitstreamid=%lld first", __func__, bitstreamId);
-        if (mMetaDataUtil->getUnstablePts()) {
-            if (!FoundWorkInPending && work) {
-                delete work;
-            }
-        }
         mLastOutputBitstreamId = bitstreamId;
         return;
     }
 
+    mLastOutputBitstreamId = bitstreamId;
     if (isNonTunnelMode()) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else if (isTunnelMode() && mTunnelHelper) {
         mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
-    }
-    if (mMetaDataUtil->getUnstablePts()) {
-        if (FoundWorkInPending) {
-            cloneWork(&BackWork, &mLastOutputC2Work);
-        }
-        if (!FoundWorkInPending && work) {
-            delete work;
-        }
     }
 
     // The first two frames are CSD data.
@@ -743,7 +702,6 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         mDequeueLoopRunning.store(true);
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Enable queuethread Running...");
     }
-    mLastOutputBitstreamId = bitstreamId;
 }
 
 C2Work* C2VDAComponent::cloneWork(C2Work* ori) {
@@ -752,6 +710,12 @@ C2Work* C2VDAComponent::cloneWork(C2Work* ori) {
         C2VDA_LOG(CODEC2_LOG_ERR, "C2VDAComponent::cloneWork, malloc memory failed.");
         return NULL;
     }
+
+    if (ori == NULL) {
+        ALOGE("origin work is null, clone work faild.");
+        return NULL;
+    }
+
     n->input.flags = ori->input.flags;
     n->input.ordinal = ori->input.ordinal;
     n->worklets.emplace_back(new C2Worklet);
@@ -760,16 +724,18 @@ C2Work* C2VDAComponent::cloneWork(C2Work* ori) {
     return n;
 }
 
-void C2VDAComponent::cloneWork(C2Work* ori, C2Work* out) {
-    if (out == NULL || ori == NULL)
-        return;
+void C2VDAComponent::sendClonedWork(C2Work* work, int32_t flags) {
+    work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
+    work->result = C2_OK;
+    work->workletsProcessed = 1;
 
-    out->input.flags = ori->input.flags;
-    out->input.ordinal = ori->input.ordinal;
-    out->worklets.emplace_back(new C2Worklet);
-    out->worklets.front()->output.ordinal = out->input.ordinal;
-
-    return;
+    work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work,flags);
+    c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
+                            - work->input.ordinal.timestamp;
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
+    std::list<std::unique_ptr<C2Work>> finishedWorks;
+    finishedWorks.emplace_back(std::move(std::unique_ptr<C2Work>(work)));
+    mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
 }
 
 c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) {
@@ -778,29 +744,24 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
     while (!mPendingBuffersToWork.empty()) {
         auto nextBuffer = mPendingBuffersToWork.front();
         GraphicBlockInfo* info = getGraphicBlockById(nextBuffer.mBlockId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d blockinode:%llu",
+            __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId, mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId));
+        bool isSendCloneWork = false;
+
         if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
             C2VDA_LOG(CODEC2_LOG_ERR, "Graphic block (id=%d) should not be owned by accelerator", info->mBlockId);
             reportError(C2_BAD_STATE);
             return C2_BAD_STATE;
         }
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d blockinode:%llu",
-            __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId, mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId));
-        bool sendCloneWork = false;
-        C2Work* work = NULL;
 
-        if (mMetaDataUtil->getUnstablePts()) {
-            //for one packet contains more than one frame.
-            if (mLastFinishedBitstreamId == -1 ||
-                mLastFinishedBitstreamId != nextBuffer.mBitstreamId) {
-                work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
-            } else {
-                work = cloneWork(&mLastFinishedC2Work);
-                sendCloneWork = true;
-            }
-        } else {
-            //default path
-            work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
+        C2Work* work = NULL;
+        //for one packet contains more than one frame.
+        work = getPendingWorkByBitstreamId(nextBuffer.mBitstreamId);
+        if (!work) {
+            isSendCloneWork = true;
+            work = cloneWork(mLastOutputReportWork);
         }
+
         if (!work) {
             C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] discard bitstreamid after flush or reset :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
             info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
@@ -808,38 +769,16 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             return C2_OK;
         }
 
-        if (mMetaDataUtil->isInterlaced() && !mMetaDataUtil->getUnstablePts()) {
-            if (!sendCloneWork) {
-                if (mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD) &&
-                    (nextBuffer.mBitstreamId != mLastFinishedBitstreamId || mLastFinishedBitstreamId == -1)) {
-                    work = cloneWork(work);
-                    sendCloneWork = true;
-                    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%s#%d interlace one-in/two-out first field output, clone the work", __func__, __LINE__);
-                } else if (!(mInterlacedType&C2_INTERLACED_TYPE_SETUP)) {
-                    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "for Interlaced, first frame must be cloned.");
-                    work = cloneWork(work);
-                    sendCloneWork = true;
-                    mNeedFinishFirstWork4Interlaced = true;
-                    mOutPutInfo4WorkIncomplete = new OutputBufferInfo();
-                    mOutPutInfo4WorkIncomplete->flags = nextBuffer.flags;
-                    mOutPutInfo4WorkIncomplete->mBitstreamId = nextBuffer.mBitstreamId;
-                    mOutPutInfo4WorkIncomplete->mBlockId = nextBuffer.mBlockId;
-                    mOutPutInfo4WorkIncomplete->mMediaTimeUs = nextBuffer.mMediaTimeUs;
-                }
-            }
-            if (mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_1FIELD)) {
-                if (mNeedFinishFirstWork4Interlaced && mOutPutInfo4WorkIncomplete) {
-                    mNeedFinishFirstWork4Interlaced = false;
-                    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "for Interlaced, first frame cloned.must be finished");
-                    reportEmptyWork(mOutPutInfo4WorkIncomplete->mBitstreamId,mOutPutInfo4WorkIncomplete->flags);
-                    delete mOutPutInfo4WorkIncomplete;
-                    mOutPutInfo4WorkIncomplete = NULL;
-                }
-            }
-        }
         mLastFinishedBitstreamId = nextBuffer.mBitstreamId;
-        if (mMetaDataUtil->getUnstablePts()) {
-            cloneWork(work, &mLastFinishedC2Work);
+        if (!mLastOutputReportWork) {
+            delete mLastOutputReportWork;
+            mLastOutputReportWork = NULL;
+        }
+
+        mLastOutputReportWork = cloneWork(work);
+        if (!mLastOutputReportWork) {
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"last work is null, malloc memory failed.");
+            return C2_BAD_VALUE;
         }
 
         if (info->mState == GraphicBlockInfo::State::OWNED_BY_CLIENT) {
@@ -853,7 +792,6 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Drop this frame...");
             sendOutputBufferToAccelerator(info, false /* ownByAccelerator */);
             work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
-
         } else if ( ((int)nextBuffer.flags & (int)PictureFlag::PICTURE_FLAG_ERROR_FRAME) != 0) {
             C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] drop error frame :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
             sendOutputBufferToAccelerator(info, false /* ownByAccelerator */);
@@ -864,64 +802,12 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
             info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
             mBuffersInClient++;
             updateUndequeuedBlockIds(info->mBlockId);
-
             // Attach output buffer to the work corresponded to bitstreamId.
-            C2ConstGraphicBlock constBlock = info->mGraphicBlock->share(
-                C2Rect(mOutputFormat.mVisibleRect.width(),
-                mOutputFormat.mVisibleRect.height()),
-                C2Fence());
-            //MarkBlockPoolDataAsShared(constBlock);
-            {
-                //for dump
-                if (mDumpYuvFp && !mSecureMode) {
-                    const C2GraphicView& view = constBlock.map().get();
-                    const uint8_t* const* data = view.data();
-                    int size = info->mGraphicBlock->width() * info->mGraphicBlock->height() * 3 / 2;
-                    //C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s C2ConstGraphicBlock database:%x, y:%p u:%p",
-                     //       __FUNCTION__, reinterpret_cast<intptr_t>(data[0]), data[C2PlanarLayout::PLANE_Y], data[C2PlanarLayout::PLANE_U]);
-                    fwrite(data[0], 1, size, mDumpYuvFp);
-                }
-            }
-#if 0
-            {
-                const C2Handle* chandle = constBlock.handle();
-                C2VDA_LOG(CODEC2_LOG_INFO, "sendOutputBufferToWorkIfAny count:%ld pooid:%d, fd:%d", info->mGraphicBlock.use_count(), info->mBlockId, chandle->data[0]);
-            }
-#endif
-            std::shared_ptr<C2Buffer> buffer = C2Buffer::CreateGraphicBuffer(std::move(constBlock));
-            if (mMetaDataUtil->isColorAspectsChanged()) {
-                updateColorAspects();
-            }
-            if (mCurrentColorAspects) {
-                buffer->setInfo(mCurrentColorAspects);
-            }
-            /* update hdr static info */
-            if (mMetaDataUtil->isHDRStaticInfoUpdated()) {
-                updateHDRStaticInfo();
-            }
-            if (mCurrentHdrStaticInfo) {
-                buffer->setInfo(mCurrentHdrStaticInfo);
-            }
 
-            /* updata hdr10 plus info */
-            if (mMetaDataUtil->isHDR10PlusStaticInfoUpdated()) {
-                updateHDR10PlusInfo();
-            }
-            if (mCurrentHdr10PlusInfo) {
-                buffer->setInfo(mCurrentHdr10PlusInfo);
-            }
+            if (mDumpYuvEnable)
+                dumpGraphicBlockYuv(info);
 
-            if (mPictureSizeChanged && mCurrentSize != nullptr) {
-                mPictureSizeChanged = false;
-                work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
-                C2VDA_LOG(CODEC2_LOG_INFO, "video size changed");
-            }
-
-            if (mOutputDelay != nullptr) {
-                work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mOutputDelay));
-                mOutputDelay = nullptr;
-            }
-            work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
+            updateWorkParam(work, info);
             info->mGraphicBlock.reset();
         }
 
@@ -934,28 +820,85 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "sendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
         ATRACE_INT("c2workpts", 0);
 
-        if (sendCloneWork) {
-            sendClonedWork(work,nextBuffer.flags);
+        if (isSendCloneWork) {
+            sendClonedWork(work, nextBuffer.flags);
         } else {
-            reportWorkIfFinished(nextBuffer.mBitstreamId,nextBuffer.flags);
+            reportWorkIfFinished(nextBuffer.mBitstreamId, nextBuffer.flags);
         }
+
         mPendingBuffersToWork.pop_front();
     }
     return C2_OK;
 }
 
-void C2VDAComponent::sendClonedWork(C2Work* work, int32_t flags) {
-    work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
-    work->result = C2_OK;
-    work->workletsProcessed = 1;
+void C2VDAComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
+    if (info == NULL) {
+        ALOGE("%s graphicblock is null and return.", __func__);
+        return;
+    }
 
-    work->input.ordinal.customOrdinal = mMetaDataUtil->checkAndAdjustOutPts(work,flags);
-    c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
-                            - work->input.ordinal.timestamp;
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
-    std::list<std::unique_ptr<C2Work>> finishedWorks;
-    finishedWorks.emplace_back(std::move(std::unique_ptr<C2Work>(work)));
-    mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
+    C2ConstGraphicBlock constBlock = info->mGraphicBlock->share(
+                                    C2Rect(mOutputFormat.mVisibleRect.width(),
+                                    mOutputFormat.mVisibleRect.height()),
+                                    C2Fence());
+
+    std::shared_ptr<C2Buffer> buffer = C2Buffer::CreateGraphicBuffer(std::move(constBlock));
+
+    if (mMetaDataUtil->isColorAspectsChanged()) {
+        updateColorAspects();
+    }
+    if (mCurrentColorAspects) {
+        buffer->setInfo(mCurrentColorAspects);
+    }
+    /* update hdr static info */
+    if (mMetaDataUtil->isHDRStaticInfoUpdated()) {
+        updateHDRStaticInfo();
+    }
+    if (mCurrentHdrStaticInfo) {
+        buffer->setInfo(mCurrentHdrStaticInfo);
+    }
+
+    /* updata hdr10 plus info */
+    if (mMetaDataUtil->isHDR10PlusStaticInfoUpdated()) {
+        updateHDR10PlusInfo();
+    }
+
+    if (mCurrentHdr10PlusInfo) {
+        buffer->setInfo(mCurrentHdr10PlusInfo);
+    }
+
+    if (mPictureSizeChanged && mCurrentSize != nullptr) {
+        mPictureSizeChanged = false;
+        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
+        ALOGI("video size changed");
+    }
+
+    if (mOutputDelay != nullptr) {
+        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mOutputDelay));
+        mOutputDelay = nullptr;
+    }
+    work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
+}
+
+void C2VDAComponent::dumpGraphicBlockYuv(GraphicBlockInfo* info) {
+    if (info == NULL) {
+        ALOGE("%s graphicblock is null and return.", __func__);
+        return;
+    }
+
+    C2ConstGraphicBlock constBlock = info->mGraphicBlock->share(
+                                        C2Rect(mOutputFormat.mVisibleRect.width(),
+                                        mOutputFormat.mVisibleRect.height()),
+                                        C2Fence());
+    //for dump
+    if (mDumpYuvFp && !mSecureMode) {
+        const C2GraphicView& view = constBlock.map().get();
+        const uint8_t* const* data = view.data();
+        int size = info->mGraphicBlock->width() * info->mGraphicBlock->height() * 3 / 2;
+        //ALOGV("%s C2ConstGraphicBlock database:%x, y:%p u:%p",
+            //       __FUNCTION__, reinterpret_cast<intptr_t>(data[0]), data[C2PlanarLayout::PLANE_Y], data[C2PlanarLayout::PLANE_U]);
+        fwrite(data[0], 1, size, mDumpYuvFp);
+    }
 }
 
 void C2VDAComponent::onAndroidVideoPeek() {
@@ -1081,6 +1024,7 @@ void C2VDAComponent::resetInputAndOutputBufInfo() {
     mOutputWorkCount = 0;
     mHasQueuedWork = false;
     mUpdateDurationUsCount = 0;
+    mOutputFinishedWorkCount = 0;
 }
 
 void C2VDAComponent::onFlushOrStopDone() {
@@ -1398,7 +1342,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
         if (!mUseBufferQueue) {
             dequeueBufferNum = mOutputFormat.mMinNumBuffers;
         }
-        C2VDA_LOG(CODEC2_LOG_INFO, "update deque buffer count:%d", dequeueBufferNum);
+        C2VDA_LOG(CODEC2_LOG_INFO, "update dequeue buffer num: %d -> %d", mOutputFormat.mMinNumBuffers, dequeueBufferNum);
         C2PortActualDelayTuning::output outputDelay(dequeueBufferNum);
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
@@ -1736,7 +1680,7 @@ c2_status_t C2VDAComponent::allocNonTunnelBuffers(const media::Size& size, uint3
         reportError(err);
         return err;
     }
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"Minimum undequeued buffer count:%zu buffer count:%d", minBuffersForDisplay, bufferCount);
+
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
     uint64_t platformUsage = mMetaDataUtil->getPlatformUsage();
     C2MemoryUsage usage = {
@@ -2477,6 +2421,7 @@ void C2VDAComponent::reportEmptyWork(int32_t bitstreamId, int32_t flags) {
     finishedWorks.emplace_back(std::move(*workIter));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
     mPendingWorks.erase(workIter);
+    mOutputFinishedWorkCount++;
 }
 
 void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork) {
@@ -2509,6 +2454,7 @@ void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bo
         finishedWorks.emplace_back(std::move(*workIter));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
         mPendingWorks.erase(workIter);
+        mOutputFinishedWorkCount++;
     }
 }
 
@@ -2595,6 +2541,7 @@ c2_status_t C2VDAComponent::reportEOSWork() {
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(eosWork));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
+    mOutputFinishedWorkCount++;
     return C2_OK;
 }
 
@@ -2639,6 +2586,7 @@ void C2VDAComponent::reportAbandonedWorks() {
 
     if (!abandonedWorks.empty()) {
         mListener->onWorkDone_nb(shared_from_this(), std::move(abandonedWorks));
+        mOutputFinishedWorkCount++;
     }
 }
 

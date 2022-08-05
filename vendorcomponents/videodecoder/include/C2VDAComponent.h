@@ -285,6 +285,8 @@ private:
     // finished as many as possible. If |dropIfUnavailable|, drop all pending existing frames
     // without blocking.
     c2_status_t sendOutputBufferToWorkIfAny(bool dropIfUnavailable);
+    void updateWorkParam(C2Work* work, GraphicBlockInfo* info);
+    void dumpGraphicBlockYuv(GraphicBlockInfo* info);
     // Update |mUndequeuedBlockIds| FIFO by pushing |blockId|.
     void updateUndequeuedBlockIds(int32_t blockId);
     void onCheckVideoDecReconfig();
@@ -317,7 +319,6 @@ private:
     void onAndroidVideoPeek();
 
     C2Work* cloneWork(C2Work* ori);
-    void cloneWork(C2Work* ori, C2Work* out);
     void sendClonedWork(C2Work* work, int32_t flags);
     void reportEmptyWork(int32_t bitstreamId, int32_t flags);
 
@@ -461,6 +462,7 @@ private:
     // init param
     mediahal_cfg_parms mConfigParam;
     FILE* mDumpYuvFp;
+    bool mDumpYuvEnable;
     static uint32_t mDumpFileCnt;
 
     std::shared_ptr<VideoDecWraper> mVideoDecWraper;
@@ -481,6 +483,7 @@ private:
     int64_t mInputWorkCount;
     int32_t mInputCSDWorkCount;
     int64_t mOutputWorkCount;
+    int64_t mOutputFinishedWorkCount;
     int32_t mSyncId;
     int64_t mSyncType;
     passthroughInitParams mTunerPassthroughparams;
@@ -496,14 +499,13 @@ private:
     int32_t mLastOutputBitstreamId;
     int32_t mLastFinishedBitstreamId;
     bool    mNeedFinishFirstWork4Interlaced;
-    OutputBufferInfo * mOutPutInfo4WorkIncomplete;
     bool mHasQueuedWork;
-    C2Work  mLastOutputC2Work;
-    C2Work  mLastFinishedC2Work;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
     Mutex mFlushDoneLock;
     Condition mFlushDoneCond;
+
+    C2Work *mLastOutputReportWork;
 
     DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
 };

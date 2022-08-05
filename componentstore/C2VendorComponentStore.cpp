@@ -397,13 +397,13 @@ C2VendorComponentStore::C2VendorComponentStore()
     if (supportC2VEnc) {
         for (int i = 0; i < sizeof(gC2VideoEncoderCompoments) / sizeof(C2VendorCompoment); i++) {
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoEncoderCompoments[i].compname),
-                    std::forward_as_tuple(kCompomentLoadVideoDecoderLibray, gC2VideoEncoderCompoments[i].codec));
+                    std::forward_as_tuple(kCompomentLoadVideoEncoderLibray, gC2VideoEncoderCompoments[i].codec));
         }
     }
     if (supportC2Adec) {
         for (int i = 0; i < sizeof(gC2AudioDecoderCompoments) / sizeof(C2VendorCompoment); i++) {
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderCompoments[i].compname),
-                    std::forward_as_tuple(kCompomentLoadVideoDecoderLibray, gC2AudioDecoderCompoments[i].codec, true));
+                    std::forward_as_tuple(kCompomentLoadAudioDecoderLibray, gC2AudioDecoderCompoments[i].codec, true));
         }
     }
     ALOGI("C2VendorComponentStore::C2VendorComponentStore\n");
