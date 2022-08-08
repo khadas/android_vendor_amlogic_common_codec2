@@ -44,9 +44,9 @@ public:
 
 private:
     bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new, bool *sizeChanged, bool *bufferNumLarged);
-    void appendTunnelOutputBuffer(int fd, uint32_t blockId);
+    void appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId);
     uint64_t getPlatformUsage();
-    c2_status_t allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat);
+    c2_status_t allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat, int* pFd);
     c2_status_t resetBlockPoolBuffers();
     bool isInResolutionChanging();
 
@@ -62,10 +62,19 @@ private:
     int32_t mSyncId;
     native_handle_t* mTunnelHandle;
 
+    struct TunnelFdInfo {
+      TunnelFdInfo(int fd, int blockid):
+        mFd(fd),
+        mBlockId(blockid) {}
+      ~TunnelFdInfo() {}
+      int mFd;
+      int mBlockId;
+    };
+
     std::vector<struct fillVideoFrame2> mFillVideoFrameQueue;
     std::vector<int64_t> mTunnelAbandonMediaTimeQueue;
     std::deque<int64_t> mTunnelRenderMediaTimeQueue;
-    std::map<int, int> mOutBufferFdMap;
+    std::map<int, TunnelFdInfo> mOutBufferFdMap;
 
     uint32_t mOutBufferCount;
     uint32_t mPixelFormat;

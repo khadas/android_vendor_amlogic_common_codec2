@@ -131,15 +131,33 @@ void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bo
 
     for (auto &frame : mFillVideoFrameQueue) {
         if (isInResolutionChanging()) {
-            media::Size& size = mComp->mOutputFormat.mCodedSize;
+            C2BlockPool::local_id_t poolId = 0;
+
+            //check fd is new size or old
+            mBlockPoolUtil->getPoolId(&poolId);
             auto iter = mOutBufferFdMap.find(dmafd);
             DCHECK(iter != mOutBufferFdMap.end());
-            if (iter->first) {
-                close(iter->first);
+
+            GraphicBlockInfo *info = mComp->getGraphicBlockByFd(frame.fd);
+            GraphicBlockInfo *info2 = mComp->getGraphicBlockByBlockId(poolId, iter->second.mBlockId);
+            int fd = -1;
+            if ((info == NULL) ||
+                (info == NULL) ||
+                (info != info2)) {
+                media::Size& size = mComp->mOutputFormat.mCodedSize;
+
+                if (iter->first >= 0) {
+                    close(iter->first);
+                }
+                mOutBufferFdMap.erase(iter);
+                C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s:%d close fd:%d, blockid:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
+
+                allocTunnelBuffer(size, mPixelFormat, &fd);
+                GraphicBlockInfo *info = mComp->getGraphicBlockByFd(fd);
+                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+                mComp->sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
+                continue;
             }
-            mOutBufferFdMap.erase(iter);
-            allocTunnelBuffer(size, mPixelFormat);
-            return;
         }
 
         GraphicBlockInfo* info = mComp->getGraphicBlockByFd(frame.fd);
@@ -148,30 +166,6 @@ void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bo
             mComp->reportError(C2_CORRUPTED);
             return;
         }
-#if 0
-        if (info->mNeedRealloc &&
-            (info->mFdHaveSet == false)) {
-            //mTunnelBufferUtil->freeTunnelBuffer(info->mFd);
-            int shardfd = -1;
-            uint64_t platformUsage = getPlatformUsage();
-            media::Size& size = mComp->mOutputFormat.mCodedSize;
-            C2MemoryUsage usage = {
-                    mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
-                    (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
-            //bool ret = mTunnelBufferUtil->fetchTunnelBuffer(size.width(), size.height(),
-                                                    //mPixelFormat, usage,  &shardfd);
-            if (ret < 0) {
-                //alloc buffer from uvm failed
-                C2VDATMH_LOG(CODEC2_LOG_ERR, " %s:%d alloc buffer from uvm failed, please check!", __func__, __LINE__);
-            } else {
-                DCHECK(shardfd >= 0);
-                C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%s:%d %dx%d, fd:%d", __func__, __LINE__,
-                             size.width(), size.height(), shardfd);
-                info->mFd = shardfd;
-                info->mNeedRealloc = false;
-            }
-        }
-#endif
 
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
         mComp->sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
@@ -387,18 +381,21 @@ c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffersAndSendToDecoder
         mComp->mCanQueueOutBuffer = true;
     }
 
-    for (int i = 0; i < mOutBufferCount; i++) {
-        allocTunnelBuffer(size, pixelFormat);
-    }
 
-    for (auto& info : mComp->mGraphicBlocks) {
-        mComp->sendOutputBufferToAccelerator(&info, true /*ownByAccelerator*/);
+    std::shared_ptr<C2GraphicBlock> block;
+    int fd = -1;
+
+    for (int i = 0; i < mOutBufferCount; i++) {
+        allocTunnelBuffer(size, pixelFormat, &fd);
+        GraphicBlockInfo* info = mComp->getGraphicBlockByFd(fd);
+        info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+        mComp->sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
     }
 
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat) {
+c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat, int* pFd) {
     uint64_t platformUsage = getPlatformUsage();
     C2MemoryUsage usage = {
             mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
@@ -417,11 +414,14 @@ c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffer(const media::Siz
     } else {
         err = mBlockPoolUtil->getBlockIdByGraphicBlock(c2Block, &blockId);
         mBlockPoolUtil->getBlockFd(c2Block, &fd);
-        mComp->appendOutputBuffer(std::move(c2Block), poolId, blockId, true);
 
-        mOutBufferFdMap.insert(std::pair<int, int>(dup(fd), fd));
+        int dupfd = dup(fd);
+        DCHECK(dupfd >= 0);
+        appendTunnelOutputBuffer(c2Block, dupfd, blockId, poolId);
+        mOutBufferFdMap.insert(std::pair<int, TunnelFdInfo>(dupfd, TunnelFdInfo(fd, blockId)));
+        *pFd = dupfd;
+        C2VDATMH_LOG(CODEC2_LOG_INFO, " %s:%d alloc buffer fd:%d(%d), blockId:%d", __func__, __LINE__, dupfd, fd, blockId);
     }
-    C2VDATMH_LOG(CODEC2_LOG_INFO, " %s:%d alloc buffer fd:%d", __func__, __LINE__, fd);
 
     return C2_OK;
 }
@@ -429,6 +429,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffer(const media::Siz
 c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
     bool sizeChanged = false;
     bool bufferNumLarged = false;
+    bool bufferNumSet = false;
     uint64_t platformUsage = getPlatformUsage();
     C2MemoryUsage usage = {
             mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
@@ -442,14 +443,34 @@ c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
         info.mFdHaveSet = false;
     }
 
+    C2VDATMH_LOG(CODEC2_LOG_INFO, "%s:%d in resolution changing:%d", __func__, __LINE__, isInResolutionChanging());
     if (checkReallocOutputBuffer(mComp->mLastOutputFormat, mComp->mOutputFormat, &sizeChanged, &bufferNumLarged)) {
         if (mReallocWhenResChange && sizeChanged) {
             //all realloc buffer
+            int alloc_first = 0;
+            int fd = -1;
             for (auto& info : mComp->mGraphicBlocks) {
+                if (info.mState != GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER) {
+                    auto iter = mOutBufferFdMap.find(info.mFd);
+                    if (iter == mOutBufferFdMap.end()) {
+                        //error
+                    }
+                    close(iter->first);
+                    mOutBufferFdMap.erase(iter);
+                    C2VDATMH_LOG(CODEC2_LOG_INFO, " %s:%d close fd:%d, blockid:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
+                    alloc_first ++;
+                }
                 info.mGraphicBlock.reset();
             }
             mComp->mGraphicBlocks.clear();
             resetBlockPoolBuffers();
+            mBlockPoolUtil->requestNewBufferSet(mOutBufferCount);
+            bufferNumSet = true;
+            for (int i = 0; i < alloc_first; i++) {
+                allocTunnelBuffer(size, mPixelFormat, &fd);
+                GraphicBlockInfo* info = mComp->getGraphicBlockByFd(fd);
+                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+            }
         } else if (bufferNumLarged) {
             //add new allocate buffer
             for (auto& info : mComp->mGraphicBlocks) {
@@ -458,13 +479,18 @@ c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
             int32_t lastbuffercount = mComp->mLastOutputFormat.mMinNumBuffers;
             mOutBufferCount = mComp->mOutputFormat.mMinNumBuffers;
 
+            int fd = -1;
             for (int i = lastbuffercount; i < mOutBufferCount; i++) {
-                allocTunnelBuffer(size, mPixelFormat);
+                allocTunnelBuffer(size, mPixelFormat, &fd);
+                GraphicBlockInfo* info = mComp->getGraphicBlockByFd(fd);
+                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
             }
         }
     }
 
-    mBlockPoolUtil->requestNewBufferSet(mOutBufferCount);
+    if (!bufferNumSet) {
+        mBlockPoolUtil->requestNewBufferSet(mOutBufferCount);
+    }
     if (mComp->mVideoDecWraper) {
         mComp->mVideoDecWraper->assignPictureBuffers(mOutBufferCount);
         mComp->mCanQueueOutBuffer = true;
@@ -488,7 +514,8 @@ c2_status_t C2VDAComponent::TunnelModeHelper::onAndroidVideoPeek() {
 }
 
 c2_status_t C2VDAComponent::TunnelModeHelper::resetBlockPoolBuffers() {
-    mBlockPoolUtil->cancelAllGraphicBlock();
+    mComp->resetBlockPoolUtil();
+    mBlockPoolUtil = mComp->mBlockPoolUtil.get();
     return C2_OK;
 }
 
@@ -526,11 +553,13 @@ bool C2VDAComponent::TunnelModeHelper::checkReallocOutputBuffer(VideoFormat vide
     return false;
 }
 
-void C2VDAComponent::TunnelModeHelper::appendTunnelOutputBuffer(int fd, uint32_t blockId) {
+void C2VDAComponent::TunnelModeHelper::appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId) {
     DCHECK(mComp != NULL);
     C2VDAComponent::GraphicBlockInfo info;
 
+    info.mGraphicBlock = std::move(block);
     info.mBlockId = blockId;
+    info.mPoolId = poolId;
     info.mFd = fd;
     info.mNeedRealloc = false;
     info.mFdHaveSet = false;

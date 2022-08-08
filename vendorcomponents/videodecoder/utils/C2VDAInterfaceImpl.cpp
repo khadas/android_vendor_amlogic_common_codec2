@@ -168,7 +168,7 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                 if (mComponent) {
                     mComponent->onConfigureTunnelMode();
                     // change to bufferpool
-                    mOutputSurfaceAllocatorId->value = C2PlatformAllocatorStore::BUFFERQUEUE;
+                    mOutputSurfaceAllocatorId->value = C2PlatformAllocatorStore::GRALLOC;
                     mActualOutputDelay->value = kDefaultOutputDelayTunnel;
                 }
                 break;
