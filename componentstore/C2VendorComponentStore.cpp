@@ -273,6 +273,14 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
               createFactoryName = "CreateC2VDAMJPGFactory";
               destroyFactoryName = "DestroyC2VDAMJPGFactory";
               break;
+          case C2VendorCodec::VENC_H264:
+              createFactoryName = "CreateC2VencHCodecFactory";
+              destroyFactoryName = "DestroyC2VencHCodecFactory";
+              break;
+          case C2VendorCodec::VENC_H265:
+              createFactoryName = "CreateC2VencW420Factory";
+              destroyFactoryName = "DestroyC2VencW420Factory";
+              break;
           default:
               ALOGE("Unknown codec:%d", codec);
               return C2_CORRUPTED;
@@ -387,7 +395,7 @@ C2VendorComponentStore::C2VendorComponentStore()
     // TODO: move this also into a .so so it can be updated
     bool supportC2Vdec = property_get_bool("vendor.media.c2.vdec.support", true);
     bool disableC2SecureVdec = property_get_bool("vendor.media.c2.vdec.secure.disable", false);
-    bool supportC2VEnc = property_get_bool("vendor.media.c2.vdec.support", false);
+    bool supportC2VEnc = property_get_bool("vendor.media.c2.vdec.support", true);
     bool supportC2Adec = property_get_bool("vendor.media.c2.adec.support", false);
     if (supportC2Vdec) {
         for (int i = 0; i < sizeof(gC2VideoDecoderCompoments) / sizeof(C2VendorCompoment); i++) {
