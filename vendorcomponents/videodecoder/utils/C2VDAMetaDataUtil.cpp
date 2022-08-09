@@ -356,6 +356,13 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
             pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
             pAmlDecParam->cfg.canvas_mem_endian = 0;
             pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::MJPG) {
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         }
     }
 }

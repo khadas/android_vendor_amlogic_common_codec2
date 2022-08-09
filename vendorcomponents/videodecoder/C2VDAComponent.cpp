@@ -233,7 +233,7 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
     C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
     bool mDumpYuvEnable = property_get_bool("vendor.media.codec2.dumpyuv", false);
-    if (mDumpYuvEnable) {
+    if (mDumpYuvEnable && !mSecureMode) {
         char pathfile[1024] = { '\0'  };
         sprintf(pathfile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
         mDumpYuvFp = fopen(pathfile, "wb");
@@ -501,7 +501,7 @@ void C2VDAComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork, put pendingwork bitid:%lld, pending worksize:%d",
+    C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork, put pending work bitid:%lld, pending work size:%d",
             work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
 
@@ -636,7 +636,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
 
     if (!info) {
-        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get graphicblock  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
+        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get graphic block  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
         reportError(C2_CORRUPTED);
         return;
     }
@@ -712,7 +712,7 @@ C2Work* C2VDAComponent::cloneWork(C2Work* ori) {
     }
 
     if (ori == NULL) {
-        ALOGE("origin work is null, clone work faild.");
+        C2VDA_LOG(CODEC2_LOG_ERR, "origin work is null, clone work failed.");
         return NULL;
     }
 
@@ -744,7 +744,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
     while (!mPendingBuffersToWork.empty()) {
         auto nextBuffer = mPendingBuffersToWork.front();
         GraphicBlockInfo* info = getGraphicBlockById(nextBuffer.mBlockId);
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pendting bitstream:%d, blockid(pictueid):%d blockinode:%llu",
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s get pending bitstream id:%d, block id:%d inode:%llu",
             __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId, mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId));
         bool isSendCloneWork = false;
 
@@ -833,7 +833,7 @@ c2_status_t C2VDAComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable) 
 
 void C2VDAComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
     if (info == NULL) {
-        ALOGE("%s graphicblock is null and return.", __func__);
+        C2VDA_LOG(CODEC2_LOG_ERR, "%s graphicblock is null and return.", __func__);
         return;
     }
 
@@ -882,7 +882,7 @@ void C2VDAComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
 
 void C2VDAComponent::dumpGraphicBlockYuv(GraphicBlockInfo* info) {
     if (info == NULL) {
-        ALOGE("%s graphicblock is null and return.", __func__);
+        C2VDA_LOG(CODEC2_LOG_ERR, "%s graphicblock is null and return.", __func__);
         return;
     }
 
@@ -2835,8 +2835,10 @@ const char* C2VDAComponent::VideoCodecProfileToMime(media::VideoCodecProfile pro
         return "video/dolby-vision";
     } else if (profile == media::MPEG4_PROFILE) {
         return "video/mp4v-es";
-    }  else if (profile == media::MPEG2_PROFILE) {
+    } else if (profile == media::MPEG2_PROFILE) {
         return "video/mpeg2";
+    } else if (profile == media::MJPEG_PROFILE) {
+        return "video/mjpeg";
     }
     return "";
 }

@@ -527,6 +527,7 @@ void C2VDAComponent::IntfImpl::onMp4vDeclareParam() {
         .build());
 }
 void C2VDAComponent::IntfImpl::onMjpgDeclareParam() {
+        /*
         addParameter(
                 DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                         .withDefault(new C2StreamProfileLevelInfo::input(
@@ -550,6 +551,7 @@ void C2VDAComponent::IntfImpl::onMjpgDeclareParam() {
                                                         C2Config::LEVEL_MP4V_5})})
         .withSetter(ProfileLevelSetter)
         .build());
+        */
 }
 
 void C2VDAComponent::IntfImpl::onAvsDeclareParam() {

@@ -269,7 +269,10 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
               createFactoryName = "CreateC2VDAMP4VFactory";
               destroyFactoryName = "DestroyC2VDAMP4VFactory";
               break;
-
+          case C2VendorCodec::VDEC_MJPG:
+              createFactoryName = "CreateC2VDAMJPGFactory";
+              destroyFactoryName = "DestroyC2VDAMJPGFactory";
+              break;
           default:
               ALOGE("Unknown codec:%d", codec);
               return C2_CORRUPTED;
