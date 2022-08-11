@@ -230,6 +230,7 @@ private:
     void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags);
     void onDrain(uint32_t drainMode);
     void onDrainDone();
+    void onFlush();
     void onStop(::base::WaitableEvent* done);
     void onFlushOrStopDone();
     void onFlushDone();

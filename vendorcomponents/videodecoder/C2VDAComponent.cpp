@@ -987,6 +987,33 @@ void C2VDAComponent::onDrainDone() {
                           ::base::Bind(&C2VDAComponent::onDequeueWork, ::base::Unretained(this)));
 }
 
+void C2VDAComponent::onFlush() {
+    if (mComponentState == ComponentState::FLUSHING ||
+        mComponentState == ComponentState::STOPPING) {
+        return;
+        // Ignore other flush request when component is flushing or stopping.
+    }
+
+    mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+    mFirstInputTimestamp = -1;
+    mLastOutputBitstreamId = -1;
+    mLastFinishedBitstreamId = -1;
+    mComponentState = ComponentState::FLUSHING;
+    if (mVideoDecWraper) {
+        mVideoDecWraper->flush();
+    }
+
+    if (mTunnelHelper) {
+        mTunnelHelper->flush();
+    }
+
+    // Pop all works in mQueue and put into mAbandonedWorks.
+    while (!mQueue.empty()) {
+        mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
+        mQueue.pop();
+    }
+}
+
 void C2VDAComponent::onStop(::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     C2VDA_LOG(CODEC2_LOG_INFO, " EOS onStop");
@@ -2110,30 +2137,8 @@ c2_status_t C2VDAComponent::flush_sm(flush_mode_t mode,
         return C2_OK;
     }
 
-    if (mComponentState == ComponentState::FLUSHING ||
-        mComponentState == ComponentState::STOPPING) {
-        return C2_BAD_STATE;
-        // Ignore other flush request when component is flushing or stopping.
-    }
-
-    mLastFlushTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-    mFirstInputTimestamp = -1;
-    mLastOutputBitstreamId = -1;
-    mLastFinishedBitstreamId = -1;
-    mComponentState = ComponentState::FLUSHING;
-    if (mVideoDecWraper) {
-        mVideoDecWraper->flush();
-    }
-
-    if (mTunnelHelper) {
-        mTunnelHelper->flush();
-    }
-
-    // Pop all works in mQueue and put into mAbandonedWorks.
-    while (!mQueue.empty()) {
-        mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
-        mQueue.pop();
-    }
+    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VDAComponent::onFlush,
+                                                ::base::Unretained(this)));
 
     AutoMutex l(mFlushDoneLock);
     if (mFlushDoneCond.waitRelative(mFlushDoneLock, 500000000ll) == ETIMEDOUT) {  // 500ms Time out
