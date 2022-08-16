@@ -234,13 +234,13 @@ C2VDAComponent::C2VDAComponent(C2String name, c2_node_id_t id,
     C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
     bool mDumpYuvEnable = property_get_bool("vendor.media.codec2.dumpyuv", false);
     if (mDumpYuvEnable && !mSecureMode) {
-        char pathfile[1024] = { '\0'  };
-        sprintf(pathfile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
-        mDumpYuvFp = fopen(pathfile, "wb");
+        char pathFile[1024] = { '\0'  };
+        sprintf(pathFile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
+        mDumpYuvFp = fopen(pathFile, "wb");
         if (mDumpYuvFp) {
-            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "open file %s", pathfile);
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "open file %s", pathFile);
         } else {
-            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "open file %s error:%s", pathfile, strerror(errno));
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "open file %s error:%s", pathFile, strerror(errno));
         }
     }
     //default 1min
@@ -451,8 +451,8 @@ void C2VDAComponent::onDequeueWork() {
         // Send input buffer to VDA for decode.
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
         //check hdr10 plus
-        const uint8_t *hdr10plusbuf = nullptr;
-        uint32_t hdr10pluslen = 0;
+        const uint8_t *hdr10plusBuf = nullptr;
+        uint32_t hdr10plusLen = 0;
         C2ReadView rView = mDefaultDummyReadView;
 
         for (const std::unique_ptr<C2Param> &param : work->input.configUpdate) {
@@ -471,8 +471,8 @@ void C2VDAComponent::onDequeueWork() {
                                 work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*outParam.get()));
 
                                 rView = work->input.buffers[0]->data().linearBlocks().front().map().get();
-                                hdr10plusbuf = rView.data();
-                                hdr10pluslen = rView.capacity();
+                                hdr10plusBuf = rView.data();
+                                hdr10plusLen = rView.capacity();
                             } else {
                                 C2VDA_LOG(CODEC2_LOG_ERR, "onDequeueWork: Config update hdr10Plus size failed.");
                             }
@@ -483,7 +483,7 @@ void C2VDAComponent::onDequeueWork() {
                     break;
             }
         }
-        sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusbuf, hdr10pluslen);
+        sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusBuf, hdr10plusLen);
     }
 
     CHECK_EQ(work->worklets.size(), 1u);
@@ -501,13 +501,13 @@ void C2VDAComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork, put pending work bitid:%lld, pending work size:%d",
+    C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork, put pending work bitId:%lld, pending work size:%d",
             work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
 
     if (isEmptyCSDWork || isEmptyWork) {
         // Directly report the empty CSD work as finished.
-        C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork empty csd work, bitid:%d\n", bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_INFO, "onDequeueWork empty csd work, bitId:%d\n", bitstreamId);
         reportWorkIfFinished(bitstreamId, 0, isEmptyWork);
     }
 
@@ -519,12 +519,12 @@ void C2VDAComponent::onDequeueWork() {
 
 void C2VDAComponent::onInputBufferDone(int32_t bitstreamId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onInputBufferDone: bitstream id=%d", bitstreamId);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onInputBufferDone: bitstreamId=%d", bitstreamId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get pending work with bitstreamid:%d", __func__, __LINE__,  bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_ERR, "[%s:%d] can not get pending work with bitstreamId:%d", __func__, __LINE__,  bitstreamId);
         reportError(C2_CORRUPTED);
         return;
     }
@@ -538,7 +538,7 @@ void C2VDAComponent::onInputBufferDone(int32_t bitstreamId) {
 void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block,uint32_t poolId,
                                             uint32_t blockId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onOutputBufferReturned: block id:%u", blockId);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onOutputBufferReturned: blockId:%u", blockId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if ((block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
@@ -547,7 +547,7 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
         block->height() != mMetaDataUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true))) {
         // Output buffer is returned after we changed output resolution. Just let the buffer be
         // released.
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Discard obsolete graphic block: pool id=%u", poolId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Discard obsolete graphic block: poolId=%u", poolId);
         return;
     }
 
@@ -559,7 +559,7 @@ void C2VDAComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> bloc
             if (!mPendingGraphicBlockBuffer) {
                 mPendingGraphicBlockBuffer = std::move(block);
                 mPendingGraphicBlockBufferId = blockId;
-                C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "now pending block id: %d, count:%ld", blockId, block.use_count());
+                C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "now pending blockId: %d, count:%ld", blockId, block.use_count());
                 return;
             }
             reportError(C2_CORRUPTED);
@@ -602,7 +602,7 @@ void C2VDAComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> blo
                                             uint32_t blockId) {
 
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onNewBlockBufferFetched: block id:%u", blockId);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onNewBlockBufferFetched: blockId:%u", blockId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if (getVideoResolutionChanged()) {
@@ -629,7 +629,7 @@ void C2VDAComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> blo
 
 void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onOutputBufferDone: picture id=%d, bitstream id=%lld, flags: %d", pictureBufferId, bitstreamId, flags);
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onOutputBufferDone: pictureId=%d, bitstreamId=%lld, flags: %d", pictureBufferId, bitstreamId, flags);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     int64_t timestamp = -1;
@@ -650,7 +650,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
         } else if (buffer_size <= 0) {
             //nothing to do now
         } else {
-            mMetaDataUtil->parseAndprocessMetaData(buffer, buffer_size);
+            mMetaDataUtil->parseAndProcessMetaData(buffer, buffer_size);
         }
         mUpdateDurationUsCount++;
     }
@@ -664,7 +664,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     } else {
         C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
-            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%d not find the correct work with bitstreamid:%lld", __LINE__,bitstreamId);
+            C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1,"%d not find the correct work with bitstreamId:%lld", __LINE__,bitstreamId);
             reportError(C2_CORRUPTED);
             return;
         }
@@ -673,7 +673,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags});
     mOutputWorkCount ++;
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s bitstreamid=%lld, blockid(pictureid):%d, pendingbuffersize:%d",
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s bitstreamId=%lld, block id(pictureid):%d, pendingbBufferSize:%d",
             __func__, bitstreamId, pictureBufferId,
             mPendingBuffersToWork.size());
 
@@ -685,7 +685,7 @@ void C2VDAComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     CODEC2_ATRACE_INT64("c2OutPTS", 0);
 
     if (mComponentState == ComponentState::FLUSHING) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s in flushing, pending bitstreamid=%lld first", __func__, bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s in flushing, pending bitstreamId=%lld first", __func__, bitstreamId);
         mLastOutputBitstreamId = bitstreamId;
         return;
     }
@@ -858,7 +858,7 @@ void C2VDAComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
         buffer->setInfo(mCurrentHdrStaticInfo);
     }
 
-    /* updata hdr10 plus info */
+    /* update hdr10 plus info */
     if (mMetaDataUtil->isHDR10PlusStaticInfoUpdated()) {
         updateHDR10PlusInfo();
     }
@@ -1029,7 +1029,7 @@ void C2VDAComponent::onStop(::base::WaitableEvent* done) {
     }
     mInputWorkCount = 0;
     mInputCSDWorkCount = 0;
-    mStopDoneEvent = done;  // restore done event which shoud be signaled in onStopDone().
+    mStopDoneEvent = done;  // restore done event which should be signaled in onStopDone().
     mComponentState = ComponentState::STOPPING;
 
     // Immediately release VDA by calling onStopDone() if component is in error state. Otherwise,
@@ -1134,7 +1134,7 @@ void C2VDAComponent::onStopDone() {
     }
 
     if (mPendingGraphicBlockBuffer) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "clear pending block id: %d, count:%ld",
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "clear pending blockId: %d, count:%ld",
                 mPendingGraphicBlockBufferId, mPendingGraphicBlockBuffer.use_count());
         mPendingGraphicBlockBufferId = -1;
         mPendingGraphicBlockBuffer.reset();
@@ -1184,7 +1184,7 @@ void C2VDAComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inpu
         reportError(C2_CORRUPTED);
         return;
     }
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s@%d]Decode bitstream ID: %d timstamp:%llu offset: %u size: %u hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s@%d]Decode bitstream ID: %d timestamp:%llu offset: %u size: %u hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
             bitstreamId, timestamp, input.offset(), input.size(), hdrlen,flags);
     if (mVideoDecWraper) {
         mMetaDataUtil->save_stream_info(timestamp,input.size());
@@ -1329,7 +1329,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
 
     // At this point, all output buffers should not be owned by accelerator. The component is not
     // able to know when a client will release all owned output buffers by now. But it is ok to
-    // leave them to client since componenet won't own those buffers anymore.
+    // leave them to client since component won't own those buffers anymore.
     // TODO(johnylin): we may also set a parameter for component to keep dequeueing buffers and
     //                 change format only after the component owns most buffers. This may prevent
     //                 too many buffers are still on client's hand while component starts to
@@ -1349,7 +1349,7 @@ void C2VDAComponent::tryChangeOutputFormat() {
     }
 
     if (mBufferFirstAllocated) {
-        mResChStat = C2_RESOLUTION_CHANGEING;
+        mResChStat = C2_RESOLUTION_CHANGING;
     }
 
     CHECK_EQ(mPendingOutputFormat->mPixelFormat, HalPixelFormat::YCRCB_420_SP);
@@ -1539,7 +1539,7 @@ int C2VDAComponent::getDefaultMaxBufNum(InputCodec videotype) {
 }
 
 bool C2VDAComponent::getVideoResolutionChanged() {
-    if (mResChStat == C2_RESOLUTION_CHANGEING) {
+    if (mResChStat == C2_RESOLUTION_CHANGING) {
         for (auto& info : mGraphicBlocks) {
             if (info.mFdHaveSet == false)
                 return false;
@@ -1581,7 +1581,7 @@ c2_status_t C2VDAComponent::reallocateBuffersForUsageChanged(const media::Size& 
 
     if (useBufferQueue) {
         mUseBufferQueue = true;
-        C2VDA_LOG(CODEC2_LOG_INFO, "Using C2BlockPool ID:%lld for allocating output buffers, blockpooolid:%d",
+        C2VDA_LOG(CODEC2_LOG_INFO, "Using C2BlockPool ID:%lld for allocating output buffers, blockpooolId:%d",
                 (long long)poolId, blockPool->getAllocatorId());
     }
 
@@ -2064,15 +2064,15 @@ void C2VDAComponent::onCheckVideoDecReconfig() {
             }
             mMetaDataUtil->setUseSurfaceTexture(usersurfacetexture);
             mMetaDataUtil->codecConfig(&mConfigParam);
-            uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
+            uint32_t vdecFlags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
             if (mIntfImpl) {
                 if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
-                    vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+                    vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
                 if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
-                    vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
+                    vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
             }
             mVDAInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                        (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
+                        (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecFlags);
         }
     } else {
         //use BUFFERPOOL, no surface
@@ -2246,7 +2246,7 @@ std::shared_ptr<C2ComponentInterface> C2VDAComponent::intf() {
 }
 
 void C2VDAComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t width, uint32_t height) {
-    // Always use fexible pixel 420 format YCbCr_420_888 in Android.
+    // Always use flexible pixel 420 format YCbCr_420_888 in Android.
     // Uses coded size for crop rect while it is not available.
     if (mBufferFirstAllocated && minNumBuffers < mOutputFormat.mMinNumBuffers)
         minNumBuffers = mOutputFormat.mMinNumBuffers;
@@ -2292,9 +2292,9 @@ void C2VDAComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
 void C2VDAComponent::UpdateDecInfo(const uint8_t* info, uint32_t isize) {
     UNUSED(info);
     UNUSED(isize);
-    struct aml_dec_params* pinfo = (struct aml_dec_params*)info;
-    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "C2VDAComponent::UpdateDecInfo, dec_parms_status=%d\n", pinfo->parms_status);
-    mMetaDataUtil->updateDecParmInfo(pinfo);
+    struct aml_dec_params* pInfo = (struct aml_dec_params*)info;
+    C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "C2VDAComponent::UpdateDecInfo, dec_parms_status=%d\n", pInfo->parms_status);
+    mMetaDataUtil->updateDecParmInfo(pInfo);
 }
 
 
@@ -2434,7 +2434,7 @@ void C2VDAComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bo
 
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
     if (workIter == mPendingWorks.end()) {
-        C2VDA_LOG(CODEC2_LOG_ERR, "%s:%d can not find work with bistreamid:%d", __func__, __LINE__, bitstreamId);
+        C2VDA_LOG(CODEC2_LOG_ERR, "%s:%d can not find work with bistreamId:%d", __func__, __LINE__, bitstreamId);
         reportError(C2_CORRUPTED);
         return;
     }
@@ -2509,7 +2509,7 @@ bool C2VDAComponent::isTunnelMode() const {
 }
 
 bool C2VDAComponent::isTunnerPassthroughMode() const {
-    return (mSyncType == (C2_SYNC_TYPE_TUNNEL | C2_SYNC_TYPE_PASSTHROUTH));
+    return (mSyncType == (C2_SYNC_TYPE_TUNNEL | C2_SYNC_TYPE_PASSTHROUGH));
 }
 
 c2_status_t C2VDAComponent::reportEOSWork() {
@@ -2600,7 +2600,7 @@ void C2VDAComponent::reportError(c2_status_t error) {
     if (mComponentState == ComponentState::DESTROYING ||
         mComponentState == ComponentState::DESTROYED ||
         mComponentState == ComponentState::UNINITIALIZED) {
-        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s have been in destrory or stop state", __func__);
+        C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s have been in destroy or stop state", __func__);
         return;
     }
     mListener->onError_nb(shared_from_this(), static_cast<uint32_t>(error));
@@ -2638,7 +2638,7 @@ void C2VDAComponent::stopDequeueThread() {
 }
 
 int32_t C2VDAComponent::getFetchGraphicBlockDelayTimeUs(c2_status_t err) {
-    // Variables used to exponential backoff retry when buffer fetching times out.
+    // Variables used to exponential backOff retry when buffer fetching times out.
     constexpr int kFetchRetryDelayInit = 64;    // Initial delay: 64us
     int kFetchRetryDelayMax = DEFAULT_FRAME_DURATION;
     float frameRate = 0.0f;
@@ -2656,7 +2656,7 @@ int32_t C2VDAComponent::getFetchGraphicBlockDelayTimeUs(c2_status_t err) {
     }
     if (err == C2_TIMED_OUT || err == C2_BLOCKING || err == C2_NO_MEMORY) {
         C2VDA_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s: fetchGraphicBlock() timeout, waiting %zuus frameRate:%f", __func__, sDelay, frameRate);
-        sDelay = std::min(sDelay * 2, kFetchRetryDelayMax);  // Exponential backoff
+        sDelay = std::min(sDelay * 2, kFetchRetryDelayMax);  // Exponential backOff
         return sDelay;
     }
     sDelay = kFetchRetryDelayInit;
@@ -2711,7 +2711,7 @@ void C2VDAComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelFo
             if (err == C2_TIMED_OUT) {
                 // Mutexes often do not care for FIFO. Practically the thread who is locking the mutex
                 // usually will be granted to lock again right thereafter. To make this loop not too
-                // bossy, the simpliest way is to add a short delay to the next time acquiring the
+                // bossy, the simplest way is to add a short delay to the next time acquiring the
                 // lock. TODO (b/118354314): replace this if there is better solution.
                 ::usleep(delayTime);
                 continue;  // wait for retry
@@ -2872,18 +2872,18 @@ void C2VDAComponent::onConfigureTunnelMode() {
 void C2VDAComponent::onConfigureTunnerPassthroughMode() {
     int32_t filterid = mIntfImpl->mVendorTunerHalParam->videoFilterId;
 
-    mTunerPassthroughparams.dmx_id = (filterid >> 16);
-    mTunerPassthroughparams.video_pid = (filterid & 0x0000FFFF);
-    mTunerPassthroughparams.hw_sync_id = mIntfImpl->mVendorTunerHalParam->hwAVSyncId;
+    mTunerPassthroughParams.dmx_id = (filterid >> 16);
+    mTunerPassthroughParams.video_pid = (filterid & 0x0000FFFF);
+    mTunerPassthroughParams.hw_sync_id = mIntfImpl->mVendorTunerHalParam->hwAVSyncId;
 
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s] passthrough config,dmxid:%d,vpid:%d,syncid:%d",
         __func__,
-        mTunerPassthroughparams.dmx_id,
-        mTunerPassthroughparams.video_pid,
-        mTunerPassthroughparams.hw_sync_id);
+        mTunerPassthroughParams.dmx_id,
+        mTunerPassthroughParams.video_pid,
+        mTunerPassthroughParams.hw_sync_id);
 
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
-    mSyncType |= C2_SYNC_TYPE_PASSTHROUTH;
+    mSyncType |= C2_SYNC_TYPE_PASSTHROUGH;
 }
 #endif
 
@@ -2920,13 +2920,13 @@ private:
 
 #define CreateC2VDAFactory(type) \
     extern "C" ::C2ComponentFactory* CreateC2VDA##type##Factory(bool secureMode) {\
-         ALOGV("create compoment %s secure:%d", #type, secureMode);\
+         ALOGV("create component %s secure:%d", #type, secureMode);\
          return secureMode ? new ::android::C2VDAComponentFactory(android::k##type##SecureDecoderName)\
                             :new ::android::C2VDAComponentFactory(android::k##type##DecoderName);\
     }
 #define CreateC2VDAClearFactory(type) \
         extern "C" ::C2ComponentFactory* CreateC2VDA##type##Factory(bool secureMode) {\
-             ALOGV("create compoment %s secure:%d", #type, secureMode);\
+             ALOGV("create component %s secure:%d", #type, secureMode);\
              UNUSED(secureMode);\
              return new ::android::C2VDAComponentFactory(android::k##type##DecoderName);\
         }

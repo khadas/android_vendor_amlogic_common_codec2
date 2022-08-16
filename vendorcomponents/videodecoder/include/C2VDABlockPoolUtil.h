@@ -45,7 +45,7 @@ public:
     c2_status_t requestNewBufferSet(int32_t bufferCount);
 
     /**
-     *  retset graphic block
+     *  reset graphic block
      * \param blockId the id of block.
     */
     c2_status_t resetGraphicBlock(int32_t blockId);

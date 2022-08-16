@@ -85,7 +85,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
     uint32_t bufwidth = 4096;
     uint32_t bufheight = 2304;
     uint32_t margin = default_margin;
-    bool dvUseTwolaryer = false;
+    bool dvUseTwoLayer = false;
     char value[PROPERTY_VALUE_MAX];
 
     mEnableNR = property_get_bool("vendor.c2.nr.enable", false);
@@ -139,7 +139,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_NORMAL;
     } else {
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "disable low latency mode to v4l2 decoder.");
-        pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABALE;
+        pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABLE;
     }
 
     if (mComp->isAmDolbyVision()) {
@@ -172,7 +172,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
             }
             C2VDAMDU_LOG(CODEC2_LOG_INFO,"update input Codec profile to %d",codecType);
             if (inputProfile.profile == C2Config::PROFILE_DV_HE_04) {
-                dvUseTwolaryer = true;
+                dvUseTwoLayer = true;
             }
             mIntfImpl->updateInputCodec(codecType);
         }
@@ -185,7 +185,7 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
     // add v4l2 config
     pAmlV4l2Param->magic = V4L2_PARMS_MAGIC;
     pAmlV4l2Param->len = sizeof(struct v4l2_parms) / sizeof(uint32_t);
-    pAmlV4l2Param->adaptiveplayback = mEnableAdaptivePlayback;
+    pAmlV4l2Param->adaptivePlayback = mEnableAdaptivePlayback;
     pAmlV4l2Param->width  = bufwidth;
     pAmlV4l2Param->height = bufheight;
 
@@ -325,8 +325,8 @@ void C2VDAComponent::MetaDataUtil::codecConfig(mediahal_cfg_parms* configParam) 
             pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
             pAmlDecParam->cfg.canvas_mem_endian = 0;
             pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-            if (dvUseTwolaryer) {
-                pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_TWOLARYER;
+            if (dvUseTwoLayer) {
+                pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_TWOLAYER;
             }
         } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV) {
             pAmlDecParam->cfg.init_height = bufwidth;
@@ -400,7 +400,7 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
         ((int32_t)(hdr.mastering.maxLuminance * 1000) == 0) &&
         ((int32_t)(hdr.mastering.minLuminance * 1000) == 0) &&
         ((int32_t)(hdr.maxCll * 1000) == 0) &&
-        ((int32_t)(hdr.maxFall * 1000) == 0)) { /* defalut val */
+        ((int32_t)(hdr.maxFall * 1000) == 0)) { /* default val */
         C2VDAMDU_LOG(CODEC2_LOG_INFO, "no hdr static info set");
         return 0;
     }
@@ -485,10 +485,10 @@ int C2VDAComponent::MetaDataUtil::setHDRStaticInfo() {
     return 0;
 }
 
-void C2VDAComponent::MetaDataUtil::updateDecParmInfo(aml_dec_params* pinfo) {
-    C2VDAMDU_LOG(CODEC2_LOG_INFO, "pinfo->dec_parms_status %x\n", pinfo->parms_status);
-    if (pinfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
-        checkHDRMetadataAndColorAspects(&pinfo->hdr);
+void C2VDAComponent::MetaDataUtil::updateDecParmInfo(aml_dec_params* pInfo) {
+    C2VDAMDU_LOG(CODEC2_LOG_INFO, "pInfo->dec_parms_status %x\n", pInfo->parms_status);
+    if (pInfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
+        checkHDRMetadataAndColorAspects(&pInfo->hdr);
     }
 }
 
@@ -665,7 +665,7 @@ int C2VDAComponent::MetaDataUtil::getVideoType() {
 int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work, int32_t flags) {
 
     int64_t out_pts = work->worklets.front()->output.ordinal.timestamp.peekull();
-    int64_t intput_timestamp = work->input.ordinal.timestamp.peekull();
+    int64_t input_timestamp = work->input.ordinal.timestamp.peekull();
     int64_t custom_timestamp = work->input.ordinal.customOrdinal.peekull();
     int64_t raw_pts = out_pts;
 
@@ -674,7 +674,7 @@ int64_t C2VDAComponent::MetaDataUtil::checkAndAdjustOutPts(C2Work* work, int32_t
 
     if (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork) {
 
-        if ((out_pts == 0 && intput_timestamp == 0 && custom_timestamp == 0) ||
+        if ((out_pts == 0 && input_timestamp == 0 && custom_timestamp == 0) ||
             (mUnstablePts && !(flags & PICTURE_FLAG_KEYFRAME))) {
             mOutputPtsValidCount++;
             if (mOutputPtsValidCount >= kOutPutPtsValidNum) {
@@ -804,8 +804,8 @@ void C2VDAComponent::MetaDataUtil::setForceFullUsage(bool isFullUsage) {
 }
 
 
-uint32_t C2VDAComponent::MetaDataUtil::getOutAlignedSize(uint32_t size, bool forcealign) {
-    if ((mSecure && mIntfImpl->getInputCodec() == InputCodec::H264) || forcealign)
+uint32_t C2VDAComponent::MetaDataUtil::getOutAlignedSize(uint32_t size, bool forceAlign) {
+    if ((mSecure && mIntfImpl->getInputCodec() == InputCodec::H264) || forceAlign)
         return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
     return size;
 }
@@ -842,17 +842,17 @@ bool C2VDAComponent::MetaDataUtil::getNeedReallocBuffer()
 
 bool C2VDAComponent::MetaDataUtil::checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new)
 {
-    bool buffernumchanged = false;
-    bool framesizechanged = false;
+    bool bufferNumChanged = false;
+    bool frameSizeChanged = false;
 
     if (video_format_new.mMinNumBuffers != video_format_old.mMinNumBuffers)
-        buffernumchanged = true;
+        bufferNumChanged = true;
 
     if (video_format_new.mCodedSize.width() != video_format_old.mCodedSize.width() ||
         video_format_new.mCodedSize.height() !=  video_format_old.mCodedSize.height())
-        framesizechanged = true;
+        frameSizeChanged = true;
 
-    if (buffernumchanged || framesizechanged) {
+    if (bufferNumChanged || frameSizeChanged) {
         return true;
     }
     return false;
@@ -897,13 +897,13 @@ bool C2VDAComponent::MetaDataUtil::getUvmMetaData(int fd, unsigned char *data, i
     return true;
 }
 
-void C2VDAComponent::MetaDataUtil::parseAndprocessMetaData(unsigned char *data, int size) {
+void C2VDAComponent::MetaDataUtil::parseAndProcessMetaData(unsigned char *data, int size) {
     struct aml_meta_head_s *meta_head;
     uint32_t offset = 0;
     uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
 
     if (data == NULL || size <= 0) {
-        C2VDAMDU_LOG(CODEC2_LOG_ERR,"parse and process meta data faild");
+        C2VDAMDU_LOG(CODEC2_LOG_ERR,"parse and process meta data failed");
         return;
     }
     meta_head = (struct aml_meta_head_s *)data;
@@ -978,14 +978,14 @@ void C2VDAComponent::MetaDataUtil::check_stream_info() {
     if (mInPutWorkCount == 3 && mAmlStreamInfo.pts_0 == 0
             && mAmlStreamInfo.pts_1 == 0
             && mAmlStreamInfo.pts_2 == 0) {
-        C2VDAMDU_LOG(CODEC2_LOG_INFO,"first 3 pts all 0, pts invaild, use default framerate");
+        C2VDAMDU_LOG(CODEC2_LOG_INFO,"first 3 pts all 0, pts invalid, use default framerate");
         mInPtsInvalid = true;
         return;
     }
 }
 
 void C2VDAComponent::MetaDataUtil::updateDurationUs(unsigned char *data, int size) {
-    uint32_t durationdata = 0;
+    uint32_t durationData = 0;
     if (data == NULL || size <= 0) {
         C2VDAMDU_LOG(CODEC2_LOG_ERR,"update DurationUs error");
         return;
@@ -994,10 +994,10 @@ void C2VDAComponent::MetaDataUtil::updateDurationUs(unsigned char *data, int siz
     struct aml_vf_base_info_s *baseinfo = (struct aml_vf_base_info_s *)(data);
 
     if (baseinfo != NULL && baseinfo->duration != 0) {
-        durationdata = baseinfo->duration;
-        if (durationdata != 0) {
+        durationData = baseinfo->duration;
+        if (durationData != 0) {
             uint64_t rate64 = 1000000;
-            rate64 = rate64 / (96000 * 1.0 / durationdata);
+            rate64 = rate64 / (96000 * 1.0 / durationData);
             if (mIsInterlaced)
                 mDurationUs = 2 * rate64;
             else

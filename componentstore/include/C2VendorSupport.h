@@ -59,12 +59,12 @@ enum class InputCodec {
     UNKNOWN = 0xff,
 };
 
-struct C2CompomentInputCodec {
+struct C2ComponentInputCodec {
     C2String compname;
     InputCodec codec;
 };
 
-static C2CompomentInputCodec gC2CompomentInputCodec [] = {
+static C2ComponentInputCodec gC2ComponentInputCodec [] = {
     {kH264DecoderName, InputCodec::H264},
     {kH264SecureDecoderName, InputCodec::H264},
     {kH265DecoderName, InputCodec::H265},
@@ -102,12 +102,12 @@ enum class C2VendorCodec {
     ADEC_MP2,
 };
 
-struct C2VendorCompoment {
+struct C2VendorComponent {
     std::string compname;
     C2VendorCodec codec;
 };
 
-static C2VendorCompoment gC2VideoDecoderCompoments [] = {
+static C2VendorComponent gC2VideoDecoderComponents [] = {
     {kH264DecoderName, C2VendorCodec::VDEC_H264},
     {kH264SecureDecoderName, C2VendorCodec::VDEC_H264},
     {kH265DecoderName, C2VendorCodec::VDEC_H265},
@@ -128,12 +128,12 @@ static C2VendorCompoment gC2VideoDecoderCompoments [] = {
 };
 
 
-static C2VendorCompoment gC2VideoEncoderCompoments [] = {
+static C2VendorComponent gC2VideoEncoderComponents [] = {
     {kH264EncoderName, C2VendorCodec::VENC_H264},
     {kH265EncoderName, C2VendorCodec::VENC_H265},
 };
 
-static C2VendorCompoment gC2AudioDecoderCompoments [] = {
+static C2VendorComponent gC2AudioDecoderComponents [] = {
     {kMp2DecoderName, C2VendorCodec::ADEC_MP2},
 };
 

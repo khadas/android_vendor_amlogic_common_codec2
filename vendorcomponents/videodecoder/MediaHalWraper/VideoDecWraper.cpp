@@ -49,7 +49,7 @@ static AmVideoDecBase* getAmVideoDec(AmVideoDecCallback* callback) {
         return NULL;
 
     typedef AmVideoDecBase *(*createAmVideoDecFunc)(AmVideoDecCallback* callback);
-    typedef uint32_t (*getVersionFunc)(uint32_t* versionM, uint32_t* verionL);
+    typedef uint32_t (*getVersionFunc)(uint32_t* versionM, uint32_t* versionL);
 
     getVersionFunc getVersion = (getVersionFunc)dlsym(gMediaHal, "AmVideoDec_getVersion");
     if (getVersion != NULL)
@@ -79,9 +79,9 @@ static AmVideoDecBase* getAmVideoDec(AmVideoDecCallback* callback) {
         return NULL;
     }
 
-    AmVideoDecBase* halHanle = (*getAmVideoDec)(callback);
+    AmVideoDecBase* halHandle = (*getAmVideoDec)(callback);
     ALOGE("getAmVideoDec ok\n");
-    return halHanle;
+    return halHandle;
 }
 
 media::VideoDecodeAccelerator::SupportedProfiles VideoDecWraper::AmVideoDec_getSupportedProfiles(uint32_t inputcodec) {
@@ -262,7 +262,7 @@ void VideoDecWraper::destroy() {
         mAmVideoDec->destroy();
 }
 
-// callbak.
+// callback
 void VideoDecWraper::onOutputFormatChanged(uint32_t requested_num_of_buffers,
             int32_t width, uint32_t height) {
     VDEC_LOGD("providePictureBuffers:minNumBuffers:%d, w:%d, h:%d", requested_num_of_buffers, width, height);

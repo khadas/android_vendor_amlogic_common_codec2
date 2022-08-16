@@ -95,10 +95,10 @@ int VideoTunnelRendererWraper::getTunnelId() {
     return mVideoTunnelRenderer->getTunnelId();
 }
 
-bool VideoTunnelRendererWraper::sendVideoFrame(int metafd, int64_t timestampNs, bool renderAtonce) {
+bool VideoTunnelRendererWraper::sendVideoFrame(int metafd, int64_t timestampNs, bool renderAtOnce) {
     if (!mVideoTunnelRenderer)
         return false;
-    return mVideoTunnelRenderer->sendVideoFrame(metafd, timestampNs, renderAtonce);
+    return mVideoTunnelRenderer->sendVideoFrame(metafd, timestampNs, renderAtOnce);
 }
 
 bool VideoTunnelRendererWraper::peekFirstFrame() {

@@ -112,7 +112,7 @@ public:
                                         int metaFd,
                                         const std::vector<VideoFramePlane>& planes) = 0;
 
-    // Sends picture buffer to be reused by the decoder by its piture ID.
+    // Sends picture buffer to be reused by the decoder by its picture ID.
     virtual void reusePictureBuffer(int32_t pictureBufferId) = 0;
 
     // Flushes the decoder.

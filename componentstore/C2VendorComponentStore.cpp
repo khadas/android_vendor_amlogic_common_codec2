@@ -34,9 +34,9 @@ namespace android {
 typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc2)(bool);
 typedef void (*DestroyCodec2FactoryFunc2)(::C2ComponentFactory*);
 
-const C2String kCompomentLoadVideoDecoderLibray = "libcodec2_aml_video_decoder.so";
-const C2String kCompomentLoadVideoEncoderLibray = "libcodec2_aml_video_encoder.so";
-const C2String kCompomentLoadAudioDecoderLibray = "libcodec2_aml_audio_decoder.so";
+const C2String kComponentLoadVideoDecoderLibray = "libcodec2_aml_video_decoder.so";
+const C2String kComponentLoadVideoEncoderLibray = "libcodec2_aml_video_encoder.so";
+const C2String kComponentLoadAudioDecoderLibray = "libcodec2_aml_audio_decoder.so";
 
 
 class C2VendorComponentStore : public C2ComponentStore {
@@ -398,23 +398,23 @@ C2VendorComponentStore::C2VendorComponentStore()
     bool supportC2VEnc = property_get_bool("vendor.media.c2.vdec.support", true);
     bool supportC2Adec = property_get_bool("vendor.media.c2.adec.support", false);
     if (supportC2Vdec) {
-        for (int i = 0; i < sizeof(gC2VideoDecoderCompoments) / sizeof(C2VendorCompoment); i++) {
-            if (disableC2SecureVdec && strstr(gC2VideoDecoderCompoments[i].compname.c_str(), (const char *)".secure"))
+        for (int i = 0; i < sizeof(gC2VideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
+            if (disableC2SecureVdec && strstr(gC2VideoDecoderComponents[i].compname.c_str(), (const char *)".secure"))
                 continue;
-            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoDecoderCompoments[i].compname),
-                    std::forward_as_tuple(kCompomentLoadVideoDecoderLibray, gC2VideoDecoderCompoments[i].codec));
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoDecoderComponents[i].compname),
+                    std::forward_as_tuple(kComponentLoadVideoDecoderLibray, gC2VideoDecoderComponents[i].codec));
         }
     }
     if (supportC2VEnc) {
-        for (int i = 0; i < sizeof(gC2VideoEncoderCompoments) / sizeof(C2VendorCompoment); i++) {
-            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoEncoderCompoments[i].compname),
-                    std::forward_as_tuple(kCompomentLoadVideoEncoderLibray, gC2VideoEncoderCompoments[i].codec));
+        for (int i = 0; i < sizeof(gC2VideoEncoderComponents) / sizeof(C2VendorComponent); i++) {
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoEncoderComponents[i].compname),
+                    std::forward_as_tuple(kComponentLoadVideoEncoderLibray, gC2VideoEncoderComponents[i].codec));
         }
     }
     if (supportC2Adec) {
-        for (int i = 0; i < sizeof(gC2AudioDecoderCompoments) / sizeof(C2VendorCompoment); i++) {
-            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderCompoments[i].compname),
-                    std::forward_as_tuple(kCompomentLoadAudioDecoderLibray, gC2AudioDecoderCompoments[i].codec, true));
+        for (int i = 0; i < sizeof(gC2AudioDecoderComponents) / sizeof(C2VendorComponent); i++) {
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderComponents[i].compname),
+                    std::forward_as_tuple(kComponentLoadAudioDecoderLibray, gC2AudioDecoderComponents[i].codec, true));
         }
     }
     ALOGI("C2VendorComponentStore::C2VendorComponentStore\n");

@@ -97,7 +97,7 @@ private:
 
 enum {
     /* metadata_config_flag */
-    VDEC_CFG_FLAG_DV_TWOLARYER = (1<<0),
+    VDEC_CFG_FLAG_DV_TWOLAYER = (1<<0),
     VDEC_CFG_FLAG_DV_NEGATIVE  = (1<<1),
     VDEC_CFG_FLAG_DIS_ERR_POLICY = (1 << 11),
     VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE = (1<<14),
@@ -107,7 +107,7 @@ enum {
 
 enum {
     /* low_latency_mode */
-    LOWLATENCY_DISABALE,
+    LOWLATENCY_DISABLE,
     LOWLATENCY_NORMAL  = (1 << 0),
     LOWLATENCY_FENCE = (1 << 1),
 };
@@ -204,7 +204,7 @@ struct aml_dec_params {
 struct v4l2_parms {
     uint32_t magic;
     uint32_t len;
-    uint32_t adaptiveplayback;
+    uint32_t adaptivePlayback;
     uint32_t height;
     uint32_t width;
 };

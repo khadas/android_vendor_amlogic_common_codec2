@@ -46,7 +46,7 @@
 
 namespace android {
 
-#define DECLARE_C2_DEFAUTL_UNSTRICT_SETTER(s,n) \
+#define DECLARE_C2_DEFAULT_UNSTRICT_SETTER(s,n) \
     static C2R n##Setter(bool mayBlock, C2P<s> &me)
 
 class C2VDAComponent : public C2Component,
@@ -192,7 +192,7 @@ private:
         std::shared_ptr<C2GraphicBlock> mGraphicBlock;
         // HAL pixel format used while importing to VDA.
         HalPixelFormat mPixelFormat;
-        // The dmabuf fds dupped from graphic block for importing to VDA.
+        // The dmabuf fds duplicated from graphic block for importing to VDA.
         std::vector<::base::ScopedFD> mHandles;
         int32_t mFd;
         bool mFdHaveSet;
@@ -246,7 +246,7 @@ private:
     // Send output buffer to accelerator. If |passToAccelerator|, change the ownership to
     // OWNED_BY_ACCELERATOR of this buffer.
     void sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool passToAccelerator);
-    // Set crop rectangle infomation to output format.
+    // Set crop rectangle information to output format.
     void setOutputFormatCrop(const media::Rect& cropRect);
     // Helper function to get the specified GraphicBlockInfo object by its id.
     GraphicBlockInfo* getGraphicBlockById(int32_t blockId);
@@ -328,13 +328,13 @@ private:
     bool startDequeueThread(const media::Size& size, uint32_t pixelFormat, bool resetBuffersInClient);
     // Stop dequeue thread.
     void stopDequeueThread();
-    // The rountine task running on dequeue thread.
+    // The routine task running on dequeue thread.
     void dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat);
 
     //display all graphic block information.
     void displayGraphicBlockInfo();
     void getCurrentProcessFdInfo();
-    //convert codec profiel to mime
+    //convert codec profile to mime
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
     bool getVideoResolutionChanged();
@@ -442,7 +442,7 @@ private:
 
     typedef enum {
         C2_RESOLUTION_CHANGE_NONE,
-        C2_RESOLUTION_CHANGEING = 1,
+        C2_RESOLUTION_CHANGING = 1,
         C2_RESOLUTION_CHANGED = 2,
     } c2_resch_stat;
     enum {
@@ -454,7 +454,7 @@ private:
     enum {
         C2_SYNC_TYPE_NON_TUNNEL = 1,
         C2_SYNC_TYPE_TUNNEL = 2,
-        C2_SYNC_TYPE_PASSTHROUTH = 4,
+        C2_SYNC_TYPE_PASSTHROUGH = 4,
     };
     std::shared_ptr<C2StreamHdrStaticInfo::output> mCurrentHdrStaticInfo;
     std::shared_ptr<C2StreamHdr10PlusInfo::output> mCurrentHdr10PlusInfo;
@@ -487,7 +487,7 @@ private:
     int64_t mOutputFinishedWorkCount;
     int32_t mSyncId;
     int64_t mSyncType;
-    passthroughInitParams mTunerPassthroughparams;
+    passthroughInitParams mTunerPassthroughParams;
     TunerPassthroughWrapper *mTunerPassthrough;
 
     C2ReadView mDefaultDummyReadView;

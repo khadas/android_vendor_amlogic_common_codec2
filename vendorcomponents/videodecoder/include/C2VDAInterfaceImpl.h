@@ -62,8 +62,8 @@ private:
     static C2R StreamPtsUnstableSetter(bool mayBlock, C2P<C2StreamUnstablePts::input> &me);
 
     //declare some unstrict Setter
-    DECLARE_C2_DEFAUTL_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam);
-    DECLARE_C2_DEFAUTL_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender);
 
     std::shared_ptr<C2ApiLevelSetting> mApiLevel;
     std::shared_ptr<C2ApiFeaturesSetting> mApiFeatures;
@@ -93,7 +93,7 @@ private:
     std::shared_ptr<C2PortAllocatorsTuning::output> mOutputAllocatorIds;
     // The suggested usage of output buffer allocator ID with surface.
     std::shared_ptr<C2PortSurfaceAllocatorTuning::output> mOutputSurfaceAllocatorId;
-    // Compnent uses this ID to fetch corresponding output block pool from platform.
+    // Component uses this ID to fetch corresponding output block pool from platform.
     std::shared_ptr<C2PortBlockPoolsTuning::output> mOutputBlockPoolIds;
     // The color aspects parsed from input bitstream. This parameter should be configured by
     // component while decoding.

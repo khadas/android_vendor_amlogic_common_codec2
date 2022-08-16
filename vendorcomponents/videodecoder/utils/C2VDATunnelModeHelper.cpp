@@ -172,12 +172,12 @@ void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bo
 
         /* for drop, need report finished work */
         if (!frame.rendered) {
-            auto pendingbuffer = std::find_if(
+            auto pendingBuffer = std::find_if(
                     mComp->mPendingBuffersToWork.begin(), mComp->mPendingBuffersToWork.end(),
                     [id = info->mBlockId](const OutputBufferInfo& o) { return o.mBlockId == id;});
-            if (pendingbuffer != mComp->mPendingBuffersToWork.end()) {
+            if (pendingBuffer != mComp->mPendingBuffersToWork.end()) {
                 struct VideoTunnelRendererWraper::renderTime rendertime = {
-                    .mediaUs = pendingbuffer->mMediaTimeUs,
+                    .mediaUs = pendingBuffer->mMediaTimeUs,
                     .renderUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000,
                 };
                 sendOutputBufferToWorkTunnel(&rendertime);
@@ -303,7 +303,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
         for (auto it = mTunnelAbandonMediaTimeQueue.begin(); it != mTunnelAbandonMediaTimeQueue.end(); it++) {
             if (rendertime->mediaUs == *it) {
                 mTunnelAbandonMediaTimeQueue.erase(it);
-                C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not find the correct work with mediaTime:%lld, correct work have abandoed and report to framework", rendertime->mediaUs);
+                C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not find the correct work with mediaTime:%lld, correct work have abandoned and report to framework", rendertime->mediaUs);
                 mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
                 return C2_OK;
             }
@@ -340,12 +340,12 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
     mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs * 1000;
     work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
 
-    auto pendingbuffer = mComp->findPendingBuffersToWorkByTime(rendertime->mediaUs);
-    if (pendingbuffer != mComp->mPendingBuffersToWork.end()) {
+    auto pendingBuffer = mComp->findPendingBuffersToWorkByTime(rendertime->mediaUs);
+    if (pendingBuffer != mComp->mPendingBuffersToWork.end()) {
         //info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d rendertime:%lld, bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingbuffer->mBitstreamId,pendingbuffer->flags);
-        mComp->reportWorkIfFinished(pendingbuffer->mBitstreamId,pendingbuffer->flags);
-        mComp->mPendingBuffersToWork.erase(pendingbuffer);
+        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d rendertime:%lld, bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingBuffer->mBitstreamId,pendingBuffer->flags);
+        mComp->reportWorkIfFinished(pendingBuffer->mBitstreamId,pendingBuffer->flags);
+        mComp->mPendingBuffersToWork.erase(pendingBuffer);
         /* EOS work check */
         if ((mComp->mPendingWorks.size() == 1u) &&
             mComp->mPendingOutputEOS) {
@@ -476,11 +476,11 @@ c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
             for (auto& info : mComp->mGraphicBlocks) {
                 info.mFdHaveSet = false;
             }
-            int32_t lastbuffercount = mComp->mLastOutputFormat.mMinNumBuffers;
+            int32_t lastBufferCount = mComp->mLastOutputFormat.mMinNumBuffers;
             mOutBufferCount = mComp->mOutputFormat.mMinNumBuffers;
 
             int fd = -1;
-            for (int i = lastbuffercount; i < mOutBufferCount; i++) {
+            for (int i = lastBufferCount; i < mOutBufferCount; i++) {
                 allocTunnelBuffer(size, mPixelFormat, &fd);
                 GraphicBlockInfo* info = mComp->getGraphicBlockByFd(fd);
                 info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
@@ -523,8 +523,8 @@ c2_status_t C2VDAComponent::TunnelModeHelper::resetBlockPoolBuffers() {
 bool C2VDAComponent::TunnelModeHelper::checkReallocOutputBuffer(VideoFormat video_format_old,
                 VideoFormat video_format_new,
                 bool *sizeChanged, bool *bufferNumLarged) {
-    bool buffernumenlarged = false;
-    bool framesizechanged = false;
+    bool bufferNumEnlarged = false;
+    bool frameSizeChanged = false;
 
     C2VDATMH_LOG(CODEC2_LOG_INFO, "%s %dx%d(%d)->%dx%d(%d)", __func__,
                  video_format_old.mCodedSize.width(),
@@ -534,19 +534,19 @@ bool C2VDAComponent::TunnelModeHelper::checkReallocOutputBuffer(VideoFormat vide
                  video_format_new.mCodedSize.height(),
                  video_format_new.mMinNumBuffers);
     if (video_format_new.mMinNumBuffers > video_format_old.mMinNumBuffers) {
-        buffernumenlarged = true;
+        bufferNumEnlarged = true;
         C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "buffer num larged");
     }
     if (video_format_new.mCodedSize.width() != video_format_old.mCodedSize.width() ||
         video_format_new.mCodedSize.height() !=  video_format_old.mCodedSize.height()) {
-        framesizechanged = true;
+        frameSizeChanged = true;
         C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "frame size changed");
     }
 
-    *sizeChanged = framesizechanged;
-    *bufferNumLarged = buffernumenlarged;
+    *sizeChanged = frameSizeChanged;
+    *bufferNumLarged = bufferNumEnlarged;
 
-    if (buffernumenlarged || framesizechanged) {
+    if (bufferNumEnlarged || frameSizeChanged) {
         return true;
     }
 

@@ -27,19 +27,19 @@ constexpr uint32_t kMaxInputDelaySecure = 4;            // Max input delay for s
 //Tunnel Mode
 constexpr uint32_t kDefaultOutputDelayTunnel = 10;      // Default output delay on tunnel mode.
 
-#define DEFINE_C2_DEFAUTL_UNSTRICT_SETTER(s, n) \
+#define DEFINE_C2_DEFAULT_UNSTRICT_SETTER(s, n) \
     C2R C2VDAComponent::IntfImpl::n##Setter(bool mayBlock, C2P<s> &me) {\
     (void)mayBlock;\
     (void)me;\
     return C2R::Ok();\
 }
 
-#define C2_DEFAUTL_UNSTRICT_SETTER(n) n##Setter
+#define C2_DEFAULT_UNSTRICT_SETTER(n) n##Setter
 
 static InputCodec getInputCodecFromDecoderName(const C2String name){
-    for (int i = 0; i < sizeof(gC2CompomentInputCodec) / sizeof(C2CompomentInputCodec); i++) {
-        if (name == gC2CompomentInputCodec[i].compname)
-            return gC2CompomentInputCodec[i].codec;
+    for (int i = 0; i < sizeof(gC2ComponentInputCodec) / sizeof(C2ComponentInputCodec); i++) {
+        if (name == gC2ComponentInputCodec[i].compname)
+            return gC2ComponentInputCodec[i].codec;
     }
     return InputCodec::UNKNOWN;
 
@@ -150,8 +150,8 @@ C2R C2VDAComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2Strea
 }
 
 //define some unstrict Setter
-DEFINE_C2_DEFAUTL_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam)
-DEFINE_C2_DEFAUTL_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender)
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam)
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender)
 
 c2_status_t C2VDAComponent::IntfImpl::config(
     const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
@@ -757,7 +757,7 @@ void C2VDAComponent::IntfImpl::onTunnelDeclareParam() {
         DefineParam(mTunnelStartRender, C2_PARAMKEY_TUNNEL_START_RENDER)
                 .withDefault(new C2StreamTunnelStartRender::output(0))
                 .withFields({C2F(mTunnelStartRender, value).any()})
-                .withSetter(C2_DEFAUTL_UNSTRICT_SETTER(TunnelStartRender))
+                .withSetter(C2_DEFAULT_UNSTRICT_SETTER(TunnelStartRender))
                 .build());
 }
 
@@ -768,7 +768,7 @@ void C2VDAComponent::IntfImpl::onTunnelPassthroughDeclareParam() {
                 .withFields({
                         C2F(mVendorTunerHalParam, videoFilterId).any(),
                         C2F(mVendorTunerHalParam, hwAVSyncId).any()})
-        .withSetter(C2_DEFAUTL_UNSTRICT_SETTER(VendorTunerHalParam))
+        .withSetter(C2_DEFAULT_UNSTRICT_SETTER(VendorTunerHalParam))
         .build());
 }
 
@@ -832,18 +832,18 @@ void C2VDAComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
                 static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
                                                 const C2P<C2StreamPictureSizeInfo::output>& size) {
                         (void)mayBlock;
-                        size_t maxInputsize = property_get_int32("vendor.codec2.max.input.size", 6291456);
-                        size_t paddingsize = property_get_int32("vendor.codec2.max.input.paddingsize", 262144);
-                        size_t defultsize = me.get().value;
-                        if (defultsize > 0)
-                        defultsize += paddingsize;
+                        size_t maxInputSize = property_get_int32("vendor.codec2.max.input.size", 6291456);
+                        size_t paddingSize = property_get_int32("vendor.codec2.max.input.paddingsize", 262144);
+                        size_t defaultSize = me.get().value;
+                        if (defaultSize > 0)
+                        defaultSize += paddingSize;
                         else
-                        defultsize = kLinearBufferSize;
-                        if (defultsize > maxInputsize) {
-                            me.set().value = maxInputsize;
-                            CODEC2_LOG(CODEC2_LOG_INFO,"Force setting %d to max is %d", me.get().value, maxInputsize);
+                        defaultSize = kLinearBufferSize;
+                        if (defaultSize > maxInputSize) {
+                            me.set().value = maxInputSize;
+                            CODEC2_LOG(CODEC2_LOG_INFO,"Force setting %d to max is %d", me.get().value, maxInputSize);
                         } else {
-                            me.set().value = defultsize;
+                            me.set().value = defaultSize;
                         }
                         //app may set too small
                         if (((size.v.width * size.v.height) > (1920 * 1088))

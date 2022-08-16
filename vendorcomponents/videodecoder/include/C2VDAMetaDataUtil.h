@@ -42,7 +42,7 @@ public:
     void updateInterlacedInfo(bool isInterlaced);
     bool isInterlaced() {return mIsInterlaced;};
     int getVideoType();
-    void setUseSurfaceTexture(bool usersftexture) { mUseSurfaceTexture = usersftexture; }
+    void setUseSurfaceTexture(bool userSurfaceTexture) { mUseSurfaceTexture = userSurfaceTexture; }
     void setNoSurface(bool isNoSurface);
     bool isHDRStaticInfoUpdated() {
         if (mHDRStaticInfoChanged) {
@@ -80,12 +80,12 @@ public:
     int64_t checkAndAdjustOutPts(C2Work* work, int32_t flags);
     //int check_color_aspects();
     uint64_t getPlatformUsage();
-    uint32_t getOutAlignedSize(uint32_t size, bool forcealign = false);
+    uint32_t getOutAlignedSize(uint32_t size, bool forceAlign = false);
     bool getNeedReallocBuffer();
     bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new);
     bool getMaxBufWidthAndHeight(uint32_t *width, uint32_t *height);
     bool getUvmMetaData(int fd,unsigned char *data,int *size);
-    void parseAndprocessMetaData(unsigned char *data, int size);
+    void parseAndProcessMetaData(unsigned char *data, int size);
     void updateHDR10plus(unsigned char *data, int size);
     void updateDurationUs(unsigned char *data, int size);
     bool getHDR10PlusData(std::string &data);
