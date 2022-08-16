@@ -1,10 +1,10 @@
 #define LOG_NDEBUG 0
-#define LOG_TAG "C2VDAComponentIntfImpl"
+#define LOG_TAG "C2VdecComponentIntfImpl"
 
 #include <media/stagefright/MediaDefs.h>
 #include <C2VendorSupport.h>
-#include <C2VDAInterfaceImpl.h>
-#include <C2VDAComponent.h>
+#include <C2VdecInterfaceImpl.h>
+#include <C2VdecComponent.h>
 #include <logdebug.h>
 
 #include <C2PlatformSupport.h>
@@ -28,7 +28,7 @@ constexpr uint32_t kMaxInputDelaySecure = 4;            // Max input delay for s
 constexpr uint32_t kDefaultOutputDelayTunnel = 10;      // Default output delay on tunnel mode.
 
 #define DEFINE_C2_DEFAULT_UNSTRICT_SETTER(s, n) \
-    C2R C2VDAComponent::IntfImpl::n##Setter(bool mayBlock, C2P<s> &me) {\
+    C2R C2VdecComponent::IntfImpl::n##Setter(bool mayBlock, C2P<s> &me) {\
     (void)mayBlock;\
     (void)me;\
     return C2R::Ok();\
@@ -46,7 +46,7 @@ static InputCodec getInputCodecFromDecoderName(const C2String name){
 }
 
 // static
-C2R C2VDAComponent::IntfImpl::ProfileLevelSetter(bool mayBlock,
+C2R C2VdecComponent::IntfImpl::ProfileLevelSetter(bool mayBlock,
                                                  C2P<C2StreamProfileLevelInfo::input>& info) {
     (void)mayBlock;
     return info.F(info.v.profile)
@@ -55,7 +55,7 @@ C2R C2VDAComponent::IntfImpl::ProfileLevelSetter(bool mayBlock,
 }
 
 // static
-C2R C2VDAComponent::IntfImpl::SizeSetter(bool mayBlock,
+C2R C2VdecComponent::IntfImpl::SizeSetter(bool mayBlock,
                                          C2P<C2StreamPictureSizeInfo::output>& videoSize) {
     (void)mayBlock;
     // TODO: maybe apply block limit?
@@ -66,7 +66,7 @@ C2R C2VDAComponent::IntfImpl::SizeSetter(bool mayBlock,
 
 // static
 template <typename T>
-C2R C2VDAComponent::IntfImpl::DefaultColorAspectsSetter(bool mayBlock, C2P<T>& def) {
+C2R C2VdecComponent::IntfImpl::DefaultColorAspectsSetter(bool mayBlock, C2P<T>& def) {
     (void)mayBlock;
     if (def.v.range > C2Color::RANGE_OTHER) {
         def.set().range = C2Color::RANGE_OTHER;
@@ -84,7 +84,7 @@ C2R C2VDAComponent::IntfImpl::DefaultColorAspectsSetter(bool mayBlock, C2P<T>& d
 }
 
 // static
-C2R C2VDAComponent::IntfImpl::MergedColorAspectsSetter(
+C2R C2VdecComponent::IntfImpl::MergedColorAspectsSetter(
         bool mayBlock, C2P<C2StreamColorAspectsInfo::output>& merged,
         const C2P<C2StreamColorAspectsTuning::output>& def,
         const C2P<C2StreamColorAspectsInfo::input>& coded) {
@@ -99,51 +99,51 @@ C2R C2VDAComponent::IntfImpl::MergedColorAspectsSetter(
     return C2R::Ok();
 }
 
-C2R C2VDAComponent::IntfImpl::Hdr10PlusInfoInputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::input> &me) {
+C2R C2VdecComponent::IntfImpl::Hdr10PlusInfoInputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::input> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
 
-C2R C2VDAComponent::IntfImpl::Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::output> &me) {
+C2R C2VdecComponent::IntfImpl::Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2StreamHdr10PlusInfo::output> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
 
-C2R C2VDAComponent::IntfImpl::HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me) {
+C2R C2VdecComponent::IntfImpl::HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
 
-C2R C2VDAComponent::IntfImpl::LowLatencyModeSetter(bool mayBlock, C2P<C2GlobalLowLatencyModeTuning> &me) {
+C2R C2VdecComponent::IntfImpl::LowLatencyModeSetter(bool mayBlock, C2P<C2GlobalLowLatencyModeTuning> &me) {
     (void)mayBlock;
     return me.F(me.v.value).validatePossible(me.v.value);
 }
 
-C2R C2VDAComponent::IntfImpl::OutSurfaceAllocatorIdSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me) {
+C2R C2VdecComponent::IntfImpl::OutSurfaceAllocatorIdSetter(bool mayBlock, C2P<C2PortSurfaceAllocatorTuning::output> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
 
-C2R C2VDAComponent::IntfImpl::TunnelModeOutSetter(bool mayBlock, C2P<C2PortTunneledModeTuning::output> &me) {
+C2R C2VdecComponent::IntfImpl::TunnelModeOutSetter(bool mayBlock, C2P<C2PortTunneledModeTuning::output> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
-C2R C2VDAComponent::IntfImpl::TunnelHandleSetter(bool mayBlock, C2P<C2PortTunnelHandleTuning::output> &me) {
+C2R C2VdecComponent::IntfImpl::TunnelHandleSetter(bool mayBlock, C2P<C2PortTunnelHandleTuning::output> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
-C2R C2VDAComponent::IntfImpl::TunnelSystemTimeSetter(bool mayBlock, C2P<C2PortTunnelSystemTime::output> &me) {
+C2R C2VdecComponent::IntfImpl::TunnelSystemTimeSetter(bool mayBlock, C2P<C2PortTunnelSystemTime::output> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
 }
-C2R C2VDAComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2StreamUnstablePts::input> &me) {
+C2R C2VdecComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2StreamUnstablePts::input> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
     return C2R::Ok();
@@ -153,7 +153,7 @@ C2R C2VDAComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2Strea
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender)
 
-c2_status_t C2VDAComponent::IntfImpl::config(
+c2_status_t C2VdecComponent::IntfImpl::config(
     const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
     std::vector<std::unique_ptr<C2SettingResult>>* const failures,
     bool updateParams,
@@ -164,7 +164,7 @@ c2_status_t C2VDAComponent::IntfImpl::config(
         switch (param->coreIndex().coreIndex()) {
             case C2PortTunneledModeTuning::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config",
-                        C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
+                        C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
                 if (mComponent) {
                     mComponent->onConfigureTunnelMode();
                     // change to bufferpool
@@ -174,15 +174,15 @@ c2_status_t C2VDAComponent::IntfImpl::config(
                 break;
             case C2VdecWorkMode::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
-                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID, mVdecWorkMode->value);
+                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mVdecWorkMode->value);
                 break;
             case C2DataSourceType::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d",
-                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID, mDataSourceType->value);
+                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mDataSourceType->value);
                 break;
             case C2StreamTunnelStartRender::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config tunnel startRender",
-                    C2VDAComponent::mInstanceID, mComponent->mCurInstanceID);
+                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
                 mComponent->onAndroidVideoPeek();
                 break;
 
@@ -193,7 +193,7 @@ c2_status_t C2VDAComponent::IntfImpl::config(
     return C2_OK;
 }
 
-C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
+C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
       : C2InterfaceHelper(helper), mInitStatus(C2_OK) {
     setDerivedInstance(this);
 
@@ -296,7 +296,7 @@ C2VDAComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Reflec
     onVendorExtendParam();
 }
 
-void C2VDAComponent::IntfImpl::onAvcDeclareParam() {
+void C2VdecComponent::IntfImpl::onAvcDeclareParam() {
         addParameter(
         DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::input(
@@ -321,7 +321,7 @@ void C2VDAComponent::IntfImpl::onAvcDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onHevcDeclareParam() {
+void C2VdecComponent::IntfImpl::onHevcDeclareParam() {
         addParameter(DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
         .withDefault(new C2StreamProfileLevelInfo::input(
                 0u, C2Config::PROFILE_HEVC_MAIN, C2Config::LEVEL_HEVC_HIGH_5_1))
@@ -343,7 +343,7 @@ void C2VDAComponent::IntfImpl::onHevcDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onVp9DeclareParam() {
+void C2VdecComponent::IntfImpl::onVp9DeclareParam() {
         addParameter(
         DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
         .withDefault(new C2StreamProfileLevelInfo::input(
@@ -363,7 +363,7 @@ void C2VDAComponent::IntfImpl::onVp9DeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onAv1DeclareParam() {
+void C2VdecComponent::IntfImpl::onAv1DeclareParam() {
     addParameter(
     DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
         .withDefault(new C2StreamProfileLevelInfo::input(
@@ -385,7 +385,7 @@ void C2VDAComponent::IntfImpl::onAv1DeclareParam() {
     .build());
 }
 
-void C2VDAComponent::IntfImpl::onDvheDeclareParam() {
+void C2VdecComponent::IntfImpl::onDvheDeclareParam() {
         addParameter(
         DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::input(
@@ -418,7 +418,7 @@ void C2VDAComponent::IntfImpl::onDvheDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onDvavDeclareParam() {
+void C2VdecComponent::IntfImpl::onDvavDeclareParam() {
         addParameter(
         DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::input(
@@ -449,7 +449,7 @@ void C2VDAComponent::IntfImpl::onDvavDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onDvav1DeclareParam() {
+void C2VdecComponent::IntfImpl::onDvav1DeclareParam() {
         addParameter(
         DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                 .withDefault(new C2StreamProfileLevelInfo::input(
@@ -480,7 +480,7 @@ void C2VDAComponent::IntfImpl::onDvav1DeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onMp2vDeclareParam() {
+void C2VdecComponent::IntfImpl::onMp2vDeclareParam() {
         addParameter(
                 DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                         .withDefault(new C2StreamProfileLevelInfo::input(
@@ -501,7 +501,7 @@ void C2VDAComponent::IntfImpl::onMp2vDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onMp4vDeclareParam() {
+void C2VdecComponent::IntfImpl::onMp4vDeclareParam() {
         addParameter(
                     DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                             .withDefault(new C2StreamProfileLevelInfo::input(
@@ -526,7 +526,7 @@ void C2VDAComponent::IntfImpl::onMp4vDeclareParam() {
         .withSetter(ProfileLevelSetter)
         .build());
 }
-void C2VDAComponent::IntfImpl::onMjpgDeclareParam() {
+void C2VdecComponent::IntfImpl::onMjpgDeclareParam() {
         /*
         addParameter(
                 DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
@@ -554,15 +554,15 @@ void C2VDAComponent::IntfImpl::onMjpgDeclareParam() {
         */
 }
 
-void C2VDAComponent::IntfImpl::onAvsDeclareParam() {
+void C2VdecComponent::IntfImpl::onAvsDeclareParam() {
        // TODO
 }
 
-void C2VDAComponent::IntfImpl::onAvs2DeclareParam() {
+void C2VdecComponent::IntfImpl::onAvs2DeclareParam() {
         // TODO
 }
 
-void C2VDAComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper) {
+void C2VdecComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper) {
     if (mInputCodec == InputCodec::VP9 || mInputCodec == InputCodec::AV1) {
         mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
         addParameter(
@@ -630,7 +630,7 @@ void C2VDAComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2Reflect
       }
 }
 
-void C2VDAComponent::IntfImpl::onApiFeatureDeclareParam() {
+void C2VdecComponent::IntfImpl::onApiFeatureDeclareParam() {
         addParameter(
         DefineParam(mApiFeatures, C2_PARAMKEY_API_FEATURES)
         .withConstValue(new C2ApiFeaturesSetting(C2Config::api_feature_t(
@@ -642,7 +642,7 @@ void C2VDAComponent::IntfImpl::onApiFeatureDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onFrameRateDeclareParam() {
+void C2VdecComponent::IntfImpl::onFrameRateDeclareParam() {
         addParameter(
                 DefineParam(mFrameRateInfo,C2_PARAMKEY_FRAME_RATE)
                 .withDefault(new C2StreamFrameRateInfo::input(0u, 30.0))
@@ -651,7 +651,7 @@ void C2VDAComponent::IntfImpl::onFrameRateDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onUnstablePtsDeclareParam() {
+void C2VdecComponent::IntfImpl::onUnstablePtsDeclareParam() {
         addParameter(
         DefineParam(mUnstablePts,C2_PARAMKEY_UNSTABLE_PTS)
                 .withDefault(new C2StreamUnstablePts::input(0))
@@ -660,7 +660,7 @@ void C2VDAComponent::IntfImpl::onUnstablePtsDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onOutputDelayDeclareParam() {
+void C2VdecComponent::IntfImpl::onOutputDelayDeclareParam() {
         int32_t propOutputDelay = property_get_int32("vendor.media.codec2.output.delay",kDefaultOutputDelay);
         addParameter(
                 DefineParam(mActualOutputDelay, C2_PARAMKEY_OUTPUT_DELAY)
@@ -670,7 +670,7 @@ void C2VDAComponent::IntfImpl::onOutputDelayDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onInputDelayDeclareParam() {
+void C2VdecComponent::IntfImpl::onInputDelayDeclareParam() {
     int32_t inputDelayNum = 0;
     int32_t inputDelayMax = 0;
     if (mSecureMode) {
@@ -706,21 +706,21 @@ void C2VDAComponent::IntfImpl::onInputDelayDeclareParam() {
     .build());
 }
 
-void C2VDAComponent::IntfImpl::onReorderBufferDepthDeclareParam() {
+void C2VdecComponent::IntfImpl::onReorderBufferDepthDeclareParam() {
         addParameter(
                 DefineParam(mReorderBufferDepth, C2_PARAMKEY_OUTPUT_REORDER_DEPTH)
                 .withConstValue(new C2PortReorderBufferDepthTuning(0u))
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onPipelineDelayDeclareParam() {
+void C2VdecComponent::IntfImpl::onPipelineDelayDeclareParam() {
         addParameter(
                 DefineParam(mActualPipelineDelay, C2_PARAMKEY_PIPELINE_DELAY_REQUEST)
                 .withConstValue(new C2ActualPipelineDelayTuning(0u))
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onTunnelDeclareParam() {
+void C2VdecComponent::IntfImpl::onTunnelDeclareParam() {
         mTunnelModeOutput = C2PortTunneledModeTuning::output::AllocShared(
                 1,
                 C2PortTunneledModeTuning::Struct::SIDEBAND,
@@ -761,7 +761,7 @@ void C2VDAComponent::IntfImpl::onTunnelDeclareParam() {
                 .build());
 }
 
-void C2VDAComponent::IntfImpl::onTunnelPassthroughDeclareParam() {
+void C2VdecComponent::IntfImpl::onTunnelPassthroughDeclareParam() {
         addParameter(
                 DefineParam(mVendorTunerHalParam, C2_PARAMKEY_VENDOR_TunerHal)
                 .withDefault(new C2VendorTunerHalParam::input(0, 0))
@@ -772,8 +772,8 @@ void C2VDAComponent::IntfImpl::onTunnelPassthroughDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
-        // Get supported profiles from VDA.
+void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
+        // Get supported profiles from Vdec.
         // TODO: re-think the suitable method of getting supported profiles for both pure Android and
         //       ARC++.
         media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
@@ -823,7 +823,7 @@ void C2VDAComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
         .build());
 
         // App may set a smaller value for maximum of input buffer size than actually required
-        // by mistake. C2VDAComponent overrides it if the value specified by app is smaller than
+        // by mistake. C2VdecComponent overrides it if the value specified by app is smaller than
         // the calculated value in MaxSizeCalculator().
         // This value is the default maximum of linear buffer size (kLinearBufferSize) in
         // CCodecBufferChannel.cpp.
@@ -862,7 +862,7 @@ void C2VDAComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onBufferPoolDeclareParam() {
+void C2VdecComponent::IntfImpl::onBufferPoolDeclareParam() {
         C2Allocator::id_t inputAllocators[] = { C2PlatformAllocatorStore::DMABUFHEAP };
 
         C2Allocator::id_t outputAllocators[] = {C2PlatformAllocatorStore::GRALLOC};
@@ -896,7 +896,7 @@ void C2VDAComponent::IntfImpl::onBufferPoolDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onColorAspectsDeclareParam() {
+void C2VdecComponent::IntfImpl::onColorAspectsDeclareParam() {
         addParameter(
         DefineParam(mDefaultColorAspects, C2_PARAMKEY_DEFAULT_COLOR_ASPECTS)
         .withDefault(new C2StreamColorAspectsTuning::output(
@@ -955,7 +955,7 @@ void C2VDAComponent::IntfImpl::onColorAspectsDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onLowLatencyDeclareParam() {
+void C2VdecComponent::IntfImpl::onLowLatencyDeclareParam() {
         addParameter(
         DefineParam(mLowLatencyMode, C2_PARAMKEY_LOW_LATENCY_MODE)
                 .withDefault(new C2GlobalLowLatencyModeTuning(false))
@@ -964,7 +964,7 @@ void C2VDAComponent::IntfImpl::onLowLatencyDeclareParam() {
         .build());
 }
 
-void C2VDAComponent::IntfImpl::onVendorExtendParam() {
+void C2VdecComponent::IntfImpl::onVendorExtendParam() {
     addParameter(
     DefineParam(mVdecWorkMode, C2_PARAMKEY_VENDOR_VDEC_WORK_MODE)
             .withDefault(new C2VdecWorkMode::input(0))

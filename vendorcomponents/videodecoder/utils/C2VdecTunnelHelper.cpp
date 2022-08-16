@@ -1,6 +1,15 @@
+/*
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+ *
+ * This source code is subject to the terms and conditions defined in the
+ * file 'LICENSE' which is part of this source code package.
+ *
+ * Description:
+ */
+
 #define LOG_NDEBUG 0
 
-#define LOG_TAG "TunnelModeHelper"
+#define LOG_TAG "TunnelHelper"
 
 #include <base/bind.h>
 #include <base/bind_helpers.h>
@@ -9,15 +18,15 @@
 #include <am_gralloc_ext.h>
 
 #include <logdebug.h>
-#include <C2VDATunnelModeHelper.h>
-#include <C2VDAInterfaceImpl.h>
+#include <C2VdecTunnelHelper.h>
+#include <C2VdecInterfaceImpl.h>
 
 
-#define C2VDATMH_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, C2VDAComponent::mInstanceID, mComp->mCurInstanceID, ##str)
+#define C2VdecTMH_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, C2VdecComponent::mInstanceID, mComp->mCurInstanceID, ##str)
 
 namespace android {
 
-constexpr uint32_t kTunnelModeMediaTimeQueueMax = 16;   // Max queue size for tunnel mode render time.
+constexpr uint32_t kTunnelMediaTimeQueueMax = 16;   // Max queue size for tunnel mode render time.
 
 #define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
     do {                                                                   \
@@ -29,7 +38,7 @@ constexpr uint32_t kTunnelModeMediaTimeQueueMax = 16;   // Max queue size for tu
     } while (0)
 
 
-C2VDAComponent::TunnelModeHelper::TunnelModeHelper(C2VDAComponent* comp, bool secure):
+C2VdecComponent::TunnelHelper::TunnelHelper(C2VdecComponent* comp, bool secure):
     mComp(comp),
     mSecure(secure) {
     DCHECK(mComp != NULL);
@@ -57,23 +66,23 @@ C2VDAComponent::TunnelModeHelper::TunnelModeHelper(C2VDAComponent* comp, bool se
     }
     mAndroidPeekFrameReady = false;
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
-    C2VDATMH_LOG(CODEC2_LOG_INFO, "%s:%d", __func__, __LINE__);
+    C2VdecTMH_LOG(CODEC2_LOG_INFO, "%s:%d", __func__, __LINE__);
 }
 
-C2VDAComponent::TunnelModeHelper::~TunnelModeHelper() {
+C2VdecComponent::TunnelHelper::~TunnelHelper() {
     if (mVideoTunnelRenderer) {
         delete mVideoTunnelRenderer;
         mVideoTunnelRenderer = NULL;
     }
     mTaskRunner = NULL;
     mIntfImpl = NULL;
-    C2VDATMH_LOG(CODEC2_LOG_INFO, "%s:%d", __func__, __LINE__);
+    C2VdecTMH_LOG(CODEC2_LOG_INFO, "%s:%d", __func__, __LINE__);
 }
 
-bool C2VDAComponent::TunnelModeHelper::start() {
+bool C2VdecComponent::TunnelHelper::start() {
     if (mVideoTunnelRenderer) {
         if (mVideoTunnelRenderer->init(mSyncId) == false) {
-           C2VDATMH_LOG(CODEC2_LOG_ERR, "tunnelrender init failed");
+           C2VdecTMH_LOG(CODEC2_LOG_ERR, "tunnelrender init failed");
         }
         mVideoTunnelRenderer->regFillVideoFrameCallBack(fillVideoFrameCallback2, this);
         mVideoTunnelRenderer->regNotifyTunnelRenderTimeCallBack(notifyTunnelRenderTimeCallback, this);
@@ -84,7 +93,7 @@ bool C2VDAComponent::TunnelModeHelper::start() {
     return true;
 }
 
-bool C2VDAComponent::TunnelModeHelper::stop() {
+bool C2VdecComponent::TunnelHelper::stop() {
     mTunnelAbandonMediaTimeQueue.clear();
 
     for (auto iter = mOutBufferFdMap.begin(); iter != mOutBufferFdMap.end(); iter++) {
@@ -108,14 +117,14 @@ bool C2VDAComponent::TunnelModeHelper::stop() {
 }
 
 
-bool C2VDAComponent::TunnelModeHelper::isInResolutionChanging() {
+bool C2VdecComponent::TunnelHelper::isInResolutionChanging() {
     return (mComp->mGraphicBlocks.size() < mOutBufferCount);
 }
 
-void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bool rendered) {
+void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rendered) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
-    C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, render:%d", __func__, __LINE__, dmafd, rendered);
+    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, render:%d", __func__, __LINE__, dmafd, rendered);
 
     struct fillVideoFrame2 frame = {
         .fd = dmafd,
@@ -124,7 +133,7 @@ void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bo
     mFillVideoFrameQueue.push_back(frame);
 
     if (!mComp->mCanQueueOutBuffer) {
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "cannot queue out buffer, cache it fd:%d, render:%d",
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "cannot queue out buffer, cache it fd:%d, render:%d",
             dmafd, rendered);
         return;
     }
@@ -150,7 +159,7 @@ void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bo
                     close(iter->first);
                 }
                 mOutBufferFdMap.erase(iter);
-                C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s:%d close fd:%d, blockid:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
+                C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s:%d close fd:%d, blockid:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
 
                 allocTunnelBuffer(size, mPixelFormat, &fd);
                 GraphicBlockInfo *info = mComp->getGraphicBlockByFd(fd);
@@ -162,7 +171,7 @@ void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bo
 
         GraphicBlockInfo* info = mComp->getGraphicBlockByFd(frame.fd);
         if (!info) {
-            C2VDATMH_LOG(CODEC2_LOG_ERR, "%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, dmafd);
+            C2VdecTMH_LOG(CODEC2_LOG_ERR, "%s:%d cannot get graphicblock according fd:%d", __func__, __LINE__, dmafd);
             mComp->reportError(C2_CORRUPTED);
             return;
         }
@@ -187,16 +196,16 @@ void C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2(int dmafd, bo
     mFillVideoFrameQueue.clear();
 }
 
-int C2VDAComponent::TunnelModeHelper::fillVideoFrameCallback2(void* obj, void* args) {
-    C2VDAComponent::TunnelModeHelper* pTunnelHelper = (C2VDAComponent::TunnelModeHelper*)obj;
+int C2VdecComponent::TunnelHelper::fillVideoFrameCallback2(void* obj, void* args) {
+    C2VdecComponent::TunnelHelper* pTunnelHelper = (C2VdecComponent::TunnelHelper*)obj;
     struct fillVideoFrame2* pfillVideoFrame = (struct fillVideoFrame2*)args;
 
-    pTunnelHelper->postFillVideoFrameTunnelMode2(pfillVideoFrame->fd, pfillVideoFrame->rendered);
+    pTunnelHelper->postFillVideoFrameTunnel2(pfillVideoFrame->fd, pfillVideoFrame->rendered);
 
     return 0;
 }
 
-void C2VDAComponent::TunnelModeHelper::onNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime rendertime) {
+void C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel(struct VideoTunnelRendererWraper::renderTime rendertime) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
@@ -204,53 +213,53 @@ void C2VDAComponent::TunnelModeHelper::onNotifyRenderTimeTunnelMode(struct Video
         .mediaUs = rendertime.mediaUs,
         .renderUs = rendertime.renderUs,
     };
-    C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s:%d rendertime:%lld", __func__, __LINE__, renderTime.mediaUs);
+    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s:%d rendertime:%lld", __func__, __LINE__, renderTime.mediaUs);
     sendOutputBufferToWorkTunnel(&renderTime);
 }
 
-int C2VDAComponent::TunnelModeHelper::notifyTunnelRenderTimeCallback(void* obj, void* args) {
-    C2VDAComponent::TunnelModeHelper* pTunnelHelper = (C2VDAComponent::TunnelModeHelper*)obj;
+int C2VdecComponent::TunnelHelper::notifyTunnelRenderTimeCallback(void* obj, void* args) {
+    C2VdecComponent::TunnelHelper* pTunnelHelper = (C2VdecComponent::TunnelHelper*)obj;
     struct VideoTunnelRendererWraper::renderTime* rendertime = (struct VideoTunnelRendererWraper::renderTime*)args;
-    pTunnelHelper->postNotifyRenderTimeTunnelMode(rendertime);
+    pTunnelHelper->postNotifyRenderTimeTunnel(rendertime);
     return 0;
 }
 
-int C2VDAComponent::TunnelModeHelper::postFillVideoFrameTunnelMode2(int dmafd, bool rendered) {
+int C2VdecComponent::TunnelHelper::postFillVideoFrameTunnel2(int dmafd, bool rendered) {
     mTaskRunner->PostTask(FROM_HERE,
-        ::base::Bind(&C2VDAComponent::TunnelModeHelper::onFillVideoFrameTunnelMode2, ::base::Unretained(this),
+        ::base::Bind(&C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2, ::base::Unretained(this),
             dmafd, rendered));
     return 0;
 }
 
-int C2VDAComponent::TunnelModeHelper::postNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime) {
+int C2VdecComponent::TunnelHelper::postNotifyRenderTimeTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
     struct VideoTunnelRendererWraper::renderTime renderTime = {
         .mediaUs = rendertime->mediaUs,
         .renderUs = rendertime->renderUs,
     };
     mTaskRunner->PostTask(FROM_HERE,
-        ::base::Bind(&C2VDAComponent::TunnelModeHelper::onNotifyRenderTimeTunnelMode, ::base::Unretained(this),
+        ::base::Bind(&C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel, ::base::Unretained(this),
             base::Passed(&renderTime)));
     return 0;
 }
 
 
-c2_status_t C2VDAComponent::TunnelModeHelper::sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId) {
+c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId) {
     DCHECK(mComp != NULL);
     DCHECK(mVideoTunnelRenderer != NULL);
     int64_t timestamp = -1;
 
-    C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d pictureId:%d, bitstreamId:%lld", __func__, __LINE__,
+    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d pictureId:%d, bitstreamId:%lld", __func__, __LINE__,
             pictureBufferId, bitstreamId);
     GraphicBlockInfo* info = mComp->getGraphicBlockById(pictureBufferId);
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR ||
         info->mState == GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER) {
-        C2VDATMH_LOG(CODEC2_LOG_ERR, "Graphic block (id=%d) should not be owned by accelerator or tunnelrender", info->mBlockId);
+        C2VdecTMH_LOG(CODEC2_LOG_ERR, "Graphic block (id=%d) should not be owned by accelerator or tunnelrender", info->mBlockId);
         return C2_BAD_STATE;
     }
 
     C2Work* work = mComp->getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
         return C2_CORRUPTED;
     }
     timestamp = work->input.ordinal.timestamp.peekull();
@@ -263,11 +272,11 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendVideoFrameToVideoTunnel(int32_
         frameReady->value = C2_TRUE;
         work->worklets.front()->output.configUpdate.push_back(std::move(frameReady));
         mComp->sendClonedWork(work, 0);
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d send cloned work for FirstFrameReady", __func__, __LINE__);
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d send cloned work for FirstFrameReady", __func__, __LINE__);
     }
 
     if (mVideoTunnelRenderer) {
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
         info->mState = GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER;
         mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
     }
@@ -275,7 +284,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendVideoFrameToVideoTunnel(int32_
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::flush() {
+c2_status_t C2VdecComponent::TunnelHelper::flush() {
     if (mVideoTunnelRenderer) {
         mVideoTunnelRenderer->flush();
     }
@@ -283,18 +292,18 @@ c2_status_t C2VDAComponent::TunnelModeHelper::flush() {
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
+c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
     DCHECK(mComp != NULL);
-    C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
 
     if (mComp->mPendingBuffersToWork.empty() ||
         mComp->mPendingWorks.empty()) {
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "empty pendingwork, ignore report it");
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "empty pendingwork, ignore report it");
         return C2_OK;
     }
     auto nextBuffer = mComp->mPendingBuffersToWork.front();
     if (rendertime->mediaUs < nextBuffer.mMediaTimeUs) {
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "old timestamp, ignore report it");
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "old timestamp, ignore report it");
         return C2_OK;
     }
 
@@ -303,7 +312,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
         for (auto it = mTunnelAbandonMediaTimeQueue.begin(); it != mTunnelAbandonMediaTimeQueue.end(); it++) {
             if (rendertime->mediaUs == *it) {
                 mTunnelAbandonMediaTimeQueue.erase(it);
-                C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not find the correct work with mediaTime:%lld, correct work have abandoned and report to framework", rendertime->mediaUs);
+                C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not find the correct work with mediaTime:%lld, correct work have abandoned and report to framework", rendertime->mediaUs);
                 mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
                 return C2_OK;
             }
@@ -314,13 +323,13 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
             auto time = std::find_if(mTunnelRenderMediaTimeQueue.begin(), mTunnelRenderMediaTimeQueue.end(),
                     [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
             if (time != mTunnelRenderMediaTimeQueue.end()) {
-                C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "have report mediaTime:%lld, ignore it", rendertime->mediaUs);
+                C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "have report mediaTime:%lld, ignore it", rendertime->mediaUs);
                 mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
                 return C2_OK;
             }
         }
 
-        C2VDATMH_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld, should have reported, discard report it", rendertime->mediaUs);
+        C2VdecTMH_LOG(CODEC2_LOG_ERR, "not find the correct work with mediaTime:%lld, should have reported, discard report it", rendertime->mediaUs);
         mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
         return C2_OK;
     }
@@ -330,9 +339,9 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
                 [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
         if (time == mTunnelRenderMediaTimeQueue.end()) {
             mTunnelRenderMediaTimeQueue.push_back(rendertime->mediaUs);
-            C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "tunnelmode push mediaTime:%lld", rendertime->mediaUs);
+            C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Tunnel push mediaTime:%lld", rendertime->mediaUs);
         }
-        if (mTunnelRenderMediaTimeQueue.size() > kTunnelModeMediaTimeQueueMax) {
+        if (mTunnelRenderMediaTimeQueue.size() > kTunnelMediaTimeQueueMax) {
             mTunnelRenderMediaTimeQueue.pop_front();
         }
     }
@@ -343,7 +352,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
     auto pendingBuffer = mComp->findPendingBuffersToWorkByTime(rendertime->mediaUs);
     if (pendingBuffer != mComp->mPendingBuffersToWork.end()) {
         //info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d rendertime:%lld, bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingBuffer->mBitstreamId,pendingBuffer->flags);
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d rendertime:%lld, bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingBuffer->mBitstreamId,pendingBuffer->flags);
         mComp->reportWorkIfFinished(pendingBuffer->mBitstreamId,pendingBuffer->flags);
         mComp->mPendingBuffersToWork.erase(pendingBuffer);
         /* EOS work check */
@@ -354,7 +363,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
             mIntfImpl->mTunnelSystemTimeOut->value = systemTime(SYSTEM_TIME_MONOTONIC);
             eosWork->worklets.front()->output.ordinal.timestamp = INT64_MAX;
             eosWork->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
-            C2VDATMH_LOG(CODEC2_LOG_INFO, "%s:%d eos work report", __func__, __LINE__);
+            C2VdecTMH_LOG(CODEC2_LOG_INFO, "%s:%d eos work report", __func__, __LINE__);
             mComp->reportEOSWork();
         }
     }
@@ -363,13 +372,13 @@ c2_status_t C2VDAComponent::TunnelModeHelper::sendOutputBufferToWorkTunnel(struc
 }
 
 
-c2_status_t C2VDAComponent::TunnelModeHelper::storeAbandonedFrame(int64_t timeus) {
+c2_status_t C2VdecComponent::TunnelHelper::storeAbandonedFrame(int64_t timeus) {
     mTunnelAbandonMediaTimeQueue.push_back(timeus);
 
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffersAndSendToDecoder(const media::Size& size, uint32_t pixelFormat) {
+c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffersAndSendToDecoder(const media::Size& size, uint32_t pixelFormat) {
     mBlockPoolUtil = mComp->mBlockPoolUtil.get();
     mPixelFormat = pixelFormat;
     mOutBufferCount = mComp->mOutBufferCount;
@@ -395,7 +404,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffersAndSendToDecoder
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat, int* pFd) {
+c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat, int* pFd) {
     uint64_t platformUsage = getPlatformUsage();
     C2MemoryUsage usage = {
             mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
@@ -410,7 +419,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffer(const media::Siz
     mBlockPoolUtil->getPoolId(&poolId);
     err = mBlockPoolUtil->fetchGraphicBlock(size.width(), size.height(), pixelFormat, usage, &c2Block);
     if (err != C2_OK) {
-        C2VDATMH_LOG(CODEC2_LOG_ERR, " %s alloc buffer failed, please check!", __func__);
+        C2VdecTMH_LOG(CODEC2_LOG_ERR, " %s alloc buffer failed, please check!", __func__);
     } else {
         err = mBlockPoolUtil->getBlockIdByGraphicBlock(c2Block, &blockId);
         mBlockPoolUtil->getBlockFd(c2Block, &fd);
@@ -420,13 +429,13 @@ c2_status_t C2VDAComponent::TunnelModeHelper::allocTunnelBuffer(const media::Siz
         appendTunnelOutputBuffer(c2Block, dupfd, blockId, poolId);
         mOutBufferFdMap.insert(std::pair<int, TunnelFdInfo>(dupfd, TunnelFdInfo(fd, blockId)));
         *pFd = dupfd;
-        C2VDATMH_LOG(CODEC2_LOG_INFO, " %s:%d alloc buffer fd:%d(%d), blockId:%d", __func__, __LINE__, dupfd, fd, blockId);
+        C2VdecTMH_LOG(CODEC2_LOG_INFO, " %s:%d alloc buffer fd:%d(%d), blockId:%d", __func__, __LINE__, dupfd, fd, blockId);
     }
 
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
+c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
     bool sizeChanged = false;
     bool bufferNumLarged = false;
     bool bufferNumSet = false;
@@ -438,12 +447,12 @@ c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
     mComp->mPendingOutputFormat.reset();
 
 
-    C2VDATMH_LOG(CODEC2_LOG_INFO, " %s:%d", __func__, __LINE__);
+    C2VdecTMH_LOG(CODEC2_LOG_INFO, " %s:%d", __func__, __LINE__);
     for (auto& info : mComp->mGraphicBlocks) {
         info.mFdHaveSet = false;
     }
 
-    C2VDATMH_LOG(CODEC2_LOG_INFO, "%s:%d in resolution changing:%d", __func__, __LINE__, isInResolutionChanging());
+    C2VdecTMH_LOG(CODEC2_LOG_INFO, "%s:%d in resolution changing:%d", __func__, __LINE__, isInResolutionChanging());
     if (checkReallocOutputBuffer(mComp->mLastOutputFormat, mComp->mOutputFormat, &sizeChanged, &bufferNumLarged)) {
         if (mReallocWhenResChange && sizeChanged) {
             //all realloc buffer
@@ -457,7 +466,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
                     }
                     close(iter->first);
                     mOutBufferFdMap.erase(iter);
-                    C2VDATMH_LOG(CODEC2_LOG_INFO, " %s:%d close fd:%d, blockid:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
+                    C2VdecTMH_LOG(CODEC2_LOG_INFO, " %s:%d close fd:%d, blockid:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
                     alloc_first ++;
                 }
                 info.mGraphicBlock.reset();
@@ -505,7 +514,7 @@ c2_status_t C2VDAComponent::TunnelModeHelper::videoResolutionChangeTunnel() {
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::onAndroidVideoPeek() {
+c2_status_t C2VdecComponent::TunnelHelper::onAndroidVideoPeek() {
     if (mVideoTunnelRenderer) {
         mVideoTunnelRenderer->peekFirstFrame();
     }
@@ -513,20 +522,20 @@ c2_status_t C2VDAComponent::TunnelModeHelper::onAndroidVideoPeek() {
     return C2_OK;
 }
 
-c2_status_t C2VDAComponent::TunnelModeHelper::resetBlockPoolBuffers() {
+c2_status_t C2VdecComponent::TunnelHelper::resetBlockPoolBuffers() {
     mComp->resetBlockPoolUtil();
     mBlockPoolUtil = mComp->mBlockPoolUtil.get();
     return C2_OK;
 }
 
 
-bool C2VDAComponent::TunnelModeHelper::checkReallocOutputBuffer(VideoFormat video_format_old,
+bool C2VdecComponent::TunnelHelper::checkReallocOutputBuffer(VideoFormat video_format_old,
                 VideoFormat video_format_new,
                 bool *sizeChanged, bool *bufferNumLarged) {
     bool bufferNumEnlarged = false;
     bool frameSizeChanged = false;
 
-    C2VDATMH_LOG(CODEC2_LOG_INFO, "%s %dx%d(%d)->%dx%d(%d)", __func__,
+    C2VdecTMH_LOG(CODEC2_LOG_INFO, "%s %dx%d(%d)->%dx%d(%d)", __func__,
                  video_format_old.mCodedSize.width(),
                  video_format_old.mCodedSize.height(),
                  video_format_old.mMinNumBuffers,
@@ -535,12 +544,12 @@ bool C2VDAComponent::TunnelModeHelper::checkReallocOutputBuffer(VideoFormat vide
                  video_format_new.mMinNumBuffers);
     if (video_format_new.mMinNumBuffers > video_format_old.mMinNumBuffers) {
         bufferNumEnlarged = true;
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "buffer num larged");
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "buffer num larged");
     }
     if (video_format_new.mCodedSize.width() != video_format_old.mCodedSize.width() ||
         video_format_new.mCodedSize.height() !=  video_format_old.mCodedSize.height()) {
         frameSizeChanged = true;
-        C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "frame size changed");
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "frame size changed");
     }
 
     *sizeChanged = frameSizeChanged;
@@ -553,9 +562,9 @@ bool C2VDAComponent::TunnelModeHelper::checkReallocOutputBuffer(VideoFormat vide
     return false;
 }
 
-void C2VDAComponent::TunnelModeHelper::appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId) {
+void C2VdecComponent::TunnelHelper::appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId) {
     DCHECK(mComp != NULL);
-    C2VDAComponent::GraphicBlockInfo info;
+    C2VdecComponent::GraphicBlockInfo info;
 
     info.mGraphicBlock = std::move(block);
     info.mBlockId = blockId;
@@ -566,7 +575,7 @@ void C2VDAComponent::TunnelModeHelper::appendTunnelOutputBuffer(std::shared_ptr<
     mComp->mGraphicBlocks.push_back(std::move(info));
 }
 
-uint64_t C2VDAComponent::TunnelModeHelper::getPlatformUsage() {
+uint64_t C2VdecComponent::TunnelHelper::getPlatformUsage() {
     uint64_t usage = am_gralloc_get_video_decoder_full_buffer_usage();
 
     switch (mIntfImpl->getInputCodec()) {
@@ -575,7 +584,7 @@ uint64_t C2VDAComponent::TunnelModeHelper::getPlatformUsage() {
         case InputCodec::MP4V:
         case InputCodec::DVAV:
         case InputCodec::MJPG:
-            //C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "1:1 usage");
+            //C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "1:1 usage");
             usage = am_gralloc_get_video_decoder_full_buffer_usage();
             break;
         case InputCodec::H265:
@@ -584,7 +593,7 @@ uint64_t C2VDAComponent::TunnelModeHelper::getPlatformUsage() {
         case InputCodec::DVHE:
         case InputCodec::DVAV1:
         default:
-            //C2VDATMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "1:16 usage");
+            //C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "1:16 usage");
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             break;
     }
@@ -593,7 +602,7 @@ uint64_t C2VDAComponent::TunnelModeHelper::getPlatformUsage() {
     char value[PROPERTY_VALUE_MAX];
     if (property_get("vendor.media.doublewrite", value, NULL) > 0) {
         int32_t doublewrite_debug = atoi(value);
-        C2VDATMH_LOG(CODEC2_LOG_INFO, "set double:%d", doublewrite_debug);
+        C2VdecTMH_LOG(CODEC2_LOG_INFO, "set double:%d", doublewrite_debug);
         if (doublewrite_debug != 0) {
             switch (doublewrite_debug) {
                 case 1:

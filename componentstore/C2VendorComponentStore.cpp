@@ -234,44 +234,44 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
         std::string destroyFactoryName;
         switch (codec) {
           case C2VendorCodec::VDEC_H264:
-              createFactoryName = "CreateC2VDAH264Factory";
-              destroyFactoryName = "DestroyC2VDAH264Factory";
+              createFactoryName = "CreateC2VdecH264Factory";
+              destroyFactoryName = "DestroyC2VdecH264Factory";
               break;
           case C2VendorCodec::VDEC_H265:
-              createFactoryName = "CreateC2VDAH265Factory";
-              destroyFactoryName = "DestroyC2VDAH265Factory";
+              createFactoryName = "CreateC2VdecH265Factory";
+              destroyFactoryName = "DestroyC2VdecH265Factory";
               break;
           case C2VendorCodec::VDEC_VP9:
-              createFactoryName = "CreateC2VDAVP9Factory";
-              destroyFactoryName = "DestroyC2VDAVP9Factory";
+              createFactoryName = "CreateC2VdecVP9Factory";
+              destroyFactoryName = "DestroyC2VdecVP9Factory";
               break;
           case C2VendorCodec::VDEC_AV1:
-              createFactoryName = "CreateC2VDAAV1Factory";
-              destroyFactoryName = "DestroyC2VDAAV1Factory";
+              createFactoryName = "CreateC2VdecAV1Factory";
+              destroyFactoryName = "DestroyC2VdecAV1Factory";
               break;
           case C2VendorCodec::VDEC_DVHE:
-              createFactoryName = "CreateC2VDADVHEFactory";
-              destroyFactoryName = "DestroyC2VDADVHEFactory";
+              createFactoryName = "CreateC2VdecDVHEFactory";
+              destroyFactoryName = "DestroyC2VdecDVHEFactory";
               break;
           case C2VendorCodec::VDEC_DVAV:
-              createFactoryName = "CreateC2VDADVAVFactory";
-              destroyFactoryName = "DestroyC2VDADVAVFactory";
+              createFactoryName = "CreateC2VdecDVAVFactory";
+              destroyFactoryName = "DestroyC2VdecDVAVFactory";
               break;
           case C2VendorCodec::VDEC_DVAV1:
-              createFactoryName = "CreateC2VDADVAV1Factory";
-              destroyFactoryName = "DestroyC2VDADVAV1Factory";
+              createFactoryName = "CreateC2VdecDVAV1Factory";
+              destroyFactoryName = "DestroyC2VdecDVAV1Factory";
               break;
           case C2VendorCodec::VDEC_MP2V:
-              createFactoryName = "CreateC2VDAMP2VFactory";
-              destroyFactoryName = "DestroyC2VDAMP2VFactory";
+              createFactoryName = "CreateC2VdecMP2VFactory";
+              destroyFactoryName = "DestroyC2VdecMP2VFactory";
               break;
           case C2VendorCodec::VDEC_MP4V:
-              createFactoryName = "CreateC2VDAMP4VFactory";
-              destroyFactoryName = "DestroyC2VDAMP4VFactory";
+              createFactoryName = "CreateC2VdecMP4VFactory";
+              destroyFactoryName = "DestroyC2VdecMP4VFactory";
               break;
           case C2VendorCodec::VDEC_MJPG:
-              createFactoryName = "CreateC2VDAMJPGFactory";
-              destroyFactoryName = "DestroyC2VDAMJPGFactory";
+              createFactoryName = "CreateC2VdecMJPGFactory";
+              destroyFactoryName = "DestroyC2VdecMJPGFactory";
               break;
           case C2VendorCodec::VENC_H264:
               createFactoryName = "CreateC2VencHCodecFactory";
@@ -428,8 +428,8 @@ std::vector<std::shared_ptr<const C2Component::Traits>> C2VendorComponentStore::
     // This method SHALL return within 500ms.
     std::vector<std::shared_ptr<const C2Component::Traits>> list;
     ALOGV("C2VendorComponentStore::listComponents\n");
-    if (!property_get_bool("debug.vdastore.enable-c2", true)) {
-        // Temporarily disable all VDA components.
+    if (!property_get_bool("debug.vdecstore.enable-c2", true)) {
+        // Temporarily disable all vdec components.
         return list;
     }
     for (auto& it : mComponents) {

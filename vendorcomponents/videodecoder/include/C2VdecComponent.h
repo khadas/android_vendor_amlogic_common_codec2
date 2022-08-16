@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef ANDROID_C2_VDA_COMPONENT_H
-#define ANDROID_C2_VDA_COMPONENT_H
+#ifndef C2_VDEC_COMPONENT_H
+#define C2_VDEC_COMPONENT_H
 
 #include <VideoDecodeAcceleratorAdaptor.h>
 
@@ -41,7 +41,7 @@
 #include <VideoTunnelRendererWraper.h>
 #include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
-#include <C2VDABlockPoolUtil.h>
+#include <C2VdecBlockPoolUtil.h>
 #include <C2VendorSupport.h>
 
 namespace android {
@@ -49,21 +49,21 @@ namespace android {
 #define DECLARE_C2_DEFAULT_UNSTRICT_SETTER(s,n) \
     static C2R n##Setter(bool mayBlock, C2P<s> &me)
 
-class C2VDAComponent : public C2Component,
+class C2VdecComponent : public C2Component,
                        public VideoDecWraper::VideoDecWraperCallback,
-                       public std::enable_shared_from_this<C2VDAComponent> {
+                       public std::enable_shared_from_this<C2VdecComponent> {
 public:
     class IntfImpl;
     static std::shared_ptr<C2Component> create(const std::string& name, c2_node_id_t id,
                                                const std::shared_ptr<C2ReflectorHelper>& helper,
                                                C2ComponentFactory::ComponentDeleter deleter);
 
-    C2VDAComponent(C2String name, c2_node_id_t id,
+    C2VdecComponent(C2String name, c2_node_id_t id,
                    const std::shared_ptr<C2ReflectorHelper>& helper);
-    virtual ~C2VDAComponent() override;
+    virtual ~C2VdecComponent() override;
 
-    class MetaDataUtil;
-    class TunnelModeHelper;
+    class DeviceUtil;
+    class TunnelHelper;
 
     // Implementation of C2Component interface
     virtual c2_status_t setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -115,7 +115,7 @@ public:
     static const uint32_t kUpdateDurationFramesNumMax = 10;
     int mUpdateDurationUsCount;
 private:
-    friend TunnelModeHelper;
+    friend TunnelHelper;
     // The state machine enumeration on parent thread.
     enum class State : int32_t {
         // The initial state of component. State will change to LOADED after the component is
@@ -132,21 +132,21 @@ private:
     };
     // The state machine enumeration on component thread.
     enum class ComponentState : int32_t {
-        // This is the initial state until VDA initialization returns successfully.
+        // This is the initial state until Vdec initialization returns successfully.
         UNINITIALIZED,
-        // VDA initialization returns successfully. VDA is ready to make progress.
+        // Vdec initialization returns successfully. Vdec is ready to make progress.
         STARTED,
-        // onDrain() is called. VDA is draining. Component will hold on queueing works until
+        // onDrain() is called. Vdec is draining. Component will hold on queueing works until
         // onDrainDone().
         DRAINING,
-        // onFlush() is called. VDA is flushing. State will change to STARTED after onFlushDone().
+        // onFlush() is called. Vdec is flushing. State will change to STARTED after onFlushDone().
         FLUSHING,
-        // onStop() is called. VDA is shutting down. State will change to UNINITIALIZED after
+        // onStop() is called. Vdec is shutting down. State will change to UNINITIALIZED after
         // onStopDone().
         STOPPING,
-        //when destructor is called, VDA is destroying.  state will change to DESTROYED after onDestroy
+        //when destructor is called, Vdec is destroying.  state will change to DESTROYED after onDestroy
         DESTROYING,
-        //after onDestroy is called, VDA is destroyed, state will change to DESTROYED
+        //after onDestroy is called, Vdec is destroyed, state will change to DESTROYED
         DESTROYED,
     };
 
@@ -190,15 +190,15 @@ private:
         // Graphic block buffer allocated from allocator. The graphic block should be owned until
         // it is passed to client.
         std::shared_ptr<C2GraphicBlock> mGraphicBlock;
-        // HAL pixel format used while importing to VDA.
+        // HAL pixel format used while importing to Vdec.
         HalPixelFormat mPixelFormat;
-        // The dmabuf fds duplicated from graphic block for importing to VDA.
+        // The dmabuf fds duplicated from graphic block for importing to Vdec.
         std::vector<::base::ScopedFD> mHandles;
         int32_t mFd;
         bool mFdHaveSet;
         bool mBind;
         bool mNeedRealloc;
-        // VideoFramePlane information for importing to VDA.
+        // VideoFramePlane information for importing to Vdec.
         std::vector<VideoFramePlane> mPlanes;
     };
 
@@ -253,7 +253,7 @@ private:
     // Helper function to get the specified GraphicBlockInfo object by its pool id.
     GraphicBlockInfo* getGraphicBlockByBlockId(uint32_t poolId,uint32_t blockId);
     GraphicBlockInfo* getGraphicBlockByFd(int32_t fd);
-    std::deque<C2VDAComponent::OutputBufferInfo>::iterator findPendingBuffersToWorkByTime(int64_t timeus);
+    std::deque<C2VdecComponent::OutputBufferInfo>::iterator findPendingBuffersToWorkByTime(int64_t timeus);
     bool erasePendingBuffersToWorkByTime(int64_t timeus);
 
     //get first unbind graphicblock
@@ -292,7 +292,7 @@ private:
     void updateUndequeuedBlockIds(int32_t blockId);
     void onCheckVideoDecReconfig();
 
-    // Specific to VP8/VP9, since for no-show frame cases VDA will not call PictureReady to return
+    // Specific to VP8/VP9, since for no-show frame cases Vdec will not call PictureReady to return
     // output buffer which the corresponding work is waiting for, this function detects these works
     // by comparing timestamps. If there are works with no-show frame, call reportWorkIfFinished()
     // to report to listener if finished.
@@ -373,10 +373,10 @@ private:
 
     // The following members should be utilized on component thread |mThread|.
 
-    // The initialization result retrieved from VDA.
-    VideoDecodeAcceleratorAdaptor::Result mVDAInitResult;
+    // The initialization result retrieved from Vdec.
+    VideoDecodeAcceleratorAdaptor::Result mVdecInitResult;
     // The pointer of VideoDecodeAcceleratorAdaptor.
-    std::unique_ptr<VideoDecodeAcceleratorAdaptor> mVDAAdaptor;
+    std::unique_ptr<VideoDecodeAcceleratorAdaptor> mVdecAdaptor;
     // The done event pointer of stop procedure. It should be restored in onStop() and signaled in
     // onStopDone().
     ::base::WaitableEvent* mStopDoneEvent;
@@ -398,7 +398,7 @@ private:
     // Store all abandoned works. When component gets flushed/stopped, remaining works in queue are
     // dumped here and sent out by onWorkDone call to listener after flush/stop is finished.
     std::vector<std::unique_ptr<C2Work>> mAbandonedWorks;
-    // Store the visible rect provided from VDA. If this is changed, component should issue a
+    // Store the visible rect provided from Vdec. If this is changed, component should issue a
     // visible size change event.
     media::Rect mRequestedVisibleRect;
     // The current output format.
@@ -438,7 +438,7 @@ private:
     std::mutex mStartStopLock;
 
     // The WeakPtrFactory for getting weak pointer of this.
-    ::base::WeakPtrFactory<C2VDAComponent> mWeakThisFactory;
+    ::base::WeakPtrFactory<C2VdecComponent> mWeakThisFactory;
 
     typedef enum {
         C2_RESOLUTION_CHANGE_NONE,
@@ -467,17 +467,16 @@ private:
     static uint32_t mDumpFileCnt;
 
     std::shared_ptr<VideoDecWraper> mVideoDecWraper;
-    std::shared_ptr<MetaDataUtil> mMetaDataUtil;
-    std::shared_ptr<C2VDABlockPoolUtil> mBlockPoolUtil;
-    std::shared_ptr<TunnelModeHelper> mTunnelHelper;
-    //std::shared_ptr<TunnelBufferUtil> mTunnelBufferUtil;
+    std::shared_ptr<DeviceUtil> mDeviceUtil;
+    std::shared_ptr<C2VdecBlockPoolUtil> mBlockPoolUtil;
+    std::shared_ptr<TunnelHelper> mTunnelHelper;
 
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;
     bool mPictureSizeChanged;
     c2_resch_stat mResChStat;
     bool mSurfaceUsageGeted;
-    bool mVDAComponentStopDone;
+    bool mVdecComponentStopDone;
     bool mCanQueueOutBuffer;
     int32_t mOutBufferCount;
     bool mHDR10PlusMeteDataNeedCheck;
@@ -508,9 +507,9 @@ private:
 
     C2Work *mLastOutputReportWork;
 
-    DISALLOW_COPY_AND_ASSIGN(C2VDAComponent);
+    DISALLOW_COPY_AND_ASSIGN(C2VdecComponent);
 };
 
 }  // namespace android
 
-#endif  // ANDROID_C2_VDA_COMPONENT_H
+#endif  // C2_VDEC_COMPONENT_H

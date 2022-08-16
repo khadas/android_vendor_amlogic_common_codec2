@@ -1,5 +1,13 @@
-#ifndef _C2VDA_TUNNELMODE_HELPER_H_
-#define _C2VDA_TUNNELMODE_HELPER_H_
+/*
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+ *
+ * This source code is subject to the terms and conditions defined in the
+ * file 'LICENSE' which is part of this source code package.
+ *
+ * Description:
+ */
+#ifndef _C2Vdec_Tunnel_HELPER_H_
+#define _C2Vdec_Tunnel_HELPER_H_
 
 #include <mutex>
 
@@ -10,39 +18,37 @@
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
 
-#include <C2VDAComponent.h>
+#include <C2VdecComponent.h>
 
-#include <C2VDABlockPoolUtil.h>
+#include <C2VdecBlockPoolUtil.h>
 #include <VideoTunnelRendererWraper.h>
 
 namespace android {
 
-class C2VDAComponent::TunnelModeHelper {
+class C2VdecComponent::TunnelHelper {
 public:
-    TunnelModeHelper(C2VDAComponent* comp, bool secure);
-    virtual ~TunnelModeHelper();
+    TunnelHelper(C2VdecComponent* comp, bool secure);
+    virtual ~TunnelHelper();
 
     bool start();
     bool stop();
-
-    static int fillVideoFrameCallback2(void* obj, void* args);
-    int postFillVideoFrameTunnelMode2(int dmafd, bool rendered);
-    void onFillVideoFrameTunnelMode2(int dmafd, bool rendered);
-
-    static int notifyTunnelRenderTimeCallback(void* obj, void* args);
-    int postNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime* rendertime);
-    void onNotifyRenderTimeTunnelMode(struct VideoTunnelRendererWraper::renderTime rendertime);
-
-    c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
     c2_status_t flush();
-    c2_status_t sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime);
+    c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
     c2_status_t storeAbandonedFrame(int64_t timeus);
     c2_status_t allocTunnelBuffersAndSendToDecoder(const media::Size& size, uint32_t pixelFormat);
     c2_status_t videoResolutionChangeTunnel();
-
     c2_status_t onAndroidVideoPeek();
 
 private:
+    static int fillVideoFrameCallback2(void* obj, void* args);
+    int postFillVideoFrameTunnel2(int dmafd, bool rendered);
+    void onFillVideoFrameTunnel2(int dmafd, bool rendered);
+
+    static int notifyTunnelRenderTimeCallback(void* obj, void* args);
+    int postNotifyRenderTimeTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime);
+    void onNotifyRenderTimeTunnel(struct VideoTunnelRendererWraper::renderTime rendertime);
+
+    c2_status_t sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime);
     bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new, bool *sizeChanged, bool *bufferNumLarged);
     void appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId);
     uint64_t getPlatformUsage();
@@ -50,12 +56,12 @@ private:
     c2_status_t resetBlockPoolBuffers();
     bool isInResolutionChanging();
 
-    C2VDAComponent* mComp;
+    C2VdecComponent* mComp;
 
-    C2VDAComponent::IntfImpl* mIntfImpl;
+    C2VdecComponent::IntfImpl* mIntfImpl;
     scoped_refptr<::base::SingleThreadTaskRunner> mTaskRunner;
     VideoTunnelRendererWraper* mVideoTunnelRenderer;
-    C2VDABlockPoolUtil* mBlockPoolUtil;
+    C2VdecBlockPoolUtil* mBlockPoolUtil;
 
     bool mSecure;
     int32_t mTunnelId;

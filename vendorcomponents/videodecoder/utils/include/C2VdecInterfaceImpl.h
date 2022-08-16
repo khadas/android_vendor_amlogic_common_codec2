@@ -1,13 +1,13 @@
-#ifndef _C2_VDA_INTERFACE_IMPL_H_
-#define _C2_VDA_INTERFACE_IMPL_H_
+#ifndef _C2_Vdec_INTERFACE_IMPL_H_
+#define _C2_Vdec_INTERFACE_IMPL_H_
 
-#include <C2VDAComponent.h>
+#include <C2VdecComponent.h>
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
 
 namespace android {
 
-class C2VDAComponent::IntfImpl : public C2InterfaceHelper {
+class C2VdecComponent::IntfImpl : public C2InterfaceHelper {
 public:
     IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper);
 
@@ -17,7 +17,7 @@ public:
             bool updateParams = true,
             std::vector<std::shared_ptr<C2Param>> *changes = nullptr);
 
-    // interfaces for C2VDAComponent
+    // interfaces for C2VdecComponent
     c2_status_t status() const { return mInitStatus; }
     media::VideoCodecProfile getCodecProfile() { return mCodecProfile; }
     C2BlockPool::local_id_t getBlockPoolId() const { return mOutputBlockPoolIds->m.values[0]; }
@@ -32,7 +32,7 @@ public:
     void updateCodecProfile(media::VideoCodecProfile profile) {
         mCodecProfile = profile;
     }
-    void setComponent(C2VDAComponent* comp) {mComponent = comp;}
+    void setComponent(C2VdecComponent* comp) {mComponent = comp;}
     std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects() {
         return this->mColorAspects;
     }
@@ -136,9 +136,9 @@ private:
     c2_status_t mInitStatus;
     media::VideoCodecProfile mCodecProfile;
     InputCodec mInputCodec;
-    C2VDAComponent *mComponent;
+    C2VdecComponent *mComponent;
     bool mSecureMode;
-    friend C2VDAComponent;
+    friend C2VdecComponent;
 
     void onAvcDeclareParam();
     void onHevcDeclareParam();
@@ -171,4 +171,4 @@ private:
 };
 }
 
-#endif /* _C2_VDA_INTERFACE_IMPL_H_ */
+#endif /* _C2_Vdec_INTERFACE_IMPL_H_ */

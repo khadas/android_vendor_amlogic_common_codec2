@@ -15,19 +15,21 @@ cc_library_shared {
 
     srcs: [
         "amuvm.cpp",
-        "C2VDAComponent.cpp",
-        "MediaHalWraper/VideoDecWraper.cpp",
-        "MediaHalWraper/VideoTunnelRendererWraper.cpp",
-        "MediaHalWraper/TunerPassthroughWrapper.cpp",
-        "utils/C2VDAInterfaceImpl.cpp",
-        "utils/C2VDAMetaDataUtil.cpp",
-        "utils/C2VDABlockPoolUtil.cpp",
-        "utils/C2VDATunnelModeHelper.cpp",
+        "C2VdecComponent.cpp",
+        "mediahalwraper/VideoDecWraper.cpp",
+        "mediahalwraper/VideoTunnelRendererWraper.cpp",
+        "mediahalwraper/TunerPassthroughWrapper.cpp",
+        "utils/C2VdecInterfaceImpl.cpp",
+        "utils/C2VdecDeviceUtil.cpp",
+        "utils/C2VdecBlockPoolUtil.cpp",
+        "utils/C2VdecTunnelHelper.cpp",
     ],
 
     local_include_dirs: [
         "include",
-        "MediaHalWraper/include",
+        "include/vdecintf",
+        "utils/include",
+        "mediahalwraper/include",
     ],
 
     shared_libs: [

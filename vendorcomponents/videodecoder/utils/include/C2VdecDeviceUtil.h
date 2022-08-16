@@ -1,5 +1,5 @@
-#ifndef _C2_VDA__METADATA_UTIL_H_
-#define _C2_VDA__METADATA_UTIL_H_
+#ifndef _C2_Vdec__METADATA_UTIL_H_
+#define _C2_Vdec__METADATA_UTIL_H_
 
 #include <mutex>
 
@@ -9,7 +9,7 @@
 #include <C2ParamDef.h>
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
-#include <C2VDAComponent.h>
+#include <C2VdecComponent.h>
 
 #include <VideoDecWraper.h>
 #include <amuvm.h>
@@ -30,10 +30,10 @@ struct aml_stream_info {
     int delay_time;
 };
 
-class C2VDAComponent::MetaDataUtil {
+class C2VdecComponent::DeviceUtil {
 public:
-    MetaDataUtil(C2VDAComponent* comp, bool secure);
-    virtual ~MetaDataUtil();
+    DeviceUtil(C2VdecComponent* comp, bool secure);
+    virtual ~DeviceUtil();
 
     /* configure decoder */
     void codecConfig(mediahal_cfg_parms* params);
@@ -113,9 +113,9 @@ private:
     static const uint32_t kOutPutPtsValidNum = 5;
 
     int mUvmFd;
-    C2VDAComponent::IntfImpl* mIntfImpl;
+    C2VdecComponent::IntfImpl* mIntfImpl;
     mediahal_cfg_parms* mConfigParam;
-    C2VDAComponent* mComp;
+    C2VdecComponent* mComp;
     bool mUseSurfaceTexture;
     bool mNoSurface;
     bool mHDRStaticInfoChanged;

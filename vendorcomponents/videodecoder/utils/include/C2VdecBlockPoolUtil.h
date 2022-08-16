@@ -1,5 +1,5 @@
-#ifndef _C2_VDA_BLOCK_POOL_UTIL_H_
-#define _C2_VDA_BLOCK_POOL_UTIL_H_
+#ifndef _C2_Vdec_BLOCK_POOL_UTIL_H_
+#define _C2_Vdec_BLOCK_POOL_UTIL_H_
 
 #include <errno.h>
 #include <map>
@@ -20,10 +20,10 @@ namespace android {
 // The wait time for another try to fetch a buffer from pool.
 const int64_t kFetchRetryDelayUs = 10 * 1000;
 
-class C2VDABlockPoolUtil {
+class C2VdecBlockPoolUtil {
 public:
-    explicit C2VDABlockPoolUtil(std::shared_ptr<C2BlockPool> blockpool);
-    ~C2VDABlockPoolUtil();
+    explicit C2VdecBlockPoolUtil(std::shared_ptr<C2BlockPool> blockpool);
+    ~C2VdecBlockPoolUtil();
 
     /**
      * Tries to dequeue a buffer from pool. If the new buffer is not in the mRawGraphicBlockInfo,
@@ -156,4 +156,4 @@ private:
 
 }
 
-#endif //_C2_VDA_BLOCK_POOl_UTIL_H_
+#endif //_C2_Vdec_BLOCK_POOl_UTIL_H_
