@@ -212,22 +212,22 @@ private:
 };
 
 C2VendorComponentStore::ComponentModule::~ComponentModule() {
-    ALOGV("in %s", __func__);
+    ALOGV("In %s", __func__);
     if (destroyFactory && mComponentFactory) {
         destroyFactory(mComponentFactory);
     }
     if (mLibHandle) {
-        ALOGV("unloading dll");
+        ALOGV("Unloading dll");
         dlclose(mLibHandle);
     }
 }
 
 c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C2VendorCodec codec, bool secure,  bool isAudio) {
-    ALOGV("loading dll");
+    ALOGV("Loading dll");
     mIsAudio = isAudio;
     mLibHandle = dlopen(libPath.c_str(), RTLD_NOW | RTLD_NODELETE);
     if (mLibHandle == nullptr) {
-        ALOGD("could not dlopen %s: %s", libPath.c_str(), dlerror());
+        ALOGD("Could not dlopen %s: %s", libPath.c_str(), dlerror());
         mInit = C2_CORRUPTED;
     } else {
         std::string createFactoryName;

@@ -15,89 +15,93 @@
 #include <C2PlatformSupport.h>
 #include <ui/BufferQueueDefs.h>
 
-namespace android {
+namespace android
+{
 
 // The wait time for another try to fetch a buffer from pool.
 const int64_t kFetchRetryDelayUs = 10 * 1000;
 
-class C2VdecBlockPoolUtil {
+class C2VdecBlockPoolUtil
+{
 public:
-    explicit C2VdecBlockPoolUtil(std::shared_ptr<C2BlockPool> blockpool);
+    explicit C2VdecBlockPoolUtil(std::shared_ptr<C2BlockPool> blockPool);
     ~C2VdecBlockPoolUtil();
 
     /**
-     * Tries to dequeue a buffer from pool. If the new buffer is not in the mRawGraphicBlockInfo,
+     * @brief Tries to dequeue a buffer from pool. If the new buffer is not in the mRawGraphicBlockInfo,
      * it is added to the mRawGraphicBlockInfo.
-     * \param with the width of block buffer
+     *
+     * \param with   the width of block buffer
      * \param height the height of block buffer
-     * \param usage use usage
+     * \param usage  use usage
      * \param format the format of block buffer
-    */
+     */
     c2_status_t fetchGraphicBlock(uint32_t width, uint32_t height, uint32_t format,
-                                  C2MemoryUsage usage,
-                                  std::shared_ptr<C2GraphicBlock>* block /* nonnull */);
+                                    C2MemoryUsage usage,
+                                    std::shared_ptr<C2GraphicBlock> *block /* nonnull */);
 
     /**
-     * Set maxDequeuedBufferCount as the requested buffer count to producer.
+     * @brief Set maxDequeuedBufferCount as the requested buffer count to producer.
      *
      * \param bufferCount  the number of requested buffers
      */
     c2_status_t requestNewBufferSet(int32_t bufferCount);
 
     /**
-     *  reset graphic block
+     * @brief Reset graphic block
+     *
      * \param blockId the id of block.
-    */
+     */
     c2_status_t resetGraphicBlock(int32_t blockId);
 
     /**
-     * Get the usage from block pool.
-    */
+     * @brief Get the usage from block pool.
+     */
     uint64_t getConsumerUsage();
 
     /**
-     * Get the number of buffer on display.
+     * @brief Get the number of buffer on display.
      * \param minBuffersForDisplay the number of display.
-    */
-    c2_status_t getMinBuffersForDisplay(size_t* minBuffersForDisplay);
+     */
+    c2_status_t getMinBuffersForDisplay(size_t *minBuffersForDisplay);
 
     /**
-     * Get the block id from buffer pool.
+     * @brief Get the block id from buffer pool.
      *
      * \param block graphic block.
      * \param blockId  block id.
      */
-    c2_status_t getBlockIdByGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* blockId);
+    c2_status_t getBlockIdByGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t *blockId);
 
     /**
-     * Get the buffer pool id.
+     * @brief Get the buffer pool id.
      *
      * \param poolId the id of pool
-    */
+     */
     c2_status_t getPoolId(C2BlockPool::local_id_t *poolId);
 
     /**
-     * Get the fd of buffer.
+     * @brief Get the fd of buffer.
      *
      * \param block graphic block.
-     * \param fd  the block fd.
-    */
+     * \param fd    the block fd.
+     */
     c2_status_t getBlockFd(std::shared_ptr<C2GraphicBlock> block, int *fd);
 
     /**
-     * Get the pool allocator id.
+     * @brief Get the pool allocator id.
      */
     C2Allocator::id_t getAllocatorId();
 
     /**
-    * is buffer queue pool.
-    */
+     * @brief Is buffer queue pool.
+     */
     bool isBufferQueue();
 
     /**
      * @brief clear all graphic block.
      */
-    void  cancelAllGraphicBlock();
+    void cancelAllGraphicBlock();
 
     /**
      * @brief  get block inode.
@@ -106,23 +110,22 @@ public:
     uint64_t getBlockInodeByBlockId(uint32_t blockId);
 
 private:
+    /**
+     * @brief Add fetch new block to mRawGraphicBlockInfo.
+     *
+     * \param block  graphic block.
+     * \param inode  the node of block.
+     * \param fd     the fd of block.
+     */
+    c2_status_t appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint64_t inode, int fd);
 
     /**
-     * Add fetch new block to mRawGraphicBlockInfo.
+     * @brief get block id from graphic block.
      *
-     * \param block graphic block.
-     * \param inode  the node of block.
-     * \param fd the fd of block.
-    */
-    c2_status_t appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block,uint64_t inode, int fd);
-
-     /**
-     * get block id from graphic block.
-     *
-     * \param block graphic block.
-     * \param blockid the block id.
-    */
-    c2_status_t getBlockIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t* blockId);
+     * \param block  graphic block.
+     * \param blockId the block id.
+     */
+    c2_status_t getBlockIdFromGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t *blockId);
 
     class BlockingBlockPool;
     std::shared_ptr<BlockingBlockPool> mBlockingPool;
@@ -134,11 +137,12 @@ private:
     // The Maximum number of buffers requested.
     size_t mMaxDequeuedBufferNum;
 
-    // The indicator of whether buffer pool is used usrface.
+    // The indicator of whether buffer pool is used surface.
     bool mUseSurface;
 
     // Internal struct to keep the information of a specific buffer.
-    struct BlockBufferInfo {
+    struct BlockBufferInfo
+    {
         int mFd = -1;
         int mDupFd = -1;
         uint32_t mBlockId;

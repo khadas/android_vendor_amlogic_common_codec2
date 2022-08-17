@@ -61,19 +61,20 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mMarginBufferNum(0),
     mSignalType(0),
     mEnableAdaptivePlayback(false) {
+
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
     mIntfImpl = mComp->GetIntfImpl();
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
-    C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
 
     mUvmFd = amuvm_open();
     if (mUvmFd < 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "open uvm device fail.");
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "Open uvm device fail.");
         mUvmFd = -1;
     }
 }
 
 C2VdecComponent::DeviceUtil::~DeviceUtil() {
-    C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d]", __func__, __LINE__);
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
     if (mUvmFd > 0) {
         amuvm_close(mUvmFd);
     }
@@ -103,19 +104,19 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     C2StreamPictureSizeInfo::output output;
     c2_status_t err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamPictureSizeInfo size error", __func__, __LINE__);
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamPictureSizeInfo size error", __func__, __LINE__);
     }
 
     C2StreamFrameRateInfo::input inputFrameRateInfo;
     err = mIntfImpl->query({&inputFrameRateInfo}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamFrameRateInfo message error", __func__, __LINE__);
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamFrameRateInfo message error", __func__, __LINE__);
     }
 
     C2StreamUnstablePts::input unstablePts;
     err = mIntfImpl->query({&unstablePts}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamUnstablePts message error", __func__, __LINE__);
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamUnstablePts message error", __func__, __LINE__);
     } else {
         mUnstablePts = unstablePts.enable;
     }
@@ -138,7 +139,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Config low latency mode to v4l2 decoder.");
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_NORMAL;
     } else {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "disable low latency mode to v4l2 decoder.");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Disable low latency mode to v4l2 decoder.");
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABLE;
     }
 
@@ -261,24 +262,24 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 #endif
 
     mMarginBufferNum = margin;
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "doubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "DoubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
     if (mUseSurfaceTexture || mNoSurface) {
         mEnableNR = false;
         mEnableDILocalBuf = false;
     }
 
     if (mEnableNR) {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "enable NR");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Enable NR");
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_NR_ENABLE;
     }
 
     if (mEnableDILocalBuf) {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "enable DILocalBuf");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Enable DILocalBuf");
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
     }
 
     if (mDisableErrPolicy) {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "c2 need disable error policy");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "C2 need disable error policy");
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DIS_ERR_POLICY;
     }
 
@@ -385,7 +386,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
 
     c2_status_t err = mIntfImpl->query({&hdr}, {}, C2_DONT_BLOCK, &params);
     if (err != C2_OK) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "query hdr info error");
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "Query hdr info error");
         return 0;
     }
 
@@ -401,7 +402,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
         ((int32_t)(hdr.mastering.minLuminance * 1000) == 0) &&
         ((int32_t)(hdr.maxCll * 1000) == 0) &&
         ((int32_t)(hdr.maxFall * 1000) == 0)) { /* default val */
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "no hdr static info set");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "No hdr static info set");
         return 0;
     }
 
@@ -455,7 +456,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
                                     | (transfer << 8)
                                     | matrixCoeffs;
 
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicave:%d signaltype:%x, %f %f %f %f %f %f %f %f %f %f %f %f",
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicave:%d signaltype:%x, %f %f %f %f %f %f %f %f %f %f %f %f",
             pAmlDecParam->hdr.color_parms.primaries[0][0],
             pAmlDecParam->hdr.color_parms.primaries[0][1],
             pAmlDecParam->hdr.color_parms.primaries[1][0],
@@ -486,14 +487,14 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
 }
 
 void C2VdecComponent::DeviceUtil::updateDecParmInfo(aml_dec_params* pInfo) {
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "pInfo->dec_parms_status %x\n", pInfo->parms_status);
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "Parms status %x\n", pInfo->parms_status);
     if (pInfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
         checkHDRMetadataAndColorAspects(&pInfo->hdr);
     }
 }
 
 void C2VdecComponent::DeviceUtil::updateInterlacedInfo(bool isInterlaced) {
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "%s#%d: isInterlaced:%d", __func__, __LINE__, isInterlaced);
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] isInterlaced:%d", __func__, __LINE__, isInterlaced);
     mIsInterlaced = isInterlaced;
 }
 
@@ -569,7 +570,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             if (!C2Mapper::map(aspects.mTransfer, &codedAspects.transfer)) {
                 codedAspects.transfer = C2Color::TRANSFER_UNSPECIFIED;
             }
-            C2VdecMDU_LOG(CODEC2_LOG_INFO, "update color aspect p:%d/%d, r:%d/%d, m:%d/%d, t:%d/%d",
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "Update color aspect p:%d/%d, r:%d/%d, m:%d/%d, t:%d/%d",
                         codedAspects.primaries, aspects.mPrimaries,
                         codedAspects.range, codedAspects.range,
                         codedAspects.matrix, aspects.mMatrixCoeffs,
@@ -720,10 +721,10 @@ int64_t C2VdecComponent::DeviceUtil::checkAndAdjustOutPts(C2Work* work, int32_t 
 
 //for debug
     if (flags & PICTURE_FLAG_KEYFRAME) {
-        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"checkAndAdjustOutPts: I frame found. %x",flags);
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"CheckAndAdjustOutPts: I frame found. %x",flags);
     }
     int64_t render_pts = work->worklets.front()->output.ordinal.timestamp.peekull() + out_pts - work->input.ordinal.timestamp.peekull();
-    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"checkAndAdjustOutPts(%d):duration:%u(%u),mLastOutPts:%llu,index=%llu, input-pts:%llu output-pts:%llu customOrdinal-pts:%llu(%llu) Final-pts:%llu",
+    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"CheckAndAdjustOutPts(%d):duration:%u(%u),mLastOutPts:%llu,index=%llu, input-pts:%llu output-pts:%llu customOrdinal-pts:%llu(%llu) Final-pts:%llu",
                 (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork),duration,mDurationUs,mLastOutPts,
                 work->input.ordinal.frameIndex.peekull(),work->input.ordinal.timestamp.peekull(),
                 work->worklets.front()->output.ordinal.timestamp.peekull(),out_pts,custom_timestamp,render_pts);
@@ -740,7 +741,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
         char value[PROPERTY_VALUE_MAX];
         if (property_get("vendor.media.doublewrite", value, NULL) > 0) {
             int32_t doublewrite_debug = atoi(value);
-            C2VdecMDU_LOG(CODEC2_LOG_INFO, "set double:%d", doublewrite_debug);
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set double:%d", doublewrite_debug);
             if (doublewrite_debug != 0) {
                 switch (doublewrite_debug) {
                     case 1:
@@ -764,10 +765,10 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
             }
          }else if (mIs8k) {
             usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] is 8k use 1/4 usage:%llx",__func__, __LINE__, usage);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Is 8k use 1/4 usage:%llx",__func__, __LINE__, usage);
          }else if (mForceFullUsage) {
              usage = am_gralloc_get_video_decoder_full_buffer_usage();
-             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] force use full usage:%llx",__func__, __LINE__, usage);
+             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, usage);
          } else {
             switch (mIntfImpl->getInputCodec())
             {
@@ -880,7 +881,7 @@ bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, in
     if (mUvmFd <= 0) {
         mUvmFd = amuvm_open();
         if (mUvmFd < 0) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR, "open uvm device fail.");
+            C2VdecMDU_LOG(CODEC2_LOG_ERR, "Open uvm device fail.");
             return false;
         }
     }
@@ -903,7 +904,7 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
     uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
 
     if (data == NULL || size <= 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR,"parse and process meta data failed");
+        C2VdecMDU_LOG(CODEC2_LOG_ERR,"Parse and process meta data failed");
         return;
     }
     meta_head = (struct aml_meta_head_s *)data;
@@ -914,13 +915,13 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
         if (meta_magic != META_DATA_MAGIC ||
             (meta_size > META_DATA_SIZE) ||
             (meta_size <= 0)) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"get mate head error");
+            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Get mate head error");
             break;
         }
         unsigned char buf[meta_size];
         memset(buf, 0, meta_size);
         if ((offset + AML_META_HEAD_SIZE + meta_size) > size) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"metadata oversize %d > %d, please check",
+            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Metadata oversize %d > %d, please check",
                     offset + AML_META_HEAD_SIZE + meta_size, size);
             break;
         }
@@ -974,11 +975,11 @@ void C2VdecComponent::DeviceUtil::save_stream_info(uint64_t timestamp, int fille
 }
 
 void C2VdecComponent::DeviceUtil::check_stream_info() {
-    C2VdecMDU_LOG(CODEC2_LOG_INFO,"check_stream_info mInPutWorkCount %llu\n", mInPutWorkCount);
+    C2VdecMDU_LOG(CODEC2_LOG_INFO,"Check_stream_info mInPutWorkCount %llu\n", mInPutWorkCount);
     if (mInPutWorkCount == 3 && mAmlStreamInfo.pts_0 == 0
             && mAmlStreamInfo.pts_1 == 0
             && mAmlStreamInfo.pts_2 == 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO,"first 3 pts all 0, pts invalid, use default framerate");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO,"First 3 pts all 0, pts invalid, use default framerate");
         mInPtsInvalid = true;
         return;
     }
@@ -987,7 +988,7 @@ void C2VdecComponent::DeviceUtil::check_stream_info() {
 void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size) {
     uint32_t durationData = 0;
     if (data == NULL || size <= 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR,"update DurationUs error");
+        C2VdecMDU_LOG(CODEC2_LOG_ERR,"Update DurationUs error");
         return;
     }
 
@@ -1003,7 +1004,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             else
                 mDurationUs = rate64;
             mCredibleDuration = true;
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"update mDurationUs = %d by meta data", mDurationUs);
+            C2VdecMDU_LOG(CODEC2_LOG_INFO,"Update mDurationUs = %d by meta data", mDurationUs);
         }
     }
 }

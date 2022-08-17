@@ -33,7 +33,7 @@ bool VideoDecWraper::loadMediaHalLibrary(void) {
     if (!gMediaHal) {
         gMediaHal = dlopen("libmediahal_videodec.so", RTLD_NOW);
         if (gMediaHal == NULL) {
-            ALOGE("unable to dlopen libmediahal_videodec: %s", dlerror());
+            ALOGE("Unable to dlopen libmediahal_videodec: %s", dlerror());
             return false;
         }
     }
@@ -66,7 +66,7 @@ static AmVideoDecBase* getAmVideoDec(AmVideoDecCallback* callback) {
         getAmVideoDec =
             (createAmVideoDecFunc)dlsym(gMediaHal, "AmVideoDec_create");
     } else {
-        ALOGE("mediahal version do not right\n");
+        ALOGE("Mediahal version do not right\n");
         dlclose(gMediaHal);
         gMediaHal = NULL;
         return NULL;
@@ -75,12 +75,12 @@ static AmVideoDecBase* getAmVideoDec(AmVideoDecCallback* callback) {
     if (getAmVideoDec == NULL) {
         dlclose(gMediaHal);
         gMediaHal = NULL;
-        ALOGE("can not create AmVideoDec_create\n");
+        ALOGE("Can not create AmVideoDec_create\n");
         return NULL;
     }
 
     AmVideoDecBase* halHandle = (*getAmVideoDec)(callback);
-    ALOGE("getAmVideoDec ok\n");
+    ALOGI("GetAmVideoDec ok\n");
     return halHandle;
 }
 

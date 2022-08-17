@@ -364,25 +364,25 @@ void C2VdecComponent::IntfImpl::onVp9DeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onAv1DeclareParam() {
-    addParameter(
-    DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-        .withDefault(new C2StreamProfileLevelInfo::input(
-                0u, C2Config::PROFILE_AV1_0, C2Config::LEVEL_AV1_5))
-        .withFields(
-        {C2F(mProfileLevel, profile)
-                .oneOf({C2Config::PROFILE_AV1_0,
-                        C2Config::PROFILE_AV1_1,
-                        C2Config::PROFILE_AV1_2}),
-                        C2F(mProfileLevel, level)
-                                .oneOf({C2Config::LEVEL_AV1_2, C2Config::LEVEL_AV1_2_1,
-                                        C2Config::LEVEL_AV1_2_2, C2Config::LEVEL_AV1_2_3,
-                                        C2Config::LEVEL_AV1_3, C2Config::LEVEL_AV1_3_1,
-                                        C2Config::LEVEL_AV1_3_2, C2Config::LEVEL_AV1_3_3,
-                                        C2Config::LEVEL_AV1_4, C2Config::LEVEL_AV1_4_1,
-                                        C2Config::LEVEL_AV1_4_2, C2Config::LEVEL_AV1_4_3,
-                                        C2Config::LEVEL_AV1_5, C2Config::LEVEL_AV1_5_1})})
-    .withSetter(ProfileLevelSetter)
-    .build());
+        addParameter(
+        DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+                .withDefault(new C2StreamProfileLevelInfo::input(
+                        0u, C2Config::PROFILE_AV1_0, C2Config::LEVEL_AV1_5))
+                .withFields(
+                {C2F(mProfileLevel, profile)
+                        .oneOf({C2Config::PROFILE_AV1_0,
+                                C2Config::PROFILE_AV1_1,
+                                C2Config::PROFILE_AV1_2}),
+                                C2F(mProfileLevel, level)
+                                        .oneOf({C2Config::LEVEL_AV1_2, C2Config::LEVEL_AV1_2_1,
+                                                C2Config::LEVEL_AV1_2_2, C2Config::LEVEL_AV1_2_3,
+                                                C2Config::LEVEL_AV1_3, C2Config::LEVEL_AV1_3_1,
+                                                C2Config::LEVEL_AV1_3_2, C2Config::LEVEL_AV1_3_3,
+                                                C2Config::LEVEL_AV1_4, C2Config::LEVEL_AV1_4_1,
+                                                C2Config::LEVEL_AV1_4_2, C2Config::LEVEL_AV1_4_3,
+                                                C2Config::LEVEL_AV1_5, C2Config::LEVEL_AV1_5_1})})
+        .withSetter(ProfileLevelSetter)
+        .build());
 }
 
 void C2VdecComponent::IntfImpl::onDvheDeclareParam() {
@@ -563,71 +563,71 @@ void C2VdecComponent::IntfImpl::onAvs2DeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper) {
-    if (mInputCodec == InputCodec::VP9 || mInputCodec == InputCodec::AV1) {
-        mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
-        addParameter(
-                DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
-                .withDefault(mHdr10PlusInfoInput)
-                .withFields({
-                C2F(mHdr10PlusInfoInput, m.value).any(),
-                })
-        .withSetter(Hdr10PlusInfoInputSetter)
-        .build());
-        mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
-        addParameter(
-                DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
-                .withDefault(mHdr10PlusInfoOutput)
-                .withFields({
-                C2F(mHdr10PlusInfoOutput, m.value).any(),
-                })
-        .withSetter(Hdr10PlusInfoOutputSetter)
-        .build());
-        // sample BT.2020 static info
-        mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
-        mHdrStaticInfo->mastering = {
-                .red   = { .x = 0.0,  .y = 0.0 },
-                .green = { .x = 0.0,  .y = 0.0 },
-                .blue  = { .x = 0.0,  .y = 0.0 },
-                .white = { .x = 0.0, .y = 0.0 },
-                .maxLuminance = 0.0,
-                .minLuminance = 0.0,
-        };
-        mHdrStaticInfo->maxCll = 0.0;
-        mHdrStaticInfo->maxFall = 0.0;
-        helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
-        addParameter(
-                DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
-                .withDefault(mHdrStaticInfo)
-                .withFields({
-                C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
-                // TODO
-                })
-        .withSetter(HdrStaticInfoSetter)
-        .build());
-      } else if (mInputCodec == InputCodec::H265) {
-        // sample BT.2020 static info
-        mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
-        mHdrStaticInfo->mastering = {
-                .red   = { .x = 0.0,  .y = 0.0 },
-                .green = { .x = 0.0,  .y = 0.0 },
-                .blue  = { .x = 0.0,  .y = 0.0 },
-                .white = { .x = 0.0, .y = 0.0 },
-                .maxLuminance = 0.0,
-                .minLuminance = 0.0,
-        };
-        mHdrStaticInfo->maxCll = 0.0;
-        mHdrStaticInfo->maxFall = 0.0;
-        helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
-        addParameter(
-                DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
-                .withDefault(mHdrStaticInfo)
-                .withFields({
-                C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
-                // TODO
-                })
+        if (mInputCodec == InputCodec::VP9 || mInputCodec == InputCodec::AV1) {
+                mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
+                addParameter(
+                        DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
+                        .withDefault(mHdr10PlusInfoInput)
+                        .withFields({
+                        C2F(mHdr10PlusInfoInput, m.value).any(),
+                        })
+                .withSetter(Hdr10PlusInfoInputSetter)
+                .build());
+                mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
+                addParameter(
+                        DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
+                        .withDefault(mHdr10PlusInfoOutput)
+                        .withFields({
+                        C2F(mHdr10PlusInfoOutput, m.value).any(),
+                        })
+                .withSetter(Hdr10PlusInfoOutputSetter)
+                .build());
+                // sample BT.2020 static info
+                mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
+                mHdrStaticInfo->mastering = {
+                        .red   = { .x = 0.0,  .y = 0.0 },
+                        .green = { .x = 0.0,  .y = 0.0 },
+                        .blue  = { .x = 0.0,  .y = 0.0 },
+                        .white = { .x = 0.0, .y = 0.0 },
+                        .maxLuminance = 0.0,
+                        .minLuminance = 0.0,
+                };
+                mHdrStaticInfo->maxCll = 0.0;
+                mHdrStaticInfo->maxFall = 0.0;
+                helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
+                addParameter(
+                        DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
+                        .withDefault(mHdrStaticInfo)
+                        .withFields({
+                        C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
+                        // TODO
+                        })
                 .withSetter(HdrStaticInfoSetter)
-        .build());
-      }
+                .build());
+        } else if (mInputCodec == InputCodec::H265) {
+                // sample BT.2020 static info
+                mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
+                mHdrStaticInfo->mastering = {
+                        .red   = { .x = 0.0,  .y = 0.0 },
+                        .green = { .x = 0.0,  .y = 0.0 },
+                        .blue  = { .x = 0.0,  .y = 0.0 },
+                        .white = { .x = 0.0, .y = 0.0 },
+                        .maxLuminance = 0.0,
+                        .minLuminance = 0.0,
+                };
+                mHdrStaticInfo->maxCll = 0.0;
+                mHdrStaticInfo->maxFall = 0.0;
+                helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
+                addParameter(
+                        DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
+                        .withDefault(mHdrStaticInfo)
+                        .withFields({
+                        C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
+                        // TODO
+                        })
+                        .withSetter(HdrStaticInfoSetter)
+                .build());
+        }
 }
 
 void C2VdecComponent::IntfImpl::onApiFeatureDeclareParam() {
@@ -671,39 +671,39 @@ void C2VdecComponent::IntfImpl::onOutputDelayDeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onInputDelayDeclareParam() {
-    int32_t inputDelayNum = 0;
-    int32_t inputDelayMax = 0;
-    if (mSecureMode) {
-        inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num_secure", 4);
-        if (inputDelayNum > kMaxInputDelaySecure) {
-            CODEC2_LOG(CODEC2_LOG_ERR, "%s:%d exceed max secure input delay num %d %d",
-                __func__, __LINE__, inputDelayNum, kMaxInputDelaySecure);
-                inputDelayNum = kMaxInputDelaySecure;
+        int32_t inputDelayNum = 0;
+        int32_t inputDelayMax = 0;
+        if (mSecureMode) {
+                inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num_secure", 4);
+                if (inputDelayNum > kMaxInputDelaySecure) {
+                        CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] exceed max secure input delay num %d %d",
+                                __func__, __LINE__, inputDelayNum, kMaxInputDelaySecure);
+                        inputDelayNum = kMaxInputDelaySecure;
+                }
+                //secure buffer mode now we just support secure buffer mode
+                addParameter(
+                DefineParam(mSecureBufferMode, C2_PARAMKEY_SECURE_MODE)
+                        .withDefault(new C2SecureModeTuning(C2Config::SM_READ_PROTECTED))
+                        .withFields({C2F(mSecureBufferMode, value).inRange(C2Config::SM_UNPROTECTED, C2Config::SM_READ_PROTECTED)})
+                        .withSetter(Setter<decltype(*mSecureBufferMode)>::StrictValueWithNoDeps)
+                .build());
+                inputDelayMax = kMaxInputDelaySecure;
+        } else {
+                inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num", 4);
+                if (inputDelayNum > kMaxInputDelay) {
+                        CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] exceed max no-secure input delay num %d %d",
+                                __func__, __LINE__, inputDelayNum, kMaxInputDelay);
+                        inputDelayNum = kMaxInputDelay;
+                }
+                inputDelayMax = kMaxInputDelay;
         }
-        //secure buffer mode now we just support secure buffer mode
-        addParameter(
-        DefineParam(mSecureBufferMode, C2_PARAMKEY_SECURE_MODE)
-                .withDefault(new C2SecureModeTuning(C2Config::SM_READ_PROTECTED))
-                .withFields({C2F(mSecureBufferMode, value).inRange(C2Config::SM_UNPROTECTED, C2Config::SM_READ_PROTECTED)})
-                .withSetter(Setter<decltype(*mSecureBufferMode)>::StrictValueWithNoDeps)
-        .build());
-        inputDelayMax = kMaxInputDelaySecure;
-    } else {
-        inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num", 4);
-        if (inputDelayNum > kMaxInputDelay) {
-            CODEC2_LOG(CODEC2_LOG_ERR, "%s:%d exceed max no-secure input delay num %d %d",
-                __func__, __LINE__, inputDelayNum, kMaxInputDelay);
-                inputDelayNum = kMaxInputDelay;
-        }
-        inputDelayMax = kMaxInputDelay;
-    }
 
-    addParameter(
-            DefineParam(mActualInputDelay, C2_PARAMKEY_INPUT_DELAY)
-            .withDefault(new C2PortActualDelayTuning::input(inputDelayNum))
-            .withFields({C2F(mActualInputDelay, value).inRange(0, inputDelayMax)})
-            .withSetter(Setter<decltype(*mActualInputDelay)>::StrictValueWithNoDeps)
-    .build());
+        addParameter(
+                DefineParam(mActualInputDelay, C2_PARAMKEY_INPUT_DELAY)
+                .withDefault(new C2PortActualDelayTuning::input(inputDelayNum))
+                .withFields({C2F(mActualInputDelay, value).inRange(0, inputDelayMax)})
+                .withSetter(Setter<decltype(*mActualInputDelay)>::StrictValueWithNoDeps)
+        .build());
 }
 
 void C2VdecComponent::IntfImpl::onReorderBufferDepthDeclareParam() {
@@ -965,18 +965,18 @@ void C2VdecComponent::IntfImpl::onLowLatencyDeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onVendorExtendParam() {
-    addParameter(
-    DefineParam(mVdecWorkMode, C2_PARAMKEY_VENDOR_VDEC_WORK_MODE)
-            .withDefault(new C2VdecWorkMode::input(0))
-            .withFields({C2F(mVdecWorkMode, value).any()})
-    .withSetter(Setter<decltype(*mVdecWorkMode)>::StrictValueWithNoDeps)
-    .build());
-    addParameter(
-    DefineParam(mDataSourceType, C2_PARAMKEY_VENDOR_DATASOURCE_TYPE)
-            .withDefault(new C2DataSourceType::input(0))
-            .withFields({C2F(mDataSourceType, value).any()})
-    .withSetter(Setter<decltype(*mDataSourceType)>::StrictValueWithNoDeps)
-    .build());
+        addParameter(
+        DefineParam(mVdecWorkMode, C2_PARAMKEY_VENDOR_VDEC_WORK_MODE)
+                .withDefault(new C2VdecWorkMode::input(0))
+                .withFields({C2F(mVdecWorkMode, value).any()})
+                .withSetter(Setter<decltype(*mVdecWorkMode)>::StrictValueWithNoDeps)
+        .build());
+        addParameter(
+        DefineParam(mDataSourceType, C2_PARAMKEY_VENDOR_DATASOURCE_TYPE)
+                .withDefault(new C2DataSourceType::input(0))
+                .withFields({C2F(mDataSourceType, value).any()})
+                .withSetter(Setter<decltype(*mDataSourceType)>::StrictValueWithNoDeps)
+        .build());
 }
 
 }

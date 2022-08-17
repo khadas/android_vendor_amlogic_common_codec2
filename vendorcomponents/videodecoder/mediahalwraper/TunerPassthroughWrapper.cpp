@@ -36,7 +36,7 @@ static TunerPassthroughBase* getTunerPassthrough() {
     if (gMediaHal == NULL) {
         gMediaHal = dlopen("libmediahal_passthrough.so", RTLD_NOW);
         if (gMediaHal == NULL) {
-            ALOGE("unable to dlopen libmediahal_passthrough: %s", dlerror());
+            ALOGE("Unable to dlopen libmediahal_passthrough: %s", dlerror());
             return NULL;
         }
     }

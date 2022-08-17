@@ -252,7 +252,7 @@ status_t SimplePlayer::play(const sp<IMediaSource>& source) {
                         GRALLOC_USAGE_SW_READ_OFTEN, graphic_block.width()));
 
                 CHECK_EQ(igbp->attachBuffer(&slot, buffer), OK);
-                ALOGV("attachBuffer slot=%d ts=%lld", slot,
+                ALOGV("AttachBuffer slot=%d ts=%lld", slot,
                       (work->worklets.front()->output.ordinal.timestamp * 1000ll).peekll());
 
                 IGraphicBufferProducer::QueueBufferInput qbi(

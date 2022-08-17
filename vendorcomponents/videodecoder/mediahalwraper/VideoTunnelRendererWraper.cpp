@@ -26,7 +26,7 @@ static VideoTunnelRendererBase* getVideoTunnelRenderer() {
     if (!gMediaHalVideoTunnelRenderer) {
         gMediaHalVideoTunnelRenderer = dlopen("libmediahal_tunnelrenderer.so", RTLD_NOW);
         if (gMediaHalVideoTunnelRenderer == NULL) {
-            ALOGE("unable to dlopen libmediahal_videodec: %s", dlerror());
+            ALOGE("Unable to dlopen libmediahal_videodec: %s", dlerror());
             return NULL;
         }
     }
@@ -41,7 +41,7 @@ static VideoTunnelRendererBase* getVideoTunnelRenderer() {
     if (getRenderer == NULL) {
         dlclose(gMediaHalVideoTunnelRenderer);
         gMediaHalVideoTunnelRenderer = NULL;
-        ALOGE("can not create VideoTunnelRenderer_create\n");
+        ALOGE("Can not create VideoTunnelRenderer_create\n");
         return NULL;
     }
 
@@ -67,7 +67,7 @@ VideoTunnelRendererWraper::~VideoTunnelRendererWraper() {
 bool VideoTunnelRendererWraper::init(int hwsyncid) {
     ALOGD("init:%d\n", hwsyncid);
     if (!mVideoTunnelRenderer) {
-        ALOGE("mVideoTunnelRenderer is null, init error!\n");
+        ALOGE("VideoTunnelRenderer is null, init error!\n");
         return false;
     }
     return mVideoTunnelRenderer->init(hwsyncid);
