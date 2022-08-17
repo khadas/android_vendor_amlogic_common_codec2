@@ -113,6 +113,10 @@ public:
         return mIsDolbyVision;
     }
 
+    bool isSecureMode() {
+        return mSecureMode;
+    }
+
     VideoDecWraper* getCompVideoDecWraper() {
         return  mVideoDecWraper.get();
     }
@@ -301,8 +305,6 @@ private:
     // Update |mUndequeuedBlockIds| FIFO by pushing |blockId|.
     void updateUndequeuedBlockIds(int32_t blockId);
     void onCheckVideoDecReconfig();
-    void queryStreamBitDepth();
-
 
     // Specific to VP8/VP9, since for no-show frame cases Vdec will not call PictureReady to return
     // output buffer which the corresponding work is waiting for, this function detects these works
@@ -328,6 +330,7 @@ private:
     // Helper function to determine if the work is finished.
     bool isWorkDone(const C2Work* work) const;
 
+    uint32_t getBitDepthByColorAspects();
     void resetInputAndOutputBufInfo(void);
 
     bool isNonTunnelMode() const;
@@ -511,7 +514,6 @@ private:
     uint64_t mLastFlushTimeMs;
     std::vector<int32_t> mNoShowFrameBitstreamIds;
     uint32_t mInterlacedType;
-    int32_t mStreamBitDepth;
     int64_t mFirstInputTimestamp;
     int32_t mLastOutputBitstreamId;
     int32_t mLastFinishedBitstreamId;

@@ -253,7 +253,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     //default 1min
     mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32(C2_PROPERTY_VDEC_RETRYBLOCK_TIMEOUT, DEFAULT_RETRYBLOCK_TIMEOUT_MS);
     mFdInfoDebugEnable =  property_get_bool(C2_PROPERTY_VDEC_FD_INFO_DEBUG, false);
-    mSupport10BitDepth =  property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, false);
+    mSupport10BitDepth =  property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
 
     mDebugUtil = std::make_shared<DebugUtil>(this);
     if (mFdInfoDebugEnable && mDebugUtil) {
@@ -1423,8 +1423,12 @@ void C2VdecComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format)
         }
     }
 
-    if (mDeviceUtil != nullptr)
+    if (mDeviceUtil != nullptr) {
         mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(INTERLACE);
+        if (mSupport10BitDepth) {
+            mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(DOUBLE_WRITE);
+        }
+    }
 
     CHECK(!mPendingOutputFormat);
     mPendingOutputFormat = std::move(format);
@@ -1752,9 +1756,10 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
+            auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                mDeviceUtil->getOutAlignedSize(size.height()),
-                                               pixelFormat, usage, &block);
+                                               format, usage, &block);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Allocate buffer timeout, %d retry time(s) left...", retries_left);
                 retries_left--;
@@ -1863,15 +1868,16 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
+            auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                             mDeviceUtil->getOutAlignedSize(size.height()),
-                                            pixelFormat, usage, &block);
+                                            format, usage, &block);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Allocate buffer timeout, %d retry time(s) left...", retries_left);
                 if (retries_left == kAllocateBufferMaxRetries && mUseBufferQueue) {
                     int64_t newSurfaceUsage = mBlockPoolUtil->getConsumerUsage();
                     if (newSurfaceUsage != surfaceUsage) {
-                        return reallocateBuffersForUsageChanged(size, pixelFormat);
+                        return reallocateBuffersForUsageChanged(size, format);
                     }
                 }
                 retries_left--;
@@ -2250,23 +2256,6 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
     mSurfaceUsageGeted = true;
 }
 
-void C2VdecComponent::queryStreamBitDepth() {
-    int32_t bitdepth = -1;
-    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
-    if (msg != NULL) {
-        msg->setInt32("bitdepth", bitdepth);
-        mVideoDecWraper->postAndReplyMsg(msg);
-        msg->findInt32("bitdepth", &bitdepth);
-        if (bitdepth == 0 || bitdepth == 8 || bitdepth == 10) {
-            mStreamBitDepth = bitdepth;
-            C2Vdec_LOG(CODEC2_LOG_INFO, "Query the stream bit depth(%d) success.",mStreamBitDepth);
-        } else {
-            C2Vdec_LOG(CODEC2_LOG_ERR, "Query the stream bit depth failed.");
-        }
-        delete msg;
-    }
-}
-
 c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
     if (mState.load() != State::RUNNING) {
         C2Vdec_LOG(CODEC2_LOG_INFO, "Queue_nb State[%d].", mState.load());
@@ -2456,8 +2445,8 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     // Set mRequestedVisibleRect to default.
     mRequestedVisibleRect = media::Rect();
 
-    if (mSupport10BitDepth) {
-        queryStreamBitDepth();
+    if (mSupport10BitDepth && mDeviceUtil != nullptr) {
+        mDeviceUtil->queryStreamBitDepth();
     }
 
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputFormatChanged,
@@ -2737,6 +2726,23 @@ bool C2VdecComponent::isNonTunnelMode() const {
     return (mSyncType == C2_SYNC_TYPE_NON_TUNNEL);
 }
 
+uint32_t C2VdecComponent::getBitDepthByColorAspects() {
+    uint32_t bitdepth = 8;
+    std::shared_ptr<C2StreamColorAspectsTuning::output> defaultColorAspects;
+    if (GetIntfImpl()->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888) {
+        defaultColorAspects = GetIntfImpl()->getDefaultColorAspects();
+        if (defaultColorAspects->primaries == C2Color::PRIMARIES_BT2020 &&
+            defaultColorAspects->matrix == C2Color::MATRIX_BT2020 &&
+            defaultColorAspects->transfer == C2Color::TRANSFER_ST2084) {
+            C2Vdec_LOG(CODEC2_LOG_INFO, "default color aspects is RGBA1010102");
+            bitdepth = 10;
+        }
+    }
+
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s] bitdepth:%d", __func__, bitdepth);
+    return bitdepth;
+}
+
 bool C2VdecComponent::isTunnelMode() const {
     return (mSyncType == C2_SYNC_TYPE_TUNNEL);
 }
@@ -2968,9 +2974,10 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
 
             if (mDeviceUtil != NULL && mBlockPoolUtil != NULL && !resolutionchanging) {
                 mBlockPoolUtil->getPoolId(&poolId);
+                auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
                 err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                 mDeviceUtil->getOutAlignedSize(size.height()),
-                                                pixelFormat, usage, &block);
+                                                format, usage, &block);
                 delayTime = getFetchGraphicBlockDelayTimeUs(err);
             }
 

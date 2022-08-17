@@ -33,6 +33,8 @@ constexpr int kMaxWidth4k = 4096;
 constexpr int kMaxHeight4k = 2304;
 constexpr int kMaxWidth1080p = 1920;
 constexpr int kMaxHeight1080p = 1088;
+constexpr int kMaxWidthP010 = 720;
+constexpr int kMaxHeightP010 = 576;
 
 C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mUvmFd(-1),
@@ -63,6 +65,9 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mLastbitStreamId(0),
     mOutputPtsValidCount(0),
     mMarginBufferNum(0),
+    mStreamBitDepth(-1),
+    mBufferWidth(0),
+    mBufferHeight(0),
     mSignalType(0),
     mEnableAdaptivePlayback(false) {
 
@@ -113,6 +118,9 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::DVHE:
             if (mComp->isNonTunnelMode() & (mUseSurfaceTexture || mNoSurface)) {
                 doubleWriteValue = 1;
+                if (isYcbcRP010Stream()) {
+                    doubleWriteValue = 3;
+                }
                 CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 1");
             } else if (codec == InputCodec::H265 && mIsInterlaced) {
                 doubleWriteValue = 0x10;
@@ -137,6 +145,33 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
 
     CODEC2_LOG(CODEC2_LOG_INFO, "component double write value:%d", doubleWriteValue);
     return doubleWriteValue;
+}
+
+void C2VdecComponent::DeviceUtil::queryStreamBitDepth() {
+    int32_t bitdepth = -1;
+    VideoDecWraper *videoWraper = mComp->getCompVideoDecWraper();
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+
+    if (msg != NULL && videoWraper != NULL) {
+        msg->setInt32("bitdepth", bitdepth);
+        videoWraper->postAndReplyMsg(msg);
+        msg->findInt32("bitdepth", &bitdepth);
+        if (bitdepth == 0 || bitdepth == 8 || bitdepth == 10) {
+            mStreamBitDepth = bitdepth;
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "Query the stream bit depth(%d) success.", bitdepth);
+        } else {
+            C2VdecMDU_LOG(CODEC2_LOG_ERR, "Query the stream bit depth failed.");
+        }
+        delete msg;
+    }
+}
+
+uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat) {
+    uint32_t format = pixelFormat;
+    if (isYcbcRP010Stream()) {
+        format = HAL_PIXEL_FORMAT_YCBCR_P010;
+    }
+    return format;
 }
 
 void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
@@ -219,6 +254,8 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     pAmlV4l2Param->width  = bufwidth;
     pAmlV4l2Param->height = bufheight;
 
+    mBufferWidth  = bufwidth;
+    mBufferHeight = bufheight;
     if (bufwidth * bufheight > 4096 * 2304) {
         doubleWriteMode = 0x04;
         mIs8k = true;
@@ -247,6 +284,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     pAmlDecParam->cfg.canvas_mem_mode = 0;
     mMarginBufferNum = margin;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "DoubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
+
     if (mUseSurfaceTexture || mNoSurface) {
         mEnableNR = false;
         mEnableDILocalBuf = false;
@@ -850,6 +888,20 @@ bool C2VdecComponent::DeviceUtil::checkDvProfileAndLayer() {
     return uselayer;
 }
 
+bool C2VdecComponent::DeviceUtil::isYcrcb420Stream() const {
+    return (mStreamBitDepth == 0 || mStreamBitDepth == 8);
+}
+
+bool C2VdecComponent::DeviceUtil::isYcbcRP010Stream() const {
+    //The current component supports the maximum size of 720*576 of 10 bit streams.
+    //If the size exceeds this size, 8 bit buffer format will be used by default.
+    if ((mStreamBitDepth == 10) && (mBufferWidth <= kMaxWidthP010 && mBufferHeight <= kMaxHeightP010)) {
+        return true;
+    }
+
+    return false;
+}
+
 int64_t C2VdecComponent::DeviceUtil::checkAndAdjustOutPts(C2Work* work, int32_t flags) {
 
     int64_t out_pts = work->worklets.front()->output.ordinal.timestamp.peekull();
@@ -928,6 +980,12 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
 
     if (mUseSurfaceTexture || mNoSurface) {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
+        uint64_t rawUsage = usage;
+        if (isYcbcRP010Stream()) {
+            usage = rawUsage | GRALLOC1_PRODUCER_USAGE_PRIVATE_3;
+        }
+        CODEC2_LOG(CODEC2_LOG_INFO,"[%s:%d] usage:%llx raw usage:%llx",__func__, __LINE__,
+                    (unsigned long long)usage, (unsigned long long)rawUsage);
     } else {
         uint32_t doubleWrite = getDoubleWriteModeValue();
         if (mIs8k) {
@@ -1184,12 +1242,24 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
 
     //check whether need reconfig
     struct aml_dec_params *params = &mConfigParam->aml_dec_cfg;
+    InputCodec codec = mIntfImpl->getInputCodec();
 
     if (type & INTERLACE) {
-        InputCodec codec = mIntfImpl->getInputCodec();
         if (codec == InputCodec::H265 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
            params->cfg.double_write_mode = 0x10;
            configChanged = true;
+        }
+    } else if (type & DOUBLE_WRITE) {
+        if (mComp->isSecureMode() || mComp->isTunnelMode() || mComp->isAmDolbyVision()) {
+            params->cfg.double_write_mode = 3;
+            configChanged = true;
+        }
+
+        if (isYcbcRP010Stream()) {
+            if (mComp->isNonTunnelMode() & (mUseSurfaceTexture || mNoSurface)) {
+                params->cfg.double_write_mode = 3;
+                configChanged = true;
+            }
         }
     }
 
@@ -1199,11 +1269,11 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
         if (msg != NULL && videoWraper != NULL) {
             msg->setPointer("reconfig", (void*)&mConfigParam);
             if (!videoWraper->postAndReplyMsg(msg)) {
-                C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
+                C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
             }
             delete msg;
         } else {
-            C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
+            C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
         }
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] reconfig decoder", __func__, __LINE__);
     }

@@ -336,6 +336,9 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
     //lowlatency
     onLowLatencyDeclareParam();
 
+    //PixelFormat
+    onPixelFormatDeclareParam();
+
     //Register vendor extend paras
     onVendorExtendParam();
 }
@@ -989,6 +992,32 @@ void C2VdecComponent::IntfImpl::onLowLatencyDeclareParam() {
                 .withFields({C2F(mLowLatencyMode, value).oneOf({true, false})})
                 .withSetter(LowLatencyModeSetter)
         .build());
+}
+
+void C2VdecComponent::IntfImpl::onPixelFormatDeclareParam() {
+        bool support_10bit = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
+        if (support_10bit) {
+                std::vector<uint32_t> pixelFormats = { HAL_PIXEL_FORMAT_YCBCR_420_888 };
+
+                if (isHalPixelFormatSupported((AHardwareBuffer_Format)HAL_PIXEL_FORMAT_YCBCR_P010)) {
+                        pixelFormats.push_back(HAL_PIXEL_FORMAT_YCBCR_P010);
+                        CODEC2_LOG(CODEC2_LOG_INFO, "support 10bit");
+                } else {
+                        CODEC2_LOG(CODEC2_LOG_INFO, "not support 10bit");
+                }
+
+                pixelFormats.push_back(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED);
+
+                addParameter(
+                DefineParam(mPixelFormatInfo, C2_PARAMKEY_PIXEL_FORMAT)
+                        .withDefault(new C2StreamPixelFormatInfo::output(
+                                        0u,  HAL_PIXEL_FORMAT_YCBCR_420_888 ))
+                        .withFields({C2F(mPixelFormatInfo, value).oneOf(pixelFormats)})
+                        .withSetter((Setter<decltype(*mPixelFormatInfo)>::StrictValueWithNoDeps))
+                .build());
+        } else {
+                CODEC2_LOG(CODEC2_LOG_INFO, "not set prop not support 10bit");
+        }
 }
 
 void C2VdecComponent::IntfImpl::onVendorExtendParam() {

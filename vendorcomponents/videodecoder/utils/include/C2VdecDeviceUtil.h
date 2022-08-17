@@ -101,6 +101,10 @@ public:
     int64_t getLastOutputPts();
     uint32_t getDoubleWriteModeValue();
 
+    // bit depth
+    void queryStreamBitDepth();
+    uint32_t getStreamPixelFormat(uint32_t pixelFormat);
+
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();
     bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
@@ -123,6 +127,8 @@ private:
     int32_t getPropertyDoubleWrite();
     uint64_t getUsageFromDouleWrite(uint32_t doublewrite);
     bool checkDvProfileAndLayer();
+    bool isYcrcb420Stream() const; /* 8bit */
+    bool isYcbcRP010Stream() const; /* 10bit */
 
     int mUvmFd;
     C2VdecComponent::IntfImpl* mIntfImpl;
@@ -159,6 +165,9 @@ private:
     int32_t  mOutputPtsValidCount;
 
     int32_t mMarginBufferNum;
+    int32_t mStreamBitDepth;
+    uint32_t mBufferWidth;
+    uint32_t mBufferHeight;
 
     /* for hdr10 plus */
     std::queue<std::string> mHDR10PlusData;

@@ -2,6 +2,7 @@
 #define _C2_Vdec_INTERFACE_IMPL_H_
 
 #include <C2VdecComponent.h>
+#include "Codec2CommonUtils.h"
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
 
@@ -35,6 +36,12 @@ public:
     void setComponent(C2VdecComponent* comp) {mComponent = comp;}
     std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects() {
         return this->mColorAspects;
+    }
+    std::shared_ptr<C2StreamColorAspectsTuning::output> getDefaultColorAspects() {
+        return this->mDefaultColorAspects;
+    }
+    uint32_t getPixelFormatInfoValue() {
+        return mPixelFormatInfo->value;
     }
     float getInputFrameRate() {  return  mFrameRateInfo->value; }
 
@@ -136,6 +143,7 @@ private:
 
     std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
     std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
+    std::shared_ptr<C2StreamPixelFormatInfo::output> mPixelFormatInfo;
 
     c2_status_t mInitStatus;
     media::VideoCodecProfile mCodecProfile;
@@ -171,6 +179,7 @@ private:
     void onBufferPoolDeclareParam();
     void onColorAspectsDeclareParam();
     void onLowLatencyDeclareParam();
+    void onPixelFormatDeclareParam();
     void onVendorExtendParam();
 };
 }

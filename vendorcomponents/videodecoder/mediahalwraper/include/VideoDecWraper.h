@@ -102,6 +102,7 @@ enum {
     /* metadata_config_flag */
     VDEC_CFG_FLAG_DV_TWOLAYER = (1<<0),
     VDEC_CFG_FLAG_DV_NEGATIVE  = (1<<1),
+    VDEC_CFG_FLAG_SF_DECODE_ENABLE = (1<<8),
     VDEC_CFG_FLAG_DIS_ERR_POLICY = (1 << 11),
     VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE = (1<<14),
     VDEC_CFG_FLAG_NR_ENABLE    = (1<<15),
@@ -118,6 +119,7 @@ enum {
 enum {
     /* update config type */
     INTERLACE = 1 << 0,
+    DOUBLE_WRITE = 1 << 1,
 };
 
 struct aml_vdec_cfg_infos {
