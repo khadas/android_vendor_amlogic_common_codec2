@@ -185,12 +185,28 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                     C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
                 mComponent->onAndroidVideoPeek();
                 break;
+            case C2StreamHdr10PlusInfo::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config HDR10PlusInfo",
+                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                break;
 
             default:
                 break;
         }
     }
     return C2_OK;
+}
+
+void C2VdecComponent::IntfImpl::getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen) {
+    if (pbuf == NULL || plen == NULL) {
+        return;
+    }
+    *pbuf = mHdr10PlusInfoInput->m.value;
+    *plen = mHdr10PlusInfoInput->flexCount();
+}
+
+void C2VdecComponent::IntfImpl::updateHdr10PlusInfoToWork(C2Work& work) {
+    work.worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mHdr10PlusInfoOutput.get()));
 }
 
 C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
@@ -563,71 +579,46 @@ void C2VdecComponent::IntfImpl::onAvs2DeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper) {
-        if (mInputCodec == InputCodec::VP9 || mInputCodec == InputCodec::AV1) {
-                mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
-                addParameter(
-                        DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
-                        .withDefault(mHdr10PlusInfoInput)
-                        .withFields({
-                        C2F(mHdr10PlusInfoInput, m.value).any(),
-                        })
-                .withSetter(Hdr10PlusInfoInputSetter)
-                .build());
-                mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
-                addParameter(
-                        DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
-                        .withDefault(mHdr10PlusInfoOutput)
-                        .withFields({
-                        C2F(mHdr10PlusInfoOutput, m.value).any(),
-                        })
-                .withSetter(Hdr10PlusInfoOutputSetter)
-                .build());
-                // sample BT.2020 static info
-                mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
-                mHdrStaticInfo->mastering = {
-                        .red   = { .x = 0.0,  .y = 0.0 },
-                        .green = { .x = 0.0,  .y = 0.0 },
-                        .blue  = { .x = 0.0,  .y = 0.0 },
-                        .white = { .x = 0.0, .y = 0.0 },
-                        .maxLuminance = 0.0,
-                        .minLuminance = 0.0,
-                };
-                mHdrStaticInfo->maxCll = 0.0;
-                mHdrStaticInfo->maxFall = 0.0;
-                helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
-                addParameter(
-                        DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
-                        .withDefault(mHdrStaticInfo)
-                        .withFields({
-                        C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
-                        // TODO
-                        })
-                .withSetter(HdrStaticInfoSetter)
-                .build());
-        } else if (mInputCodec == InputCodec::H265) {
-                // sample BT.2020 static info
-                mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
-                mHdrStaticInfo->mastering = {
-                        .red   = { .x = 0.0,  .y = 0.0 },
-                        .green = { .x = 0.0,  .y = 0.0 },
-                        .blue  = { .x = 0.0,  .y = 0.0 },
-                        .white = { .x = 0.0, .y = 0.0 },
-                        .maxLuminance = 0.0,
-                        .minLuminance = 0.0,
-                };
-                mHdrStaticInfo->maxCll = 0.0;
-                mHdrStaticInfo->maxFall = 0.0;
-                helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
-                addParameter(
-                        DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
-                        .withDefault(mHdrStaticInfo)
-                        .withFields({
-                        C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
-                        // TODO
-                        })
-                        .withSetter(HdrStaticInfoSetter)
-                .build());
-        }
+        mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
+        addParameter(
+                DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
+                .withDefault(mHdr10PlusInfoInput)
+                .withFields({
+                C2F(mHdr10PlusInfoInput, m.value).any(),
+                })
+        .withSetter(Hdr10PlusInfoInputSetter)
+        .build());
+        mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
+        addParameter(
+                DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
+                .withDefault(mHdr10PlusInfoOutput)
+                .withFields({
+                C2F(mHdr10PlusInfoOutput, m.value).any(),
+                })
+        .withSetter(Hdr10PlusInfoOutputSetter)
+        .build());
+        // sample BT.2020 static info
+        mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();
+        mHdrStaticInfo->mastering = {
+                .red   = { .x = 0.0,  .y = 0.0 },
+                .green = { .x = 0.0,  .y = 0.0 },
+                .blue  = { .x = 0.0,  .y = 0.0 },
+                .white = { .x = 0.0, .y = 0.0 },
+                .maxLuminance = 0.0,
+                .minLuminance = 0.0,
+        };
+        mHdrStaticInfo->maxCll = 0.0;
+        mHdrStaticInfo->maxFall = 0.0;
+        helper->addStructDescriptors<C2MasteringDisplayColorVolumeStruct, C2ColorXyStruct>();
+        addParameter(
+                DefineParam(mHdrStaticInfo, C2_PARAMKEY_HDR_STATIC_INFO)
+                .withDefault(mHdrStaticInfo)
+                .withFields({
+                C2F(mHdrStaticInfo, mastering.red.x).inRange(0, 1),
+                // TODO
+                })
+        .withSetter(HdrStaticInfoSetter)
+        .build());
 }
 
 void C2VdecComponent::IntfImpl::onApiFeatureDeclareParam() {

@@ -898,7 +898,7 @@ bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, in
     return true;
 }
 
-void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, int size) {
+void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, int size, C2Work& work) {
     struct aml_meta_head_s *meta_head;
     uint32_t offset = 0;
     uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
@@ -933,19 +933,20 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
         if (meta_type == UVM_META_DATA_VF_BASE_INFOS) {
             updateDurationUs(buf, meta_size);
         } else if (meta_type == UVM_META_DATA_HDR10P_DATA) {
-            updateHDR10plus(buf, meta_size);
+            updateHDR10plusToWork(buf, meta_size, work);
         }
     }
 }
 
-void C2VdecComponent::DeviceUtil::updateHDR10plus(unsigned char *data, int size) {
+void C2VdecComponent::DeviceUtil::updateHDR10plusToWork(unsigned char *data, int size, C2Work& work) {
     std::lock_guard<std::mutex> lock(mMutex);
     if (size > 0) {
         mHDR10PLusInfoChanged = true;
-        char buffer[size];
-        memset(buffer,0,size);
-        memcpy(buffer, data, size);
-        mHDR10PlusData.push({std::string(buffer)});
+        std::unique_ptr<C2StreamHdr10PlusInfo::output> hdr10PlusInfo =
+            C2StreamHdr10PlusInfo::output::AllocUnique(size);
+        memcpy(hdr10PlusInfo->m.value, data, size);
+        work.worklets.front()->output.configUpdate.push_back(std::move(hdr10PlusInfo));
+        //mHDR10PlusDataQueue.push(std::move(hdr10PlusInfo);
     }
 }
 bool C2VdecComponent::DeviceUtil::getHDR10PlusData(std::string &data)

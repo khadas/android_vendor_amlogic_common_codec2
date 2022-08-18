@@ -450,9 +450,10 @@ void C2VdecComponent::onDequeueWork() {
         // Send input buffer to Vdec for decode.
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
         //check hdr10 plus
-        const uint8_t *hdr10plusBuf = nullptr;
+        uint8_t *hdr10plusBuf = nullptr;
         uint32_t hdr10plusLen = 0;
         C2ReadView rView = mDefaultDummyReadView;
+        bool isHdr10PlusInfoWithWork = false;
 
         for (const std::unique_ptr<C2Param> &param : work->input.configUpdate) {
             switch (param->coreIndex().coreIndex()) {
@@ -464,14 +465,13 @@ void C2VdecComponent::onDequeueWork() {
                             std::vector<std::unique_ptr<C2SettingResult>> failures;
                             std::unique_ptr<C2Param> outParam = C2Param::CopyAsStream(*param.get(), true /* out put*/, param->stream());
 
+                            isHdr10PlusInfoWithWork = true;
+                            hdr10plusBuf = hdr10PlusInfo->m.value;
+                            hdr10plusLen = hdr10PlusInfo->flexCount();
                             c2_status_t err = mIntfImpl->config({outParam.get()}, C2_MAY_BLOCK, &failures);
                             if (err == C2_OK) {
                                 mHDR10PlusMeteDataNeedCheck = true;
                                 work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*outParam.get()));
-
-                                rView = work->input.buffers[0]->data().linearBlocks().front().map().get();
-                                hdr10plusBuf = rView.data();
-                                hdr10plusLen = rView.capacity();
                             } else {
                                 C2Vdec_LOG(CODEC2_LOG_ERR, "Config update hdr10Plus size Failed.");
                             }
@@ -481,6 +481,10 @@ void C2VdecComponent::onDequeueWork() {
                 default:
                     break;
             }
+        }
+        if (!isHdr10PlusInfoWithWork) {
+            mIntfImpl->updateHdr10PlusInfoToWork(*work);
+            mIntfImpl->getHdr10PlusBuf(&hdr10plusBuf, &hdr10plusLen);
         }
         sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusBuf, hdr10plusLen);
     }
@@ -639,20 +643,6 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         reportError(C2_CORRUPTED);
         return;
     }
-    if (mHDR10PlusMeteDataNeedCheck/* || (mUpdateDurationUsCount < kUpdateDurationFramesNumMax)*/) {
-        unsigned char  buffer[META_DATA_SIZE];
-        int buffer_size = 0;
-        memset(buffer, 0, META_DATA_SIZE);
-        mDeviceUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
-        if (buffer_size > META_DATA_SIZE) {
-            C2Vdec_LOG(CODEC2_LOG_ERR, "Uvm metadata size error, please check");
-        } else if (buffer_size <= 0) {
-            //nothing to do now
-        } else {
-            mDeviceUtil->parseAndProcessMetaData(buffer, buffer_size);
-        }
-        mUpdateDurationUsCount++;
-    }
 
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
@@ -774,6 +764,19 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             mLastOutputReportWork = NULL;
         }
 
+        {
+            unsigned char  buffer[META_DATA_SIZE];
+            int buffer_size = 0;
+            memset(buffer, 0, META_DATA_SIZE);
+            mDeviceUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
+            if (buffer_size > META_DATA_SIZE || buffer_size <= 0) {
+                C2Vdec_LOG(CODEC2_LOG_ERR, "Uvm metadata size error, please check");
+            } else {
+                mDeviceUtil->parseAndProcessMetaData(buffer, buffer_size, *work);
+            }
+            mUpdateDurationUsCount++;
+        }
+
         mLastOutputReportWork = cloneWork(work);
         if (!mLastOutputReportWork) {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Last work is null, malloc memory Failed.");
@@ -860,10 +863,6 @@ void C2VdecComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
     /* update hdr10 plus info */
     if (mDeviceUtil->isHDR10PlusStaticInfoUpdated()) {
         updateHDR10PlusInfo();
-    }
-
-    if (mCurrentHdr10PlusInfo) {
-        buffer->setInfo(mCurrentHdr10PlusInfo);
     }
 
     if (mPictureSizeChanged && mCurrentSize != nullptr) {
@@ -1995,8 +1994,8 @@ void C2VdecComponent::updateHDR10PlusInfo() {
     std::string hdr10Data;
     if (mDeviceUtil->getHDR10PlusData(hdr10Data)) {
         if (hdr10Data.size() != 0) {
-            std::memcpy(mCurrentHdr10PlusInfo->m.value, hdr10Data.c_str(), hdr10Data.size());
-            mCurrentHdr10PlusInfo->setFlexCount(hdr10Data.size());
+            //std::memcpy(mCurrentHdr10PlusInfo->m.value, hdr10Data.c_str(), hdr10Data.size());
+            //mCurrentHdr10PlusInfo->setFlexCount(hdr10Data.size());
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Get HDR10Plus data size:%d ", hdr10Data.size());
         }
     }

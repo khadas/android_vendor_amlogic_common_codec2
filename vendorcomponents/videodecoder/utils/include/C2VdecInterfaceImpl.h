@@ -38,6 +38,8 @@ public:
     }
     float getInputFrameRate() {  return  mFrameRateInfo->value; }
 
+    void getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen);
+    void updateHdr10PlusInfoToWork(C2Work& work);
 private:
     // Configurable parameter setters.
     static C2R ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::input>& info);
