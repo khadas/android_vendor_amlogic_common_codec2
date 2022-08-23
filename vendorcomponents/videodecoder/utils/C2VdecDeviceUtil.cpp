@@ -418,18 +418,73 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
     struct aml_dec_params *pAmlDecParam = &mConfigParam->amldeccfg;
 
     pAmlDecParam->hdr.color_parms.present_flag = 1;
-    pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
-    pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
-    pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
-    pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
-    pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
-    pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
-    pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
-    pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
-    pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-    pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
-    pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
-    pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+
+    if ((mIntfImpl->getInputCodec() == InputCodec::VP9)) {
+        pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+        pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+        pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+        pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+        pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+        pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+        pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+        pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+        pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
+        pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+    } else if ((mIntfImpl->getInputCodec() == InputCodec::AV1)) {
+        //see 6.7.4. Metadata high dynamic range mastering display color volume
+        //semantics
+        //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
+        //so we will shift left 16bit change to int farmat value.
+        //The increase of 0.5 is to ensure that data will not be lost downward
+        pAmlDecParam->hdr.color_parms.primaries[0][0] = (int32_t)(hdr.mastering.red.x * 65536.0 + 0.5);//info.sType1.mR.x;
+        pAmlDecParam->hdr.color_parms.primaries[0][1] = (int32_t)(hdr.mastering.red.y * 65536.0 + 0.5);//info.sType1.mR.y;
+        pAmlDecParam->hdr.color_parms.primaries[1][0] = (int32_t)(hdr.mastering.green.x * 65536.0 + 0.5);//info.sType1.mG.x;
+        pAmlDecParam->hdr.color_parms.primaries[1][1] = (int32_t)(hdr.mastering.green.y * 65536.0 + 0.5);//info.sType1.mG.y;
+        pAmlDecParam->hdr.color_parms.primaries[2][0] = (int32_t)(hdr.mastering.blue.x * 65536.0 + 0.5);//info.sType1.mB.x;
+        pAmlDecParam->hdr.color_parms.primaries[2][1] = (int32_t)(hdr.mastering.blue.y * 65536.0 + 0.5);//info.sType1.mB.y;
+        pAmlDecParam->hdr.color_parms.white_point[0]  = (int32_t)(hdr.mastering.white.x * 65536.0 + 0.5);//info.sType1.mW.x;
+        pAmlDecParam->hdr.color_parms.white_point[1]  = (int32_t)(hdr.mastering.white.y * 65536.0 + 0.5);//info.sType1.mW.y;
+        // hdr_mdcv.luminance_max is in 24.8 fixed-point format.
+        //so we will shift left 8bit change to int farmat value.
+        //The increase of 0.5 is to ensure that data will not be lost downward
+        pAmlDecParam->hdr.color_parms.luminance[0]    = (((int32_t)(hdr.mastering.maxLuminance * 256.0 + 0.5)));//info.sType1.mMaxDisplayLuminance * 1000;
+        // hdr_mdcv.luminance_min is in 18.14 format.
+        //so we will shift left 14bit change to int farmat value.
+        //The increase of 0.5 is to ensure that data will not be lost downward
+        pAmlDecParam->hdr.color_parms.luminance[1]    = (int32_t)(hdr.mastering.minLuminance * 16384.0 + 0.5);//info.sType1.mMinDisplayLuminance;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  (int32_t)(hdr.maxCll);//info.sType1.mMaxContentLightLevel;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  (int32_t)(hdr.maxFall);//info.sType1.mMaxFrameAverageLightLevel;
+    } else if ((mIntfImpl->getInputCodec() == InputCodec::H265)) {
+        pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+        pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+        pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+        pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+        pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+        pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+        pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+        pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+        pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
+        pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+    } else {
+        pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+        pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+        pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+        pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+        pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+        pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+        pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+        pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+        pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
+        pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+    }
+
+
     pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_HDRINFO;
 
     ColorAspects sfAspects;
@@ -513,32 +568,94 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
 
     //setup hdr metadata, only present_flag is 1 there has a hdr metadata
     if (phdr->color_parms.present_flag == 1) {
-        hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
-        hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
-        hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
-        hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
-        hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
-        hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
-        hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
-        hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+        if ((mIntfImpl->getInputCodec() == InputCodec::VP9)) {
+            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
 
-        int32_t MaxDisplayLuminance = 0;
-        if (mIntfImpl->getInputCodec() == InputCodec::H265) {
+            int32_t MaxDisplayLuminance = 0;
+            MaxDisplayLuminance = phdr->color_parms.luminance[0];
+            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
+
+            hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
+            hdr.maxCll =
+                phdr->color_parms.content_light_level.max_content;
+            hdr.maxFall =
+                phdr->color_parms.content_light_level.max_pic_average;
+        } else if ((mIntfImpl->getInputCodec() == InputCodec::AV1)) {
+            //see 6.7.4. Metadata high dynamic range mastering display color volume
+            //semantics
+            //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
+            //so we will shift right 16bit change to float 0.16 farmat value.
+            hdr.mastering.red.x     = 	phdr->color_parms.primaries[0][0] / 65536.0;
+            hdr.mastering.red.y     = 	phdr->color_parms.primaries[0][1] / 65536.0;
+            hdr.mastering.green.x	= 	phdr->color_parms.primaries[1][0] / 65536.0;
+            hdr.mastering.green.y	= 	phdr->color_parms.primaries[1][1] / 65536.0;
+            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[2][0] / 65536.0;
+            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[2][1] / 65536.0;
+            // hdr_mdcv.white_point_chromaticity_* values are in 0.16 fixed-point format.
+            //so we will shift right 16bit change to float 0.16 farmat value.
+            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] / 65536.0;
+            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] / 65536.0;
+            // hdr_mdcv.luminance_max is in 24.8 fixed-point format.
+            //so we will shift right 8bit change to float 24.8 farmat value.
+            int32_t MaxDisplayLuminance = 0;
+            MaxDisplayLuminance = phdr->color_parms.luminance[0];
+            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 256.0;
+            // hdr_mdcv.luminance_min is in 18.14 format.
+            //so we will shift right 14bit change to float 18.14 farmat value.
+            hdr.mastering.minLuminance = phdr->color_parms.luminance[1] / 16384.0;
+            hdr.maxCll =
+                phdr->color_parms.content_light_level.max_content;
+            hdr.maxFall =
+                phdr->color_parms.content_light_level.max_pic_average;
+
+        } else if ((mIntfImpl->getInputCodec() == InputCodec::H265)) {
+            //see 265 spec
+            // D.3.28 Mastering display colour volume SEI message semantics
+            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+
+            int32_t MaxDisplayLuminance = 0;
             MaxDisplayLuminance = min(50 * ((phdr->color_parms.luminance[0] + 250000) / 500000), 10000);
             hdr.mastering.maxLuminance = (float)MaxDisplayLuminance;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::VP9 || mIntfImpl->getInputCodec() == InputCodec::AV1) {
-            MaxDisplayLuminance = phdr->color_parms.luminance[0];
-            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
-        } else {
-            MaxDisplayLuminance = phdr->color_parms.luminance[0];
-            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
-        }
 
-        hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
-        hdr.maxCll =
-            phdr->color_parms.content_light_level.max_content;
-        hdr.maxFall =
-            phdr->color_parms.content_light_level.max_pic_average;
+            hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
+            hdr.maxCll =
+                phdr->color_parms.content_light_level.max_content;
+            hdr.maxFall =
+                phdr->color_parms.content_light_level.max_pic_average;
+        } else {
+            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+
+            int32_t MaxDisplayLuminance = 0;
+            MaxDisplayLuminance = phdr->color_parms.luminance[0];
+            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
+
+            hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
+            hdr.maxCll =
+                phdr->color_parms.content_light_level.max_content;
+            hdr.maxFall =
+                phdr->color_parms.content_light_level.max_pic_average;
+        }
 
         isHdrChanged = checkHdrStaticInfoMetaChanged(phdr);
     }
