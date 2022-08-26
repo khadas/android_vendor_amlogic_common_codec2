@@ -12,9 +12,15 @@
 
 #include <cutils/native_handle.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
+
+
 #include <ui/GraphicBuffer.h>
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
+#include <string>
 #include <inttypes.h>
 #include <string.h>
 #include <algorithm>
@@ -216,7 +222,11 @@ c2_status_t C2VencComponent::drain_nb(drain_mode_t mode) {
 
 c2_status_t C2VencComponent::start() {
     ALOGD("C2VencComponent start!");
-    //send msg to init/open/start coder
+
+    if (ComponentState::UNINITIALIZED != mComponentState) {
+        ALOGE("need go to start state,but current state is:%d,start failed",mComponentState);
+        return C2_BAD_STATE;
+    }
 
     if (doSomeInit()) {
         ALOGD("Modul init successfule!");
@@ -250,6 +260,11 @@ c2_status_t C2VencComponent::start() {
 
 c2_status_t C2VencComponent::stop() {
     ALOGD("C2VencComponent stop!");
+    if (mComponentState == ComponentState::UNINITIALIZED) {
+        ALOGE("this component has already stopped");
+        return C2_NO_INIT;
+    }
+    mComponentState = ComponentState::STOPPING;
     {
         AutoMutex l(mInputQueueLock);
         mQueue.clear();
@@ -269,23 +284,17 @@ c2_status_t C2VencComponent::stop() {
         ALOGD("Dump raw File finish!");
     }
     Close();
+    mComponentState = ComponentState::UNINITIALIZED;
     return C2_OK;
 }
 
 c2_status_t C2VencComponent::reset() {
     ALOGD("C2VencComponent reset!");
-    {
-        AutoMutex l(mInputQueueLock);
-        mQueue.clear();
-    }
-    if (mthread.isRunning()) {
-        mthread.stop();
-    }
-    Close();
+    stop();
     if (mOutBlock) {
         mOutBlock.reset();
     }
-    Init();
+    //Init(); //we will do init function in start process
     return C2_OK;
 }
 
