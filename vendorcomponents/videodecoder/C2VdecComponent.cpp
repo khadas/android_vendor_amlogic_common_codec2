@@ -472,7 +472,6 @@ void C2VdecComponent::onDequeueWork() {
                             hdr10plusLen = hdr10PlusInfo->flexCount();
                             c2_status_t err = mIntfImpl->config({outParam.get()}, C2_MAY_BLOCK, &failures);
                             if (err == C2_OK) {
-                                mHDR10PlusMeteDataNeedCheck = true;
                                 work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*outParam.get()));
                             } else {
                                 C2Vdec_LOG(CODEC2_LOG_ERR, "Config update hdr10Plus size Failed.");
@@ -772,13 +771,16 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             mLastOutputReportWork = NULL;
         }
 
-        {
+        if (mHDR10PlusMeteDataNeedCheck) {
             unsigned char  buffer[META_DATA_SIZE];
             int buffer_size = 0;
             memset(buffer, 0, META_DATA_SIZE);
             mDeviceUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
-            if (buffer_size > META_DATA_SIZE || buffer_size <= 0) {
+            if (buffer_size > META_DATA_SIZE) {
                 C2Vdec_LOG(CODEC2_LOG_ERR, "Uvm metadata size error, please check");
+            } else if (buffer_size <= 0)  {
+                //Do not have meta data, do not need check more.
+                mHDR10PlusMeteDataNeedCheck = false;
             } else {
                 mDeviceUtil->parseAndProcessMetaData(buffer, buffer_size, *work);
             }
@@ -1848,6 +1850,9 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
         if (!(surfaceUsage & GRALLOC_USAGE_HW_COMPOSER)) {
             usersurfacetexture = true;
             mDeviceUtil->setUseSurfaceTexture(true);
+        } else {
+            //Only surface view need check HDR10+
+            mHDR10PlusMeteDataNeedCheck = true;
         }
     } else {
         if (isNonTunnelMode()) {
