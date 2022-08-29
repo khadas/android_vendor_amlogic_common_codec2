@@ -498,12 +498,15 @@ private:
     int64_t mFirstInputTimestamp;
     int32_t mLastOutputBitstreamId;
     int32_t mLastFinishedBitstreamId;
-    bool    mNeedFinishFirstWork4Interlaced;
     bool mHasQueuedWork;
+    bool mIsReportEosWork;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
     Mutex mFlushDoneLock;
     Condition mFlushDoneCond;
+
+    Mutex mResolutionChangingLock;
+    bool mResolutionChanging;
 
     C2Work *mLastOutputReportWork;
 

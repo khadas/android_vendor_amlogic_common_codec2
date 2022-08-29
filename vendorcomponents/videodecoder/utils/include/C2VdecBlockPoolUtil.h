@@ -54,6 +54,13 @@ public:
      */
     c2_status_t resetGraphicBlock(int32_t blockId);
 
+        /**
+     * @brief Reset graphic block
+     *
+     * \param blockId the id of block.
+     */
+    c2_status_t resetGraphicBlock(std::shared_ptr<C2GraphicBlock> block);
+
     /**
      * @brief Get the usage from block pool.
      */

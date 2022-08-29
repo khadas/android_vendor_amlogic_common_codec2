@@ -201,7 +201,9 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mDefaultDummyReadView(DummyReadView()),
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
         mFirstInputTimestamp(-1),
-        mLastOutputBitstreamId(-1) {
+        mLastOutputBitstreamId(-1),
+        mIsReportEosWork(false),
+        mResolutionChanging(false) {
 
     C2Vdec_LOG(CODEC2_LOG_INFO, "Create %s(%s)", __func__, name.c_str());
     mSecureMode = name.find(".secure") != std::string::npos;
@@ -609,10 +611,16 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if (getVideoResolutionChanged()) {
-        appendOutputBuffer(std::move(block), poolId, blockId, true);
-        GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
-        info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-        sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
+        if ((mOutputFormat.mCodedSize.width() == block->width() &&
+             mOutputFormat.mCodedSize.height() == block->height())) {
+            appendOutputBuffer(std::move(block), poolId, blockId, true);
+            GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+            info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+            sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
+        } else {
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Fetch current block(%d*%d) is pending and reset it.", block->width(), block->height());
+            block.reset();
+        }
     } else {
         if ((mOutputFormat.mCodedSize.width() == block->width() &&
              mOutputFormat.mCodedSize.height() == block->height()) ||
@@ -950,6 +958,12 @@ void C2VdecComponent::onDrainDone() {
     if (mComponentState == ComponentState::DRAINING) {
         mComponentState = ComponentState::STARTED;
     } else if (mComponentState == ComponentState::STOPPING) {
+        if (mPendingOutputEOS) {
+            C2Vdec_LOG(CODEC2_LOG_INFO, "Return EOS work.");
+            if (reportEOSWork() != C2_OK) {
+                return;
+            }
+        }
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "The client signals stop right before Vdec notifies drain done. Let stop process goes.");
         return;
     } else if (mComponentState != ComponentState::FLUSHING) {
@@ -1361,6 +1375,11 @@ void C2VdecComponent::tryChangeOutputFormat() {
 
     setOutputFormatCrop(mPendingOutputFormat->mVisibleRect);
 
+    {
+        AutoMutex l(mResolutionChangingLock);
+        mResolutionChanging = false;
+    }
+
     if (isNonTunnelMode()) {
         uint32_t dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor;
         if (!mUseBufferQueue) {
@@ -1451,7 +1470,7 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
             return C2_CORRUPTED;
         }
     } else {
-        bool  reallocOutputBuffer = mDeviceUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat);
+        bool reallocOutputBuffer = mDeviceUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat);
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Realloc output buffer:%d", reallocOutputBuffer);
         if (reallocOutputBuffer) {
             for (auto& info : mGraphicBlocks) {
@@ -1865,8 +1884,10 @@ void C2VdecComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, 
 
 void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool ownByAccelerator) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "SendOutputBufferToAccelerator mBlockId=%d ownByAccelerator=%d, poolid:%d blockid:%d", info->mBlockId,
-          ownByAccelerator, info->mPoolId, info->mBlockId);
+    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "SendOutputBufferToAccelerator mBlockId=%d ownByAccelerator=%d, poolid:%d blockid:%d size(%dx%d) current size(%dx%d)",
+        info->mBlockId, ownByAccelerator, info->mPoolId, info->mBlockId,
+        info->mGraphicBlock->width(), info->mGraphicBlock->height(),
+        mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height());
 
     if (ownByAccelerator) {
         CHECK_EQ(info->mState, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
@@ -2245,6 +2266,11 @@ std::shared_ptr<C2ComponentInterface> C2VdecComponent::intf() {
 void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t width, uint32_t height) {
     // Always use flexible pixel 420 format YCbCr_420_888 in Android.
     // Uses coded size for crop rect while it is not available.
+    {
+        AutoMutex l(mResolutionChangingLock);
+        mResolutionChanging = true;
+    }
+
     if (mBufferFirstAllocated && minNumBuffers < mOutputFormat.mMinNumBuffers)
         minNumBuffers = mOutputFormat.mMinNumBuffers;
 
@@ -2529,6 +2555,9 @@ c2_status_t C2VdecComponent::reportEOSWork() {
     eosWork->workletsProcessed = static_cast<uint32_t>(eosWork->worklets.size());
     eosWork->worklets.front()->output.flags = C2FrameData::FLAG_END_OF_STREAM;
 
+    if (!mUseBufferQueue) {
+        mIsReportEosWork = true;
+    }
 
     if (!mPendingWorks.empty()) {
         C2Vdec_LOG(CODEC2_LOG_INFO, "There are remaining works except EOS work. abandon them.");
@@ -2565,6 +2594,20 @@ void C2VdecComponent::reportAbandonedWorks() {
             mTunnelHelper->storeAbandonedFrame(work->input.ordinal.timestamp.peekull());
         }
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] tunnel mode abandon mediatimeus:%lld", __func__, work->input.ordinal.timestamp.peekull());
+        if (!mUseBufferQueue && abandonedWorks.empty() && mIsReportEosWork) {
+            for (auto & info : mGraphicBlocks) {
+                if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                        C2ConstGraphicBlock constBlock = info.mGraphicBlock->share(
+                                    C2Rect(mOutputFormat.mVisibleRect.width(),
+                                    mOutputFormat.mVisibleRect.height()),
+                                    C2Fence());
+                    std::shared_ptr<C2Buffer> buffer = C2Buffer::CreateGraphicBuffer(std::move(constBlock));
+                    work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
+                    C2Vdec_LOG(CODEC2_LOG_INFO, "report abandone work and add block.");
+                }
+            }
+            mIsReportEosWork = false;
+        }
         abandonedWorks.emplace_back(std::move(work));
     }
 
@@ -2594,6 +2637,7 @@ void C2VdecComponent::reportAbandonedWorks() {
 
 void C2VdecComponent::reportError(c2_status_t error) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
+    ALOGV("reportError");
     if (mComponentState == ComponentState::DESTROYING ||
         mComponentState == ComponentState::DESTROYED ||
         mComponentState == ComponentState::UNINITIALIZED) {
@@ -2696,8 +2740,13 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
             c2_status_t err = C2_TIMED_OUT;
             C2BlockPool::local_id_t poolId;
             std::shared_ptr<C2GraphicBlock> block;
+            bool resolutionchanging = false;
+            {
+                AutoMutex l(mResolutionChangingLock);
+                resolutionchanging = mResolutionChanging;
+            }
 
-            if (mDeviceUtil != NULL && mBlockPoolUtil != NULL) {
+            if (mDeviceUtil != NULL && mBlockPoolUtil != NULL && !resolutionchanging) {
                 mBlockPoolUtil->getPoolId(&poolId);
                 err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                 mDeviceUtil->getOutAlignedSize(size.height()),
@@ -2740,6 +2789,11 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 } else {
                     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "The allocated block size(%d*%d) does not match the current resolution(%d*%d), so discarded it.", block->width(), block->height(),
                         mOutputFormat.mVisibleRect.width(), mOutputFormat.mVisibleRect.height());
+                    if (!mUseBufferQueue) {
+                        mBlockPoolUtil->resetGraphicBlock(block);
+                        block.reset();
+
+                    }
                 }
             } else if (err == C2_BLOCKING) {
                 ::usleep(delayTime);

@@ -134,10 +134,12 @@ C2VdecBlockPoolUtil::~C2VdecBlockPoolUtil() {
         CODEC2_LOG(CODEC2_LOG_INFO, "[%s] Block use count:%ld", __func__, iter->second.mGraphicBlock.use_count());
         if (iter->second.mFd >= 0) {
             close(iter->second.mFd);
+            iter->second.mFd = -1;
         }
 
         if (iter->second.mDupFd >= 0) {
             close(iter->second.mDupFd);
+            iter->second.mDupFd = -1;
         }
         iter->second.mGraphicBlock.reset();
     }
@@ -241,10 +243,12 @@ c2_status_t C2VdecBlockPoolUtil::resetGraphicBlock(int32_t blockId) {
         if (info->second.mBlockId == blockId) {
             if (info->second.mFd >= 0) {
                 close(info->second.mFd);
+                info->second.mFd = -1;
             }
 
             if (info->second.mDupFd >= 0) {
                 close(info->second.mDupFd);
+                info->second.mDupFd = -1;
             }
             info->second.mGraphicBlock.reset();
             mRawGraphicBlockInfo.erase(info);
@@ -258,6 +262,32 @@ c2_status_t C2VdecBlockPoolUtil::resetGraphicBlock(int32_t blockId) {
     }
     CODEC2_LOG(CODEC2_LOG_INFO,"[%s] Reset block blockid:%d ret:%d", __func__, blockId,ret);
     return ret;
+}
+
+c2_status_t C2VdecBlockPoolUtil::resetGraphicBlock(std::shared_ptr<C2GraphicBlock> block) {
+    c2_status_t ret = C2_BAD_VALUE;
+    std::lock_guard<std::mutex> lock(mBlockBufferMutex);
+    int fd = block->handle()->data[0];
+
+    auto blockInfo = std::find_if(mRawGraphicBlockInfo.begin(), mRawGraphicBlockInfo.end(),
+        [fd, this](const std::pair<uint64_t, BlockBufferInfo> &gb) {
+        if (mUseSurface)
+            return gb.second.mDupFd == fd;
+        else
+            return gb.second.mFd == fd;
+    });
+
+    if (blockInfo != mRawGraphicBlockInfo.end()) {
+        uint32_t blockId = blockInfo->second.mBlockId;
+        CODEC2_LOG(CODEC2_LOG_INFO,"[%s] Reset block block id:%d ret:%d", __func__, blockId,ret);
+        resetGraphicBlock(blockId);
+        return C2_OK;
+    } else {
+        CODEC2_LOG(CODEC2_LOG_INFO,"[%s] Reset but the block not found.", __func__);
+        return C2_BAD_VALUE;
+    }
+
+    return C2_OK;
 }
 
 uint64_t C2VdecBlockPoolUtil::getConsumerUsage() {
@@ -318,7 +348,7 @@ c2_status_t C2VdecBlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> bloc
     if (mUseSurface) {
         *fd = info->second.mDupFd;
     } else {
-        *fd = info->second.mFd;
+        *fd = info->second.mDupFd;
     }
     return C2_OK;
 }
@@ -340,7 +370,7 @@ c2_status_t C2VdecBlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Grap
     }
     else {
         info.mFd = fd;
-        info.mDupFd = fd;//dup(block->handle()->data[0]);
+        info.mDupFd = dup(block->handle()->data[0]);
         info.mBlockId = mGraphicBufferId;
         //info.mGraphicBlock = block;
         mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
@@ -392,10 +422,12 @@ void C2VdecBlockPoolUtil::cancelAllGraphicBlock() {
 
         if (info->second.mFd >= 0) {
             close(info->second.mFd);
+            info->second.mFd = -1;
         }
 
         if (info->second.mDupFd >= 0) {
             close(info->second.mDupFd);
+            info->second.mDupFd = -1;
         }
 
         info->second.mBlockId = -1;
