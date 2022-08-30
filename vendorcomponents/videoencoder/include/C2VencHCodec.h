@@ -33,6 +33,12 @@ public:
 //protected:
     virtual ~C2VencHCodec();
 
+    //static
+    static std::atomic<int32_t> sConcurrentInstances;
+    // static
+    static std::shared_ptr<C2Component> create(
+            char *name, c2_node_id_t id, const std::shared_ptr<C2VencHCodec::IntfImpl>& helper);
+
     // The pointer of component interface implementation.
 private:
     c2_status_t genVuiParam(int32_t *primaries,int32_t *transfer,int32_t *matrixCoeffs,bool *range);

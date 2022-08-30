@@ -623,6 +623,23 @@ private:
 
 };
 
+// static
+std::atomic<int32_t> C2VencW420::sConcurrentInstances = 0;
+
+// static
+std::shared_ptr<C2Component> C2VencW420::create(
+        char *name, c2_node_id_t id, const std::shared_ptr<C2VencW420::IntfImpl>& helper) {
+    static const int32_t kMaxConcurrentInstances = 1;
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
+        ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
+        return nullptr;
+    }
+    return std::shared_ptr<C2Component>(new C2VencW420(name, id, helper));
+}
+
+
 
 C2VencW420::C2VencW420(const char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl)
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
@@ -630,11 +647,13 @@ C2VencW420::C2VencW420(const char *name, c2_node_id_t id, const std::shared_ptr<
               mCodecHandle(0),
               mIDRInterval(0) {
     ALOGD("C2VencW420 constructor!");
+    sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
 }
 
 
 C2VencW420::~C2VencW420() {
     ALOGD("C2VencW420 destructor!");
+    sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
 }
 
 
@@ -1023,11 +1042,14 @@ public:
             std::function<void(C2Component*)> deleter) override {
         UNUSED(deleter);
         ALOGV("in %s", __func__);
+        *component = C2VencW420::create((char *)COMPONENT_NAME, id, std::make_shared<C2VencW420::IntfImpl>(mHelper));
+        return *component ? C2_OK : C2_NO_MEMORY;
+        /*
         *component = std::shared_ptr<C2Component>(
                 new C2VencW420(COMPONENT_NAME,
                                  id,
                                  std::make_shared<C2VencW420::IntfImpl>(mHelper)));
-        return C2_OK;
+        return C2_OK;*/
     }
 
     virtual c2_status_t createInterface(

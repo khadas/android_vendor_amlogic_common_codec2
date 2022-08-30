@@ -630,17 +630,36 @@ private:
 };
 
 
+// static
+std::atomic<int32_t> C2VencHCodec::sConcurrentInstances = 0;
+
+// static
+std::shared_ptr<C2Component> C2VencHCodec::create(
+        char *name, c2_node_id_t id, const std::shared_ptr<C2VencHCodec::IntfImpl>& helper) {
+    static const int32_t kMaxConcurrentInstances = 3;
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
+        ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
+        return nullptr;
+    }
+    return std::shared_ptr<C2Component>(new C2VencHCodec(name, id, helper));
+}
+
+
 C2VencHCodec::C2VencHCodec(const char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl)
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
               mIntfImpl(intfImpl),
               mCodecHandle(0),
               mIDRInterval(0) {
     ALOGD("C2VencHCodec constructor!");
+    sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
 }
 
 
 C2VencHCodec::~C2VencHCodec() {
     ALOGD("C2VencHCodec destructor!");
+    sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
 }
 
 
@@ -1006,11 +1025,13 @@ public:
             std::function<void(C2Component*)> deleter) override {
         UNUSED(deleter);
         ALOGV("in %s", __func__);
-        *component = std::shared_ptr<C2Component>(
+        *component = C2VencHCodec::create((char *)COMPONENT_NAME, id, std::make_shared<C2VencHCodec::IntfImpl>(mHelper));
+        return *component ? C2_OK : C2_NO_MEMORY;
+        /**component = std::shared_ptr<C2Component>(
                 new C2VencHCodec(COMPONENT_NAME,
                                  id,
                                  std::make_shared<C2VencHCodec::IntfImpl>(mHelper)));
-        return C2_OK;
+        return C2_OK;*/
     }
 
     virtual c2_status_t createInterface(
