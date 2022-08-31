@@ -53,6 +53,7 @@ private:
     void appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId);
     uint64_t getPlatformUsage();
     c2_status_t allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat, int* pFd);
+    void allocTunnelBufferAndSendToDecoder(const media::Size& size, uint32_t pixelFormat, int index);
     c2_status_t resetBlockPoolBuffers();
     bool isInResolutionChanging();
 
