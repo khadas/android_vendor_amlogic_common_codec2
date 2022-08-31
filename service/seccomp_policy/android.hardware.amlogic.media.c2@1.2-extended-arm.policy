@@ -1,0 +1,4 @@
+# Extended policy.
+eventfd2: 1
+statfs64: 1
+sched_setscheduler: 1

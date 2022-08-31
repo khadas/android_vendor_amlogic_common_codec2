@@ -66,7 +66,7 @@ cc_binary {
     relative_install_path: "hw",
     vintf_fragments : ["android.hardware.media.c2@1.2-service.xml"],
 
-//    init_rc: ["android.hardware.media.c2@1.2-service.rc"],
+    init_rc: ["android.hardware.media.c2@1.2-service.rc"],
 
     defaults: [
         "hidl_defaults",
@@ -86,7 +86,10 @@ cc_binary {
         "libbinder",
         "libvendor_c2componentstore",
     ],
-    //required: ["android.hardware.amlogic.media.c2@1.2-seccomp_policy"],
+    required: [
+        "android.hardware.amlogic.media.c2@1.2-seccomp-policy",
+        "android.hardware.amlogic.media.c2@1.2-extended-seccomp-policy",
+    ],
 
 
     // The content in manifest_media_c2_V1_2_default.xml can be included
@@ -101,29 +104,38 @@ cc_binary {
 //
 // Files in the "seccomp_policy" subdirectory are only provided as examples.
 // They may not work on some devices and/or architectures without modification.
-//prebuilt_etc {
-//    name: "android.hardware.amlogic.media.c2@1.2-seccomp-policy",
-//    vendor: true,
-//    sub_dir: "seccomp_policy",
+prebuilt_etc {
+    name: "android.hardware.amlogic.media.c2@1.2-seccomp-policy",
+    vendor: true,
+    sub_dir: "seccomp_policy",
 
   // If a specific architecture is targeted, multiple choices are not needed.
-//    arch: {
-//        arm: {
-//           src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-arm.policy",
-//        },
-//        arm64: {
-//            src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-arm64.policy",
-//        },
-//        x86: {
-//            src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-x86.policy",
-//       },
-//        x86_64: {
-//            src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-x86_64.policy",
-//        },
-//    },
+    arch: {
+        arm: {
+           src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-arm.policy",
+        },
+        arm64: {
+            src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-arm64.policy",
+        },
+        x86: {
+            src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-x86.policy",
+       },
+        x86_64: {
+            src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-x86_64.policy",
+        },
+    },
 
   // This may be removed.
 //    required: ["crash_dump.policy"],
-//}
+}
+
+prebuilt_etc {
+    name: "android.hardware.amlogic.media.c2@1.2-extended-seccomp-policy",
+    vendor: true,
+    sub_dir: "seccomp_policy",
+
+    src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-extended-arm.policy",
+
+}
 
 
