@@ -214,7 +214,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
 
     mIsDolbyVision = name.find(".dolby-vision") != std::string::npos;
 
-   // TODO(johnylin): the client may need to know if init is Failed.
+   //  TODO: the client may need to know if init is Failed.
     if (mIntfImpl->status() != C2_OK) {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Component interface init Failed (err code = %d)", mIntfImpl->status());
         return;
@@ -400,7 +400,7 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
             mOutputWorkCount, mPendingBuffersToWork.size());
 
     mQueue.push({std::move(work), drainMode});
-    // TODO(johnylin): set a maximum size of mQueue and check if mQueue is already full.
+    //  TODO: set a maximum size of mQueue and check if mQueue is already full.
 
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
@@ -1124,7 +1124,7 @@ void C2VdecComponent::onStopDone() {
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnStopDone");
     CHECK(mStopDoneEvent);
 
-    // TODO(johnylin): At this moment, there may be C2Buffer still owned by client, do we need to
+    //  TODO: At this moment, there may be C2Buffer still owned by client, do we need to
     // do something for them?
     reportAbandonedWorks();
     mPendingOutputFormat.reset();
@@ -1177,7 +1177,7 @@ void C2VdecComponent::onStopDone() {
 c2_status_t C2VdecComponent::setListener_vb(const std::shared_ptr<C2Component::Listener>& listener,
         c2_blocking_t mayBlock) {
     UNUSED(mayBlock);
-    // TODO(johnylin): API says this method must be supported in all states, however I'm quite not
+    //  TODO: API says this method must be supported in all states, however I'm quite not
     //                 sure what is the use case.
     if (mState.load() != State::LOADED) {
         return C2_BAD_STATE;
@@ -1226,7 +1226,7 @@ std::deque<std::unique_ptr<C2Work>>::iterator C2VdecComponent::findPendingWorkBy
 C2Work* C2VdecComponent::getPendingWorkByBitstreamId(int32_t bitstreamId) {
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
     if (workIter == mPendingWorks.end()) {
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, [%s] "Can't find pending work by bitstream ID: %d", __func__, bitstreamId);
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%s] Can't find pending work by bitstream ID: %d", __func__, bitstreamId);
         return nullptr;
     }
     return workIter->get();
@@ -1343,7 +1343,7 @@ void C2VdecComponent::tryChangeOutputFormat() {
     // At this point, all output buffers should not be owned by accelerator. The component is not
     // able to know when a client will release all owned output buffers by now. But it is ok to
     // leave them to client since component won't own those buffers anymore.
-    // TODO(johnylin): we may also set a parameter for component to keep dequeueing buffers and
+    //  TODO: we may also set a parameter for component to keep dequeueing buffers and
     //                 change format only after the component owns most buffers. This may prevent
     //                 too many buffers are still on client's hand while component starts to
     //                 allocate more buffers. However, it leads latency on output format change.
@@ -2255,8 +2255,8 @@ c2_status_t C2VdecComponent::reset() {
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s]",__func__);
     mVdecComponentStopDone = false;
     return stop();
-    // TODO(johnylin): reset is different than stop that it could be called in any state.
-    // TODO(johnylin): when reset is called, set ComponentInterface to default values.
+    //  TODO: reset is different than stop that it could be called in any state.
+    //  TODO: when reset is called, set ComponentInterface to default values.
 }
 
 c2_status_t C2VdecComponent::release() {
@@ -2473,7 +2473,7 @@ void C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, b
         if (work->worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME) {
             // A work with neither flags nor output buffer would be treated as no-corresponding
             // output by C2 framework, and regain pipeline capacity immediately.
-            // TODO(johnylin): output FLAG_DROP_FRAME flag after it could be handled correctly.
+            //  TODO: output FLAG_DROP_FRAME flag after it could be handled correctly.
             work->worklets.front()->output.flags = static_cast<C2FrameData::flags_t>(0);
         }
         work->result = C2_OK;

@@ -213,7 +213,7 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
       : C2InterfaceHelper(helper), mInitStatus(C2_OK) {
     setDerivedInstance(this);
 
-    // TODO(johnylin): use factory function to determine whether V4L2 stream or slice API is.
+    // TODO: use factory function to determine whether V4L2 stream or slice API is.
     char inputMime[128];
     mInputCodec = getInputCodecFromDecoderName(name);
     mSecureMode = name.find(".secure") != std::string::npos;
