@@ -276,116 +276,138 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
     } else {
         std::string createFactoryName;
         std::string destroyFactoryName;
-        switch (codec) {
-          case C2VendorCodec::VDEC_H264:
-              createFactoryName = "CreateC2VdecH264Factory";
-              destroyFactoryName = "DestroyC2VdecH264Factory";
-              break;
-          case C2VendorCodec::VDEC_H265:
-              createFactoryName = "CreateC2VdecH265Factory";
-              destroyFactoryName = "DestroyC2VdecH265Factory";
-              break;
-          case C2VendorCodec::VDEC_VP9:
-              createFactoryName = "CreateC2VdecVP9Factory";
-              destroyFactoryName = "DestroyC2VdecVP9Factory";
-              break;
-          case C2VendorCodec::VDEC_AV1:
-              createFactoryName = "CreateC2VdecAV1Factory";
-              destroyFactoryName = "DestroyC2VdecAV1Factory";
-              break;
-          case C2VendorCodec::VDEC_DVHE:
-              createFactoryName = "CreateC2VdecDVHEFactory";
-              destroyFactoryName = "DestroyC2VdecDVHEFactory";
-              break;
-          case C2VendorCodec::VDEC_DVAV:
-              createFactoryName = "CreateC2VdecDVAVFactory";
-              destroyFactoryName = "DestroyC2VdecDVAVFactory";
-              break;
-          case C2VendorCodec::VDEC_DVAV1:
-              createFactoryName = "CreateC2VdecDVAV1Factory";
-              destroyFactoryName = "DestroyC2VdecDVAV1Factory";
-              break;
-          case C2VendorCodec::VDEC_MP2V:
-              createFactoryName = "CreateC2VdecMP2VFactory";
-              destroyFactoryName = "DestroyC2VdecMP2VFactory";
-              break;
-          case C2VendorCodec::VDEC_MP4V:
-              createFactoryName = "CreateC2VdecMP4VFactory";
-              destroyFactoryName = "DestroyC2VdecMP4VFactory";
-              break;
-          case C2VendorCodec::VDEC_MJPG:
-              createFactoryName = "CreateC2VdecMJPGFactory";
-              destroyFactoryName = "DestroyC2VdecMJPGFactory";
-              break;
+        if (isAudio) {
+            switch (codec) {
+              case C2VendorCodec::ADEC_AAC:
+                  createFactoryName = "CreateC2AudioDecoderAACFactory";
+                  destroyFactoryName = "DestroyC2AudioDecoderAACFactory";
+                  break;
+              case C2VendorCodec::ADEC_AC3:
+                  createFactoryName = "CreateC2AudioDecoderAC3Factory";
+                  destroyFactoryName = "DestroyC2AudioDecoderAC3Factory";
+                  break;
+              case C2VendorCodec::ADEC_EAC3:
+                  createFactoryName = "CreateC2AudioDecoderEAC3Factory";
+                  destroyFactoryName = "DestroyC2AudioDecoderEAC3Factory";
+                  break;
+              default:
+                  ALOGE("Unknown Audio codec:%d", codec);
+                  return C2_CORRUPTED;
+            }
+
+        } else {
+            switch (codec) {
+              case C2VendorCodec::VDEC_H264:
+                  createFactoryName = "CreateC2VdecH264Factory";
+                  destroyFactoryName = "DestroyC2VdecH264Factory";
+                  break;
+              case C2VendorCodec::VDEC_H265:
+                  createFactoryName = "CreateC2VdecH265Factory";
+                  destroyFactoryName = "DestroyC2VdecH265Factory";
+                  break;
+              case C2VendorCodec::VDEC_VP9:
+                  createFactoryName = "CreateC2VdecVP9Factory";
+                  destroyFactoryName = "DestroyC2VdecVP9Factory";
+                  break;
+              case C2VendorCodec::VDEC_AV1:
+                  createFactoryName = "CreateC2VdecAV1Factory";
+                  destroyFactoryName = "DestroyC2VdecAV1Factory";
+                  break;
+              case C2VendorCodec::VDEC_DVHE:
+                  createFactoryName = "CreateC2VdecDVHEFactory";
+                  destroyFactoryName = "DestroyC2VdecDVHEFactory";
+                  break;
+              case C2VendorCodec::VDEC_DVAV:
+                  createFactoryName = "CreateC2VdecDVAVFactory";
+                  destroyFactoryName = "DestroyC2VdecDVAVFactory";
+                  break;
+              case C2VendorCodec::VDEC_DVAV1:
+                  createFactoryName = "CreateC2VdecDVAV1Factory";
+                  destroyFactoryName = "DestroyC2VdecDVAV1Factory";
+                  break;
+              case C2VendorCodec::VDEC_MP2V:
+                  createFactoryName = "CreateC2VdecMP2VFactory";
+                  destroyFactoryName = "DestroyC2VdecMP2VFactory";
+                  break;
+              case C2VendorCodec::VDEC_MP4V:
+                  createFactoryName = "CreateC2VdecMP4VFactory";
+                  destroyFactoryName = "DestroyC2VdecMP4VFactory";
+                  break;
+              case C2VendorCodec::VDEC_MJPG:
+                  createFactoryName = "CreateC2VdecMJPGFactory";
+                  destroyFactoryName = "DestroyC2VdecMJPGFactory";
+                  break;
 #ifdef SUPPORT_VDEC_AVS2
-          case C2VendorCodec::VDEC_AVS2:
-              createFactoryName = "CreateC2VdecAVS2Factory";
-              destroyFactoryName = "DestroyC2VdecAVS2Factory";
-              break;
+            case C2VendorCodec::VDEC_AVS2:
+                createFactoryName = "CreateC2VdecAVS2Factory";
+                destroyFactoryName = "DestroyC2VdecAVS2Factory";
+                break;
 #endif
 #ifdef SUPPORT_VDEC_AVS
-          case C2VendorCodec::VDEC_AVS:
-              createFactoryName = "CreateC2VdecAVSFactory";
-              destroyFactoryName = "DestroyC2VdecAVSFactory";
-              break;
+            case C2VendorCodec::VDEC_AVS:
+                createFactoryName = "CreateC2VdecAVSFactory";
+                destroyFactoryName = "DestroyC2VdecAVSFactory";
+                break;
 #endif
 #ifdef SUPPORT_SOFT_VDEC
-          case C2VendorCodec::VDEC_VP6A:
-              createFactoryName = "CreateC2SoftVdecVP6AFactory";
-              destroyFactoryName = "DestroyC2SoftVdecVP6AFactory";
-              break;
-          case C2VendorCodec::VDEC_VP6F:
-              createFactoryName = "CreateC2SoftVdecVP6FFactory";
-              destroyFactoryName = "DestroyC2SoftVdecVP6FFactory";
-              break;
-          case C2VendorCodec::VDEC_VP8:
-              createFactoryName = "CreateC2SoftVdecVP8Factory";
-              destroyFactoryName = "DestroyC2SoftVdecVP8Factory";
-              break;
-          case C2VendorCodec::VDEC_H263:
-              createFactoryName = "CreateC2SoftVdecH263Factory";
-              destroyFactoryName = "DestroyC2SoftVdecH263Factory";
-              break;
-          case C2VendorCodec::VDEC_RM10:
-              createFactoryName = "CreateC2SoftVdecRM10Factory";
-              destroyFactoryName = "DestroyC2SoftVdecRM10Factory";
-              break;
-          case C2VendorCodec::VDEC_RM20:
-              createFactoryName = "CreateC2SoftVdecRM20Factory";
-              destroyFactoryName = "DestroyC2SoftVdecRM20Factory";
-              break;
-          case C2VendorCodec::VDEC_RM30:
-              createFactoryName = "CreateC2SoftVdecRM30Factory";
-              destroyFactoryName = "DestroyC2SoftVdecRM30Factory";
-              break;
-          case C2VendorCodec::VDEC_RM40:
-              createFactoryName = "CreateC2SoftVdecRM40Factory";
-              destroyFactoryName = "DestroyC2SoftVdecRM40Factory";
-              break;
-          case C2VendorCodec::VDEC_WMV1:
-              createFactoryName = "CreateC2SoftVdecWMV1Factory";
-              destroyFactoryName = "DestroyC2SoftVdecWMV1Factory";
-              break;
-          case C2VendorCodec::VDEC_WMV2:
-              createFactoryName = "CreateC2SoftVdecWMV2Factory";
-              destroyFactoryName = "DestroyC2SoftVdecWMV2Factory";
-              break;
-          case C2VendorCodec::VDEC_WMV3:
-              createFactoryName = "CreateC2SoftVdecWMV3Factory";
-              destroyFactoryName = "DestroyC2SoftVdecWMV3Factory";
-              break;
+              case C2VendorCodec::VDEC_VP6A:
+                  createFactoryName = "CreateC2SoftVdecVP6AFactory";
+                  destroyFactoryName = "DestroyC2SoftVdecVP6AFactory";
+                  break;
+              case C2VendorCodec::VDEC_VP6F:
+                  createFactoryName = "CreateC2SoftVdecVP6FFactory";
+                  destroyFactoryName = "DestroyC2SoftVdecVP6FFactory";
+                  break;
+              case C2VendorCodec::VDEC_VP8:
+                  createFactoryName = "CreateC2SoftVdecVP8Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecVP8Factory";
+                  break;
+              case C2VendorCodec::VDEC_H263:
+                  createFactoryName = "CreateC2SoftVdecH263Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecH263Factory";
+                  break;
+              case C2VendorCodec::VDEC_RM10:
+                  createFactoryName = "CreateC2SoftVdecRM10Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecRM10Factory";
+                  break;
+              case C2VendorCodec::VDEC_RM20:
+                  createFactoryName = "CreateC2SoftVdecRM20Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecRM20Factory";
+                  break;
+              case C2VendorCodec::VDEC_RM30:
+                  createFactoryName = "CreateC2SoftVdecRM30Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecRM30Factory";
+                  break;
+              case C2VendorCodec::VDEC_RM40:
+                  createFactoryName = "CreateC2SoftVdecRM40Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecRM40Factory";
+                  break;
+              case C2VendorCodec::VDEC_WMV1:
+                  createFactoryName = "CreateC2SoftVdecWMV1Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecWMV1Factory";
+                  break;
+              case C2VendorCodec::VDEC_WMV2:
+                  createFactoryName = "CreateC2SoftVdecWMV2Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecWMV2Factory";
+                  break;
+              case C2VendorCodec::VDEC_WMV3:
+                  createFactoryName = "CreateC2SoftVdecWMV3Factory";
+                  destroyFactoryName = "DestroyC2SoftVdecWMV3Factory";
+                  break;
 #endif
-          case C2VendorCodec::VENC_H264:
-          case C2VendorCodec::VENC_H265:
-              if (C2_OK != selectEncoder(codec,createFactoryName,destroyFactoryName)) {
-                  ALOGE("cannot find match encoder driver!");
+              case C2VendorCodec::VENC_H264:
+              case C2VendorCodec::VENC_H265:
+                  if (C2_OK != selectEncoder(codec,createFactoryName,destroyFactoryName)) {
+                      ALOGE("cannot find match encoder driver!");
+                      return C2_CORRUPTED;
+                  }
+                  break;
+              default:
+                  ALOGE("Unknown codec:%d", codec);
                   return C2_CORRUPTED;
-              }
-              break;
-          default:
-              ALOGE("Unknown codec:%d", codec);
-              return C2_CORRUPTED;
+            }
         }
+        ALOGV("%s  libPath:%s --> isAudio:%d, createFactoryName:%s",__func__, libPath.c_str(), isAudio, createFactoryName.c_str());
         createFactory = (CreateCodec2FactoryFunc2)dlsym(
                 mLibHandle, createFactoryName.c_str());
         if (createFactory == NULL) {
@@ -508,7 +530,7 @@ C2VendorComponentStore::C2VendorComponentStore()
 #endif
     bool disableC2SecureVdec = property_get_bool(C2_PROPERTY_VDEC_SECURE_DISABLE, false);
     bool supportC2VEnc = property_get_bool(C2_PROPERTY_VENC_SUPPORT, true);
-    bool supportC2Adec = property_get_bool(C2_PROPERTY_ADEC_SUPPORT, false);
+    bool supportC2Adec = property_get_bool(C2_PROPERTY_ADEC_SUPPORT, true);
     if (supportC2Vdec) {
         for (int i = 0; i < sizeof(gC2VideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
             if (disableC2SecureVdec && strstr(gC2VideoDecoderComponents[i].compname.c_str(), (const char *)".secure"))
@@ -533,6 +555,7 @@ C2VendorComponentStore::C2VendorComponentStore()
     }
     if (supportC2Adec) {
         for (int i = 0; i < sizeof(gC2AudioDecoderComponents) / sizeof(C2VendorComponent); i++) {
+            ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2AudioDecoderComponents[i].compname.c_str(), gC2AudioDecoderComponents[i].codec);
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderComponents[i].compname),
                     std::forward_as_tuple(kComponentLoadAudioDecoderLibray, gC2AudioDecoderComponents[i].codec, true));
         }
@@ -603,6 +626,7 @@ c2_status_t C2VendorComponentStore::createComponent(C2String name,
 c2_status_t C2VendorComponentStore::createInterface(
         C2String name, std::shared_ptr<C2ComponentInterface>* const interface) {
     // This method SHALL return within 100ms.
+    ALOGI("C2VendorComponentStore::createInterface name %s\n", name.c_str());
     interface->reset();
     ComponentLoader* loader;
     c2_status_t res = findComponent(name, &loader);
@@ -660,7 +684,7 @@ std::shared_ptr<C2ComponentStore> GetCodec2VendorComponentStore() {
     static std::mutex mutex;
     static std::weak_ptr<C2ComponentStore> platformStore;
     std::lock_guard<std::mutex> lock(mutex);
-    ALOGI("GetCodec2VendorComponentStore\n");
+    ALOGI("GetCodec2VendorComponentStore, line:%d\n", __LINE__);
     std::shared_ptr<C2ComponentStore> store = platformStore.lock();
     if (store == nullptr) {
         store = std::make_shared<C2VendorComponentStore>();

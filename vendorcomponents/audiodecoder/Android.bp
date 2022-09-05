@@ -1,0 +1,80 @@
+// *** THIS PACKAGE HAS SPECIAL LICENSING CONDITIONS.  PLEASE
+//     CONSULT THE OWNERS AND opensource-licensing@google.com BEFORE
+//     DEPENDING ON IT IN YOUR PROJECT. ***
+package {
+    default_applicable_licenses: ["vendor_amlogic_common_license"],
+}
+
+cc_library_shared {
+    name: "libcodec2_aml_audio_decoder",
+    defaults: [
+        //"libcodec2_soft-defaults",
+        //"libcodec2_soft_sanitize_all-defaults",
+		"libcodec2-impl-defaults",
+    ],
+	vendor: true,
+	//vendor_available: true,
+
+    srcs: [
+        "C2AudioDecInterface.cpp",
+        "C2AudioDecComponent.cpp",
+        "C2AudioAacDecoder.cpp",
+        "C2AudioEAC3Decoder.cpp"
+    ],
+
+    shared_libs: [
+        "android.hardware.media.bufferpool@2.0",
+        "libbase",
+        "libbinder",
+        "liblog",
+        "libstagefright_bufferqueue_helper",
+        "libsfplugin_ccodec_utils",
+        "libcodec2_simple_component",
+        "libstagefright_foundation",
+        "libstagefright_bufferpool@2.0",
+        "libutils",
+        "libcutils",
+        "libcodec2",
+        "libcodec2_vndk",
+        "libutilscallstack",
+        "libevent",
+        "libvendor_c2componentstore",
+        //"libcodec2_soft_common"
+    ],
+
+    header_libs: [
+        "media_plugin_headers",
+        "libcodec2_headers",
+        "libcodec2_internal",
+        "libstagefright_headers",
+        "libnativewindow_headers",
+        "libnativebase_headers",
+        //"libmediahal_headers",
+        "libvendor_c2componentstore_headers",
+        "libvendor_component_headers",
+        "libarect_headers",
+    ],
+
+    // -Wno-unused-parameter is needed for libchrome/base codes
+    cflags: [
+        "-Werror",
+        "-Wall",
+        "-Wno-unused-parameter",
+    ] + [
+        "-Wno-unused-lambda-capture",
+        "-Wno-unknown-warning-option",
+    ],
+    clang: true,
+    sanitize: {
+        misc_undefined: [
+            "unsigned-integer-overflow",
+            "signed-integer-overflow",
+        ],
+    },
+
+    ldflags: ["-Wl,-Bsymbolic"],
+
+    static_libs: [
+        "libFraunhoferAAC",
+    ],
+}

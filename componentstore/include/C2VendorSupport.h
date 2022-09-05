@@ -56,8 +56,14 @@ const C2String kH264EncoderName = "c2.amlogic.avc.encoder";
 const C2String kH265EncoderName = "c2.amlogic.hevc.encoder";
 
 /*audio*/
-const C2String kMp2DecoderName = "c2.amlogic.mp2.decoder";
-
+const C2String kMP2DecoderName      = "c2.amlogic.audio.decoder.mp2";
+const C2String kAACDecoderName      = "c2.amlogic.audio.decoder.aac";
+const C2String kAC3DecoderName      = "c2.amlogic.audio.decoder.ac3";
+const C2String kEC3DecoderName      = "c2.amlogic.audio.decoder.eac3";
+const C2String kFFMPEGDecoderName   = "c2.amlogic.audio.decoder.ffmpeg";
+const C2String kDTSDecoderName      = "c2.amlogic.audio.decoder.dts";
+const C2String kDTSHDDecoderName    = "c2.amlogic.audio.decoder.dtshd";
+const C2String kDTSSEDecoderName    = "c2.amlogic.audio.decoder.dtse";
 
 
 enum class InputCodec {
@@ -138,6 +144,13 @@ enum class C2VendorCodec {
     VENC_H264,
     VENC_H265,
     ADEC_MP2,
+    ADEC_AAC,
+    ADEC_AC3,
+    ADEC_EAC3,
+    ADEC_FFMPEG,
+    ADEC_DTS,
+    ADEC_DTSHD,
+    ADEC_DTSE,
 };
 
 struct C2VendorComponent {
@@ -193,7 +206,14 @@ static C2VendorComponent gC2VideoEncoderComponents [] = {
 };
 
 static C2VendorComponent gC2AudioDecoderComponents [] = {
-    {kMp2DecoderName, C2VendorCodec::ADEC_MP2},
+    {kMP2DecoderName, C2VendorCodec::ADEC_MP2},
+    {kAACDecoderName, C2VendorCodec::ADEC_AAC},
+    {kAC3DecoderName, C2VendorCodec::ADEC_AC3},
+    {kEC3DecoderName, C2VendorCodec::ADEC_EAC3},
+    {kFFMPEGDecoderName, C2VendorCodec::ADEC_FFMPEG},
+    {kDTSDecoderName, C2VendorCodec::ADEC_DTS},
+    {kDTSHDDecoderName, C2VendorCodec::ADEC_DTSHD},
+    {kDTSSEDecoderName, C2VendorCodec::ADEC_DTSE},
 };
 
 
