@@ -35,6 +35,9 @@ typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc2)(bool);
 typedef void (*DestroyCodec2FactoryFunc2)(::C2ComponentFactory*);
 
 const C2String kComponentLoadVideoDecoderLibray = "libcodec2_aml_video_decoder.so";
+#ifdef SUPPORT_SOFT_VDEC
+const C2String kComponentLoadSoftVideoDecoderLibray = "libcodec2_aml_soft_video_decoder.so";
+#endif
 const C2String kComponentLoadVideoEncoderLibray = "libcodec2_aml_video_encoder.so";
 const C2String kComponentLoadAudioDecoderLibray = "libcodec2_aml_audio_decoder.so";
 
@@ -273,6 +276,52 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
               createFactoryName = "CreateC2VdecMJPGFactory";
               destroyFactoryName = "DestroyC2VdecMJPGFactory";
               break;
+#ifdef SUPPORT_SOFT_VDEC
+          case C2VendorCodec::VDEC_VP6A:
+              createFactoryName = "CreateC2SoftVdecVP6AFactory";
+              destroyFactoryName = "DestroyC2SoftVdecVP6AFactory";
+              break;
+          case C2VendorCodec::VDEC_VP6F:
+              createFactoryName = "CreateC2SoftVdecVP6FFactory";
+              destroyFactoryName = "DestroyC2SoftVdecVP6FFactory";
+              break;
+          case C2VendorCodec::VDEC_VP8:
+              createFactoryName = "CreateC2SoftVdecVP8Factory";
+              destroyFactoryName = "DestroyC2SoftVdecVP8Factory";
+              break;
+          case C2VendorCodec::VDEC_H263:
+              createFactoryName = "CreateC2SoftVdecH263Factory";
+              destroyFactoryName = "DestroyC2SoftVdecH263Factory";
+              break;
+          case C2VendorCodec::VDEC_RM10:
+              createFactoryName = "CreateC2SoftVdecRM10Factory";
+              destroyFactoryName = "DestroyC2SoftVdecRM10Factory";
+              break;
+          case C2VendorCodec::VDEC_RM20:
+              createFactoryName = "CreateC2SoftVdecRM20Factory";
+              destroyFactoryName = "DestroyC2SoftVdecRM20Factory";
+              break;
+          case C2VendorCodec::VDEC_RM30:
+              createFactoryName = "CreateC2SoftVdecRM30Factory";
+              destroyFactoryName = "DestroyC2SoftVdecRM30Factory";
+              break;
+          case C2VendorCodec::VDEC_RM40:
+              createFactoryName = "CreateC2SoftVdecRM40Factory";
+              destroyFactoryName = "DestroyC2SoftVdecRM40Factory";
+              break;
+          case C2VendorCodec::VDEC_WMV1:
+              createFactoryName = "CreateC2SoftVdecWMV1Factory";
+              destroyFactoryName = "DestroyC2SoftVdecWMV1Factory";
+              break;
+          case C2VendorCodec::VDEC_WMV2:
+              createFactoryName = "CreateC2SoftVdecWMV2Factory";
+              destroyFactoryName = "DestroyC2SoftVdecWMV2Factory";
+              break;
+          case C2VendorCodec::VDEC_WMV3:
+              createFactoryName = "CreateC2SoftVdecWMV3Factory";
+              destroyFactoryName = "DestroyC2SoftVdecWMV3Factory";
+              break;
+#endif
           case C2VendorCodec::VENC_H264:
               createFactoryName = "CreateC2VencHCodecFactory";
               destroyFactoryName = "DestroyC2VencHCodecFactory";
@@ -287,8 +336,16 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
         }
         createFactory = (CreateCodec2FactoryFunc2)dlsym(
                 mLibHandle, createFactoryName.c_str());
+        if (createFactory == NULL) {
+            ALOGE("Find %s failed, %s", createFactoryName.c_str(), dlerror());
+            return C2_CORRUPTED;
+        }
         destroyFactory = (DestroyCodec2FactoryFunc2)dlsym(
                 mLibHandle, destroyFactoryName.c_str());
+        if (destroyFactory == NULL) {
+            ALOGE("Find %s failed, %s", destroyFactoryName.c_str(), dlerror());
+            return C2_CORRUPTED;
+        }
         mComponentFactory = createFactory(secure);
         if (mComponentFactory == nullptr) {
             ALOGD("could not create factory in %s", libPath.c_str());
@@ -394,6 +451,9 @@ C2VendorComponentStore::C2VendorComponentStore()
       mInterface(mReflector) {
     // TODO: move this also into a .so so it can be updated
     bool supportC2Vdec = property_get_bool("vendor.media.c2.vdec.support", true);
+#ifdef SUPPORT_SOFT_VDEC
+    bool supportC2SoftVdec = property_get_bool("vendor.media.c2.soft.vdec.support", true);
+#endif
     bool disableC2SecureVdec = property_get_bool("vendor.media.c2.vdec.secure.disable", false);
     bool supportC2VEnc = property_get_bool("vendor.media.c2.venc.support", true);
     bool supportC2Adec = property_get_bool("vendor.media.c2.adec.support", false);
@@ -405,6 +465,14 @@ C2VendorComponentStore::C2VendorComponentStore()
                     std::forward_as_tuple(kComponentLoadVideoDecoderLibray, gC2VideoDecoderComponents[i].codec));
         }
     }
+#ifdef SUPPORT_SOFT_VDEC
+    if (supportC2SoftVdec) {
+        for (int i = 0; i < sizeof(gC2SoftVideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
+            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2SoftVideoDecoderComponents[i].compname),
+                    std::forward_as_tuple(kComponentLoadSoftVideoDecoderLibray, gC2SoftVideoDecoderComponents[i].codec));
+        }
+    }
+#endif
     if (supportC2VEnc) {
         for (int i = 0; i < sizeof(gC2VideoEncoderComponents) / sizeof(C2VendorComponent); i++) {
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoEncoderComponents[i].compname),
