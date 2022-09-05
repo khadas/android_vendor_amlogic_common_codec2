@@ -1,9 +1,21 @@
 {
-    "features": [
-        "Secure Playback",
-        "DolbyVision",
-        "Adaptive Playback",
-        "SurfaceTexture",
-        "No-Surface Playback"
-    ]
+    "vdec": {
+        "features": [
+            "Secure Playback",
+            "DolbyVision",
+            "Adaptive Playback",
+            "SurfaceTexture",
+            "No-Surface Playback",
+            "StreamMode",
+            "Android Video Peek",
+            "TunnelMode",
+            "Multi Frame Streams Playback",
+            "Hdr10 Hdr10Plus Streams Playback"
+        ]
+    },
+    "venc": {
+        "features": [
+         "Multi Instance"
+        ]
+    }
 }

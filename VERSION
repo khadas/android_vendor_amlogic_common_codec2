@@ -1,8 +1,55 @@
 Major_V=1
-Minor_V=2
-BaseCommitId=53a7e20c7e587ecf045178cfdaa37e2b1f868cb5
+Minor_V=3
+BaseCommitId=effa66df5f028c78b7804965cb9cbda7099df6ae
 
 #history version
+#V1.2.42-geffa66d ReleaseNote
+#Release_ChangeId_V1_2=Ic911358d50f1a5993dd6833f5b764928deff7988
+#CommitId:effa66df5f028c78b7804965cb9cbda7099df6ae
+#Feature develop detail information:
+#   modify seccomp policy to can dump tombstoned.
+#   create tunnel mode buffer in a seperated func.
+#   implement hdr10plus support.
+#   add codec2 encoder components.
+#   Clean code for adding encoder and audio.
+#   implement Android Video Peek.
+#   Add the LICENSE.
+#   tunnel mode use default blockpool to alloc buffer.
+#   optimization codec2 code print log.
+#   support mjeg stream playback.
+#   support a packet of multi frame streams playback.
+#   avc add tunnel mode resoluion change.
+#   extend support streammode setting.
+
+#Fixed BUG detail information:
+#   fixed have more uvm msg.
+#   add state control for vts test.
+#   codec2 typo clean.
+#   fix AccuracyTest h264 surfaceview case fail.
+#   av1 hdr static info
+#   fix synchronous flush bug.
+#   Reslove resolution change stuck issue.
+#   fix the boot black screen bug.
+#   fix close the fd of input buffer when the resolution changing.
+#   flush by synchronous mode.
+#   Reslove resolution change stuck issue.
+#   fix vts case AdaptiveDecodeTest fail.
+#   add multi-Instance check for encoder.
+#   fix playback fail caused by wrong block size.
+#   fix vts AdaptiveDecodeTest fail case.
+#   armeabi-v7a CtsMediaV2TestCases 2409 failure.
+#   Reslove resolution change no capture buffer issue.
+#   check the new block size and use it when resolution changing.
+#   fetch a new block and add it for surface stream.
+#   Android t optimize out buf fetch.
+#   CtsMediaDecoderTestCases AdaptivePlaybackTest failure.
+#   fetch a new block and add it synchronously.
+#   initialization verification causes synchronization problems.
+#   fix the block when stopping.
+#   fix get new Block always.
+#   fix tunnel mode crash when exit.
+#   tunnel mode bring up.
+
 #V1.1.9-g499ae92 ReleaseNote
 #Release_ChangeId_V1_2=I280a949aca396c52a3faef3fcdf629f30b605e67
 #CommitId:53a7e20c7e587ecf045178cfdaa37e2b1f868cb5
