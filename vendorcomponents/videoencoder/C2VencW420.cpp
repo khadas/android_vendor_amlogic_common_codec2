@@ -216,8 +216,8 @@ public:
             DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
             .withDefault(new C2StreamPictureSizeInfo::input(0u, 176, 144))
             .withFields({
-                C2F(mSize, width).inRange(176, 2160, 8), /*wave420 height and width must align with 8*/
-                C2F(mSize, height).inRange(144, 2160, 8),
+                C2F(mSize, width).inRange(176, 2160, 2), /*wave420 height and width must align with 8*/
+                C2F(mSize, height).inRange(144, 2160, 2),
             })
             .withSetter(SizeSetter)
             .build());
