@@ -109,6 +109,22 @@ uint32_t VideoDecWraper::AmVideoDec_getResolveBufferFormat(bool crcb, bool semip
     return getResolveBufferFormat(crcb, semiplanar);
 }
 
+AmlMessageBase* VideoDecWraper::AmVideoDec_getAmlMessage() {
+    if (!VideoDecWraper::loadMediaHalLibrary()) {
+        return NULL;
+    }
+
+    typedef AmlMessageBase* (*fGetAmlMessage)();
+    fGetAmlMessage getAmlMessage = (fGetAmlMessage)dlsym(gMediaHal, "AmVideoDec_getAmlMessage");
+
+    if (getAmlMessage == NULL) {
+        CODEC2_LOG(CODEC2_LOG_ERR,"Can't get AmVideoDec AmlMessage\n");
+        return NULL;
+    }
+
+    return getAmlMessage();
+}
+
 VideoDecWraper::VideoDecWraper() :
     mAmVideoDec(NULL),
     mDecoderCallback(NULL) {
@@ -257,6 +273,15 @@ void VideoDecWraper::destroy() {
     C2VdecWraper_LOG(CODEC2_LOG_INFO, "destroy");
     if (mAmVideoDec)
         mAmVideoDec->destroy();
+}
+
+bool VideoDecWraper::postAndReplyMsg(AmlMessageBase *msg) {
+    C2VdecWraper_LOG(CODEC2_LOG_INFO, "postAndReplyMsg");
+    if (mAmVideoDec) {
+        return mAmVideoDec->postAndReplyMsg(msg);
+    }
+
+    return false;
 }
 
 // callback

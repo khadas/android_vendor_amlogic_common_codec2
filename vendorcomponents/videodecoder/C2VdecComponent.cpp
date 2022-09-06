@@ -46,6 +46,7 @@
 #include <c2logdebug.h>
 #include <amuvm.h>
 
+
 #ifdef ATRACE_TAG
 #undef ATRACE_TAG
 #define ATRACE_TAG ATRACE_TAG_VIDEO
@@ -246,10 +247,12 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     //default 1min
     mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32("vendor.codec2.default.retryblock.timeout", DEFAULT_RETRYBLOCK_TIMEOUT_MS);
     mFdInfoDebugEnable =  property_get_bool("debug.vendor.media.codec2.vdec.fd_info_debug", false);
+    mSupport10BitDepth =  property_get_bool("debug.vendor.media.codec2.vdec.support_10bit", false);
 
     if (mFdInfoDebugEnable) {
         getCurrentProcessFdInfo();
     }
+
 }
 
 C2VdecComponent::~C2VdecComponent() {
@@ -356,6 +359,7 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         }
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
                 (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
+
     } else {
         mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
     }
@@ -1130,7 +1134,6 @@ void C2VdecComponent::onFlushDone() {
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Index:%d,graphic block status:%s count:%ld", __func__,
                 info.mBlockId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
         if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
-            C2Vdec_LOG(CODEC2_LOG_INFO, "SendOutputBufferToAccelerator ");
             sendOutputBufferToAccelerator(&info, false);
         }
     }
@@ -1665,7 +1668,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
-            C2Vdec_LOG(CODEC2_LOG_INFO,"FetchGraphicBlock IN ALLOCATOR\n");
+            C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER,"FetchGraphicBlock IN ALLOCATOR\n");
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                mDeviceUtil->getOutAlignedSize(size.height()),
                                                pixelFormat, usage, &block);
@@ -1769,7 +1772,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
-            C2Vdec_LOG(CODEC2_LOG_INFO,"FetchGraphicBlock IN ALLOCATOR\n");
+            C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER,"FetchGraphicBlock IN ALLOCATOR\n");
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                             mDeviceUtil->getOutAlignedSize(size.height()),
                                             pixelFormat, usage, &block);
@@ -2157,6 +2160,23 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
     mSurfaceUsageGeted = true;
 }
 
+void C2VdecComponent::queryStreamBitDepth() {
+    int32_t bitdepth = -1;
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    if (msg != NULL) {
+        msg->setInt32("bitdepth", bitdepth);
+        mVideoDecWraper->postAndReplyMsg(msg);
+        msg->findInt32("bitdepth", &bitdepth);
+        if (bitdepth == 0 || bitdepth == 8 || bitdepth == 10) {
+            mStreamBitDepth = bitdepth;
+            C2Vdec_LOG(CODEC2_LOG_INFO, "Query the stream bit depth(%d) success.",mStreamBitDepth);
+        } else {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "Query the stream bit depth failed.");
+        }
+        delete msg;
+    }
+}
+
 c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
     if (mState.load() != State::RUNNING) {
         C2Vdec_LOG(CODEC2_LOG_INFO, "Queue_nb State[%d].", mState.load());
@@ -2326,6 +2346,10 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
 
     // Set mRequestedVisibleRect to default.
     mRequestedVisibleRect = media::Rect();
+
+    if (mSupport10BitDepth) {
+        queryStreamBitDepth();
+    }
 
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputFormatChanged,
                                                   ::base::Unretained(this),

@@ -43,6 +43,7 @@
 #include <C2VendorConfig.h>
 #include <C2VdecBlockPoolUtil.h>
 #include <C2VendorSupport.h>
+#include <AmlMessageBase.h>
 
 namespace android {
 
@@ -291,6 +292,8 @@ private:
     // Update |mUndequeuedBlockIds| FIFO by pushing |blockId|.
     void updateUndequeuedBlockIds(int32_t blockId);
     void onCheckVideoDecReconfig();
+    void queryStreamBitDepth();
+
 
     // Specific to VP8/VP9, since for no-show frame cases Vdec will not call PictureReady to return
     // output buffer which the corresponding work is waiting for, this function detects these works
@@ -495,11 +498,13 @@ private:
     uint64_t mLastFlushTimeMs;
     std::vector<int32_t> mNoShowFrameBitstreamIds;
     uint32_t mInterlacedType;
+    int32_t mStreamBitDepth;
     int64_t mFirstInputTimestamp;
     int32_t mLastOutputBitstreamId;
     int32_t mLastFinishedBitstreamId;
     bool mHasQueuedWork;
     bool mIsReportEosWork;
+    bool mSupport10BitDepth;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
     Mutex mFlushDoneLock;

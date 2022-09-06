@@ -12,7 +12,7 @@
 
 #include <AmVideoDecBase.h>
 #include <video_decode_accelerator.h>
-
+#include "AmlMessageBase.h"
 
 namespace android {
 
@@ -49,6 +49,7 @@ public:
     static bool loadMediaHalLibrary(void);
     static media::VideoDecodeAccelerator::SupportedProfiles AmVideoDec_getSupportedProfiles(uint32_t inputcodec);
     static uint32_t AmVideoDec_getResolveBufferFormat(bool crcb, bool semiplanar);
+    static AmlMessageBase* AmVideoDec_getAmlMessage();
 
     // Implementation of the VideoDecodeAcceleratorAdaptor interface.
     int initialize(const char* mime, uint8_t* config, uint32_t configLen,
@@ -70,6 +71,7 @@ public:
     void flush(uint32_t flags = 0);
     void stop(uint32_t flags = 0);
     void destroy();
+    bool postAndReplyMsg(AmlMessageBase *msg);
     //media::VideoDecodeAccelerator::SupportedProfiles GetSupportedProfiles(InputCodec inputCodec);
 
     // Implementation of the media::VideoDecodeAcceleratorAdaptor::Client interface.
