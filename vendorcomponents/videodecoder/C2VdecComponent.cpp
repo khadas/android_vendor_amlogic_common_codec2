@@ -233,7 +233,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     mUpdateDurationUsCount = 0;
 
     propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
-    bool mDumpYuvEnable = property_get_bool("vendor.media.codec2.dumpyuv", false);
+    mDumpYuvEnable = property_get_bool("vendor.media.codec2.dumpyuv", false);
     if (mDumpYuvEnable && !mSecureMode) {
         char pathFile[1024] = { '\0'  };
         sprintf(pathFile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
