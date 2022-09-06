@@ -427,7 +427,7 @@ c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffer(const media::Size& 
 
 void C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder(const media::Size& size, uint32_t pixelFormat, int index) {
     C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s#%d create buffer#%d", __func__, __LINE__, index);
-    if (index >= mOutBufferCount) {
+    if (index >= mOutBufferCount || mIntfImpl == NULL) {
         return;
     }
     uint64_t platformUsage = getPlatformUsage();
