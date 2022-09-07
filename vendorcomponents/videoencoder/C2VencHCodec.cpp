@@ -766,6 +766,72 @@ bool C2VencHCodec::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCod
 }
 
 
+void C2VencHCodec::codec2ProfileLevelTrans(vl_h_enc_profile_e *profile,vl_h_enc_level_e *level) {
+    vl_h_enc_level_e cur_level = ENC_AVC_LEVEL_AUTO;
+    if (PROFILE_AVC_BASELINE == mProfileLevel->profile) {
+            (*profile) = ENC_AVC_BASELINE;
+        }
+    else {
+        (*profile) = ENC_AVC_MAIN;
+    }
+
+    switch (mProfileLevel->level) {
+        case LEVEL_AVC_1:
+            cur_level = ENC_AVC_LEVEL1;
+            break;
+        case LEVEL_AVC_1B:
+            cur_level = ENC_AVC_LEVEL1_B;
+            break;
+        case LEVEL_AVC_1_1:
+            cur_level = ENC_AVC_LEVEL1_1;
+            break;
+        case LEVEL_AVC_1_2:
+            cur_level = ENC_AVC_LEVEL1_2;
+            break;
+        case LEVEL_AVC_1_3:
+            cur_level = ENC_AVC_LEVEL1_3;
+            break;
+        case LEVEL_AVC_2:
+            cur_level = ENC_AVC_LEVEL2;
+            break;
+        case LEVEL_AVC_2_1:
+            cur_level = ENC_AVC_LEVEL2_1;
+            break;
+        case LEVEL_AVC_2_2:
+            cur_level = ENC_AVC_LEVEL2_2;
+            break;
+        case LEVEL_AVC_3:
+            cur_level = ENC_AVC_LEVEL3;
+            break;
+        case LEVEL_AVC_3_1:
+            cur_level = ENC_AVC_LEVEL3_1;
+            break;
+        case LEVEL_AVC_3_2:
+            cur_level = ENC_AVC_LEVEL3_2;
+            break;
+        case LEVEL_AVC_4:
+            cur_level = ENC_AVC_LEVEL4;
+            break;
+        case LEVEL_AVC_4_1:
+            cur_level = ENC_AVC_LEVEL4_1;
+            break;
+        case LEVEL_AVC_4_2:
+            cur_level = ENC_AVC_LEVEL4_2;
+            break;
+        case LEVEL_AVC_5:
+            cur_level = ENC_AVC_LEVEL5;
+            break;
+        case LEVEL_AVC_5_1:
+            cur_level = ENC_AVC_LEVEL5_1;
+            break;
+        default:
+            cur_level = ENC_AVC_LEVEL_AUTO;
+            break;
+    }
+    (*level) = cur_level;
+}
+
+
 c2_status_t C2VencHCodec::Init() {
     vl_img_format_t colorformat = IMG_FMT_NONE;
     vl_init_params_t initParam;
@@ -816,8 +882,9 @@ c2_status_t C2VencHCodec::Init() {
     initParam.frame_rate = mFrameRate->value;
     initParam.bit_rate = mBitrate->value;
     initParam.gop = mIDRInterval;
+    codec2ProfileLevelTrans(&initParam.profile,&initParam.level);
 
-    ALOGD("width:%d,height:%d,framerate:%f,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d",
+    ALOGD("width:%d,height:%d,framerate:%f,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d,level:%d",
                                                               mSize->width,
                                                               mSize->height,
                                                               mFrameRate->value,
@@ -826,7 +893,9 @@ c2_status_t C2VencHCodec::Init() {
                                                               initParam.i_qp_max,
                                                               initParam.i_qp_min,
                                                               initParam.p_qp_max,
-                                                              initParam.p_qp_min);
+                                                              initParam.p_qp_min,
+                                                              initParam.profile,
+                                                              initParam.level);
     mCodecHandle = mInitFunc(CODEC_ID_H264,initParam);
     if (0 == mCodecHandle) {
         ALOGE("init encoder failed!!,mCodecHandle:%ld",mCodecHandle);
