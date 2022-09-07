@@ -5,7 +5,7 @@
 #include <C2VendorSupport.h>
 #include <C2VdecInterfaceImpl.h>
 #include <C2VdecComponent.h>
-#include <logdebug.h>
+#include <c2logdebug.h>
 
 #include <C2PlatformSupport.h>
 #include <SimpleC2Interface.h>
@@ -20,7 +20,7 @@ const C2BlockPool::local_id_t kDefaultOutputBlockPool = C2PlatformAllocatorStore
 //No-Tunnel Mode
 constexpr uint32_t kDefaultOutputDelay = 3;             // The output buffer margin during initialization.
                                                         // Will be updated during playback.
-constexpr uint32_t kMaxOutputDelay = 32;                // Max ouput delay.
+constexpr uint32_t kMaxOutputDelay = 32;                // Max output delay.
 constexpr uint32_t kMaxInputDelay = 4;                  // Max input delay for no-secure.
 constexpr uint32_t kMaxInputDelaySecure = 4;            // Max input delay for secure.
 

@@ -1,5 +1,5 @@
-#ifndef _LOGDEBUG_H
-#define _LOGDEBUG_H
+#ifndef _C2_LOG_DEBUG_H
+#define _C2_LOG_DEBUG_H
 
 #include <cutils/properties.h>
 #include <stdint.h>
@@ -15,6 +15,7 @@ static unsigned int gloglevel = 1;
 #define CODEC2_LOG_INFO 1
 #define CODEC2_LOG_DEBUG_LEVEL1 2
 #define CODEC2_LOG_DEBUG_LEVEL2 4
+#define CODEC2_LOG_TAG_BUFFER 8
 #define CODEC2_LOG_TRACE 16
 
 #define CODEC2_LOG(level, f, s...) \
@@ -24,10 +25,12 @@ do { \
             ALOGI(f, ##s); \
         else if (level == CODEC2_LOG_DEBUG_LEVEL1 || level == CODEC2_LOG_DEBUG_LEVEL2) \
             ALOGD(f, ##s); \
-        } else { \
+        else if (level == CODEC2_LOG_TAG_BUFFER) \
+            ALOGD(f, ##s); \
+    } else { \
         if (level == CODEC2_LOG_ERR) \
             ALOGE(f, ##s); \
-        } \
+    } \
 } while(0)
 
 #define CODEC2_ATRACE_INT32(tag, num) \

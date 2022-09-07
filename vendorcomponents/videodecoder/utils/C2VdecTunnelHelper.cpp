@@ -17,7 +17,7 @@
 
 #include <am_gralloc_ext.h>
 
-#include <logdebug.h>
+#include <c2logdebug.h>
 #include <C2VdecTunnelHelper.h>
 #include <C2VdecInterfaceImpl.h>
 

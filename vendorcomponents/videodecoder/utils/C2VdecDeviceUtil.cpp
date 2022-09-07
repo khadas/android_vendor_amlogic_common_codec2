@@ -12,7 +12,7 @@
 #include <VideoDecodeAcceleratorAdaptor.h>
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <am_gralloc_ext.h>
-#include <logdebug.h>
+#include <c2logdebug.h>
 #include <C2VendorConfig.h>
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
@@ -1122,7 +1122,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             else
                 mDurationUs = rate64;
             mCredibleDuration = true;
-            C2VdecMDU_LOG(CODEC2_LOG_INFO,"Update mDurationUs = %d by meta data", mDurationUs);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL2,"Update mDurationUs = %d by meta data", mDurationUs);
         }
     }
 }

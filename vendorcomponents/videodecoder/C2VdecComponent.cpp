@@ -44,7 +44,7 @@
 #include <C2VdecInterfaceImpl.h>
 #include <C2VdecDeviceUtil.h>
 #include <C2VdecTunnelHelper.h>
-#include <logdebug.h>
+#include <c2logdebug.h>
 #include <amuvm.h>
 
 #ifdef ATRACE_TAG
@@ -65,7 +65,7 @@
         (void)(expr); \
     } while (0)
 
-#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%s##%d##%d##%d]"#fmt, __FUNCTION__, __LINE__, mInstanceID, mCurInstanceID, ##str)
+#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mInstanceID, mCurInstanceID, ##str)
 
 uint32_t android::C2VdecComponent::mDumpFileCnt = 0;
 uint32_t android::C2VdecComponent::mInstanceNum = 0;
@@ -276,6 +276,7 @@ C2VdecComponent::~C2VdecComponent() {
 
 void C2VdecComponent::onDestroy() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
 
     mPendingOutputFormat.reset();
     mPendingBuffersToWork.clear();
@@ -310,12 +311,12 @@ void C2VdecComponent::onDestroy() {
     }
 
     mComponentState = ComponentState::DESTROYED;
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnDestroy done");
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done", __func__);
 }
 
 void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnStart DolbyVision:%d", mIsDolbyVision);
+    C2Vdec_LOG(CODEC2_LOG_INFO, "OnStart DolbyVision:%d", mIsDolbyVision);
     CHECK_EQ(mComponentState, ComponentState::UNINITIALIZED);
 
     if (!isTunnerPassthroughMode()) {
@@ -378,9 +379,11 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     uint32_t drainMode = NO_DRAIN;
+    bool isEosWork = false;
     if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
         C2Vdec_LOG(CODEC2_LOG_INFO, "Input EOS");
         drainMode = DRAIN_COMPONENT_WITH_EOS;
+        isEosWork = true;
     }
 
     if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) == 0 && (mFirstInputTimestamp == -1)) {
@@ -391,6 +394,17 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
     CODEC2_ATRACE_INT64("c2BitstreamId", work->input.ordinal.frameIndex.peekull());
     CODEC2_ATRACE_INT64("c2InPTS", 0);
     CODEC2_ATRACE_INT64("c2BitstreamId", 0);
+
+#if 0
+    if (!isEosWork && work->input.buffers.front() != nullptr) {
+        C2ConstLinearBlock linearBlock =
+            work->input.buffers.front()->data().linearBlocks().front();
+        CHECK_GT(linearBlock.size(), 0u);
+        int inputFd = linearBlock.handle()->data[0];
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER,"[%s] work fd:%d", __func__, inputFd);
+    }
+#endif
+
     mInputWorkCount ++;
     if (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) {
         mInputCSDWorkCount ++;
@@ -408,7 +422,7 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
 
 void C2VdecComponent::onDequeueWork() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_INFO, "OnDequeueWork Queue Size:%d", mQueue.size());
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnDequeueWork Queue Size:%d", mQueue.size());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
     if (mQueue.empty()) {
         return;
@@ -505,7 +519,7 @@ void C2VdecComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    C2Vdec_LOG(CODEC2_LOG_INFO, "OnDequeueWork, put pending work bitId:%lld, pending work size:%d",
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnDequeueWork, put pending work bitId:%lld, pending work size:%d",
             work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
 
@@ -523,7 +537,7 @@ void C2VdecComponent::onDequeueWork() {
 
 void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnInputBufferDone: bitstreamId=%d", bitstreamId);
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnInputBufferDone: bitstreamId=%d", bitstreamId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
@@ -542,7 +556,7 @@ void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
 void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block,uint32_t poolId,
                                             uint32_t blockId) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnOutputBufferReturned: blockId:%u", blockId);
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnOutputBufferReturned: blockId:%u", blockId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if ((block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
@@ -551,7 +565,7 @@ void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> blo
         block->height() != mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true))) {
         // Output buffer is returned after we changed output resolution. Just let the buffer be
         // released.
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Discard obsolete graphic block: poolId=%u", poolId);
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Discard obsolete graphic block: poolId=%u", poolId);
         return;
     }
 
@@ -563,7 +577,7 @@ void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> blo
             if (!mPendingGraphicBlockBuffer) {
                 mPendingGraphicBlockBuffer = std::move(block);
                 mPendingGraphicBlockBufferId = blockId;
-                C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Now pending blockId: %d, count:%ld", blockId, block.use_count());
+                C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Now pending blockId: %d, count:%ld", blockId, block.use_count());
                 return;
             }
             reportError(C2_CORRUPTED);
@@ -606,7 +620,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
                                             uint32_t blockId) {
 
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnNewBlockBufferFetched: blockId:%u", blockId);
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnNewBlockBufferFetched: blockId:%u", blockId);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     if (getVideoResolutionChanged()) {
@@ -617,7 +631,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
             info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
         } else {
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Fetch current block(%d*%d) is pending and reset it.", block->width(), block->height());
+            C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch current block(%d*%d) is pending and reset it.", block->width(), block->height());
             block.reset();
         }
     } else {
@@ -625,7 +639,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
              mOutputFormat.mCodedSize.height() == block->height()) ||
             (mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width(), true) == block->width() &&
              mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true) == block->height())){
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Current resolution (%d*%d) new block(%d*%d) and add it",
+            C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Current resolution (%d*%d) new block(%d*%d) and add it",
                 mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height(), block->width(), block->height());
             appendOutputBuffer(std::move(block), poolId, blockId, true);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
@@ -639,7 +653,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
 
 void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnOutputBufferDone: pictureId=%d, bitstreamId=%lld, flags: %d", pictureBufferId, bitstreamId, flags);
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnOutputBufferDone: pictureId=%d, bitstreamId=%lld, flags: %d", pictureBufferId, bitstreamId, flags);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     int64_t timestamp = -1;
@@ -740,7 +754,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
     while (!mPendingBuffersToWork.empty()) {
         auto nextBuffer = mPendingBuffersToWork.front();
         GraphicBlockInfo* info = getGraphicBlockById(nextBuffer.mBlockId);
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%s] Get pending bitstream id:%d, block id:%d inode:%llu",
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER,"[%s] Get pending bitstream id:%d, block id:%d inode:%llu",
             __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId, mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId));
         bool isSendCloneWork = false;
 
@@ -829,7 +843,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         }
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
         ATRACE_INT("c2workpts", timestamp);
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "SendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "SendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
         ATRACE_INT("c2workpts", 0);
 
         if (isSendCloneWork) {
@@ -957,6 +971,7 @@ void C2VdecComponent::onDrain(uint32_t drainMode) {
 void C2VdecComponent::onDrainDone() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     if (mComponentState == ComponentState::DRAINING) {
         mComponentState = ComponentState::STARTED;
     } else if (mComponentState == ComponentState::STOPPING) {
@@ -1002,6 +1017,7 @@ void C2VdecComponent::onDrainDone() {
 }
 
 void C2VdecComponent::onFlush() {
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     if (mComponentState == ComponentState::FLUSHING ||
         mComponentState == ComponentState::STOPPING) {
         return;
@@ -1026,11 +1042,12 @@ void C2VdecComponent::onFlush() {
         mAbandonedWorks.emplace_back(std::move(mQueue.front().mWork));
         mQueue.pop();
     }
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] Done", __func__);;
 }
 
 void C2VdecComponent::onStop(::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_INFO, " EOS onStop");
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     if (mComponentState == ComponentState::UNINITIALIZED) {
         return;
     }
@@ -1070,6 +1087,7 @@ void C2VdecComponent::resetInputAndOutputBufInfo() {
 
 void C2VdecComponent::onFlushOrStopDone() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     if (mComponentState == ComponentState::UNINITIALIZED) {
         return;  // component is already stopped.
     }
@@ -1087,8 +1105,8 @@ void C2VdecComponent::onFlushOrStopDone() {
 }
 
 void C2VdecComponent::onFlushDone() {
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onFlushDone");
     RETURN_ON_UNINITIALIZED_OR_ERROR();
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
 
     reportAbandonedWorks();
     while (!mPendingBuffersToWork.empty()) {
@@ -1121,7 +1139,7 @@ void C2VdecComponent::onFlushDone() {
 }
 
 void C2VdecComponent::onStopDone() {
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnStopDone");
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     CHECK(mStopDoneEvent);
 
     //  TODO: At this moment, there may be C2Buffer still owned by client, do we need to
@@ -1189,7 +1207,7 @@ c2_status_t C2VdecComponent::setListener_vb(const std::shared_ptr<C2Component::L
 void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& input,
         int32_t bitstreamId, uint64_t timestamp,int32_t flags,uint8_t *hdrbuf,uint32_t hdrlen) {
     //UNUSED(flags);
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "SendInputBufferToAccelerator");
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "SendInputBufferToAccelerator");
     int dupFd = dup(input.handle()->data[0]);
     if (dupFd < 0) {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Failed to dup(%d) input buffer (bitstreamId:%d), errno:%d", input.handle()->data[0],
@@ -1197,7 +1215,7 @@ void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inp
         reportError(C2_CORRUPTED);
         return;
     }
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s@%d]Decode bitstream ID: %d timestamp:%llu offset: %u size: %u hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s@%d]Decode bitstream ID: %d timestamp:%llu offset: %u size: %u hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
             bitstreamId, timestamp, input.offset(), input.size(), hdrlen,flags);
     if (mVideoDecWraper) {
         mDeviceUtil->save_stream_info(timestamp,input.size());
@@ -1420,7 +1438,7 @@ void C2VdecComponent::tryChangeOutputFormat() {
 }
 
 c2_status_t C2VdecComponent::videoResolutionChange() {
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "VideoResolutionChange");
+    C2Vdec_LOG(CODEC2_LOG_INFO, "VideoResolutionChange");
 
     mPendingOutputFormat.reset();
     stopDequeueThread();
@@ -1889,7 +1907,7 @@ void C2VdecComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, 
 
 void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool ownByAccelerator) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "SendOutputBufferToAccelerator mBlockId=%d ownByAccelerator=%d, poolid:%d blockid:%d size(%dx%d) current size(%dx%d)",
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "SendOutputBufferToAccelerator mBlockId=%d ownByAccelerator=%d, poolid:%d blockid:%d size(%dx%d) current size(%dx%d)",
         info->mBlockId, ownByAccelerator, info->mPoolId, info->mBlockId,
         info->mGraphicBlock->width(), info->mGraphicBlock->height(),
         mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height());
@@ -2150,6 +2168,7 @@ c2_status_t C2VdecComponent::announce_nb(const std::vector<C2WorkOutline>& items
 
 c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
                                      std::list<std::unique_ptr<C2Work>>* const flushedWork) {
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] flush mode:%d", __func__, mode);
     if (mode != FLUSH_COMPONENT) {
         return C2_OMITTED;  // Tunneling is not supported by now
     }
@@ -2190,7 +2209,7 @@ c2_status_t C2VdecComponent::drain_nb(drain_mode_t mode) {
 
 c2_status_t C2VdecComponent::start() {
     // Use mStartStopLock to block other asynchronously start/stop calls.
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s]",__func__);
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
     std::lock_guard<std::mutex> lock(mStartStopLock);
 
     if (mState.load() != State::LOADED) {
@@ -2221,13 +2240,13 @@ c2_status_t C2VdecComponent::start() {
     }
     mState.store(State::RUNNING);
     mVdecComponentStopDone = false;
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] done",__func__);
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done",__func__);
     return C2_OK;
 }
 
 // Stop call should be valid in all states (even in error).
 c2_status_t C2VdecComponent::stop() {
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s]",__func__);
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
     // Use mStartStopLock to block other asynchronously start/stop calls.
     std::lock_guard<std::mutex> lock(mStartStopLock);
 
@@ -2247,12 +2266,12 @@ c2_status_t C2VdecComponent::stop() {
     done.Wait();
     mState.store(State::LOADED);
     mVdecComponentStopDone = true;
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] done",__func__);
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done",__func__);
     return C2_OK;
 }
 
 c2_status_t C2VdecComponent::reset() {
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s]",__func__);
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
     mVdecComponentStopDone = false;
     return stop();
     //  TODO: reset is different than stop that it could be called in any state.
@@ -2260,7 +2279,7 @@ c2_status_t C2VdecComponent::reset() {
 }
 
 c2_status_t C2VdecComponent::release() {
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s]",__func__);
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
     return reset();
 }
 
@@ -2332,17 +2351,19 @@ void C2VdecComponent::NotifyEndOfBitstreamBuffer(int32_t bitstreamId) {
 }
 
 void C2VdecComponent::NotifyFlushDone() {
-    C2Vdec_LOG(CODEC2_LOG_INFO, "EOS NotifyFlushDone");
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onDrainDone, ::base::Unretained(this)));
 }
 
 void C2VdecComponent::NotifyFlushOrStopDone() {
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onFlushOrStopDone, ::base::Unretained(this)));
 }
 
 void C2VdecComponent::onReportError(c2_status_t error) {
+    C2Vdec_LOG(CODEC2_LOG_ERR, "[%s]", __func__);
     if (mComponentState == ComponentState::DESTROYED) {
         return;
     }
@@ -2701,7 +2722,7 @@ int32_t C2VdecComponent::getFetchGraphicBlockDelayTimeUs(c2_status_t err) {
         kFetchRetryDelayMax = std::min(perFrameDur, kFetchRetryDelayMax);
     }
     if (err == C2_TIMED_OUT || err == C2_BLOCKING || err == C2_NO_MEMORY) {
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] fetchGraphicBlock() timeout, waiting %zuus frameRate:%f", __func__, sDelay, frameRate);
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetchGraphicBlock() timeout, waiting %zu us frameRate:%f", __func__, sDelay, frameRate);
         sDelay = std::min(sDelay * 2, kFetchRetryDelayMax);  // Exponential backOff
         return sDelay;
     }
@@ -2756,7 +2777,7 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                 mDeviceUtil->getOutAlignedSize(size.height()),
                                                 pixelFormat, usage, &block);
-                C2Vdec_LOG(CODEC2_LOG_INFO, "DequeueThreadLoop fetchOutputBlock %d state:%d", __LINE__, err);
+                C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "DequeueThreadLoop fetchOutputBlock %d state:%d", __LINE__, err);
             }
             delayTime = getFetchGraphicBlockDelayTimeUs(err);
             if (err == C2_TIMED_OUT) {
@@ -2786,13 +2807,13 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                         old = true;
                     }
                     nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-                    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "DequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%lld",
+                    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "DequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%lld",
                             (old ? "old" : "new"), blockId, width, height, block.use_count(),
                             nowTimeMs - lastFetchBlockTimeMs);
                     timeOutCount = 0;
                     lastFetchBlockTimeMs = nowTimeMs;
                 } else {
-                    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "The allocated block size(%d*%d) does not match the current resolution(%d*%d), so discarded it.", block->width(), block->height(),
+                    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "The allocated block size(%d*%d) does not match the current resolution(%d*%d), so discarded it.", block->width(), block->height(),
                         mOutputFormat.mVisibleRect.width(), mOutputFormat.mVisibleRect.height());
                     if (!mUseBufferQueue) {
                         mBlockPoolUtil->resetGraphicBlock(block);
@@ -2805,7 +2826,7 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 if (timeOutCount == 0)
                     timeOutMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
                 timeOutCount++;
-                C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Fetch block retry timeout[%lld][%lld][%lld]timeOutCount[%lld].",
+                C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block retry timeout[%lld][%lld][%lld]timeOutCount[%lld].",
                         (systemTime(SYSTEM_TIME_MONOTONIC) / 1000000) - timeOutMs,
                         (systemTime(SYSTEM_TIME_MONOTONIC) / 1000000),
                         timeOutMs,
@@ -2818,10 +2839,10 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 }
                 continue;  // wait for retry
             } else if (err == C2_NO_MEMORY) {
-                C2Vdec_LOG(CODEC2_LOG_INFO, "The block pool no memory to fetch.");
+                C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "The block pool no memory to fetch.");
                 ::usleep(delayTime);
             } else {
-                C2Vdec_LOG(CODEC2_LOG_INFO, "DequeueThreadLoop got error: %d", err);
+                C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "DequeueThreadLoop got error: %d", err);
                 //break;
             }
         }

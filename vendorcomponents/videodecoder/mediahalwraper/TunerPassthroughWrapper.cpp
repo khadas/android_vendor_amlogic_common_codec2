@@ -12,6 +12,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <utils/Log.h>
+#include <c2logdebug.h>
 #include "TunerPassthroughWrapper.h"
 #include "VideoTunnelRendererBase.h"
 
@@ -22,11 +23,7 @@ static void *gMediaHal = NULL;
 uint32_t TunerPassthroughWrapper::gInstanceNum = 0;
 uint32_t TunerPassthroughWrapper::gInstanceCnt = 0;
 
-#define TUNERHAL_LOGV(format, ...) ALOGV("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define TUNERHAL_LOGW(format, ...) ALOGW("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define TUNERHAL_LOGD(format, ...) ALOGD("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define TUNERHAL_LOGI(format, ...) ALOGI("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
-#define TUNERHAL_LOGE(format, ...) ALOGE("[%d ## %d]%s:%d >" format, mInstanceCnt, gInstanceNum, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define C2VdecTPWraper_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mInstanceCnt, TunerPassthroughWrapper::gInstanceNum, ##str)
 
 
 static TunerPassthroughBase* getTunerPassthrough() {
@@ -36,7 +33,7 @@ static TunerPassthroughBase* getTunerPassthrough() {
     if (gMediaHal == NULL) {
         gMediaHal = dlopen("libmediahal_passthrough.so", RTLD_NOW);
         if (gMediaHal == NULL) {
-            ALOGE("Unable to dlopen libmediahal_passthrough: %s", dlerror());
+            CODEC2_LOG(CODEC2_LOG_ERR,"Unable to dlopen libmediahal_passthrough: %s", dlerror());
             return NULL;
         }
     }
@@ -51,12 +48,12 @@ static TunerPassthroughBase* getTunerPassthrough() {
     if (getTunerPassthrough == NULL) {
         dlclose(gMediaHal);
         gMediaHal = NULL;
-        ALOGE("xcan not get TunerPassthroughBase_create\n");
+        CODEC2_LOG(CODEC2_LOG_ERR,"not get TunerPassthroughBase_create\n");
         return NULL;
     }
 
     TunerPassthroughBase* halHandle = (*getTunerPassthrough)();
-    ALOGD("[%s/%d] get TunerPassthroughBase_create ok\n", __FUNCTION__, __LINE__);
+    CODEC2_LOG(CODEC2_LOG_INFO,"[%s/%d] get TunerPassthroughBase_create ok\n", __FUNCTION__, __LINE__);
     return halHandle;
 }
 
@@ -65,11 +62,11 @@ TunerPassthroughWrapper::TunerPassthroughWrapper() {
     gInstanceCnt++;
     gInstanceNum++;
     mInstanceCnt = gInstanceCnt;
-    TUNERHAL_LOGD("Create");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"Create");
 }
 
 TunerPassthroughWrapper::~TunerPassthroughWrapper() {
-    TUNERHAL_LOGD("Destory");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"Destory");
     if (mTunerPassthrough) {
         delete mTunerPassthrough;
         mTunerPassthrough = NULL;
@@ -78,34 +75,34 @@ TunerPassthroughWrapper::~TunerPassthroughWrapper() {
 }
 
 int TunerPassthroughWrapper::initialize(passthroughInitParams* params) {
-    TUNERHAL_LOGD("initialize");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"initialize");
     if (!mTunerPassthrough) {
-        TUNERHAL_LOGE("mTunerPassthrough is NULL!\n");
+        C2VdecTPWraper_LOG(CODEC2_LOG_ERR,"mTunerPassthrough is NULL!\n");
         return -1;
     }
     if (mTunerPassthrough->Init(params) != 0) {
-        TUNERHAL_LOGE("init tuner passthrough error!\n");
+        C2VdecTPWraper_LOG(CODEC2_LOG_ERR,"init tuner passthrough error!\n");
         return -1;
     }
     return 0;
 }
 
 int TunerPassthroughWrapper::regNotifyTunnelRenderTimeCallBack(callbackFunc funs, void* obj) {
-    TUNERHAL_LOGD("regNotifyTunnelRenderTimeCallBack");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"regNotifyTunnelRenderTimeCallBack");
     if (!mTunerPassthrough)
         return false;
     return mTunerPassthrough->RegCallBack(VideoTunnelRendererBase::CB_NODIFYRENDERTIME, funs, obj);
 }
 
 int TunerPassthroughWrapper::start() {
-    TUNERHAL_LOGD("start");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"start");
     if (mTunerPassthrough)
         mTunerPassthrough->Start();
     return 0;
 }
 
 int TunerPassthroughWrapper::stop() {
-    TUNERHAL_LOGD("stop");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"stop");
     if (mTunerPassthrough)
         mTunerPassthrough->Stop();
     return 0;
@@ -113,7 +110,7 @@ int TunerPassthroughWrapper::stop() {
 }
 
 int TunerPassthroughWrapper::getSyncInstansNo(int *no) {
-    TUNERHAL_LOGD("getSyncInstansNo");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"getSyncInstansNo");
     if (mTunerPassthrough)
         mTunerPassthrough->GetSyncInstansNo(no);
     return 0;

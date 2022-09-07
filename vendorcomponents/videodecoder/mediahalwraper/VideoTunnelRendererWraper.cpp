@@ -17,6 +17,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <c2logdebug.h>
 
 namespace android {
 
@@ -26,7 +27,7 @@ static VideoTunnelRendererBase* getVideoTunnelRenderer() {
     if (!gMediaHalVideoTunnelRenderer) {
         gMediaHalVideoTunnelRenderer = dlopen("libmediahal_tunnelrenderer.so", RTLD_NOW);
         if (gMediaHalVideoTunnelRenderer == NULL) {
-            ALOGE("Unable to dlopen libmediahal_videodec: %s", dlerror());
+            CODEC2_LOG(CODEC2_LOG_ERR,"Unable to dlopen libmediahal_videodec: %s", dlerror());
             return NULL;
         }
     }
@@ -41,23 +42,23 @@ static VideoTunnelRendererBase* getVideoTunnelRenderer() {
     if (getRenderer == NULL) {
         dlclose(gMediaHalVideoTunnelRenderer);
         gMediaHalVideoTunnelRenderer = NULL;
-        ALOGE("Can not create VideoTunnelRenderer_create\n");
+        CODEC2_LOG(CODEC2_LOG_ERR,"Can not create VideoTunnelRenderer_create\n");
         return NULL;
     }
 
     VideoTunnelRendererBase* RendererHandle = (*getRenderer)();
-    ALOGD("getRenderer ok\n");
+    CODEC2_LOG(CODEC2_LOG_INFO,"getRenderer ok\n");
     return RendererHandle;
 }
 
 
 VideoTunnelRendererWraper::VideoTunnelRendererWraper(bool secure) {
-	mVideoTunnelRenderer = getVideoTunnelRenderer();
-    ALOGD("mVideoTunnelRenderer:%p\n", mVideoTunnelRenderer);
+    mVideoTunnelRenderer = getVideoTunnelRenderer();
+    CODEC2_LOG(CODEC2_LOG_INFO,"mVideoTunnelRenderer:%p\n", mVideoTunnelRenderer);
 }
 
 VideoTunnelRendererWraper::~VideoTunnelRendererWraper() {
-    ALOGD("~VideoTunnelRendererWraper ok\n");
+    CODEC2_LOG(CODEC2_LOG_INFO,"~VideoTunnelRendererWraper ok\n");
     if (mVideoTunnelRenderer) {
         delete mVideoTunnelRenderer;
         mVideoTunnelRenderer = NULL;
@@ -65,7 +66,7 @@ VideoTunnelRendererWraper::~VideoTunnelRendererWraper() {
 }
 
 bool VideoTunnelRendererWraper::init(int hwsyncid) {
-    ALOGD("init:%d\n", hwsyncid);
+    CODEC2_LOG(CODEC2_LOG_INFO,"init:%d\n", hwsyncid);
     if (!mVideoTunnelRenderer) {
         ALOGE("VideoTunnelRenderer is null, init error!\n");
         return false;
