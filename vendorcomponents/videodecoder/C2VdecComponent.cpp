@@ -842,9 +842,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             detectNoShowFrameWorksAndReportIfFinished(work->input.ordinal);
         }
         int64_t timestamp = work->input.ordinal.timestamp.peekull();
-        ATRACE_INT("c2workpts", timestamp);
         C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "SendOutputBufferToWorkIfAny bitid %d, pts:%lld", nextBuffer.mBitstreamId, timestamp);
-        ATRACE_INT("c2workpts", 0);
 
         if (isSendCloneWork) {
             sendClonedWork(work, nextBuffer.flags);
@@ -2508,7 +2506,9 @@ void C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, b
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
+        CODEC2_ATRACE_INT64("c2FinishedWorkPTS", work->input.ordinal.timestamp.peekull());
         mPendingWorks.erase(workIter);
+        CODEC2_ATRACE_INT64("c2FinishedWorkPTS", 0);
         mOutputFinishedWorkCount++;
     }
 }
@@ -2808,9 +2808,11 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                         old = true;
                     }
                     nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
+                    CODEC2_ATRACE_INT32("c2FetchOutBlockId", blockId);
                     C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "DequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%lld",
                             (old ? "old" : "new"), blockId, width, height, block.use_count(),
                             nowTimeMs - lastFetchBlockTimeMs);
+                    CODEC2_ATRACE_INT32("c2FetchOutBlockId", 0);
                     timeOutCount = 0;
                     lastFetchBlockTimeMs = nowTimeMs;
                 } else {
