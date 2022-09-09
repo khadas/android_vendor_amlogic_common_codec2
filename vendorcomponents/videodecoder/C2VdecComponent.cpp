@@ -653,29 +653,29 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
 
 void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnOutputBufferDone: pictureId=%d, bitstreamId=%lld, flags: %d", pictureBufferId, bitstreamId, flags);
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnOutputBufferDone: pictureId=%d, bitstreamId=%lld, flags: %d",
+        pictureBufferId, bitstreamId, flags);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     int64_t timestamp = -1;
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
 
     if (!info) {
-        C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not get graphic block  with pictureBufferId:%d", __func__, __LINE__, pictureBufferId);
+        C2Vdec_LOG(CODEC2_LOG_ERR, "Can't get graphic block pictureBufferId:%d", pictureBufferId);
         reportError(C2_CORRUPTED);
         return;
     }
 
-    if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+    if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR)
         info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
-    }
 
     if (mLastOutputBitstreamId == bitstreamId) {
         timestamp = 0;
     } else {
         C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] not find the correct work with bitstreamId:%lld", __LINE__,bitstreamId);
-            reportError(C2_CORRUPTED);
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] Can't found bitstreamId:%lld", __LINE__,bitstreamId);
+            sendOutputBufferToAccelerator(info, true);
             return;
         }
         timestamp = work->input.ordinal.timestamp.peekull();
