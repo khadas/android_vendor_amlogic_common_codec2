@@ -37,7 +37,7 @@ public:
     c2_status_t storeAbandonedFrame(int64_t timeus);
     c2_status_t allocTunnelBuffersAndSendToDecoder(const media::Size& size, uint32_t pixelFormat);
     c2_status_t videoResolutionChangeTunnel();
-    c2_status_t onAndroidVideoPeek();
+    void onAndroidVideoPeek();
 
 private:
     static int fillVideoFrameCallback2(void* obj, void* args);

@@ -925,7 +925,8 @@ void C2VdecComponent::dumpGraphicBlockYuv(GraphicBlockInfo* info) {
 
 void C2VdecComponent::onAndroidVideoPeek() {
     if (mTunnelHelper) {
-        mTunnelHelper->onAndroidVideoPeek();
+        mTaskRunner->PostTask(FROM_HERE,
+                          ::base::Bind(&C2VdecComponent::TunnelHelper::onAndroidVideoPeek, ::base::Unretained(&(*mTunnelHelper))));
     }
 }
 

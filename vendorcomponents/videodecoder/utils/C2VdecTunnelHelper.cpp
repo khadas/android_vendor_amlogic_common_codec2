@@ -545,12 +545,10 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
     return C2_OK;
 }
 
-c2_status_t C2VdecComponent::TunnelHelper::onAndroidVideoPeek() {
+void C2VdecComponent::TunnelHelper::onAndroidVideoPeek() {
     if (mVideoTunnelRenderer) {
         mVideoTunnelRenderer->peekFirstFrame();
     }
-
-    return C2_OK;
 }
 
 c2_status_t C2VdecComponent::TunnelHelper::resetBlockPoolBuffers() {
