@@ -412,6 +412,10 @@ c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffer(const media::Size& 
         C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] alloc buffer failed, please check!", __func__);
     } else {
         err = mBlockPoolUtil->getBlockIdByGraphicBlock(c2Block, &blockId);
+        if (err != C2_OK) {
+            C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] get the block id failed, please check!", __func__);
+            return C2_BAD_VALUE;
+        }
         mBlockPoolUtil->getBlockFd(c2Block, &fd);
 
         int dupfd = dup(fd);
@@ -447,6 +451,10 @@ void C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder(const medi
         C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] alloc buffer failed, please check!", __func__);
     } else {
         err = mBlockPoolUtil->getBlockIdByGraphicBlock(c2Block, &blockId);
+        if (err != C2_OK) {
+            C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] get the block id failed, please check!", __func__);
+            return;
+        }
         mBlockPoolUtil->getBlockFd(c2Block, &fd);
 
         int dupfd = dup(fd);

@@ -1679,7 +1679,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
         err = mBlockPoolUtil->getBlockIdByGraphicBlock(block, &blockId);
         if (err != C2_OK) {
             mGraphicBlocks.clear();
-            C2Vdec_LOG(CODEC2_LOG_ERR, "Failed to getBlockIdByGraphicBlock: %d", err);
+            C2Vdec_LOG(CODEC2_LOG_ERR, "Get the block id failed, please check it. err:%d", err);
             reportError(err);
             return err;
         }
@@ -1795,7 +1795,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
 
         if (err != C2_OK) {
             mGraphicBlocks.clear();
-            C2Vdec_LOG(CODEC2_LOG_ERR, "Failed to getPoolIdFromGraphicBlock: %d", err);
+            C2Vdec_LOG(CODEC2_LOG_ERR, "Get the block id failed, please check it. err:%d", err);
             reportError(err);
             return err;
         }
@@ -1889,7 +1889,13 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
 void C2VdecComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId, bool bind) {
     GraphicBlockInfo info;
     int fd = 0;
-    mBlockPoolUtil->getBlockFd(block, &fd);
+    auto err = mBlockPoolUtil->getBlockFd(block, &fd);
+    if (err != C2_OK) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "Get the block fd failed. err:%d", err);
+        reportError(err);
+        return;
+    }
+
     if (bind) {
         info.mPoolId  = poolId;
         info.mBlockId = blockId;
@@ -2794,7 +2800,12 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 int height = block->height();
                 if (mOutputFormat.mCodedSize.width() <= width &&
                                 mOutputFormat.mCodedSize.height() <= height) {
-                    mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
+                    auto err = mBlockPoolUtil->getBlockIdByGraphicBlock(block,&blockId);
+                    if (err != C2_OK) {
+                        C2Vdec_LOG(CODEC2_LOG_ERR, "Get the block id failed, please check it. err:%d", err);
+                        continue;
+                    }
+
                     GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
                     bool old = false;
                     if (info == nullptr) { //fetch unused block

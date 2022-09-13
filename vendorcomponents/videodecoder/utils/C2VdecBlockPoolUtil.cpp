@@ -52,6 +52,7 @@ public:
         bool useSurface = C2PlatformAllocatorStore::BUFFERQUEUE == base->getAllocatorId();
         std::shared_ptr<C2AllocatorStore> allocatorStore = GetCodec2PlatformAllocatorStore();
         c2_status_t status = allocatorStore->fetchAllocator(base->getAllocatorId(), &mAllocatorBase);
+        propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
 
         if (status != C2_OK) {
             CODEC2_LOG(CODEC2_LOG_ERR, "Create block block pool fail.");
@@ -307,7 +308,10 @@ c2_status_t C2VdecBlockPoolUtil::getMinBuffersForDisplay(size_t *minBuffersForDi
 }
 
 c2_status_t C2VdecBlockPoolUtil::getBlockIdByGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint32_t *blockId) {
-    ALOG_ASSERT(block != nullptr);
+    if (block == nullptr || blockId == nullptr) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s] The block is null", __func__);
+        return C2_BAD_VALUE;
+    }
 
     int fd = block->handle()->data[0];
     uint64_t inode;
@@ -335,7 +339,10 @@ c2_status_t C2VdecBlockPoolUtil::getPoolId(C2BlockPool::local_id_t *poolId) {
 }
 
 c2_status_t C2VdecBlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> block, int *fd) {
-    ALOG_ASSERT(block != nullptr);
+    if (block == nullptr || fd == nullptr) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s] The block is null", __func__);
+        return C2_BAD_VALUE;
+    }
 
     uint64_t inode;
     getINodeFromFd(block->handle()->data[0], &inode);
@@ -351,9 +358,10 @@ c2_status_t C2VdecBlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> bloc
 
 c2_status_t C2VdecBlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2GraphicBlock> block, uint64_t inode, int fd) {
     if (block == nullptr) {
-        CODEC2_LOG(CODEC2_LOG_ERR, "[%s] Block is null", __func__);
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s] The block is null", __func__);
         return C2_BAD_VALUE;
     }
+
     struct BlockBufferInfo info;
     std::lock_guard<std::mutex> lock(mBlockBufferMutex);
     if (mUseSurface) {
