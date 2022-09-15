@@ -1126,4 +1126,23 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
         }
     }
 }
+
+bool C2VdecComponent::DeviceUtil::updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum) {
+    if (mUseSurfaceTexture|| mNoSurface) {
+        //Only set for surfaceview with hwc.
+        return false;
+    }
+
+    if (am_gralloc_is_valid_graphic_buffer(handle)) {
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] mCurInstanceID:%d", __func__, sequenceNum);
+        am_gralloc_set_omx_video_type(handle, videoType);
+        am_gralloc_set_ext_attr(handle, GRALLOC_BUFFER_ATTR_AM_OMX_BUFFER_SEQUENCE, sequenceNum);
+        return true;
+    }
+
+    return false;
+
+
+}
+
 }

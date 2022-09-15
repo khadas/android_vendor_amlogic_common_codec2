@@ -7,8 +7,10 @@
 #include <C2Enum.h>
 #include <C2Param.h>
 #include <C2ParamDef.h>
+
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
+#include <cutils/native_handle.h>
 #include <C2VdecComponent.h>
 
 #include <VideoDecWraper.h>
@@ -98,7 +100,7 @@ public:
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();
     void setForceFullUsage(bool isFullUsage);
-
+    bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
     aml_stream_info mAmlStreamInfo;
 private:
     /* set hdr static to decoder */

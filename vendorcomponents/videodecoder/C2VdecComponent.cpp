@@ -34,7 +34,6 @@
 #include <utils/Log.h>
 #include <utils/misc.h>
 #include <hardware/gralloc1.h>
-#include <am_gralloc_ext.h>
 #include <C2VdecComponent.h>
 #include <C2Buffer.h>
 #include <C2AllocatorGralloc.h>
@@ -1937,6 +1936,11 @@ void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool
         uint32_t size = 0;
         bool isNV21 = true;
         int metaFd =-1;
+      if (mBlockPoolUtil->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
+            const native_handle_t* c2Handle = info->mGraphicBlock->handle();
+            const native_handle_t* handle = UnwrapNativeCodec2GrallocHandle(c2Handle);
+            mDeviceUtil->updateDisplayInfoToGralloc(handle, mDeviceUtil->getVideoType(), mCurInstanceID);
+        }
         if (mVideoDecWraper) {
             mVideoDecWraper->importBufferForPicture(info->mBlockId, info->mFd,
                     metaFd, vaddr, size, isNV21);
