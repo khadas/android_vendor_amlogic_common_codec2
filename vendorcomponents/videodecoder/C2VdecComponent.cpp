@@ -262,10 +262,14 @@ C2VdecComponent::~C2VdecComponent() {
     }
 
     if (mThread.IsRunning()) {
-        mTaskRunner->PostTask(FROM_HERE,
-                              ::base::Bind(&C2VdecComponent::onDestroy, ::base::Unretained(this)));
+        ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
+                               ::base::WaitableEvent::InitialState::NOT_SIGNALED);
+         mTaskRunner->PostTask(FROM_HERE,
+                              ::base::Bind(&C2VdecComponent::onDestroy, ::base::Unretained(this), &done));
+        done.Wait();
         mThread.Stop();
     }
+
     if (mSecureMode)
         sConcurrentInstanceSecures.fetch_sub(1, std::memory_order_relaxed);
     else
@@ -274,7 +278,7 @@ C2VdecComponent::~C2VdecComponent() {
     --mInstanceNum;
 }
 
-void C2VdecComponent::onDestroy() {
+void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
 
@@ -309,8 +313,12 @@ void C2VdecComponent::onDestroy() {
         mBlockPoolUtil.reset();
         mBlockPoolUtil = NULL;
     }
-
+    if (mLastOutputReportWork != NULL) {
+        delete mLastOutputReportWork;
+        mLastOutputReportWork = NULL;
+    }
     mComponentState = ComponentState::DESTROYED;
+    done->Signal();
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done", __func__);
 }
 
@@ -780,7 +788,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         }
 
         mLastFinishedBitstreamId = nextBuffer.mBitstreamId;
-        if (!mLastOutputReportWork) {
+        if (mLastOutputReportWork != NULL) {
             delete mLastOutputReportWork;
             mLastOutputReportWork = NULL;
         }
@@ -802,7 +810,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         }
 
         mLastOutputReportWork = cloneWork(work);
-        if (!mLastOutputReportWork) {
+        if (mLastOutputReportWork == NULL) {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Last work is null, malloc memory Failed.");
             return C2_BAD_VALUE;
         }

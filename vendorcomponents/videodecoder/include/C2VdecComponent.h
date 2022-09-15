@@ -222,7 +222,7 @@ private:
     };
 
     // These tasks should be run on the component thread |mThread|.
-    void onDestroy();
+    void onDestroy(::base::WaitableEvent* done);
     void onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done);
     void onQueueWork(std::unique_ptr<C2Work> work);
     void onDequeueWork();
