@@ -65,6 +65,7 @@ public:
 
     class DeviceUtil;
     class TunnelHelper;
+    class TunerPassthroughHelper;
 
     // Implementation of C2Component interface
     virtual c2_status_t setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -95,6 +96,7 @@ public:
 
     //config
     void onConfigureTunnelMode();
+    void onConfigureTunnerPassthroughMode();
 
     //for out use
     IntfImpl* GetIntfImpl() {
@@ -117,6 +119,7 @@ public:
     int mUpdateDurationUsCount;
 private:
     friend TunnelHelper;
+    friend TunerPassthroughHelper;
     // The state machine enumeration on parent thread.
     enum class State : int32_t {
         // The initial state of component. State will change to LOADED after the component is
@@ -324,6 +327,7 @@ private:
 
     C2Work* cloneWork(C2Work* ori);
     void sendClonedWork(C2Work* work, int32_t flags);
+    void reportWork(std::unique_ptr<C2Work> work);
     void reportEmptyWork(int32_t bitstreamId, int32_t flags);
 
     // Start dequeue thread, return true on success. If |resetBuffersInClient|, reset the counter
@@ -473,6 +477,7 @@ private:
     std::shared_ptr<DeviceUtil> mDeviceUtil;
     std::shared_ptr<C2VdecBlockPoolUtil> mBlockPoolUtil;
     std::shared_ptr<TunnelHelper> mTunnelHelper;
+    std::shared_ptr<TunerPassthroughHelper> mTunerPassthroughHelper;
 
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;
@@ -489,8 +494,6 @@ private:
     int64_t mOutputFinishedWorkCount;
     int32_t mSyncId;
     int64_t mSyncType;
-    passthroughInitParams mTunerPassthroughParams;
-    TunerPassthroughWrapper *mTunerPassthrough;
 
     C2ReadView mDefaultDummyReadView;
     std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;

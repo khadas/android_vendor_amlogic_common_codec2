@@ -88,7 +88,6 @@ bool C2VdecComponent::TunnelHelper::start() {
         mVideoTunnelRenderer->regNotifyTunnelRenderTimeCallBack(notifyTunnelRenderTimeCallback, this);
         mVideoTunnelRenderer->start();
     }
-    //mTunnelBufferUtil = mComp->mTunnelBufferUtil.get();
 
     return true;
 }

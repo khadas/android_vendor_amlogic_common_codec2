@@ -38,6 +38,7 @@ public:
     c2_status_t allocTunnelBuffersAndSendToDecoder(const media::Size& size, uint32_t pixelFormat);
     c2_status_t videoResolutionChangeTunnel();
     void onAndroidVideoPeek();
+    VideoTunnelRendererBase* getTunnelRender() { return mVideoTunnelRenderer->getTunnelRenderer();}
 
 private:
     static int fillVideoFrameCallback2(void* obj, void* args);

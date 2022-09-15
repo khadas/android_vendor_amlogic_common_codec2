@@ -23,6 +23,7 @@ cc_library_shared {
         "utils/C2VdecDeviceUtil.cpp",
         "utils/C2VdecBlockPoolUtil.cpp",
         "utils/C2VdecTunnelHelper.cpp",
+        "utils/C2VdecTunerPassthroughHelper.cpp",
     ],
 
     local_include_dirs: [

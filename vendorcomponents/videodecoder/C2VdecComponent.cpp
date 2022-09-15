@@ -43,6 +43,7 @@
 #include <C2VdecInterfaceImpl.h>
 #include <C2VdecDeviceUtil.h>
 #include <C2VdecTunnelHelper.h>
+#include <C2VdecTunerPassthroughHelper.h>
 #include <c2logdebug.h>
 #include <amuvm.h>
 
@@ -53,7 +54,6 @@
 #endif
 
 #define AM_SIDEBAND_HANDLE_NUM_FD (0)
-#define HWSYNCID_PASSTHROUGH_FLAG (1u << 16)
 
 #define CODEC_OUTPUT_BUFS_ALIGN_64 64
 
@@ -184,6 +184,8 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mDumpYuvFp(NULL),
         mVideoDecWraper(NULL),
         mDeviceUtil(NULL),
+        mTunnelHelper(NULL),
+        mTunerPassthroughHelper(NULL),
         mUseBufferQueue(false),
         mBufferFirstAllocated(false),
         mPictureSizeChanged(false),
@@ -197,7 +199,6 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mOutputWorkCount(0),
         mOutputFinishedWorkCount(0),
         mSyncType(C2_SYNC_TYPE_NON_TUNNEL),
-        mTunerPassthrough(NULL),
         mDefaultDummyReadView(DummyReadView()),
         mInterlacedType(C2_INTERLACED_TYPE_NONE),
         mFirstInputTimestamp(-1),
@@ -299,6 +300,10 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
         if (mDumpYuvFp)
             fclose(mDumpYuvFp);
     }
+    if (mTunerPassthroughHelper) {
+        mTunerPassthroughHelper.reset();
+        mTunerPassthroughHelper = NULL;
+    }
     if (mTunnelHelper) {
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
@@ -366,6 +371,9 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
 
     if (isTunnelMode() && mTunnelHelper) {
         mTunnelHelper->start();
+    }
+    if (isTunnerPassthroughMode() && mTunerPassthroughHelper) {
+        mTunerPassthroughHelper->start();
     }
 
     if (!mSecureMode && (mIntfImpl->getInputCodec() == InputCodec::H264
@@ -966,8 +974,11 @@ void C2VdecComponent::onDrain(uint32_t drainMode) {
             mComponentState = ComponentState::DRAINING;
             mPendingOutputEOS = drainMode == DRAIN_COMPONENT_WITH_EOS;
 
-            if (mTunnelHelper) {
+            if (mTunnelHelper && isTunnelMode()) {
                 mTunnelHelper->flush();
+            }
+            if (mTunerPassthroughHelper && isTunnerPassthroughMode()) {
+                mTunerPassthroughHelper->flush();
             }
         } else {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Neglect drain. Component in state: %d", mComponentState);
@@ -1043,8 +1054,11 @@ void C2VdecComponent::onFlush() {
         mVideoDecWraper->flush();
     }
 
-    if (mTunnelHelper) {
+    if (mTunnelHelper && isTunnelMode()) {
         mTunnelHelper->flush();
+    }
+    if (mTunerPassthroughHelper && isTunnerPassthroughMode()) {
+        mTunerPassthroughHelper->flush();
     }
 
     // Pop all works in mQueue and put into mAbandonedWorks.
@@ -1167,6 +1181,11 @@ void C2VdecComponent::onStopDone() {
             mDeviceUtil.reset();
             mDeviceUtil = NULL;
         }
+    }
+    if (mTunerPassthroughHelper) {
+        mTunerPassthroughHelper->stop();
+        mTunerPassthroughHelper.reset();
+        mTunerPassthroughHelper = NULL;
     }
     if (mTunnelHelper) {
         mTunnelHelper->stop();
@@ -2184,7 +2203,8 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
     }
 
     if (!mSurfaceUsageGeted) {
-        mTaskRunner->PostTask(FROM_HERE,
+        if (!isTunnerPassthroughMode())
+            mTaskRunner->PostTask(FROM_HERE,
                         ::base::Bind(&C2VdecComponent::onCheckVideoDecReconfig, ::base::Unretained(this)));
     }
 
@@ -2517,6 +2537,12 @@ void C2VdecComponent::reportEmptyWork(int32_t bitstreamId, int32_t flags) {
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
     mPendingWorks.erase(workIter);
     mOutputFinishedWorkCount++;
+}
+
+void C2VdecComponent::reportWork(std::unique_ptr<C2Work> work) {
+    std::list<std::unique_ptr<C2Work>> finishedWorks;
+    finishedWorks.emplace_back(std::move(work));
+    mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
 }
 
 void C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork) {
@@ -2995,24 +3021,11 @@ void C2VdecComponent::onConfigureTunnelMode() {
     return;
 }
 
-#if 0
 void C2VdecComponent::onConfigureTunnerPassthroughMode() {
-    int32_t filterid = mIntfImpl->mVendorTunerHalParam->videoFilterId;
-
-    mTunerPassthroughParams.dmx_id = (filterid >> 16);
-    mTunerPassthroughParams.video_pid = (filterid & 0x0000FFFF);
-    mTunerPassthroughParams.hw_sync_id = mIntfImpl->mVendorTunerHalParam->hwAVSyncId;
-
-    CODEC2_LOG(CODEC2_LOG_INFO, "[%s] passthrough config,dmxid:%d,vpid:%d,syncid:%d",
-        __func__,
-        mTunerPassthroughParams.dmx_id,
-        mTunerPassthroughParams.video_pid,
-        mTunerPassthroughParams.hw_sync_id);
-
+    mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(this, mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper.get());
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
     mSyncType |= C2_SYNC_TYPE_PASSTHROUGH;
 }
-#endif
 
 class C2VdecComponentFactory : public C2ComponentFactory {
 public:
