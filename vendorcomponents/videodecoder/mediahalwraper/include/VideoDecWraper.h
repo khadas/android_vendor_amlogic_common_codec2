@@ -114,6 +114,10 @@ enum {
     LOWLATENCY_FENCE = (1 << 1),
 };
 
+enum {
+    /* update config type */
+    INTERLACE = 1 << 0,
+};
 
 struct aml_vdec_cfg_infos {
     uint32_t double_write_mode;
@@ -212,8 +216,8 @@ struct v4l2_parms {
 };
 
 struct mediahal_cfg_parms {
-    struct v4l2_parms v4l2cfg;
-    struct aml_dec_params amldeccfg;
+    struct v4l2_parms v4l2_cfg;
+    struct aml_dec_params aml_dec_cfg;
 };
 
 }

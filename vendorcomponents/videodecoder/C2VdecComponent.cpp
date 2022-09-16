@@ -705,8 +705,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
     }
 
-    // The first two frames are CSD data.
-    if (mOutputWorkCount == 2) {
+    if (mOutputWorkCount == 1 && (mDequeueLoopRunning.load() == false)) {
         mDequeueLoopRunning.store(true);
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Enable queuethread Running...");
     }
@@ -1341,6 +1340,9 @@ void C2VdecComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format)
         }
     }
 
+    if (mDeviceUtil != nullptr)
+        mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(INTERLACE);
+
     CHECK(!mPendingOutputFormat);
     mPendingOutputFormat = std::move(format);
     tryChangeOutputFormat();
@@ -1404,6 +1406,15 @@ void C2VdecComponent::tryChangeOutputFormat() {
         c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
         if (outputDelayErr == OK) {
             mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
+        }
+
+        if (mOutputDelay != nullptr) {
+            std::unique_ptr<C2Work> work(new C2Work);
+            work->worklets.clear();
+            work->worklets.emplace_back(new C2Worklet);
+            work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mOutputDelay)));
+            reportWork(std::move(work));
+            mOutputDelay = nullptr;
         }
     }
 
@@ -1752,6 +1763,10 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     if (!mUseBufferQueue) {
         dequeue_buffer_num = bufferCount;
     }
+
+    if (mDeviceUtil->isInterlaced())
+        dequeue_buffer_num = mOutBufferCount - (2 + kDefaultSmoothnessFactor);
+
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %" PRId64"",
                 minBuffersForDisplay, (int)bufferCount, dequeue_buffer_num, usage.expected);
     for (int i = 0; i < dequeue_buffer_num; ++i) {

@@ -82,6 +82,57 @@ C2VdecComponent::DeviceUtil::~DeviceUtil() {
     }
 }
 
+uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
+    uint32_t doubleWriteValue = 3;
+    InputCodec codec = mIntfImpl->getInputCodec();
+    switch (codec) {
+        case InputCodec::H264:
+        case InputCodec::DVAV:
+            doubleWriteValue = 0x10;
+            break;
+        case InputCodec::MP2V:
+        case InputCodec::MP4V:
+        case InputCodec::MJPG:
+            doubleWriteValue = 0x10;
+            break;
+        case InputCodec::H265:
+        case InputCodec::VP9:
+        case InputCodec::AV1:
+        case InputCodec::DVAV1:
+        case InputCodec::DVHE:
+            if (mComp->isNonTunnelMode() & (mUseSurfaceTexture || mNoSurface)) {
+                doubleWriteValue = 1;
+                CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 1");
+            } else if (codec == InputCodec::H265 && mIsInterlaced) {
+                doubleWriteValue = 0x10;
+            } else {
+                doubleWriteValue = 3;
+            }
+            break;
+        case InputCodec::AVS2:
+            doubleWriteValue = 1;
+            break;
+        case InputCodec::AVS:
+            doubleWriteValue = 1;
+            break;
+        default:
+            doubleWriteValue = 3;
+            break;
+    }
+
+    if (codec == InputCodec::H264) {
+        doubleWriteValue = 0x10;
+    }
+
+    uint32_t defaultDoubleWrite = getPropertyDoubleWrite();
+    if (defaultDoubleWrite > 0) {
+        doubleWriteValue = defaultDoubleWrite;
+        CODEC2_LOG(CODEC2_LOG_INFO, "set double:%d", doubleWriteValue);
+    }
+    CODEC2_LOG(CODEC2_LOG_INFO, "component double write value:%d", doubleWriteValue);
+    return doubleWriteValue;
+}
+
 void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     uint32_t doubleWriteMode = 3;
     int default_margin = 9;
@@ -98,8 +149,8 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
     mConfigParam = configParam;
     memset(mConfigParam, 0, sizeof(mediahal_cfg_parms));
-    struct v4l2_parms * pAmlV4l2Param    = &mConfigParam->v4l2cfg;
-    struct aml_dec_params * pAmlDecParam = &mConfigParam->amldeccfg;
+    struct v4l2_parms * pAmlV4l2Param    = &mConfigParam->v4l2_cfg;
+    struct aml_dec_params * pAmlDecParam = &mConfigParam->aml_dec_cfg;
 
 
     std::vector<std::unique_ptr<C2Param>> params;
@@ -146,39 +197,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     }
 
     if (mComp->isAmDolbyVision()) {
-        C2StreamProfileLevelInfo::input inputProfile;
-        err = mIntfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
-        if (inputProfile) {
-            InputCodec codecType;
-            switch (inputProfile.profile)
-            {
-                case C2Config::PROFILE_DV_AV_PER:
-                case C2Config::PROFILE_DV_AV_PEN:
-                case C2Config::PROFILE_DV_AV_09:
-                    codecType = InputCodec::DVAV;
-                    break;
-                case C2Config::PROFILE_DV_HE_DER:
-                case C2Config::PROFILE_DV_HE_DEN:
-                case C2Config::PROFILE_DV_HE_04:
-                case C2Config::PROFILE_DV_HE_05:
-                case C2Config::PROFILE_DV_HE_DTH:
-                case C2Config::PROFILE_DV_HE_07:
-                case C2Config::PROFILE_DV_HE_08:
-                    codecType = InputCodec::DVHE;
-                    break;
-                case C2Config::PROFILE_DV_AV1_10:
-                    codecType = InputCodec::DVAV1;
-                    break;
-                default:
-                    codecType = InputCodec::UNKNOWN;
-                    break;
-            }
-            C2VdecMDU_LOG(CODEC2_LOG_INFO,"update input Codec profile to %d",codecType);
-            if (inputProfile.profile == C2Config::PROFILE_DV_HE_04) {
-                dvUseTwoLayer = true;
-            }
-            mIntfImpl->updateInputCodec(codecType);
-        }
+        dvUseTwoLayer = checkDvProfileAndLayer();
     }
 
     bufwidth = output.width;
@@ -191,41 +210,6 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     pAmlV4l2Param->adaptivePlayback = mEnableAdaptivePlayback;
     pAmlV4l2Param->width  = bufwidth;
     pAmlV4l2Param->height = bufheight;
-
-    switch (mIntfImpl->getInputCodec())
-    {
-        case InputCodec::H264:
-        case InputCodec::DVAV:
-            doubleWriteMode = 0x10;
-            break;
-        case InputCodec::MP2V:
-        case InputCodec::MP4V:
-        case InputCodec::MJPG:
-            doubleWriteMode = 0x10;
-            break;
-        case InputCodec::H265:
-        case InputCodec::VP9:
-        case InputCodec::AV1:
-        case InputCodec::DVAV1:
-        case InputCodec::DVHE:
-            if (mComp->isNonTunnelMode() &
-                (mUseSurfaceTexture || mNoSurface)) {
-                doubleWriteMode = 1;
-                C2VdecMDU_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 1");
-            } else {
-                doubleWriteMode = 3;
-            }
-            break;
-        case InputCodec::AVS2:
-            doubleWriteMode = 1;
-            break;
-        case InputCodec::AVS:
-            doubleWriteMode = 1;
-            break;
-        default:
-            doubleWriteMode = 3;
-            break;
-    }
 
     if (bufwidth * bufheight > 4096 * 2304) {
         doubleWriteMode = 0x04;
@@ -244,31 +228,15 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         default_margin = 7;
     }
 
-    if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
-        doubleWriteMode = atoi(value);
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "set double:%d", doubleWriteMode);
-    }
+    doubleWriteMode = getDoubleWriteModeValue();
     memset(value, 0, sizeof(value));
     if (property_get(C2_PROPERTY_VDEC_MARGIN, value, NULL) > 0) {
         default_margin = atoi(value);
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "set margin:%d", default_margin);
     }
-
     margin = default_margin;
+
     pAmlDecParam->cfg.canvas_mem_mode = 0;
-
-#if 0
-    if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-        doubleWriteMode = 0x03;
-        pAmlDecParam->cfg.canvas_mem_mode = 2;
-    } else if (mIntfImpl->getInputCodec() == InputCodec::H265) {
-        doubleWriteMode = 0x03;
-        pAmlDecParam->cfg.canvas_mem_mode = 2;
-    } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
-        pAmlDecParam->cfg.canvas_mem_mode = 1;
-    }
-#endif
-
     mMarginBufferNum = margin;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "DoubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
     if (mUseSurfaceTexture || mNoSurface) {
@@ -437,7 +405,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
             return ((value & 0x00FF) << 8 ) | ((value & 0xFF00) >> 8);
     };
 
-    struct aml_dec_params *pAmlDecParam = &mConfigParam->amldeccfg;
+    struct aml_dec_params *pAmlDecParam = &mConfigParam->aml_dec_cfg;
 
     pAmlDecParam->hdr.color_parms.present_flag = 1;
 
@@ -760,8 +728,8 @@ int C2VdecComponent::DeviceUtil::checkHdrStaticInfoMetaChanged(struct aml_vdec_h
         return false;
     }
 
-    if (isHDRStaticInfoDifferent(&(mConfigParam->amldeccfg.hdr), phdr)) {
-        mConfigParam->amldeccfg.hdr = *phdr;
+    if (isHDRStaticInfoDifferent(&(mConfigParam->aml_dec_cfg.hdr), phdr)) {
+        mConfigParam->aml_dec_cfg.hdr = *phdr;
         return true;
     }
 
@@ -790,8 +758,8 @@ int C2VdecComponent::DeviceUtil::isHDRStaticInfoDifferent(struct aml_vdec_hdr_in
 int C2VdecComponent::DeviceUtil::getVideoType() {
     int videotype = AM_VIDEO_4K;//AM_VIDEO_AFBC;
 
-    if (mConfigParam->amldeccfg.cfg.double_write_mode == 0 ||
-        mConfigParam->amldeccfg.cfg.double_write_mode == 3) {
+    if (mConfigParam->aml_dec_cfg.cfg.double_write_mode == 0 ||
+        mConfigParam->aml_dec_cfg.cfg.double_write_mode == 3) {
         if (mIntfImpl->getInputCodec() == InputCodec::VP9 ||
             mIntfImpl->getInputCodec() == InputCodec::H265 ||
             mIntfImpl->getInputCodec() == InputCodec::AV1) {
@@ -800,6 +768,79 @@ int C2VdecComponent::DeviceUtil::getVideoType() {
     }
 
     return videotype;
+}
+
+uint32_t C2VdecComponent::DeviceUtil::getPropertyDoubleWrite() {
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
+        int32_t doublewrite = atoi(value);
+        CODEC2_LOG(CODEC2_LOG_INFO, "get property double write:%d", doublewrite);
+        return doublewrite;
+    }
+    return 0;
+}
+
+uint64_t C2VdecComponent::DeviceUtil::getUsageFromDouleWrite(uint32_t doublewrite) {
+    uint64_t usage = am_gralloc_get_video_decoder_full_buffer_usage();
+    switch (doublewrite) {
+        case 1:
+        case 0x10:
+            usage = am_gralloc_get_video_decoder_full_buffer_usage();
+            break;
+        case 2:
+        case 3:
+            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+            break;
+        case 4:
+        case 0x100:
+        case 0x200:
+        case 0x300:
+            usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
+            break;
+        default:
+            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+            break;
+    }
+
+    return usage;
+}
+
+bool C2VdecComponent::DeviceUtil::checkDvProfileAndLayer() {
+    bool uselayer = false;
+    C2StreamProfileLevelInfo::input inputProfile;
+    mIntfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
+    if (inputProfile) {
+        InputCodec codecType;
+        switch (inputProfile.profile)
+        {
+            case C2Config::PROFILE_DV_AV_PER:
+            case C2Config::PROFILE_DV_AV_PEN:
+            case C2Config::PROFILE_DV_AV_09:
+                codecType = InputCodec::DVAV;
+                break;
+            case C2Config::PROFILE_DV_HE_DER:
+            case C2Config::PROFILE_DV_HE_DEN:
+            case C2Config::PROFILE_DV_HE_04:
+            case C2Config::PROFILE_DV_HE_05:
+            case C2Config::PROFILE_DV_HE_DTH:
+            case C2Config::PROFILE_DV_HE_07:
+            case C2Config::PROFILE_DV_HE_08:
+                codecType = InputCodec::DVHE;
+                break;
+            case C2Config::PROFILE_DV_AV1_10:
+                codecType = InputCodec::DVAV1;
+                break;
+            default:
+                codecType = InputCodec::UNKNOWN;
+                break;
+        }
+        C2VdecMDU_LOG(CODEC2_LOG_INFO,"update input Codec profile to %d",codecType);
+        if (inputProfile.profile == C2Config::PROFILE_DV_HE_04) {
+            uselayer = true;
+        }
+        mIntfImpl->updateInputCodec(codecType);
+    }
+    return uselayer;
 }
 
 int64_t C2VdecComponent::DeviceUtil::checkAndAdjustOutPts(C2Work* work, int32_t flags) {
@@ -877,72 +918,27 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
     if (mUseSurfaceTexture || mNoSurface) {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
     } else {
-        char value[PROPERTY_VALUE_MAX];
-        if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
-            int32_t doublewrite_debug = atoi(value);
-            C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set double:%d", doublewrite_debug);
+        uint32_t doublewrite_debug = getPropertyDoubleWrite();
+        if (doublewrite_debug > 0) {
+            CODEC2_LOG(CODEC2_LOG_INFO, "set double:%d", doublewrite_debug);
             if (doublewrite_debug != 0) {
-                switch (doublewrite_debug) {
-                    case 1:
-                    case 0x10:
-                        usage = am_gralloc_get_video_decoder_full_buffer_usage();
-                        break;
-                    case 2:
-                    case 3:
-                        usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                        break;
-                    case 4:
-                    case 0x100:
-                    case 0x200:
-                    case 0x300:
-                        usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-                        break;
-                    default:
-                        usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                        break;
-                }
+               usage = getUsageFromDouleWrite(doublewrite_debug);
             }
-         }else if (mIs8k) {
+        } else if (mIs8k) {
             usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Is 8k use 1/4 usage:%llx",__func__, __LINE__, (unsigned long long)usage);
-         }else if (mForceFullUsage) {
-             usage = am_gralloc_get_video_decoder_full_buffer_usage();
-             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
-         } else {
-            switch (mIntfImpl->getInputCodec())
-            {
-                case InputCodec::H264:
-                case InputCodec::MP2V:
-                case InputCodec::MP4V:
-                case InputCodec::DVAV:
-                case InputCodec::MJPG:
-                    usage = am_gralloc_get_video_decoder_full_buffer_usage();
-                    break;
-                case InputCodec::H265:
-                case InputCodec::VP9:
-                case InputCodec::AV1:
-                case InputCodec::DVHE:
-                case InputCodec::DVAV1:
-                    usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                    break;
-                default:
-                    usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                    break;
-            }
+        } else if (mForceFullUsage) {
+            usage = am_gralloc_get_video_decoder_full_buffer_usage();
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
+        } else {
+            uint32_t doubleWrite = getDoubleWriteModeValue();
+            usage = getUsageFromDouleWrite(doubleWrite);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, usage, doubleWrite);
         }
     }
 
     return usage & C2MemoryUsage::PLATFORM_MASK;
 }
-
-void C2VdecComponent::DeviceUtil::setNoSurface(bool isNoSurface) {
-    mNoSurface = isNoSurface;
-}
-
-void C2VdecComponent::DeviceUtil::setForceFullUsage(bool isFullUsage) {
-    mForceFullUsage = isFullUsage;
-}
-
 
 uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forceAlign) {
     if ((mSecure && mIntfImpl->getInputCodec() == InputCodec::H264) || forceAlign)
@@ -1162,8 +1158,39 @@ bool C2VdecComponent::DeviceUtil::updateDisplayInfoToGralloc(const native_handle
     }
 
     return false;
+}
 
+bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type) {
+    bool ret = true;
+    bool configChanged = false;
 
+    //check whether need reconfig
+    struct aml_dec_params *params = &mConfigParam->aml_dec_cfg;
+
+    if (type & INTERLACE) {
+        InputCodec codec = mIntfImpl->getInputCodec();
+        if (codec == InputCodec::H265 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
+           params->cfg.double_write_mode = 0x10;
+           configChanged = true;
+        }
+    }
+
+    if (configChanged) {
+        AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+        VideoDecWraper *videoWraper = mComp->getCompVideoDecWraper();
+        if (msg != NULL && videoWraper != NULL) {
+            msg->setPointer("reconfig", (void*)&mConfigParam);
+            if (!videoWraper->postAndReplyMsg(msg)) {
+                C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
+            }
+            delete msg;
+        } else {
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
+        }
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] reconfig decoder", __func__, __LINE__);
+    }
+
+    return ret;
 }
 
 }

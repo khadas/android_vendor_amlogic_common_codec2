@@ -113,6 +113,10 @@ public:
         return mIsDolbyVision;
     }
 
+    VideoDecWraper* getCompVideoDecWraper() {
+        return  mVideoDecWraper.get();
+    }
+
     static uint32_t mInstanceNum;
     static uint32_t mInstanceID;
     uint32_t mCurInstanceID;

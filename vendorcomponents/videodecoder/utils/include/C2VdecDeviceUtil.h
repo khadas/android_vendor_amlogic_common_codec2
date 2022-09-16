@@ -44,8 +44,11 @@ public:
     void updateInterlacedInfo(bool isInterlaced);
     bool isInterlaced() {return mIsInterlaced;};
     int getVideoType();
-    void setUseSurfaceTexture(bool userSurfaceTexture) { mUseSurfaceTexture = userSurfaceTexture; }
-    void setNoSurface(bool isNoSurface);
+
+    void setNoSurface(bool isNoSurface) { mNoSurface = isNoSurface;}
+    void setForceFullUsage(bool isFullUsage) { mForceFullUsage = isFullUsage;}
+    void setUseSurfaceTexture(bool userSurfaceTexture) { mUseSurfaceTexture = userSurfaceTexture;}
+
     bool isHDRStaticInfoUpdated() {
         if (mHDRStaticInfoChanged) {
             std::lock_guard<std::mutex> lock(mMutex);
@@ -96,12 +99,15 @@ public:
     }
     int32_t getUnstablePts();
     int64_t getLastOutputPts();
+    uint32_t getDoubleWriteModeValue();
 
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();
-    void setForceFullUsage(bool isFullUsage);
     bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
     aml_stream_info mAmlStreamInfo;
+
+    bool checkConfigInfoFromDecoderAndReconfig(int type);
+
 private:
     /* set hdr static to decoder */
     int setHDRStaticInfo();
@@ -113,6 +119,10 @@ private:
 
     // static
     static const uint32_t kOutPutPtsValidNum = 5;
+
+    uint32_t getPropertyDoubleWrite();
+    uint64_t getUsageFromDouleWrite(uint32_t doublewrite);
+    bool checkDvProfileAndLayer();
 
     int mUvmFd;
     C2VdecComponent::IntfImpl* mIntfImpl;
