@@ -13,11 +13,13 @@ namespace android {
 
 const C2String kH264DecoderName = "c2.amlogic.avc.decoder";
 const C2String kH265DecoderName = "c2.amlogic.hevc.decoder";
-const C2String kVP9DecoderName = "c2.amlogic.vp9.decoder";
-const C2String kAV1DecoderName = "c2.amlogic.av1.decoder";
+const C2String kVP9DecoderName  = "c2.amlogic.vp9.decoder";
+const C2String kAV1DecoderName  = "c2.amlogic.av1.decoder";
 const C2String kMP2VDecoderName = "c2.amlogic.mpeg2.decoder";
 const C2String kMP4VDecoderName = "c2.amlogic.mpeg4.decoder";
 const C2String kMJPGDecoderName = "c2.amlogic.mjpeg.decoder";
+const C2String kAVSDecoderName  = "c2.amlogic.avs.decoder";
+const C2String kAVS2DecoderName = "c2.amlogic.avs2.decoder";
 
 /* soft decoder */
 const C2String kVP6ADecoderName = "c2.amlogic.vp6a.decoder.sw";
@@ -69,6 +71,8 @@ enum class InputCodec {
     MP2V,
     MP4V,
     MJPG,
+    AVS2,
+    AVS,
     UNKNOWN = 0xff,
 };
 
@@ -95,6 +99,8 @@ static C2ComponentInputCodec gC2ComponentInputCodec [] = {
     {kMP2VDecoderName, InputCodec::MP2V},
     {kMP4VDecoderName, InputCodec::MP4V},
     {kMJPGDecoderName, InputCodec::MJPG},
+    {kAVS2DecoderName, InputCodec::AVS2},
+    {kAVSDecoderName, InputCodec::AVS},
 };
 
 
@@ -110,6 +116,12 @@ enum class C2VendorCodec {
     VDEC_MP2V,
     VDEC_MP4V,
     VDEC_MJPG,
+#ifdef SUPPORT_VDEC_AVS2
+    VDEC_AVS2,
+#endif
+#ifdef SUPPORT_VDEC_AVS
+    VDEC_AVS,
+#endif
 #ifdef SUPPORT_SOFT_VDEC
     VDEC_VP6A,
     VDEC_VP6F,
@@ -151,6 +163,12 @@ static C2VendorComponent gC2VideoDecoderComponents [] = {
     {kMP2VDecoderName, C2VendorCodec::VDEC_MP2V},
     {kMP4VDecoderName, C2VendorCodec::VDEC_MP4V},
     {kMJPGDecoderName, C2VendorCodec::VDEC_MJPG},
+#ifdef SUPPORT_VDEC_AVS2
+    {kAVS2DecoderName, C2VendorCodec::VDEC_AVS2},
+#endif
+#ifdef SUPPORT_VDEC_AVS
+    {kAVSDecoderName, C2VendorCodec::VDEC_AVS},
+#endif
 };
 
 #ifdef SUPPORT_SOFT_VDEC

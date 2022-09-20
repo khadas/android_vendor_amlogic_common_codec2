@@ -9,6 +9,7 @@
 
 #include <C2PlatformSupport.h>
 #include <SimpleC2Interface.h>
+#include <C2VendorConfig.h>
 
 namespace android {
 
@@ -26,6 +27,9 @@ constexpr uint32_t kMaxInputDelaySecure = 4;            // Max input delay for s
 
 //Tunnel Mode
 constexpr uint32_t kDefaultOutputDelayTunnel = 10;      // Default output delay on tunnel mode.
+
+constexpr char MEDIA_MIMETYPE_VIDEO_AVS[] = "video/avs";
+constexpr char MEDIA_MIMETYPE_VIDEO_AVS2[] = "video/avs2";
 
 #define DEFINE_C2_DEFAULT_UNSTRICT_SETTER(s, n) \
     C2R C2VdecComponent::IntfImpl::n##Setter(bool mayBlock, C2P<s> &me) {\
@@ -274,6 +278,14 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
         case InputCodec::MJPG:
             strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_MJPEG);
             onMjpgDeclareParam();
+            break;
+        case InputCodec::AVS2:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AVS2);
+            onAvs2DeclareParam();
+            break;
+        case InputCodec::AVS:
+            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AVS);
+            onAvsDeclareParam();
             break;
         default:
             CODEC2_LOG(CODEC2_LOG_ERR, "Invalid component name: %s", name.c_str());
@@ -586,11 +598,9 @@ void C2VdecComponent::IntfImpl::onMjpgDeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onAvsDeclareParam() {
-       // TODO
 }
 
 void C2VdecComponent::IntfImpl::onAvs2DeclareParam() {
-        // TODO
 }
 
 void C2VdecComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper) {

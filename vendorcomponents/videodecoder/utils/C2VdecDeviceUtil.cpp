@@ -215,6 +215,12 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
                 doubleWriteMode = 3;
             }
             break;
+        case InputCodec::AVS2:
+            doubleWriteMode = 1;
+            break;
+        case InputCodec::AVS:
+            doubleWriteMode = 1;
+            break;
         default:
             doubleWriteMode = 3;
             break;
@@ -359,6 +365,20 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
             pAmlDecParam->cfg.canvas_mem_endian = 0;
             pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
         } else if (mIntfImpl->getInputCodec() == InputCodec::MJPG) {
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::AVS2) {
+            pAmlDecParam->cfg.init_height = bufwidth;
+            pAmlDecParam->cfg.init_width = bufheight;
+            pAmlDecParam->cfg.ref_buf_margin = margin;
+            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+            pAmlDecParam->cfg.canvas_mem_endian = 0;
+            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        } else if (mIntfImpl->getInputCodec() == InputCodec::AVS) {
             pAmlDecParam->cfg.init_height = bufwidth;
             pAmlDecParam->cfg.init_width = bufheight;
             pAmlDecParam->cfg.ref_buf_margin = margin;

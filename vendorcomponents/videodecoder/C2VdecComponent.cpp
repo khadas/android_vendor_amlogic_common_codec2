@@ -2968,6 +2968,10 @@ const char* C2VdecComponent::VideoCodecProfileToMime(media::VideoCodecProfile pr
         return "video/mpeg2";
     } else if (profile == media::MJPEG_PROFILE) {
         return "video/mjpeg";
+    } else if (profile == media::AVS2_PROFILE) {
+        return "video/avs2";
+    } else if (profile == media::AVS_PROFILE) {
+        return "video/avs";
     }
     return "";
 }
@@ -3062,7 +3066,8 @@ CreateC2VdecFactory(DVAV1)
 CreateC2VdecClearFactory(MP2V)
 CreateC2VdecClearFactory(MP4V)
 CreateC2VdecClearFactory(MJPG)
-
+CreateC2VdecClearFactory(AVS2)
+CreateC2VdecClearFactory(AVS)
 
 DestroyC2VdecFactory(H264)
 DestroyC2VdecFactory(H265)
@@ -3074,3 +3079,5 @@ DestroyC2VdecFactory(DVAV1)
 DestroyC2VdecFactory(MP2V)
 DestroyC2VdecFactory(MP4V)
 DestroyC2VdecFactory(MJPG)
+DestroyC2VdecFactory(AVS2)
+DestroyC2VdecFactory(AVS)
