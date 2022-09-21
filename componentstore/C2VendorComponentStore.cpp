@@ -84,7 +84,7 @@ private:
 
         ~ComponentModule() override;
         c2_status_t init(std::string libPath, C2VendorCodec codec, bool secure, bool isAudio);
-
+        c2_status_t selectEncoder(C2VendorCodec codectype,std::string &strFactoryName,std::string &strDestroyFactoryName);
         // Return the traits of the component in this module.
         std::shared_ptr<const C2Component::Traits> getTraits();
 
@@ -222,6 +222,45 @@ C2VendorComponentStore::ComponentModule::~ComponentModule() {
     }
 }
 
+c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec codectype,std::string &strFactoryName,std::string &strDestroyFactoryName) {
+    ALOGV("selectEncoder");
+    if (C2VendorCodec::VENC_H264 == codectype) {
+        if (access("/dev/amvenc_multi", F_OK ) != -1) {
+            strFactoryName = "CreateC2VencMultiH264Factory";
+            strDestroyFactoryName = "DestroyC2VencMultiH264Factory";
+            ALOGD("amvenc_multi h264 present");
+        }
+        else if (access("/dev/amvenc_avc", F_OK ) != -1) {
+            strFactoryName = "CreateC2VencHCodecFactory";
+            strDestroyFactoryName = "DestroyC2VencHCodecFactory";
+            ALOGD("amvenc_avc present");
+        }
+        else {
+            ALOGD("can not find available h264 driver!!!,please check!");
+            return C2_CORRUPTED;
+        }
+    }
+
+    if (C2VendorCodec::VENC_H265 == codectype) {
+        if (access("/dev/amvenc_multi", F_OK ) != -1) {
+            strFactoryName = "CreateC2VencMultiH265Factory";
+            strDestroyFactoryName = "DestroyC2VencMultiH265Factory";
+            ALOGD("amvenc_multi h265 present");
+        }
+        else if (access("/dev/HevcEnc", F_OK ) != -1) {
+            strFactoryName = "CreateC2VencW420Factory";
+            strDestroyFactoryName = "DestroyC2VencW420Factory";
+            ALOGD("HevcEnc present");
+        }
+        else {
+            ALOGD("can not find available h265 driver!!!,please check!");
+            return C2_CORRUPTED;
+        }
+    }
+    return C2_OK;
+}
+
+
 c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C2VendorCodec codec, bool secure,  bool isAudio) {
     ALOGV("Loading dll");
     mIsAudio = isAudio;
@@ -274,12 +313,11 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
               destroyFactoryName = "DestroyC2VdecMJPGFactory";
               break;
           case C2VendorCodec::VENC_H264:
-              createFactoryName = "CreateC2VencHCodecFactory";
-              destroyFactoryName = "DestroyC2VencHCodecFactory";
-              break;
           case C2VendorCodec::VENC_H265:
-              createFactoryName = "CreateC2VencW420Factory";
-              destroyFactoryName = "DestroyC2VencW420Factory";
+              if (C2_OK != selectEncoder(codec,createFactoryName,destroyFactoryName)) {
+                  ALOGE("cannot find match encoder driver!");
+                  return C2_CORRUPTED;
+              }
               break;
           default:
               ALOGE("Unknown codec:%d", codec);

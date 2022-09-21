@@ -16,6 +16,7 @@ cc_library_shared {
         "C2VencComponent.cpp",
         "C2VencHCodec.cpp",
         "C2VencW420.cpp",
+        "C2VencMulti.cpp",
         "ThreadWorker.cpp",
     ],
 
