@@ -20,6 +20,7 @@
 #include <c2logdebug.h>
 #include <C2VdecTunnelHelper.h>
 #include <C2VdecInterfaceImpl.h>
+#include <C2VdecDebugUtil.h>
 
 
 #define C2VdecTMH_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, C2VdecComponent::mInstanceID, mComp->mCurInstanceID, ##str)
@@ -158,11 +159,13 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
                     close(iter->first);
                 }
                 mOutBufferFdMap.erase(iter);
+                GraphicBlockStateDec(mComp, GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER);
                 C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Close fd:%d, block id:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
 
                 allocTunnelBuffer(size, mPixelFormat, &fd);
                 GraphicBlockInfo *info = mComp->getGraphicBlockByFd(fd);
-                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+                GraphicBlockStateInit(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+                BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
                 mComp->sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
                 continue;
             }
@@ -175,7 +178,8 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
             return;
         }
 
-        info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+        GraphicBlockStateChange(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
         mComp->sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
 
         /* for drop, need report finished work */
@@ -275,8 +279,8 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
     }
 
     if (mVideoTunnelRenderer) {
-        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
-        info->mState = GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER;
+        GraphicBlockStateChange(mComp, info, GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER);
+        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel send to videotunnel fd=%d, pts=%lld", info->mFd, timestamp);
         mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
     }
 
@@ -350,7 +354,6 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct V
 
     auto pendingBuffer = mComp->findPendingBuffersToWorkByTime(rendertime->mediaUs);
     if (pendingBuffer != mComp->mPendingBuffersToWork.end()) {
-        //info->mState = GraphicBlockInfo::State::OWNED_BY_CLIENT;
         C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Rendertime:%lld, bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingBuffer->mBitstreamId,pendingBuffer->flags);
         mComp->reportWorkIfFinished(pendingBuffer->mBitstreamId,pendingBuffer->flags);
         mComp->mPendingBuffersToWork.erase(pendingBuffer);
@@ -460,10 +463,10 @@ void C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder(const medi
         DCHECK(dupfd >= 0);
         appendTunnelOutputBuffer(c2Block, dupfd, blockId, poolId);
         mOutBufferFdMap.insert(std::pair<int, TunnelFdInfo>(dupfd, TunnelFdInfo(fd, blockId)));
-        C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s:%d] alloc buffer fd:%d(%d), blockId:%d", __func__, __LINE__, dupfd, fd, blockId);
-
         GraphicBlockInfo* info = mComp->getGraphicBlockByFd(dupfd);
-        info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+        GraphicBlockStateInit(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
+
         mComp->sendOutputBufferToAccelerator(info, true);
         mTaskRunner->PostTask(FROM_HERE,
             ::base::Bind(&C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder, ::base::Unretained(this),
@@ -498,6 +501,8 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
             int fd = -1;
             for (auto& info : mComp->mGraphicBlocks) {
                 if (info.mState != GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER) {
+                    GraphicBlockInfo* info1 = &info;
+                    GraphicBlockStateChange(mComp, info1, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
                     auto iter = mOutBufferFdMap.find(info.mFd);
                     if (iter == mOutBufferFdMap.end()) {
                         //error
@@ -506,6 +511,7 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
                     mOutBufferFdMap.erase(iter);
                     C2VdecTMH_LOG(CODEC2_LOG_INFO, " [%s:%d] close fd:%d, blockid:%d", __func__, __LINE__, iter->first, iter->second.mBlockId);
                     alloc_first ++;
+                    GraphicBlockStateReset(mComp, info1);
                 }
                 info.mGraphicBlock.reset();
             }
@@ -516,7 +522,8 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
             for (int i = 0; i < alloc_first; i++) {
                 allocTunnelBuffer(size, mPixelFormat, &fd);
                 GraphicBlockInfo* info = mComp->getGraphicBlockByFd(fd);
-                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+                GraphicBlockStateInit(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+                BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
             }
         } else if (bufferNumLarged) {
             //add new allocate buffer
@@ -530,7 +537,8 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
             for (int i = lastBufferCount; i < mOutBufferCount; i++) {
                 allocTunnelBuffer(size, mPixelFormat, &fd);
                 GraphicBlockInfo* info = mComp->getGraphicBlockByFd(fd);
-                info->mState = GraphicBlockInfo::State::OWNED_BY_COMPONENT;
+                GraphicBlockStateInit(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+                BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
             }
         }
     }

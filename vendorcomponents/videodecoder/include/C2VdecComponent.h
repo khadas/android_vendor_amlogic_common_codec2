@@ -66,6 +66,7 @@ public:
     class DeviceUtil;
     class TunnelHelper;
     class TunerPassthroughHelper;
+    class DebugUtil;
 
     // Implementation of C2Component interface
     virtual c2_status_t setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -179,10 +180,11 @@ private:
     // Internal struct to keep the information of a specific graphic block.
     struct GraphicBlockInfo {
         enum class State {
-            OWNED_BY_COMPONENT,    // Owned by this component.
+            OWNED_BY_COMPONENT = 0,    // Owned by this component.
             OWNED_BY_ACCELERATOR,  // Owned by video decode accelerator.
             OWNED_BY_CLIENT,       // Owned by client.
             OWNER_BY_TUNNELRENDER,
+            GRAPHIC_BLOCK_OWNER_MAX = OWNER_BY_TUNNELRENDER + 1,
         };
 
         // The ID of this block used for accelerator.
@@ -338,9 +340,6 @@ private:
     // The routine task running on dequeue thread.
     void dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat);
 
-    //display all graphic block information.
-    void displayGraphicBlockInfo();
-    void getCurrentProcessFdInfo();
     //convert codec profile to mime
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
@@ -395,6 +394,7 @@ private:
     bool mPendingOutputEOS;
     // The vector of storing allocated output graphic block information.
     std::vector<GraphicBlockInfo> mGraphicBlocks;
+    int32_t mGraphicBlockStateCount[(int32_t)GraphicBlockInfo::State::GRAPHIC_BLOCK_OWNER_MAX];
     // The work queue. Works are queued along with drain mode from component API queue_nb and
     // dequeued by the decode process of component.
     std::queue<WorkEntry> mQueue;
@@ -478,6 +478,7 @@ private:
     std::shared_ptr<C2VdecBlockPoolUtil> mBlockPoolUtil;
     std::shared_ptr<TunnelHelper> mTunnelHelper;
     std::shared_ptr<TunerPassthroughHelper> mTunerPassthroughHelper;
+    std::shared_ptr<DebugUtil> mDebugUtil;
 
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;
@@ -490,6 +491,8 @@ private:
     bool mHDR10PlusMeteDataNeedCheck;
     int64_t mInputWorkCount;
     int32_t mInputCSDWorkCount;
+    int32_t mInputBufferNum;
+    int32_t mInputQueueNum;
     int64_t mOutputWorkCount;
     int64_t mOutputFinishedWorkCount;
     int32_t mSyncId;
