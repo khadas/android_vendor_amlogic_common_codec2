@@ -30,8 +30,9 @@
 namespace android {
 
 #define OUTPUT_BUFFERSIZE_MIN (2 * 1024 * 1024)
-#define ENCODER_PROP_DUMP_DATA  "c2.vendor.media.encoder.dumpfile"
-#define ENCODER_PROP_LOG        "c2.vendor.media.encoder.log"
+#define ENABLE_DUMP_ES        1
+#define ENABLE_DUMP_RAW       (1 << 1)
+#define ENCODER_PROP_DUMP_DATA        "debug.vendor.media.c2.venc.dump_data"
 
 class C2VencComponent::BlockingBlockPool : public C2BlockPool {
 public:
@@ -160,7 +161,9 @@ C2VencComponent::C2VencComponent(const std::shared_ptr<C2ComponentInterface> &in
           mfdDumpOutput(-1),
           mSpsPpsHeaderReceived(false),
           mOutBufferSize(OUTPUT_BUFFERSIZE_MIN),
-          mSawInputEOS(false){
+          mSawInputEOS(false),
+          mDumpYuvEnable(false),
+          mDumpEsEnable(false) {
         ALOGD("C2VencComponent constructor!");
 }
 
@@ -221,6 +224,8 @@ c2_status_t C2VencComponent::drain_nb(drain_mode_t mode) {
 }
 
 c2_status_t C2VencComponent::start() {
+    std::string strFileName;
+    uint32_t isDumpFile = 0;
     ALOGD("C2VencComponent start!");
 
     if (ComponentState::UNINITIALIZED != mComponentState) {
@@ -238,22 +243,27 @@ c2_status_t C2VencComponent::start() {
     mthread.start(runWorkLoop,this);
     mComponentState = ComponentState::STARTED;
 
-    //OpenFile(&mfdDumpInput,);
-    char InputFilename[64];
-    memset(InputFilename, 0, sizeof(InputFilename));
-    sprintf(InputFilename, "%s.raw", "/data/test_raw");
-    ALOGD("Enable Dump raw file, name: %s", InputFilename);
-    mfdDumpInput = open(InputFilename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
-    if (mfdDumpInput < 0) {
-        ALOGE("Dump Input File handle error!");
+
+
+    isDumpFile = property_get_int32(ENCODER_PROP_DUMP_DATA, 0);
+    if (isDumpFile & ENABLE_DUMP_RAW) {
+        mDumpYuvEnable = true;
+        getCodecDumpFileName(strFileName,C2_DUMP_RAW);
+        ALOGD("Enable Dump yuv file, name: %s", strFileName.c_str());
+        mfdDumpInput = open(strFileName.c_str(), O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+        if (mfdDumpInput < 0) {
+            ALOGE("Dump Input File handle error!");
+        }
     }
 
-    memset(InputFilename, 0, sizeof(InputFilename));
-    sprintf(InputFilename, "%s.h264", "/data/test_es");
-    ALOGD("Enable Dump raw file, name: %s", InputFilename);
-    mfdDumpOutput = open(InputFilename, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
-    if (mfdDumpOutput < 0) {
-        ALOGE("Dump Output File handle error!");
+    if (isDumpFile & ENABLE_DUMP_ES) {
+        mDumpEsEnable = true;
+        getCodecDumpFileName(strFileName,C2_DUMP_ES);
+        ALOGD("Enable Dump es file, name: %s", strFileName.c_str());
+        mfdDumpOutput = open(strFileName.c_str(), O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+        if (mfdDumpOutput < 0) {
+            ALOGE("Dump Output File handle error!");
+        }
     }
     return C2_OK;
 }
@@ -479,7 +489,10 @@ void C2VencComponent::ProcessData()
             break;
     }
     //InputFrameInfo.colorFmt = layout.type;
-    dumpDataToFile(mfdDumpInput,InputFrameInfo.yPlane,dumpFileSize);
+    if (mDumpYuvEnable) {
+        ALOGD("dump yuv enable!!!");
+        dumpDataToFile(mfdDumpInput,InputFrameInfo.yPlane,dumpFileSize);
+    }
     if (!mOutputBlockPool) {
         std::shared_ptr<C2BlockPool> blockPool;
         c2_status_t err = GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR, shared_from_this(), &blockPool);
@@ -547,8 +560,9 @@ void C2VencComponent::ProcessData()
         }
         memcpy(csd->m.value, header, uHeaderLength);
         work->worklets.front()->output.configUpdate.push_back(std::move(csd));
-
-        dumpDataToFile(mfdDumpOutput,header,uHeaderLength);
+        if (mDumpEsEnable) {
+            dumpDataToFile(mfdDumpOutput,header,uHeaderLength);
+        }
         if (work->input.buffers.empty()) {
             work->workletsProcessed = 1u;
             ALOGE("generate header already,but input buffer queue is empty");
@@ -564,7 +578,9 @@ void C2VencComponent::ProcessData()
     InputFrameInfo.timeStamp = work->input.ordinal.timestamp.peekull();
     c2_status_t res = ProcessOneFrame(InputFrameInfo,&OutInfo);
     if (C2_OK == res) {
-        dumpDataToFile(mfdDumpOutput,OutInfo.Data,OutInfo.Length);
+        if (mDumpEsEnable) {
+            dumpDataToFile(mfdDumpOutput,OutInfo.Data,OutInfo.Length);
+        }
         ALOGD("processoneframe ok,do finishwork begin!");
         finishWork(InputFrameInfo.frameIndex,work,OutInfo);
     }

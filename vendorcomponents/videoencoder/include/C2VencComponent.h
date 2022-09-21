@@ -73,6 +73,11 @@ typedef struct InputFrameInfo{
     int32_t vStride;
 }InputFrameInfo_t;
 
+typedef enum DumpFileType {
+    C2_DUMP_RAW,
+    C2_DUMP_ES
+}DumpFileType_e;
+
 class C2VencComponent : public C2Component ,
                                  public std::enable_shared_from_this<C2VencComponent> {
 public:
@@ -105,19 +110,13 @@ public:
     void *threadLoop();
 
 protected:
-/*    virtual c2_status_t Init() = 0;
-    virtual c2_status_t Open() = 0;
-    virtual c2_status_t Start() = 0;
-    virtual c2_status_t EncOneFrame() = 0;
-    virtual c2_status_t Reset() = 0;
-    virtual c2_status_t Stop() = 0;
-    virtual void Release() = 0;*/
     virtual bool LoadModule() = 0;
     virtual c2_status_t Init() = 0;
     virtual c2_status_t ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFrameInfo_t *pOutFrameInfo) = 0;
     virtual c2_status_t GenerateHeader(uint8_t *pHeaderData,uint32_t *pSize) = 0;
     virtual void Close() = 0;
     virtual void getResolution(int *pWidth,int *pHeight) = 0;
+    virtual void getCodecDumpFileName(std::string &strName,DumpFileType_e type) = 0;
     // The pointer of component listener.
 private:
     std::shared_ptr<C2Buffer> createLinearBuffer(
@@ -176,6 +175,8 @@ private:
     uint32_t mOutBufferSize;
     bool mSawInputEOS;
     Mutex mInputQueueLock;
+    bool mDumpYuvEnable;
+    bool mDumpEsEnable;
 };
 
 }

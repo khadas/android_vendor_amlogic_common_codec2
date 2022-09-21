@@ -28,6 +28,7 @@ public:
     c2_status_t GenerateHeader(uint8_t *pHeaderData,uint32_t *pSize) override;
     void Close() override;
     void getResolution(int *pWidth,int *pHeight) override;
+    void getCodecDumpFileName(std::string &strName,DumpFileType_e type) override;
 
 //protected:
     virtual ~C2VencW420();

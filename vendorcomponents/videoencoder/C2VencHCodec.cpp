@@ -27,6 +27,8 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/foundation/AUtils.h>
 
+#include <string.h>
+#include <stdio.h>
 #include <C2Debug.h>
 #include <C2Config.h>
 #include <Codec2Mapper.h>
@@ -37,6 +39,7 @@
 #include <dlfcn.h>
 #include "C2VendorSupport.h"
 #include "C2VencHCodec.h"
+
 
 namespace android {
 
@@ -898,10 +901,10 @@ c2_status_t C2VencHCodec::Init() {
                                                               initParam.level);
     mCodecHandle = mInitFunc(CODEC_ID_H264,initParam);
     if (0 == mCodecHandle) {
-        ALOGE("init encoder failed!!,mCodecHandle:%ld",mCodecHandle);
+        ALOGE("init encoder failed!!,mCodecHandle:%lx",mCodecHandle);
         return C2_BAD_VALUE;
     }
-    ALOGD("init encoder success,mCodecHandle:%ld",mCodecHandle);
+    ALOGD("init encoder success,mCodecHandle:%lx",mCodecHandle);
     return C2_OK;
 }
 
@@ -953,6 +956,16 @@ void C2VencHCodec::getResolution(int *pWidth,int *pHeight)
     *pWidth = mSize->width;
     *pHeight = mSize->height;
 }
+
+
+void C2VencHCodec::getCodecDumpFileName(std::string &strName,DumpFileType_e type) {
+    char pName[128];
+    memset(pName,0,sizeof(pName));
+    sprintf(pName, "/data/venc_dump_%lx.%s", mCodecHandle,(C2_DUMP_RAW == type) ? "yuv" : "h264");
+    strName = pName;
+    ALOGD("Enable Dump raw file, name: %s", strName.c_str());
+}
+
 
 
 c2_status_t C2VencHCodec::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min) {

@@ -831,10 +831,10 @@ c2_status_t C2VencW420::Init() {
                                           initParam.vui_info.vui_info_present);
     mCodecHandle = mInitFunc(CODEC_ID_H265,initParam);
     if (!mCodecHandle) {
-        ALOGD("init failed!");
+        ALOGD("init failed!,codechandle:%lx",mCodecHandle);
         return C2_CORRUPTED;
     }
-    ALOGD("init encoder success");
+    ALOGD("init encoder success,codechandle:%lx",mCodecHandle);
     return C2_OK;
 }
 
@@ -897,6 +897,15 @@ void C2VencW420::getResolution(int *pWidth,int *pHeight)
     *pWidth = mSize->width;
     *pHeight = mSize->height;
 }
+
+void C2VencW420::getCodecDumpFileName(std::string &strName,DumpFileType_e type) {
+    char pName[128];
+    memset(pName,0,sizeof(pName));
+    sprintf(pName, "/data/venc_dump_%lx.%s", mCodecHandle,(C2_DUMP_RAW == type) ? "yuv" : "h265");
+    strName = pName;
+    ALOGD("Enable Dump raw file, name: %s", strName.c_str());
+}
+
 
 
 c2_status_t C2VencW420::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min) {
