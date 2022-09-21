@@ -290,6 +290,18 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
                   createFactoryName = "CreateC2AudioDecoderEAC3Factory";
                   destroyFactoryName = "DestroyC2AudioDecoderEAC3Factory";
                   break;
+              case C2VendorCodec::ADEC_DTS:
+                  createFactoryName = "CreateC2AudioDecoderDTSFactory";
+                  destroyFactoryName = "DestroyC2AudioDecoderDTSFactory";
+                  break;
+              case C2VendorCodec::ADEC_DTSE:
+                  createFactoryName = "CreateC2AudioDecoderDTSEFactory";
+                  destroyFactoryName = "DestroyC2AudioDecoderDTSEFactory";
+                  break;
+              case C2VendorCodec::ADEC_DTSHD:
+                  createFactoryName = "CreateC2AudioDecoderDTSHDFactory";
+                  destroyFactoryName = "DestroyC2AudioDecoderDTSHDFactory";
+                  break;
               default:
                   ALOGE("Unknown Audio codec:%d", codec);
                   return C2_CORRUPTED;

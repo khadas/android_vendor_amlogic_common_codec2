@@ -19,7 +19,8 @@ cc_library_shared {
         "C2AudioDecInterface.cpp",
         "C2AudioDecComponent.cpp",
         "C2AudioAacDecoder.cpp",
-        "C2AudioEAC3Decoder.cpp"
+        "C2AudioEAC3Decoder.cpp",
+        "C2AudioDTSDecoder.cpp"
     ],
 
     shared_libs: [
