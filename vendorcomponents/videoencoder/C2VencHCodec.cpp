@@ -45,6 +45,11 @@ namespace android {
 
 constexpr char COMPONENT_NAME[] = "c2.amlogic.avc.encoder";
 
+#define C2HCodec_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
+
+uint32_t C2VencHCodec::mInstanceID = 0;
+
+
 #define MAX_INPUT_BUFFER_HEADERS 4
 #define MAX_CONVERSION_BUFFERS   4
 #define CODEC_MAX_CORES          4
@@ -643,7 +648,7 @@ std::shared_ptr<C2Component> C2VencHCodec::create(
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
-        ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
+        ALOGE("Reject to Initialize() due to too many instances:  %d", sConcurrentInstances.load());
         return nullptr;
     }
     return std::shared_ptr<C2Component>(new C2VencHCodec(name, id, helper));
@@ -656,49 +661,54 @@ C2VencHCodec::C2VencHCodec(const char *name, c2_node_id_t id, const std::shared_
               mCodecHandle(0),
               mIDRInterval(0) {
     ALOGD("C2VencHCodec constructor!");
+    propGetInt(CODEC2_ENCODER_LOGDEBUG_PROPERTY, &gloglevel);
+    ALOGD("gloglevel:%x",gloglevel);
     sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
+    mInstanceID++;
 }
 
 
 C2VencHCodec::~C2VencHCodec() {
     ALOGD("C2VencHCodec destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
+    mInstanceID--;
 }
 
 
 bool C2VencHCodec::LoadModule() {
-    ALOGD("C2VencHCodec initModule!");
+    ALOGD("C2VencHCodec initModule!,LOG_INFO:%d,gloglevel:%d",CODEC2_VENC_LOG_INFO,gloglevel);
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"C2VencHCodec initModule!");
     void *handle = dlopen("lib_avc_vpcodec.so", RTLD_NOW);
     if (handle) {
         mInitFunc = NULL;
         mInitFunc = (fn_vl_video_encoder_init)dlsym(handle, "vl_video_encoder_init");
         if (mInitFunc == NULL) {
-            ALOGE("dlsym for vl_video_encoder_init failed");
+            C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_init failed");
             return false;
         }
 
         mEncHeaderFunc = NULL;
         mEncHeaderFunc = (fn_vl_video_encode_header)dlsym(handle, "vl_video_encode_header");
         if (mEncHeaderFunc == NULL) {
-            ALOGE("dlsym for vl_video_encode_header failed");
+            C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encode_header failed");
             return false;
         }
 
         mEncFrameFunc = NULL;
         mEncFrameFunc = (fn_vl_video_encoder_encode_frame)dlsym(handle, "vl_video_encoder_encode_frame");
         if (mEncFrameFunc == NULL) {
-            ALOGE("dlsym for vl_video_encode_header failed");
+            C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encode_header failed");
             return false;
         }
 
         mDestroyFunc = NULL;
         mDestroyFunc = (fn_vl_video_encoder_destory)dlsym(handle,"vl_video_encoder_destory");
         if (mDestroyFunc == NULL) {
-            ALOGE("dlsym for vl_video_encoder_destory failed");
+            C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_destroy failed");
             return false;
         }
     } else {
-        ALOGE("dlopen for lib_avc_vpcodec.so failed");
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlopen for lib_avc_vpcodec.so failed");
         return false;
     }
     return true;
@@ -708,7 +718,7 @@ bool C2VencHCodec::LoadModule() {
 bool C2VencHCodec::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCodec) {
     bool ret = true;
     if (!pOutputCodec) {
-        ALOGE("param check failed!!");
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"param check failed!!");
         return false;
     }
     switch (inputCodec) {
@@ -723,7 +733,7 @@ bool C2VencHCodec::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCo
             break;
         }
         default: {
-            ALOGE("cannot suppoort colorformat:%x",inputCodec);
+            C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputCodec);
             ret = false;
             break;
         }
@@ -735,7 +745,7 @@ bool C2VencHCodec::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCo
 bool C2VencHCodec::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCodec) {
     bool ret = true;
     if (!pOutputCodec) {
-        ALOGE("param check failed!!");
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"param check failed!!");
         return false;
     }
     switch (inputFmt) {
@@ -760,7 +770,7 @@ bool C2VencHCodec::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCod
             break;
         }
         default: {
-            ALOGE("cannot suppoort colorformat:%x",inputFmt);
+            C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputFmt);
             ret = false;
             break;
         }
@@ -839,7 +849,7 @@ c2_status_t C2VencHCodec::Init() {
     vl_img_format_t colorformat = IMG_FMT_NONE;
     vl_init_params_t initParam;
 
-    ALOGD("C2VencHCodec Init!");
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"C2VencHCodec Init!");
     mSize = mIntfImpl->getSize();
     mFrameRate = mIntfImpl->getFrameRate();
     mGop = mIntfImpl->getGop();
@@ -853,7 +863,7 @@ c2_status_t C2VencHCodec::Init() {
     memset(&initParam,0,sizeof(initParam));
     getQp(&initParam.i_qp_max,&initParam.i_qp_min,&initParam.p_qp_max,&initParam.p_qp_min);
     codecTypeTrans(mPixelFormat->value,&colorformat);
-    ALOGD("upper set pixelformat:0x%x,colorformat:%d,colorAspect:%d",mPixelFormat->value,colorformat,mCodedColorAspects->matrix);
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"upper set pixelformat:0x%x,colorformat:%d,colorAspect:%d",mPixelFormat->value,colorformat,mCodedColorAspects->matrix);
     /*if (mGop && mGop->flexCount() > 0) {
         uint32_t syncInterval = 1;
         uint32_t iInterval = 1;
@@ -874,11 +884,11 @@ c2_status_t C2VencHCodec::Init() {
     }*/
     if (MATRIX_BT709 == mCodedColorAspects->matrix) {
         initParam.csc = ENC_CSC_BT709;
-        ALOGI("color space BT709");
+        C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"color space BT709");
     }
     else {
         initParam.csc = ENC_CSC_BT601;
-        ALOGI("color space BT601");
+        C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"color space BT601");
     }
     initParam.width = mSize->width;
     initParam.height = mSize->height;
@@ -887,7 +897,7 @@ c2_status_t C2VencHCodec::Init() {
     initParam.gop = mIDRInterval;
     codec2ProfileLevelTrans(&initParam.profile,&initParam.level);
 
-    ALOGD("width:%d,height:%d,framerate:%f,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d,level:%d",
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"width:%d,height:%d,framerate:%f,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d,level:%d",
                                                               mSize->width,
                                                               mSize->height,
                                                               mFrameRate->value,
@@ -901,22 +911,22 @@ c2_status_t C2VencHCodec::Init() {
                                                               initParam.level);
     mCodecHandle = mInitFunc(CODEC_ID_H264,initParam);
     if (0 == mCodecHandle) {
-        ALOGE("init encoder failed!!,mCodecHandle:%lx",mCodecHandle);
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"init encoder failed!!,mCodecHandle:%lx",mCodecHandle);
         return C2_BAD_VALUE;
     }
-    ALOGD("init encoder success,mCodecHandle:%lx",mCodecHandle);
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"init encoder success,mCodecHandle:%lx",mCodecHandle);
     return C2_OK;
 }
 
 
 c2_status_t C2VencHCodec::GenerateHeader(uint8_t *pHeaderData,uint32_t *pSize)
 {
-    ALOGD("C2VencHCodec GenerateHeader!");
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"C2VencHCodec GenerateHeader!");
     int outSize = 0;
     int ret = 0;
     vl_vui_params_t vuiInfo;
     if (!pHeaderData || !pSize) {
-        ALOGE("GenerateHeader parameter bad value,pls check!");
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"GenerateHeader parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
     memset(&vuiInfo,0,sizeof(vuiInfo));
@@ -947,7 +957,7 @@ c2_status_t C2VencHCodec::genVuiParam(int32_t *primaries,int32_t *transfer,int32
         sfAspects.mTransfer = android::ColorAspects::TransferUnspecified;
     }
     ColorUtils::convertCodecColorAspectsToIsoAspects(sfAspects,primaries,transfer,matrixCoeffs,range);
-    ALOGI("vui info:primaries:%d,transfer:%d,matrixCoeffs:%d,range:%d",*primaries,*transfer,*matrixCoeffs,(int)(*range));
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"vui info:primaries:%d,transfer:%d,matrixCoeffs:%d,range:%d",*primaries,*transfer,*matrixCoeffs,(int)(*range));
     return C2_OK;
 }
 
@@ -963,13 +973,13 @@ void C2VencHCodec::getCodecDumpFileName(std::string &strName,DumpFileType_e type
     memset(pName,0,sizeof(pName));
     sprintf(pName, "/data/venc_dump_%lx.%s", mCodecHandle,(C2_DUMP_RAW == type) ? "yuv" : "h264");
     strName = pName;
-    ALOGD("Enable Dump raw file, name: %s", strName.c_str());
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"Enable Dump raw file, name: %s", strName.c_str());
 }
 
 
 
 c2_status_t C2VencHCodec::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min) {
-    ALOGV("in getQp()");
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"in getQp()");
 
     // TODO: refactor with same algorithm in the PictureQuantizationSetter()
     int32_t iMin = DEFAULT_I_QP_MIN, pMin = DEFAULT_P_QP_MIN, bMin = DEFAULT_B_QP_MIN;
@@ -985,15 +995,15 @@ c2_status_t C2VencHCodec::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_q
         if (layer.type_ == C2Config::picture_type_t(I_FRAME)) {
             iMax = layer.max;
             iMin = layer.min;
-            ALOGV("i_qp_Min %d i_qp_Max %d", iMin, iMax);
+            C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"i_qp_Min %d i_qp_Max %d", iMin, iMax);
         } else if (layer.type_ == C2Config::picture_type_t(P_FRAME)) {
             pMax = layer.max;
             pMin = layer.min;
-            ALOGV("p_qp_Min %d p_qp_Max %d", pMin, pMax);
+            C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"p_qp_Min %d p_qp_Max %d", pMin, pMax);
         } else if (layer.type_ == C2Config::picture_type_t(B_FRAME)) {
             bMax = layer.max;
             bMin = layer.min;
-            ALOGV("b_qp_Min %d b_qp_Max %d", bMin, bMax);
+            C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"b_qp_Min %d b_qp_Max %d", bMin, bMax);
         }
     }
 
@@ -1006,15 +1016,14 @@ c2_status_t C2VencHCodec::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_q
 
 
 c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFrameInfo_t *pOutFrameInfo) {
-    ALOGD("C2VencHCodec ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
+    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"C2VencHCodec ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
     vl_enc_result_e ret = ENC_SUCCESS;
     vl_frame_info_t inputInfo;
     vl_frame_type_t frameType = FRAME_TYPE_NONE;
     if (!InputFrameInfo.yPlane || !InputFrameInfo.uPlane || !InputFrameInfo.vPlane || !pOutFrameInfo) {
-        ALOGD("ProcessOneFrame parameter bad value,pls check!");
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
-    ALOGE("y1:%d,y2:%d,y3:%d",InputFrameInfo.yPlane[0],InputFrameInfo.yPlane[1],InputFrameInfo.yPlane[2]);
     memset(&inputInfo,0,sizeof(inputInfo));
     IntfImpl::Lock lock = mIntfImpl->lock();
     //std::shared_ptr<C2StreamIntraRefreshTuning::output> intraRefresh = mIntfImpl->getIntraRefresh();
@@ -1031,12 +1040,12 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             mIntfImpl->config({ &clearSync }, C2_MAY_BLOCK, &failures);
             inputInfo.frame_type = FRAME_TYPE_IDR;
-            ALOGV("Got dynamic IDR request");
+            C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"Got dynamic IDR request");
         }
         mRequestSync = requestSync;
     }
     inputInfo.type = VMALLOC_BUFFER_TYPE;
-    ALOGI("mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
+    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
     //if (HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == mPixelFormat->value) {
         codec2TypeTrans(InputFrameInfo.colorFmt,&inputInfo.fmt);
     /*}
@@ -1069,11 +1078,11 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
     inputInfo.crop_right = 0;//crop_right;
     inputInfo.crop_top = 0;//crop_top;
     inputInfo.crop_bottom = 0;//crop_bottom;
-    ALOGD("Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,height:%d,coding_timestamp:%d,bitrate:%d",inputInfo.YCbCr[0],
+    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,height:%d,coding_timestamp:%d,bitrate:%d",inputInfo.YCbCr[0],
          inputInfo.YCbCr[1],inputInfo.YCbCr[2],inputInfo.frame_type,inputInfo.fmt,inputInfo.pitch,inputInfo.height,inputInfo.coding_timestamp,inputInfo.bitrate);
     ret = mEncFrameFunc(mCodecHandle,inputInfo,(unsigned char *)pOutFrameInfo->Data,(int *)&pOutFrameInfo->Length,&frameType);
     if (ENC_SUCCESS != ret && ENC_IDR_FRAME != ret) {
-        ALOGE("hcodec encode frame failed,errcode:%d",ret);
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"hcodec encode frame failed,errcode:%d",ret);
         return C2_CORRUPTED;
     }
 

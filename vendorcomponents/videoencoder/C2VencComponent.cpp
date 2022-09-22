@@ -34,6 +34,8 @@ namespace android {
 #define ENABLE_DUMP_RAW       (1 << 1)
 #define ENCODER_PROP_DUMP_DATA        "debug.vendor.media.c2.venc.dump_data"
 
+#define C2Venc_LOG(level, fmt, str...) CODEC2_LOG(level, fmt, ##str)
+
 class C2VencComponent::BlockingBlockPool : public C2BlockPool {
 public:
     BlockingBlockPool(const std::shared_ptr<C2BlockPool>& base): mBase{base} {}
@@ -154,17 +156,19 @@ bool C2VencComponent::IsI420(const C2GraphicView &view) {
 
 
 C2VencComponent::C2VencComponent(const std::shared_ptr<C2ComponentInterface> &intf)
-        : mComponentState(ComponentState::UNINITIALIZED),
-          mIntf(intf),
-          mIsInit(false),
-          mfdDumpInput(-1),
-          mfdDumpOutput(-1),
-          mSpsPpsHeaderReceived(false),
-          mOutBufferSize(OUTPUT_BUFFERSIZE_MIN),
-          mSawInputEOS(false),
-          mDumpYuvEnable(false),
-          mDumpEsEnable(false) {
-        ALOGD("C2VencComponent constructor!");
+                : mComponentState(ComponentState::UNINITIALIZED),
+                  mIntf(intf),
+                  mIsInit(false),
+                  mfdDumpInput(-1),
+                  mfdDumpOutput(-1),
+                  mSpsPpsHeaderReceived(false),
+                  mOutBufferSize(OUTPUT_BUFFERSIZE_MIN),
+                  mSawInputEOS(false),
+                  mDumpYuvEnable(false),
+                  mDumpEsEnable(false) {
+    ALOGD("C2VencComponent constructor!");
+    propGetInt(CODEC2_ENCODER_LOGDEBUG_PROPERTY, &gloglevel);
+    ALOGD("gloglevel:%x",gloglevel);
 }
 
 C2VencComponent::~C2VencComponent() {
@@ -174,13 +178,13 @@ C2VencComponent::~C2VencComponent() {
 c2_status_t C2VencComponent::setListener_vb(const std::shared_ptr<Listener>& listener,
                                            c2_blocking_t mayBlock) {
     UNUSED(mayBlock);
-    ALOGD("C2VencComponent setListener_vb!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent setListener_vb!");
     mListener = listener;
     return C2_OK;
 }
 
 c2_status_t C2VencComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
-    ALOGD("C2VencComponent queue_nb!,receive buffer count:%d",items->size());
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"C2VencComponent queue_nb!,receive buffer count:%d",items->size());
     AutoMutex l(mInputQueueLock);
     while (!items->empty()) {
         mQueue.push_back(std::move(items->front()));
@@ -190,13 +194,13 @@ c2_status_t C2VencComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
 }
 
 c2_status_t C2VencComponent::announce_nb(const std::vector<C2WorkOutline> &items) {
-    ALOGD("C2VencComponent announce_nb!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent announce_nb!");
 
     return C2_OK;
 }
 
 c2_status_t C2VencComponent::flush_sm(flush_mode_t mode, std::list<std::unique_ptr<C2Work>>* const flushedWork) {
-    ALOGD("C2VencComponent flush_sm!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent flush_sm!");
     (void)mode;
 /*    {
         Mutexed<ExecState>::Locked state(mExecState);
@@ -218,7 +222,7 @@ c2_status_t C2VencComponent::flush_sm(flush_mode_t mode, std::list<std::unique_p
 }
 
 c2_status_t C2VencComponent::drain_nb(drain_mode_t mode) {
-    ALOGD("C2VencComponent drain_nb!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent drain_nb!");
 
     return C2_OK;
 }
@@ -226,52 +230,50 @@ c2_status_t C2VencComponent::drain_nb(drain_mode_t mode) {
 c2_status_t C2VencComponent::start() {
     std::string strFileName;
     uint32_t isDumpFile = 0;
-    ALOGD("C2VencComponent start!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent start!");
 
     if (ComponentState::UNINITIALIZED != mComponentState) {
-        ALOGE("need go to start state,but current state is:%d,start failed",mComponentState);
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"need go to start state,but current state is:%d,start failed",mComponentState);
         return C2_BAD_STATE;
     }
 
     if (doSomeInit()) {
-        ALOGD("Modul init successfule!");
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Modul init successful!");
     }
     else {
-        ALOGD("Modul init failed!!,please check");
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"Module init failed!!,please check");
         return C2_NO_INIT;
     }
     mthread.start(runWorkLoop,this);
     mComponentState = ComponentState::STARTED;
 
-
-
     isDumpFile = property_get_int32(ENCODER_PROP_DUMP_DATA, 0);
     if (isDumpFile & ENABLE_DUMP_RAW) {
         mDumpYuvEnable = true;
         getCodecDumpFileName(strFileName,C2_DUMP_RAW);
-        ALOGD("Enable Dump yuv file, name: %s", strFileName.c_str());
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Enable Dump yuv file, name: %s", strFileName.c_str());
         mfdDumpInput = open(strFileName.c_str(), O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
         if (mfdDumpInput < 0) {
-            ALOGE("Dump Input File handle error!");
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"Dump Input File handle error!");
         }
     }
 
     if (isDumpFile & ENABLE_DUMP_ES) {
         mDumpEsEnable = true;
         getCodecDumpFileName(strFileName,C2_DUMP_ES);
-        ALOGD("Enable Dump es file, name: %s", strFileName.c_str());
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Enable Dump es file, name: %s", strFileName.c_str());
         mfdDumpOutput = open(strFileName.c_str(), O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
         if (mfdDumpOutput < 0) {
-            ALOGE("Dump Output File handle error!");
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"Dump Output File handle error!");
         }
     }
     return C2_OK;
 }
 
 c2_status_t C2VencComponent::stop() {
-    ALOGD("C2VencComponent stop!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent stop!");
     if (mComponentState == ComponentState::UNINITIALIZED) {
-        ALOGE("this component has already stopped");
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"this component has already stopped");
         return C2_NO_INIT;
     }
     mComponentState = ComponentState::STOPPING;
@@ -285,13 +287,13 @@ c2_status_t C2VencComponent::stop() {
     if (mfdDumpInput >= 0) {
         close(mfdDumpInput);
         mfdDumpInput = -1;
-        ALOGD("Dump raw File finish!");
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Dump raw File finish!");
     }
 
     if (mfdDumpOutput >= 0) {
         close(mfdDumpOutput);
         mfdDumpOutput = -1;
-        ALOGD("Dump raw File finish!");
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Dump raw File finish!");
     }
     Close();
     mComponentState = ComponentState::UNINITIALIZED;
@@ -299,7 +301,7 @@ c2_status_t C2VencComponent::stop() {
 }
 
 c2_status_t C2VencComponent::reset() {
-    ALOGD("C2VencComponent reset!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent reset!");
     stop();
     if (mOutBlock) {
         mOutBlock.reset();
@@ -309,7 +311,7 @@ c2_status_t C2VencComponent::reset() {
 }
 
 c2_status_t C2VencComponent::release() {
-    ALOGD("C2VencComponent release!");
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent release!");
     stop();
     return C2_OK;
 }
@@ -320,7 +322,7 @@ std::shared_ptr<C2ComponentInterface> C2VencComponent::intf() {
 
 bool C2VencComponent::doSomeInit() {
     if (!mIsInit) {
-        ALOGI("now init encoder module");
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"now init encoder module");
         if (!LoadModule())
             return false;
         if (C2_OK != Init())
@@ -331,10 +333,10 @@ bool C2VencComponent::doSomeInit() {
 
 
 bool C2VencComponent::OpenFile(int *fd,char *pName) {
-    ALOGD("open dump file, name: %s", pName);
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"open dump file, name: %s", pName);
     (*fd) = open(pName, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
     if (*fd < 0) {
-        ALOGE("Dump Input File handle error!");
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"Dump Input File handle error!");
         return false;
     }
     return true;
@@ -345,7 +347,7 @@ bool C2VencComponent::OpenFile(int *fd,char *pName) {
 uint32_t C2VencComponent::dumpDataToFile(int fd,uint8_t *data,uint32_t size) {
     uint32_t uWriteLen = 0;
     if (fd >= 0 && (data != 0)) {
-        ALOGD("dump data size: %d",size);
+        C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"dump data size: %d",size);
         uWriteLen = write(fd, (unsigned char *)data, size);
     }
     return uWriteLen;
@@ -363,13 +365,13 @@ void C2VencComponent::ProcessData()
         AutoMutex l(mInputQueueLock);
         if (mQueue.empty())
             return;
-        ALOGI("begin to process input data");
+        C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"begin to process input data");
         work = std::move(mQueue.front());
         mQueue.pop_front();
     }
 
     if (NULL == work) {
-        ALOGE("NULL == work!!!!");
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"NULL == work!!!!");
         return;
     }
 
@@ -383,12 +385,12 @@ void C2VencComponent::ProcessData()
         if (!updates.empty()) {
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             c2_status_t err = intf()->config_vb(updates, C2_MAY_BLOCK, &failures);
-            ALOGD("applied %zu configUpdates => %s (%d)", updates.size(), asString(err), err);
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"applied %zu configUpdates => %s (%d)", updates.size(), asString(err), err);
         }
     }
 
     if (!work->input.buffers.empty() && !work->input.buffers[0]) {
-        ALOGD("Encountered null input buffer. Clearing the input buffer");
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"Encountered null input buffer. Clearing the input buffer");
         work->input.buffers.clear();
     }
 
@@ -399,7 +401,7 @@ void C2VencComponent::ProcessData()
         view = std::make_shared<const C2GraphicView>(
                 inputBuffer->data().graphicBlocks().front().map().get());
         if (view->error() != C2_OK) {
-            ALOGE("graphic view map err = %d", view->error());
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic view map err = %d", view->error());
             work->workletsProcessed = 1u;
             WorkDone(work);
             return;
@@ -413,12 +415,12 @@ void C2VencComponent::ProcessData()
     work->worklets.front()->output.flags = work->input.flags;
 
     if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
-        ALOGE("saw eos flag");
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"saw eos flag");
         mSawInputEOS = true;
     }
 
     if (view.get() == nullptr) {
-        ALOGE("graphic view is null");
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic view is null");
         work->workletsProcessed = 1u;
         WorkDone(work);
         return;
@@ -444,12 +446,12 @@ void C2VencComponent::ProcessData()
     InputFrameInfo.uStride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
     InputFrameInfo.vStride = layout.planes[C2PlanarLayout::PLANE_V].rowInc;
     dumpFileSize = view->width() * view->height() * 3 / 2;
-    ALOGI("yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,root plane num:%d,component plan num:%d",
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,root plane num:%d,component plan num:%d",
         InputFrameInfo.yStride,InputFrameInfo.uStride,InputFrameInfo.vStride,view->width(),view->height(),layout.rootPlanes,layout.numPlanes);
     switch (layout.type) {
         case C2PlanarLayout::TYPE_RGB:
         case C2PlanarLayout::TYPE_RGBA: {
-            ALOGV("TYPE_RGBA or TYPE_RGB");
+            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"TYPE_RGBA or TYPE_RGB");
             InputFrameInfo.yPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_R]);
             InputFrameInfo.uPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_G]);
             InputFrameInfo.vPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_B]);
@@ -461,42 +463,41 @@ void C2VencComponent::ProcessData()
             break;
         }
         case C2PlanarLayout::TYPE_YUV: {
-            ALOGV("TYPE_YUV");
+            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"TYPE_YUV");
             if (IsNV12(*view.get())) {
                 InputFrameInfo.colorFmt = C2_ENC_FMT_NV12;
-                ALOGI("InputFrameInfo colorfmt :C2_ENC_FMT_NV12");
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_NV12");
             }
             else if (IsNV21(*view.get())) {
                 InputFrameInfo.colorFmt = C2_ENC_FMT_NV21;
-                ALOGI("InputFrameInfo colorfmt :C2_ENC_FMT_NV21");
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_NV21");
             }
             else if (IsI420(*view.get())) {
                 InputFrameInfo.colorFmt = C2_ENC_FMT_I420;
-                ALOGI("InputFrameInfo colorfmt :C2_ENC_FMT_I420");
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_I420");
             }
             else {
-                ALOGE("type yuv,but not support fmt!!!");
+                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"type yuv,but not support fmt!!!");
             }
             dumpFileSize = InputFrameInfo.yStride * view->height() * 3 / 2;
             break;
         }
         case C2PlanarLayout::TYPE_YUVA: {
-            ALOGV("TYPE_YUVA not suport!!");
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"TYPE_YUVA not support!!");
             break;
         }
         default:
-            ALOGI("layout.type:%d",layout.type);
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"layout.type:%d",layout.type);
             break;
     }
     //InputFrameInfo.colorFmt = layout.type;
     if (mDumpYuvEnable) {
-        ALOGD("dump yuv enable!!!");
         dumpDataToFile(mfdDumpInput,InputFrameInfo.yPlane,dumpFileSize);
     }
     if (!mOutputBlockPool) {
         std::shared_ptr<C2BlockPool> blockPool;
         c2_status_t err = GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR, shared_from_this(), &blockPool);
-        ALOGD("Using output block pool with poolID %llu => got %llu - %d",
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Using output block pool with poolID %llu => got %llu - %d",
                 (unsigned long long)C2BlockPool::BASIC_LINEAR,
                 (unsigned long long)(
                         blockPool ? blockPool->getLocalId() : 111000111),
@@ -505,7 +506,7 @@ void C2VencComponent::ProcessData()
             mOutputBlockPool = std::make_shared<BlockingBlockPool>(blockPool);
         }
         else {
-            ALOGE("GetCodec2BlockPool err:%d",err);
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"GetCodec2BlockPool err:%d",err);
             //std::shared_ptr<C2Component::Listener> listener = state->mListener;
             mListener->onError_nb(shared_from_this(), err);
         }
@@ -518,7 +519,7 @@ void C2VencComponent::ProcessData()
         c2_status_t err =
             mOutputBlockPool->fetchLinearBlock(mOutBufferSize, usage, &mOutBlock);
         if (err != C2_OK) {
-            ALOGE("fetch linear block err = %d", err);
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"fetch linear block err = %d", err);
             work->result = err;
             work->workletsProcessed = 1u;
             WorkDone(work);
@@ -527,7 +528,7 @@ void C2VencComponent::ProcessData()
     }
     C2WriteView wView = mOutBlock->map().get();
     if (wView.error() != C2_OK) {
-        ALOGE("write view map err = %d", wView.error());
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"write view map err = %d", wView.error());
         work->result = wView.error();
         work->workletsProcessed = 1u;
         WorkDone(work);
@@ -539,19 +540,19 @@ void C2VencComponent::ProcessData()
         uint8_t header[128] = {0};
         c2_status_t error = GenerateHeader(header,&uHeaderLength);
         if (C2_OK != error) {
-            ALOGE("Encode header failed = 0x%x\n",error);
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"Encode header failed = 0x%x\n",error);
             work->workletsProcessed = 1u;
             WorkDone(work);
             return;
         } else {
-            ALOGV("Bytes Generated in header %d\n",uHeaderLength);
+            C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Bytes Generated in header %d\n",uHeaderLength);
         }
 
         mSpsPpsHeaderReceived = true;
 
         std::unique_ptr<C2StreamInitDataInfo::output> csd = C2StreamInitDataInfo::output::AllocUnique(uHeaderLength, 0u);
         if (!csd) {
-            ALOGE("CSD allocation failed");
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"CSD allocation failed");
             //mSignalledError = true;
             work->result = C2_NO_MEMORY;
             work->workletsProcessed = 1u;
@@ -565,7 +566,7 @@ void C2VencComponent::ProcessData()
         }
         if (work->input.buffers.empty()) {
             work->workletsProcessed = 1u;
-            ALOGE("generate header already,but input buffer queue is empty");
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"generate header already,but input buffer queue is empty");
             WorkDone(work);
             return;
         }
@@ -581,7 +582,7 @@ void C2VencComponent::ProcessData()
         if (mDumpEsEnable) {
             dumpDataToFile(mfdDumpOutput,OutInfo.Data,OutInfo.Length);
         }
-        ALOGD("processoneframe ok,do finishwork begin!");
+        C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"processoneframe ok,do finishwork begin!");
         finishWork(InputFrameInfo.frameIndex,work,OutInfo);
     }
 }
@@ -601,7 +602,7 @@ void C2VencComponent::finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &wo
                               OutputFrameInfo_t OutFrameInfo) {
     std::shared_ptr<C2Buffer> buffer = createLinearBuffer(mOutBlock, 0, OutFrameInfo.Length);
     if (FRAMETYPE_IDR == OutFrameInfo.FrameType) {
-        ALOGV("IDR frame produced");
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"IDR frame produced");
         buffer->setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u /* stream id */, C2Config::SYNC_FRAME));
     }
     mOutBlock = nullptr;
@@ -621,7 +622,7 @@ void C2VencComponent::finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &wo
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(DoneWork));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-    ALOGI("finish this work,index:%lld",workIndex);
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"finish this work,index:%lld",workIndex);
     #if 0
     if (work && c2_cntr64_t(workIndex) == work->input.ordinal.frameIndex) {
         fillWork(work);
@@ -656,7 +657,7 @@ void C2VencComponent::finish(
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(DoneWork));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-        ALOGV("returning pending work");
+        C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"returning pending work");
     }
 }
 

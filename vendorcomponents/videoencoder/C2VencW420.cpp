@@ -42,6 +42,11 @@ namespace android {
 
 constexpr char COMPONENT_NAME[] = "c2.amlogic.hevc.encoder";
 
+#define C2W420_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
+
+uint32_t C2VencW420::mInstanceID = 0;
+
+
 #define MAX_INPUT_BUFFER_HEADERS 4
 #define MAX_CONVERSION_BUFFERS   4
 #define CODEC_MAX_CORES          4
@@ -633,7 +638,7 @@ std::shared_ptr<C2Component> C2VencW420::create(
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
-        ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
+        ALOGE("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
         return nullptr;
     }
     return std::shared_ptr<C2Component>(new C2VencW420(name, id, helper));
@@ -647,49 +652,53 @@ C2VencW420::C2VencW420(const char *name, c2_node_id_t id, const std::shared_ptr<
               mCodecHandle(0),
               mIDRInterval(0) {
     ALOGD("C2VencW420 constructor!");
+    propGetInt(CODEC2_ENCODER_LOGDEBUG_PROPERTY, &gloglevel);
+    ALOGD("gloglevel:%x",gloglevel);
     sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
+    mInstanceID++;
 }
 
 
 C2VencW420::~C2VencW420() {
     ALOGD("C2VencW420 destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
+    mInstanceID--;
 }
 
 
 bool C2VencW420::LoadModule() {
-    ALOGD("C2VencW420 initModule!");
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"C2VencW420 initModule!");
     void *handle = dlopen("libvp_hevc_codec.so", RTLD_NOW);
     if (handle) {
         mInitFunc = NULL;
         mInitFunc = (fn_hevc_video_encoder_init)dlsym(handle, "vl_video_encoder_init");
         if (mInitFunc == NULL) {
-            ALOGE("dlsym for vl_video_encoder_init failed");
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_init failed");
             return false;
         }
 
         mEncHeaderFunc = NULL;
         mEncHeaderFunc = (fn_hevc_video_encode_header)dlsym(handle, "vl_video_encode_header");
         if (mEncHeaderFunc == NULL) {
-            ALOGE("dlsym for vl_video_encode_header failed");
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encode_header failed");
             return false;
         }
 
         mEncFrameFunc = NULL;
         mEncFrameFunc = (fn_hevc_video_encoder_encode)dlsym(handle, "vl_video_encoder_encode");
         if (mEncFrameFunc == NULL) {
-            ALOGE("dlsym for vl_video_encoder_encode failed");
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_encode failed");
             return false;
         }
 
         mDestroyFunc = NULL;
         mDestroyFunc = (fn_hevc_video_encoder_destory)dlsym(handle,"vl_video_encoder_destory");
         if (mDestroyFunc == NULL) {
-            ALOGE("dlsym for vl_video_encoder_destory failed");
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_destroy failed");
             return false;
         }
     } else {
-        ALOGE("dlopen for libvp_hevc_codec.so failed");
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlopen for libvp_hevc_codec.so failed");
         return false;
     }
     return true;
@@ -699,7 +708,7 @@ bool C2VencW420::LoadModule() {
 bool C2VencW420::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCodec) {
     bool ret = true;
     if (!pOutputCodec) {
-        ALOGE("param check failed!!");
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"param check failed!!");
         return false;
     }
     switch (inputCodec) {
@@ -714,7 +723,7 @@ bool C2VencW420::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCode
             break;
         }
         default: {
-            ALOGE("cannot suppoort colorformat:%x",inputCodec);
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputCodec);
             ret = false;
             break;
         }
@@ -726,7 +735,7 @@ bool C2VencW420::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCode
 bool C2VencW420::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCodec) {
     bool ret = true;
     if (!pOutputCodec) {
-        ALOGE("param check failed!!");
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"param check failed!!");
         return false;
     }
     switch (inputFmt) {
@@ -751,7 +760,7 @@ bool C2VencW420::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCodec
             break;
         }
         default: {
-            ALOGE("cannot suppoort colorformat:%x",inputFmt);
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputFmt);
             ret = false;
             break;
         }
@@ -760,7 +769,7 @@ bool C2VencW420::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCodec
 }
 
 c2_status_t C2VencW420::Init() {
-    ALOGD("C2VencW420 Init!");
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"C2VencW420 Init!");
     vl_init_params_t initParam;
     memset(&initParam,0,sizeof(initParam));
 
@@ -776,7 +785,7 @@ c2_status_t C2VencW420::Init() {
 
     //getQp(&mEncParams.i_qp_max,&initParam.i_qp_min,&initParam.p_qp_max,&initParam.p_qp_min);
     //codecTypeTrans(mPixelFormat->value,&mEncParams.colorformat);
-    ALOGD("upper set pixelformat:0x%x,colorAspect:%d",mPixelFormat->value,mCodedColorAspects->matrix);
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"upper set pixelformat:0x%x,colorAspect:%d",mPixelFormat->value,mCodedColorAspects->matrix);
 /*    if (mGop && mGop->flexCount() > 0) {
         uint32_t syncInterval = 1;
         uint32_t iInterval = 1;
@@ -798,16 +807,16 @@ c2_status_t C2VencW420::Init() {
 */
     if (MATRIX_BT709 == mCodedColorAspects->matrix) {
         initParam.csc = ENC_CSC_BT709;
-        ALOGI("color space BT709");
+        C2W420_LOG(CODEC2_VENC_LOG_INFO,"color space BT709");
     }
     else {
         initParam.csc = ENC_CSC_BT601;
-        ALOGI("color space BT601");
+        C2W420_LOG(CODEC2_VENC_LOG_INFO,"color space BT601");
     }
     initParam.width = mSize->width;
     if (mSize->width < 256) {
         initParam.width = 256; //cause wave420 not support for width < 256
-        ALOGD("set ctsmode=true");
+        C2W420_LOG(CODEC2_VENC_LOG_INFO,"set ctsmode=true");
         C2StreamPictureSizeInfo::output Size(0u, 256, mSize->height);
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         mIntfImpl->config({ &Size }, C2_MAY_BLOCK, &failures);
@@ -819,10 +828,10 @@ c2_status_t C2VencW420::Init() {
 
     if (C2_OK == genVuiParam(&initParam.vui_info.primaries,&initParam.vui_info.transfer,&initParam.vui_info.matrixCoeffs,(bool *)&initParam.vui_info.range)) {
         initParam.vui_info.vui_info_present = true;
-        ALOGD("enable vui info");
+        C2W420_LOG(CODEC2_VENC_LOG_INFO,"enable vui info");
     }
 
-    ALOGD("width:%d,height:%d,framerate:%f,bitrate:%d,IFrameInterval:%d,vui_info_present:%d",
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"width:%d,height:%d,framerate:%f,bitrate:%d,IFrameInterval:%d,vui_info_present:%d",
                                           mSize->width,
                                           mSize->height,
                                           mFrameRate->value,
@@ -831,22 +840,22 @@ c2_status_t C2VencW420::Init() {
                                           initParam.vui_info.vui_info_present);
     mCodecHandle = mInitFunc(CODEC_ID_H265,initParam);
     if (!mCodecHandle) {
-        ALOGD("init failed!,codechandle:%lx",mCodecHandle);
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"init failed!,codechandle:%lx",mCodecHandle);
         return C2_CORRUPTED;
     }
-    ALOGD("init encoder success,codechandle:%lx",mCodecHandle);
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"init encoder success,codechandle:%lx",mCodecHandle);
     return C2_OK;
 }
 
 
 c2_status_t C2VencW420::GenerateHeader(uint8_t *pHeaderData,uint32_t *pSize)
 {
-    ALOGD("C2VencW420 GenerateHeader!");
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"C2VencW420 GenerateHeader!");
     int outSize = 0;
     int ret = 0;
 
     if (!pHeaderData || !pSize) {
-        ALOGE("GenerateHeader parameter bad value,pls check!");
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"GenerateHeader parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
     ret = mEncHeaderFunc(mCodecHandle,outSize,pHeaderData);
@@ -888,7 +897,7 @@ c2_status_t C2VencW420::genVuiParam(int32_t *primaries,int32_t *transfer,int32_t
         sfAspects.mTransfer = android::ColorAspects::TransferUnspecified;
     }
     ColorUtils::convertCodecColorAspectsToIsoAspects(sfAspects,primaries,transfer,matrixCoeffs,range);
-    ALOGI("vui info:primaries:%d,transfer:%d,matrixCoeffs:%d,range:%d",*primaries,*transfer,*matrixCoeffs,(int)(*range));
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"vui info:primaries:%d,transfer:%d,matrixCoeffs:%d,range:%d",*primaries,*transfer,*matrixCoeffs,(int)(*range));
     return C2_OK;
 }
 
@@ -903,7 +912,7 @@ void C2VencW420::getCodecDumpFileName(std::string &strName,DumpFileType_e type) 
     memset(pName,0,sizeof(pName));
     sprintf(pName, "/data/venc_dump_%lx.%s", mCodecHandle,(C2_DUMP_RAW == type) ? "yuv" : "h265");
     strName = pName;
-    ALOGD("Enable Dump raw file, name: %s", strName.c_str());
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"Enable Dump raw file, name: %s", strName.c_str());
 }
 
 
@@ -946,13 +955,13 @@ c2_status_t C2VencW420::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_
 
 
 c2_status_t C2VencW420::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFrameInfo_t *pOutFrameInfo) {
-    ALOGD("C2VencW420 ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"C2VencW420 ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
     //AMVEnc_Status encoderStatus = AMVENC_SUCCESS;
     vl_frame_info_t inputInfo;
     vl_frame_type_t frameType = FRAME_TYPE_AUTO;
 
     if (!InputFrameInfo.yPlane || !InputFrameInfo.uPlane || !InputFrameInfo.vPlane || !pOutFrameInfo) {
-        ALOGD("ProcessOneFrame parameter bad value,pls check!");
+        C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
     memset(&inputInfo,0,sizeof(inputInfo));
@@ -971,12 +980,12 @@ c2_status_t C2VencW420::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFr
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             mIntfImpl->config({ &clearSync }, C2_MAY_BLOCK, &failures);
             inputInfo.frame_type = FRAME_TYPE_I;
-            ALOGV("Got dynamic IDR request");
+            C2W420_LOG(CODEC2_VENC_LOG_INFO,"Got dynamic IDR request");
         }
         mRequestSync = requestSync;
     }
     inputInfo.type = VMALLOC_BUFFER_TYPE;
-    ALOGI("mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
     //if (HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == mPixelFormat->value) {
         codec2TypeTrans(InputFrameInfo.colorFmt,&inputInfo.fmt);
     /*}
@@ -1010,15 +1019,15 @@ c2_status_t C2VencW420::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFr
     inputInfo.crop_right = 0;//crop_right;
     inputInfo.crop_top = 0;//crop_top;
     inputInfo.crop_bottom = 0;//crop_bottom;
-    ALOGD("Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,fmt:%d,pitch:%d,height:%d,coding_timestamp:%d,bitrate:%d",inputInfo.YCbCr[0],
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,fmt:%d,pitch:%d,height:%d,coding_timestamp:%d,bitrate:%d",inputInfo.YCbCr[0],
          inputInfo.YCbCr[1],inputInfo.YCbCr[2],inputInfo.fmt,inputInfo.pitch,inputInfo.height,inputInfo.coding_timestamp,inputInfo.bitrate);
 
     //(vl_codec_handle_t handle, vl_frame_type_t type, unsigned char *in, unsigned int outputBufferLen, unsigned char *out, int format)
-    ALOGI("mEncFrameFunc:%p,mCodecHandle:%ld,frameType:%d,inputInfo.YCbCr[0]:%lx,pOutFrameInfo->Length:%d,pOutFrameInfo->Data:%p",
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"mEncFrameFunc:%p,mCodecHandle:%ld,frameType:%d,inputInfo.YCbCr[0]:%lx,pOutFrameInfo->Length:%d,pOutFrameInfo->Data:%p",
           mEncFrameFunc,mCodecHandle,frameType,inputInfo.YCbCr[0],pOutFrameInfo->Length,pOutFrameInfo->Data);
     pOutFrameInfo->Length = mEncFrameFunc(mCodecHandle,inputInfo,(unsigned int)pOutFrameInfo->Length,(unsigned char *)pOutFrameInfo->Data,&frameType);
     if (0 == pOutFrameInfo->Length) {
-        ALOGE("wave420 encode frame failed");
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"wave420 encode frame failed");
         return C2_CORRUPTED;
     }
     pOutFrameInfo->FrameType = FRAMETYPE_P;

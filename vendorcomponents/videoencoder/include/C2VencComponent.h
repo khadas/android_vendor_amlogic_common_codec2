@@ -16,6 +16,7 @@
 #include <C2Enum.h>
 #include <C2Param.h>
 #include <C2ParamDef.h>
+#include <c2logdebug.h>
 
 #include <SimpleC2Interface.h>
 //#include <util/C2InterfaceHelper.h>
@@ -39,6 +40,7 @@ namespace android {
 
 /** Used to remove warnings about unused parameters */
 #define UNUSED(x) ((void)(x))
+
 
 typedef enum FrameType {
     FRAMETYPE_IDR,
