@@ -34,6 +34,19 @@
             return;                                                        \
     } while (0)
 
+enum TRICK_MODE {
+    TRICKMODE_SMOOTH = 1, //based on the playback rate of the codec
+    TRICKMODE_BY_SEEK, //playback speed is achieved by changing the play position
+    TRICKMODE_MAX,
+};
+
+enum {
+    TRICK_MODE_NONE = 0,          // Disable trick mode
+    TRICK_MODE_PAUSE = 1,         // Pause the video decoder
+    TRICK_MODE_PAUSE_NEXT = 2,    // Pause the video decoder when a new frame dispalyed
+    TRICK_MODE_IONLY = 3          // Decoding and Out I frame only
+};
+
 namespace android {
 
 C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(C2VdecComponent* comp, bool secure, const char* mime, C2VdecComponent::TunnelHelper *tunnelHelper):
@@ -89,6 +102,35 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::stop() {
 }
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::flush() {
+    mTunerPassthrough->flush();
+    //as passthrouh stop is synchronous invoke, here need invoke done
+    mComp->NotifyFlushOrStopDone();
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
+    int frameAdvance = mIntfImpl->mVendorTunerPassthroughTrickMode->frameAdvance;
+    int mode = mIntfImpl->mVendorTunerPassthroughTrickMode->trickMode;
+    int trickSpeed = mIntfImpl->mVendorTunerPassthroughTrickMode->trickSpeed / 1000;
+
+    if (frameAdvance)
+        return C2_OK;
+
+    if (mode  == TRICKMODE_SMOOTH) {
+        mode = TRICK_MODE_NONE;
+    } else if (mode == TRICKMODE_BY_SEEK) {
+        mode = TRICK_MODE_PAUSE_NEXT;
+    } else {
+        mode = TRICK_MODE_NONE;
+    }
+
+    if (trickSpeed == 0)
+        trickSpeed = 1;
+
+    mTunerPassthrough->SetTrickMode(mode);
+    mTunerPassthrough->SetTrickSpeed(trickSpeed);
+
     return C2_OK;
 }
 

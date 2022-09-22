@@ -152,6 +152,7 @@ C2R C2VdecComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2Stre
 //define some unstrict Setter
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender)
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode)
 
 c2_status_t C2VdecComponent::IntfImpl::config(
     const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
@@ -176,7 +177,14 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
                     C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
                 if (mComponent) {
-                    mComponent->onConfigureTunnerPassthroughMode();
+                    mComponent->onConfigureTunerPassthroughMode();
+                }
+                break;
+            case C2VendorTunerPassthroughTrickMode::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough trick mode config",
+                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                if (mComponent) {
+                    mComponent->onConfigureTunerPassthroughTrickMode();
                 }
                 break;
             case C2VdecWorkMode::CORE_INDEX:
@@ -301,7 +309,7 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
     onTunnelDeclareParam();
 
     //tunnel passthrough
-    onTunnelPassthroughDeclareParam();
+    onTunerPassthroughDeclareParam();
 
     //buffer size
     onBufferSizeDeclareParam(inputMime);
@@ -759,7 +767,7 @@ void C2VdecComponent::IntfImpl::onTunnelDeclareParam() {
                 .build());
 }
 
-void C2VdecComponent::IntfImpl::onTunnelPassthroughDeclareParam() {
+void C2VdecComponent::IntfImpl::onTunerPassthroughDeclareParam() {
         addParameter(
                 DefineParam(mVendorTunerHalParam, C2_PARAMKEY_VENDOR_TunerHal)
                 .withDefault(new C2VendorTunerHalParam::input(0, 0))
@@ -767,6 +775,16 @@ void C2VdecComponent::IntfImpl::onTunnelPassthroughDeclareParam() {
                         C2F(mVendorTunerHalParam, videoFilterId).any(),
                         C2F(mVendorTunerHalParam, hwAVSyncId).any()})
         .withSetter(C2_DEFAULT_UNSTRICT_SETTER(VendorTunerHalParam))
+        .build());
+
+        addParameter(
+                DefineParam(mVendorTunerPassthroughTrickMode, C2_PARAMKEY_VENDOR_TunerPassthroughTrickMode)
+                .withDefault(new C2VendorTunerPassthroughTrickMode::input(0, 1, 0))
+                .withFields({
+                        C2F(mVendorTunerPassthroughTrickMode, trickMode).any(),
+                        C2F(mVendorTunerPassthroughTrickMode, trickSpeed).any(),
+                        C2F(mVendorTunerPassthroughTrickMode, frameAdvance).any()})
+        .withSetter(C2_DEFAULT_UNSTRICT_SETTER(VendorTunerPassthroughTrickMode))
         .build());
 }
 

@@ -108,6 +108,12 @@ int TunerPassthroughWrapper::stop() {
     return 0;
 
 }
+int TunerPassthroughWrapper::flush() {
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"flush");
+    if (mTunerPassthrough)
+        mTunerPassthrough->Flush();
+    return 0;
+}
 
 int TunerPassthroughWrapper::getSyncInstansNo(int *no) {
     C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"getSyncInstansNo");
@@ -115,6 +121,20 @@ int TunerPassthroughWrapper::getSyncInstansNo(int *no) {
         mTunerPassthrough->GetSyncInstansNo(no);
     return 0;
 }
+int TunerPassthroughWrapper::SetTrickMode(int mode) {
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetTrickMode");
+    if (mTunerPassthrough)
+        mTunerPassthrough->SetTrickMode(mode);
+    return 0;
+}
+int TunerPassthroughWrapper::SetTrickSpeed(float speed) {
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetTrickSpeed");
+    if (mTunerPassthrough)
+        mTunerPassthrough->SetTrickSpeed(speed);
+    return 0;
+}
+
+
 
 }
 

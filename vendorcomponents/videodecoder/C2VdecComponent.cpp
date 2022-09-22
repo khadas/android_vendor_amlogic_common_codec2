@@ -1081,6 +1081,9 @@ void C2VdecComponent::onStop(::base::WaitableEvent* done) {
     mStopDoneEvent = done;  // restore done event which should be signaled in onStopDone().
     mComponentState = ComponentState::STOPPING;
 
+    if (mTunerPassthroughHelper) {
+        mTunerPassthroughHelper->stop();
+    }
     // Immediately release Vdec by calling onStopDone() if component is in error state. Otherwise,
     // send reset request to Vdec and wait for callback to stop the component gracefully.
     if (mHasError) {
@@ -2989,10 +2992,14 @@ void C2VdecComponent::onConfigureTunnelMode() {
     return;
 }
 
-void C2VdecComponent::onConfigureTunnerPassthroughMode() {
+void C2VdecComponent::onConfigureTunerPassthroughMode() {
     mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(this, mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper.get());
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
     mSyncType |= C2_SYNC_TYPE_PASSTHROUGH;
+}
+
+void C2VdecComponent::onConfigureTunerPassthroughTrickMode() {
+   mTunerPassthroughHelper->setTrickMode();
 }
 
 class C2VdecComponentFactory : public C2ComponentFactory {

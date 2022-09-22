@@ -66,6 +66,7 @@ private:
     //declare some unstrict Setter
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode);
 
     std::shared_ptr<C2ApiLevelSetting> mApiLevel;
     std::shared_ptr<C2ApiFeaturesSetting> mApiFeatures;
@@ -131,6 +132,7 @@ private:
     std::shared_ptr<C2PortTunnelSystemTime::output> mTunnelSystemTimeOut;
     std::shared_ptr<C2VendorTunerHalParam::input> mVendorTunerHalParam;
     std::shared_ptr<C2StreamTunnelStartRender::output> mTunnelStartRender;
+    std::shared_ptr<C2VendorTunerPassthroughTrickMode::input> mVendorTunerPassthroughTrickMode;
 
     std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
     std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
@@ -164,7 +166,7 @@ private:
     void onTunnelDeclareParam();
     void onPipelineDelayDeclareParam();
     void onReorderBufferDepthDeclareParam();
-    void onTunnelPassthroughDeclareParam();
+    void onTunerPassthroughDeclareParam();
     void onBufferSizeDeclareParam(const char* mine);
     void onBufferPoolDeclareParam();
     void onColorAspectsDeclareParam();

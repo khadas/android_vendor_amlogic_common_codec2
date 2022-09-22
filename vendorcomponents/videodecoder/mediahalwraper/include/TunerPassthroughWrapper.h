@@ -25,7 +25,10 @@ public:
     int regNotifyTunnelRenderTimeCallBack(callbackFunc funs, void* obj);
     int start();
     int stop();
+    int flush();
     int getSyncInstansNo(int *no);
+    int SetTrickMode(int mode);
+    int SetTrickSpeed(float speed);
 
 private:
     static uint32_t gInstanceCnt;

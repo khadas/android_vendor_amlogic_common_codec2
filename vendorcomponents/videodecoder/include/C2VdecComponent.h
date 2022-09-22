@@ -97,7 +97,8 @@ public:
 
     //config
     void onConfigureTunnelMode();
-    void onConfigureTunnerPassthroughMode();
+    void onConfigureTunerPassthroughMode();
+    void onConfigureTunerPassthroughTrickMode();
 
     //for out use
     IntfImpl* GetIntfImpl() {
