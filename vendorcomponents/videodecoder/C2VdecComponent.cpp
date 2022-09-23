@@ -1481,6 +1481,8 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
                 mBlockPoolUtil->resetGraphicBlock(info.mBlockId);
                 C2Vdec_LOG(CODEC2_LOG_INFO, "Change reset block id:%d, count:%ld", info.mBlockId, info.mGraphicBlock.use_count());
                 info.mBlockId = -1;
+                info.mFd = -1;
+                info.mPoolId = 0;
                 if (mPendingGraphicBlockBuffer) {
                     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Change reset pending block id: %d, count:%ld",
                         mPendingGraphicBlockBufferId, mPendingGraphicBlockBuffer.use_count());
@@ -1491,6 +1493,11 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
                 GraphicBlockInfo *info1 = &info;
                 GraphicBlockStateReset(this, info1);
             }
+
+            mGraphicBlocks.clear();
+            mBlockPoolUtil->cancelAllGraphicBlock();
+            ::usleep(1 * 1000);
+
             size_t inc_buf_num = mOutputFormat.mMinNumBuffers - mLastOutputFormat.mMinNumBuffers;
             size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Increase buffer num:%d graphic blocks size: %d", inc_buf_num, mGraphicBlocks.size());
