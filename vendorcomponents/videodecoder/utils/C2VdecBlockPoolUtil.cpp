@@ -161,9 +161,6 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
         std::shared_ptr<C2GraphicBlock> *block /* nonnull */) {
     ALOG_ASSERT(block != nullptr);
     ALOG_ASSERT(mBlockingPool != nullptr);
-
-    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] (%dx%d) block,current block size:%d max:%d ", __func__, width, height, mRawGraphicBlockInfo.size(), mMaxDequeuedBufferNum);
-
     std::lock_guard<std::mutex> lock(mMutex);
     std::shared_ptr<C2GraphicBlock> fetchBlock;
     c2_status_t err = C2_TIMED_OUT;
@@ -184,7 +181,8 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
         auto iter = mRawGraphicBlockInfo.find(inode);
         if (iter != mRawGraphicBlockInfo.end()) {
             struct BlockBufferInfo info = mRawGraphicBlockInfo[inode];
-            CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block success, block inode: %llu fd:%d --> %d id:%d", inode, info.mFd, fd, info.mBlockId);
+            CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block success, current block inode: %llu fd:%d -> %d id:%d BlockInfoSize:%d Max:%d",
+                inode, info.mFd, fd, info.mBlockId, mRawGraphicBlockInfo.size(), mMaxDequeuedBufferNum);
         } else {
             if (mUseSurface) {
                 c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
@@ -449,7 +447,7 @@ uint64_t C2VdecBlockPoolUtil::getBlockInodeByBlockId(uint32_t blockId) {
     });
 
     if (blockIter != mRawGraphicBlockInfo.end()) {
-        CODEC2_LOG(CODEC2_LOG_INFO, "[%s] get block %d inode:%llu", __func__, blockId, blockIter->first);
+        //CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] get block %d inode:%llu", __func__, blockId, blockIter->first);
         return blockIter->first;
     }
 

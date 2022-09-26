@@ -440,7 +440,7 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
 
 void C2VdecComponent::onDequeueWork() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnDequeueWork Queue Size:%d", mQueue.size());
+    uint32_t queueWorkCount = mQueue.size();
     RETURN_ON_UNINITIALIZED_OR_ERROR();
     if (mQueue.empty()) {
         return;
@@ -537,8 +537,8 @@ void C2VdecComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnDequeueWork, put pending work bitId:%lld, pending work size:%d",
-            work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
+    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnDequeueWork,queue work size:%d put pending work bitId:%lld, pending work size:%d",
+            queueWorkCount, work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
 
     if (isEmptyCSDWork || isEmptyWork) {
@@ -674,8 +674,6 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
 
 void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnOutputBufferDone: pictureId=%d, bitstreamId=%lld, flags: %d",
-        pictureBufferId, bitstreamId, flags);
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     int64_t timestamp = -1;
@@ -704,14 +702,9 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
 
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags});
     mOutputWorkCount ++;
-    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%lld, pictureid=%d, pending size=%d",
-            bitstreamId, pictureBufferId, mPendingBuffersToWork.size());
-
     CODEC2_ATRACE_INT64("c2OutPTS", timestamp);
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] in/out[%lld(%d)-%lld(%d) -> (%lld)]",
-            __func__,
-            mInputWorkCount, mInputCSDWorkCount,
-            mOutputWorkCount, mPendingBuffersToWork.size(), mOutputFinishedWorkCount);
+    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%lld, pictureid=%d, fags:%d pending size=%d",
+            bitstreamId, pictureBufferId, flags, mPendingBuffersToWork.size());
     CODEC2_ATRACE_INT64("c2OutPTS", 0);
 
     if (mComponentState == ComponentState::FLUSHING) {
@@ -1241,7 +1234,6 @@ c2_status_t C2VdecComponent::setListener_vb(const std::shared_ptr<C2Component::L
 void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& input,
         int32_t bitstreamId, uint64_t timestamp,int32_t flags,uint8_t *hdrbuf,uint32_t hdrlen) {
     //UNUSED(flags);
-    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "SendInputBufferToAccelerator");
     int dupFd = dup(input.handle()->data[0]);
     if (dupFd < 0) {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Failed to dup(%d) input buffer (bitstreamId:%d), errno:%d", input.handle()->data[0],
@@ -1682,15 +1674,13 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
         mDeviceUtil->setForceFullUsage(true);
     }
 
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count = %zu", minBuffersForDisplay);
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
-
     uint64_t platformUsage = mDeviceUtil->getPlatformUsage();
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
 
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Usage %llx", usage.expected);
+    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count = %zu Usage %llx", minBuffersForDisplay, usage.expected);
 
     for (size_t i = 0; i < bufferCount; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
@@ -1698,7 +1688,6 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
-            C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER,"FetchGraphicBlock IN ALLOCATOR\n");
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                mDeviceUtil->getOutAlignedSize(size.height()),
                                                pixelFormat, usage, &block);
@@ -1788,21 +1777,19 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
-
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2,"Usage %llx", usage.expected);
     // The number of buffers requested for the first time is the number defined in the framework.
     int32_t dequeue_buffer_num = 2 + kDefaultSmoothnessFactor;
     if (!mUseBufferQueue) {
         dequeue_buffer_num = bufferCount;
     }
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d", minBuffersForDisplay, bufferCount, dequeue_buffer_num);
+    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %llx",
+                minBuffersForDisplay, bufferCount, dequeue_buffer_num, usage.expected);
     for (size_t i = 0; i < dequeue_buffer_num; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
 
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
-            C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER,"FetchGraphicBlock IN ALLOCATOR\n");
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                             mDeviceUtil->getOutAlignedSize(size.height()),
                                             pixelFormat, usage, &block);
@@ -1819,7 +1806,6 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
                 C2Vdec_LOG(CODEC2_LOG_INFO, "Failed to allocate buffer: %d retry i = %d", err, i);
                 ::usleep(kDequeueRetryDelayUs);
             } else if (err != C2_OK) {
-                //mGraphicBlocks.clear();
                 C2Vdec_LOG(CODEC2_LOG_INFO, "[%s@%d] Failed to allocate buffer, state: %d", __func__, __LINE__, err);
                 ::usleep(kDequeueRetryDelayUs);
                 //reportError(err);
@@ -1943,13 +1929,12 @@ void C2VdecComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, 
         info.mBlockId = blockId;
         info.mGraphicBlock = std::move(block);
         info.mFd = fd;
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] graphicblock: %p,fd:%d blockid: %d, size: %dx%d bind %d->%d", __func__, info.mGraphicBlock->handle(), fd,
-            info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), info.mPoolId, info.mBlockId);
     }
     info.mBind = bind;
     info.mFdHaveSet = false;
+    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] graphicblock: %p,fd:%d blockid: %d, size: %dx%d bind %d->%d GraphicBlockSize:%d", __func__, info.mGraphicBlock->handle(), fd,
+            info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), info.mPoolId, info.mBlockId, mGraphicBlocks.size());
     mGraphicBlocks.push_back(std::move(info));
-    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s %d] GraphicBlock Size:%d", __func__, __LINE__, mGraphicBlocks.size());
 }
 
 void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool ownByAccelerator) {
@@ -2807,7 +2792,7 @@ int32_t C2VdecComponent::getFetchGraphicBlockDelayTimeUs(c2_status_t err) {
         kFetchRetryDelayMax = std::min(perFrameDur, kFetchRetryDelayMax);
     }
     if (err == C2_TIMED_OUT || err == C2_BLOCKING || err == C2_NO_MEMORY) {
-        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetchGraphicBlock() timeout, waiting %zu us frameRate:%f", __func__, sDelay, frameRate);
+        //C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetchGraphicBlock() timeout, waiting %zu us frameRate:%f", __func__, sDelay, frameRate);
         sDelay = std::min(sDelay * 2, kFetchRetryDelayMax);  // Exponential backOff
         return sDelay;
     }
@@ -2862,9 +2847,9 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                 mDeviceUtil->getOutAlignedSize(size.height()),
                                                 pixelFormat, usage, &block);
-                C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "DequeueThreadLoop fetchOutputBlock %d state:%d", __LINE__, err);
+                delayTime = getFetchGraphicBlockDelayTimeUs(err);
             }
-            delayTime = getFetchGraphicBlockDelayTimeUs(err);
+
             if (err == C2_TIMED_OUT) {
                 // Mutexes often do not care for FIFO. Practically the thread who is locking the mutex
                 // usually will be granted to lock again right thereafter. To make this loop not too
@@ -2898,8 +2883,8 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                     }
                     nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
                     CODEC2_ATRACE_INT32("c2FetchOutBlockId", blockId);
-                    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "DequeueThreadLoop fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%lld",
-                            (old ? "old" : "new"), blockId, width, height, block.use_count(),
+                    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%lld",
+                            __func__, (old ? "old" : "new"), blockId, width, height, block.use_count(),
                             nowTimeMs - lastFetchBlockTimeMs);
                     CODEC2_ATRACE_INT32("c2FetchOutBlockId", 0);
                     timeOutCount = 0;
