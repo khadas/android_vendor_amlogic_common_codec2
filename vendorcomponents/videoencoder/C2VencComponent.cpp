@@ -184,7 +184,7 @@ c2_status_t C2VencComponent::setListener_vb(const std::shared_ptr<Listener>& lis
 }
 
 c2_status_t C2VencComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
-    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"C2VencComponent queue_nb!,receive buffer count:%d",items->size());
+    ALOGD("C2VencComponent queue_nb!,receive buffer count:%d", (int)items->size());
     AutoMutex l(mInputQueueLock);
     while (!items->empty()) {
         mQueue.push_back(std::move(items->front()));
@@ -622,7 +622,7 @@ void C2VencComponent::finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &wo
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(DoneWork));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"finish this work,index:%lld",workIndex);
+    ALOGI("finish this work,index:%" PRId64"",workIndex);
     #if 0
     if (work && c2_cntr64_t(workIndex) == work->input.ordinal.frameIndex) {
         fillWork(work);

@@ -14,6 +14,7 @@
 #include <am_gralloc_ext.h>
 #include <c2logdebug.h>
 #include <C2VendorConfig.h>
+#include <inttypes.h>
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
 
@@ -841,10 +842,10 @@ int64_t C2VdecComponent::DeviceUtil::checkAndAdjustOutPts(C2Work* work, int32_t 
         C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"CheckAndAdjustOutPts: I frame found. %x",flags);
     }
     int64_t render_pts = work->worklets.front()->output.ordinal.timestamp.peekull() + out_pts - work->input.ordinal.timestamp.peekull();
-    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"CheckAndAdjustOutPts(%d):duration:%u(%u),mLastOutPts:%llu,index=%llu, input-pts:%llu output-pts:%llu customOrdinal-pts:%llu(%llu) Final-pts:%llu",
-                (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork),duration,mDurationUs,mLastOutPts,
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"CheckAndAdjustOutPts(%d):duration:%u(%u),mLastOutPts:%" PRId64",index=%llu , input-pts:%llu output-pts:%llu  customOrdinal-pts:%" PRId64 " %" PRId64 "Final-pts:%" PRId64"",
+                (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork), duration, mDurationUs, mLastOutPts,
                 work->input.ordinal.frameIndex.peekull(),work->input.ordinal.timestamp.peekull(),
-                work->worklets.front()->output.ordinal.timestamp.peekull(),out_pts,custom_timestamp,render_pts);
+                work->worklets.front()->output.ordinal.timestamp.peekull(), out_pts, custom_timestamp, render_pts);
 
     return out_pts;
 }
@@ -882,10 +883,10 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
             }
          }else if (mIs8k) {
             usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Is 8k use 1/4 usage:%llx",__func__, __LINE__, usage);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Is 8k use 1/4 usage:%llx",__func__, __LINE__, (unsigned long long)usage);
          }else if (mForceFullUsage) {
              usage = am_gralloc_get_video_decoder_full_buffer_usage();
-             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, usage);
+             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
          } else {
             switch (mIntfImpl->getInputCodec())
             {
@@ -1038,8 +1039,8 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
         unsigned char buf[meta_size];
         memset(buf, 0, meta_size);
         if ((offset + AML_META_HEAD_SIZE + meta_size) > size) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Metadata oversize %d > %d, please check",
-                    offset + AML_META_HEAD_SIZE + meta_size, size);
+            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Metadata oversize %u > %u, please check",
+                    (unsigned int)(offset + AML_META_HEAD_SIZE + meta_size), (unsigned int)size);
             break;
         }
 
@@ -1093,7 +1094,6 @@ void C2VdecComponent::DeviceUtil::save_stream_info(uint64_t timestamp, int fille
 }
 
 void C2VdecComponent::DeviceUtil::check_stream_info() {
-    C2VdecMDU_LOG(CODEC2_LOG_INFO,"Check_stream_info mInPutWorkCount %llu\n", mInPutWorkCount);
     if (mInPutWorkCount == 3 && mAmlStreamInfo.pts_0 == 0
             && mAmlStreamInfo.pts_1 == 0
             && mAmlStreamInfo.pts_2 == 0) {

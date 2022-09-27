@@ -377,7 +377,7 @@ void C2SoftVdec::process(
     // Config csd data
     if (codecConfig) {
         if (inSize > 0) {
-            CODEC2_LOG(CODEC2_LOG_INFO, "Config num:%d", inSize);
+            CODEC2_LOG(CODEC2_LOG_INFO, "Config num:%zu", inSize);
             if (mExtraData != NULL) {
                 free(mExtraData);
             }
@@ -449,8 +449,8 @@ void C2SoftVdec::process(
             mTimeTotal += decodeTime;
             mTotalProcessedFrameNum++;
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,
-                "Average DecodeTime=%" PRId64 "us, DecodeTime=%" PRId64 "us, Delay=%" PRId64 "us, FrameIndex=%d, Size=%d, In_Pts=%lld, Out_Pts=%lld, Flags=%x",
-                (mTimeTotal / mTotalProcessedFrameNum / 1000), (decodeTime / 1000), (delay / 1000), (int)work->input.ordinal.frameIndex.peeku(), size,
+                "Average DecodeTime=%" PRId64 "us, DecodeTime=%" PRId64 "us, Delay=%" PRId64 "us, FrameIndex=%d, Size=%d, In_Pts=%" PRId64", Out_Pts=%" PRId64", Flags=%x",
+                (int64_t)(mTimeTotal / mTotalProcessedFrameNum / 1000), (decodeTime / 1000), (delay / 1000), (int)work->input.ordinal.frameIndex.peeku(), size,
                 (int64_t)work->input.ordinal.timestamp.peeku(), mPic->pts, work->input.flags);
             if (size > 0) {
                 if (mPic->width != 0 && mPic->height != 0
@@ -483,7 +483,7 @@ void C2SoftVdec::process(
             } else {
                 // Decode frame failed.
                 mTotalDropedOutputFrameNum++;
-                CODEC2_LOG(CODEC2_LOG_ERR, "Decode failed, drop frame Index %d, In_Pts %lld, total droped %lld",
+                CODEC2_LOG(CODEC2_LOG_ERR, "Decode failed, drop frame Index %d, In_Pts %" PRId64", total droped %" PRId64"",
                     (int)work->input.ordinal.frameIndex.peeku(), (int64_t)work->input.ordinal.timestamp.peeku(), mTotalDropedOutputFrameNum);
                 free(mPic);
                 mPic = NULL;;

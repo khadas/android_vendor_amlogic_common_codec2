@@ -12,6 +12,7 @@
 
 #include <cutils/properties.h>
 #include <utils/Log.h>
+#include <inttypes.h>
 
 #include <dlfcn.h>
 
@@ -155,7 +156,7 @@ private:
             setDerivedInstance(this);
             struct Setter {
                 static C2R setIonUsage(bool /* mayBlock */, C2P<C2StoreIonUsageInfo> &me) {
-                    ALOGI("setIonUsage %lld %d", me.get().usage, me.get().capacity);
+                    ALOGI("setIonUsage %" PRId64 " capacity:%d", me.get().usage, me.get().capacity);
                     if (me.get().usage & C2MemoryUsage::READ_PROTECTED) {
                         me.set().heapMask = ION_POOL_CMA_MASK;
                         me.set().allocFlags = ION_FLAG_EXTEND_MESON_HEAP | ION_FLAG_EXTEND_MESON_SECURE_VDEC_HEAP;
@@ -169,8 +170,8 @@ private:
                 }
 
                 static C2R setDmaBufUsage(bool /* mayBlock */, C2P<C2StoreDmaBufUsageInfo> &me) {
-                    long long usage = (long long)me.get().m.usage;
-                    ALOGI("setDmaBufUsage %lld", usage);
+                    uint64_t usage = (uint64_t)me.get().m.usage;
+                    ALOGI("setDmaBufUsage %" PRId64 "\n", usage);
                     if (usage & C2MemoryUsage::READ_PROTECTED)
                         strncpy(me.set().m.heapName, "system-secure-uncached", me.v.flexCount());
                     else

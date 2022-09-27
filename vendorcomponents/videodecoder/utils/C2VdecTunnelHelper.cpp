@@ -21,6 +21,7 @@
 #include <C2VdecTunnelHelper.h>
 #include <C2VdecInterfaceImpl.h>
 #include <C2VdecDebugUtil.h>
+#include <inttypes.h>
 
 
 #define C2VdecTMH_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, C2VdecComponent::mInstanceID, mComp->mCurInstanceID, ##str)
@@ -216,7 +217,7 @@ void C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel(struct VideoTunnelR
         .mediaUs = rendertime.mediaUs,
         .renderUs = rendertime.renderUs,
     };
-    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Rendertime:%lld", __func__, __LINE__, renderTime.mediaUs);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Rendertime:%" PRId64 "", __func__, __LINE__, renderTime.mediaUs);
     sendOutputBufferToWorkTunnel(&renderTime);
 }
 
@@ -251,7 +252,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
     DCHECK(mVideoTunnelRenderer != NULL);
     int64_t timestamp = -1;
 
-    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] PictureId:%d, bitstreamId:%lld", __func__, __LINE__,
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] PictureId:%d, bitstreamId:%" PRId64 "", __func__, __LINE__,
             pictureBufferId, bitstreamId);
     GraphicBlockInfo* info = mComp->getGraphicBlockById(pictureBufferId);
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR ||
@@ -262,7 +263,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
 
     C2Work* work = mComp->getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, pts:%lld", __func__, __LINE__, info->mFd, timestamp);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, pts:%" PRId64"", __func__, __LINE__, info->mFd, timestamp);
         return C2_CORRUPTED;
     }
     timestamp = work->input.ordinal.timestamp.peekull();
@@ -280,7 +281,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
 
     if (mVideoTunnelRenderer) {
         GraphicBlockStateChange(mComp, info, GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER);
-        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel send to videotunnel fd=%d, pts=%lld", info->mFd, timestamp);
+        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel send to videotunnel fd=%d, pts=%" PRId64"", info->mFd, timestamp);
         mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
     }
 
@@ -297,7 +298,7 @@ c2_status_t C2VdecComponent::TunnelHelper::flush() {
 
 c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
     DCHECK(mComp != NULL);
-    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Rendertime:%lld", __func__, __LINE__, rendertime->mediaUs);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Rendertime:%" PRId64 "", __func__, __LINE__, rendertime->mediaUs);
 
     if (mComp->mPendingBuffersToWork.empty() ||
         mComp->mPendingWorks.empty()) {
@@ -315,7 +316,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct V
         for (auto it = mTunnelAbandonMediaTimeQueue.begin(); it != mTunnelAbandonMediaTimeQueue.end(); it++) {
             if (rendertime->mediaUs == *it) {
                 mTunnelAbandonMediaTimeQueue.erase(it);
-                C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Not find the correct work with mediaTime:%lld, correct work have abandoned and report to framework", rendertime->mediaUs);
+                CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Not find the correct work with mediaTime:%" PRId64", correct work have abandoned and report to framework", rendertime->mediaUs);
                 mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
                 return C2_OK;
             }
@@ -326,13 +327,13 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct V
             auto time = std::find_if(mTunnelRenderMediaTimeQueue.begin(), mTunnelRenderMediaTimeQueue.end(),
                     [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
             if (time != mTunnelRenderMediaTimeQueue.end()) {
-                C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Have report mediaTime:%lld, ignore it", rendertime->mediaUs);
+                CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Have report mediaTime:%" PRId64 ", ignore it", rendertime->mediaUs);
                 mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
                 return C2_OK;
             }
         }
 
-        C2VdecTMH_LOG(CODEC2_LOG_INFO, "Not find the correct work with mediaTime:%lld, should have reported, discard report it", rendertime->mediaUs);
+        CODEC2_LOG(CODEC2_LOG_INFO, "Not find the correct work with mediaTime:%" PRId64 ", should have reported, discard report it", rendertime->mediaUs);
         mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
         return C2_OK;
     }
@@ -342,7 +343,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct V
                 [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
         if (time == mTunnelRenderMediaTimeQueue.end()) {
             mTunnelRenderMediaTimeQueue.push_back(rendertime->mediaUs);
-            C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Tunnel push mediaTime:%lld", rendertime->mediaUs);
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Tunnel push mediaTime:%" PRId64 "", rendertime->mediaUs);
         }
         if (mTunnelRenderMediaTimeQueue.size() > kTunnelMediaTimeQueueMax) {
             mTunnelRenderMediaTimeQueue.pop_front();
@@ -354,7 +355,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct V
 
     auto pendingBuffer = mComp->findPendingBuffersToWorkByTime(rendertime->mediaUs);
     if (pendingBuffer != mComp->mPendingBuffersToWork.end()) {
-        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Rendertime:%lld, bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingBuffer->mBitstreamId,pendingBuffer->flags);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Rendertime:%" PRId64 ", bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingBuffer->mBitstreamId,pendingBuffer->flags);
         mComp->reportWorkIfFinished(pendingBuffer->mBitstreamId,pendingBuffer->flags);
         mComp->mPendingBuffersToWork.erase(pendingBuffer);
         /* EOS work check */

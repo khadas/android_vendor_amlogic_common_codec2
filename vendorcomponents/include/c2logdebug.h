@@ -7,6 +7,7 @@
 #include <utils/Log.h>
 #include <cutils/trace.h>
 #include <utils/Trace.h>
+#include <inttypes.h>
 
 static unsigned int gloglevel = 1;
 

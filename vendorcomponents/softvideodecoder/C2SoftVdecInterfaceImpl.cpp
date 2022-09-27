@@ -303,7 +303,7 @@ void C2SoftVdec::IntfImpl::onBufferSizeDeclareParam() {
             defaultSize = kLinearBufferSize;
             if (defaultSize > maxInputSize) {
                 me.set().value = maxInputSize;
-                CODEC2_LOG(CODEC2_LOG_INFO,"Force setting %d to max is %d", me.get().value, maxInputSize);
+                CODEC2_LOG(CODEC2_LOG_INFO,"Force setting %u to max is %zu", me.get().value, maxInputSize);
             } else {
                 me.set().value = defaultSize;
             }

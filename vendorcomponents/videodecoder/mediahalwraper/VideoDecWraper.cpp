@@ -175,7 +175,7 @@ int32_t VideoDecWraper::decode(
     uint8_t* hdrbuf,
     uint32_t hdrlen,
     int32_t flags) {
-    C2VdecWraper_LOG(CODEC2_LOG_TAG_BUFFER,"decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER,"decode bitstreamId:%d bytesUsed :%d timestamp:%" PRId64 " flags is 0x%x",
         bitstreamId, bytesUsed, timestamp, flags);
     if (mAmVideoDec) {
         if (hdrlen > 0)
@@ -195,7 +195,7 @@ int32_t VideoDecWraper::decode(
     uint8_t* hdrbuf,
     uint32_t hdrlen,
     int32_t flags) {
-    C2VdecWraper_LOG(CODEC2_LOG_TAG_BUFFER, "decode bitstreamId:%d bytesUsed :%d timestamp:%lld flags is 0x%x",
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "decode bitstreamId:%d bytesUsed :%d timestamp:%" PRId64 " flags is 0x%x",
         bitstreamId, bytesUsed, timestamp, flags);
     if (mAmVideoDec) {
         if (hdrlen > 0)
@@ -294,7 +294,7 @@ void VideoDecWraper::onOutputFormatChanged(uint32_t requested_num_of_buffers,
 
 void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t width, uint32_t height) {
-    C2VdecWraper_LOG(CODEC2_LOG_TAG_BUFFER, "pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d",
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "pictureReady:pictureBufferId:%d bitstreamId:%" PRId64 " mDecoderCallback:%p w:%d, h:%d",
         pictureBufferId, bitstreamId, mDecoderCallback,width, height);
     if (mDecoderCallback)
         mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height, 0);
@@ -303,7 +303,7 @@ void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t width, uint32_t height, int32_t flags) {
     (void)flags;
-    C2VdecWraper_LOG(CODEC2_LOG_TAG_BUFFER, "pictureReady:pictureBufferId:%d bitstreamId:%lld mDecoderCallback:%p w:%d, h:%d, flags:%d",
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "pictureReady:pictureBufferId:%d bitstreamId:%" PRId64 " mDecoderCallback:%p w:%d, h:%d, flags:%d",
         pictureBufferId, bitstreamId, mDecoderCallback, width, height, flags);
     if (mDecoderCallback)
         mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height,flags);

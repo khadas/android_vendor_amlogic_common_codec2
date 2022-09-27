@@ -58,7 +58,7 @@ const int kSmoothnessFactor = 4;
 #define BufferStatus(comp, level, fmt, str...) \
     do {\
         if (comp->isNonTunnelMode()) \
-            CODEC2_LOG(level, fmt" {IN=%d/%d, OUT=%d/%d[%s(%d) %s(%d) %s(%d)]}",\
+            CODEC2_LOG(level, fmt" {IN=%d/%d, OUT=%d/%zu[%s(%d) %s(%d) %s(%d)]}",\
                     ##str, \
                     comp->mInputQueueNum,\
                     comp->mIntfImpl->mActualInputDelay->value + kSmoothnessFactor,\
@@ -71,7 +71,7 @@ const int kSmoothnessFactor = 4;
                     comp->GraphicBlockState(GraphicBlockInfo::State::OWNED_BY_CLIENT),\
                     comp->mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT]);\
         else if (comp->isTunnelMode())\
-            CODEC2_LOG(level, fmt" {IN=%d/%d, OUT=%d/%d[%s(%d) %s(%d) %s(%d)]}",\
+            CODEC2_LOG(level, fmt" {IN=%d/%d, OUT=%d/%zu[%s(%d) %s(%d) %s(%d)]}",\
                     ##str, \
                     comp->mInputQueueNum,\
                     comp->mIntfImpl->mActualInputDelay->value + kSmoothnessFactor,\

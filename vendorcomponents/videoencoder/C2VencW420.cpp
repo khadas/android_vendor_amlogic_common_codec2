@@ -487,7 +487,7 @@ public:
 
     static C2R GopSetter(bool mayBlock, C2P<C2StreamGopTuning::output> &me) {
         (void)mayBlock;
-        ALOGI("GopSetter enter,count:%d",me.v.flexCount());
+        ALOGI("GopSetter enter,count:%zu",me.v.flexCount());
         for (size_t i = 0; i < me.v.flexCount(); ++i) {
             const C2GopLayerStruct &layer = me.v.m.values[0];
             ALOGI("GopSetter,type:%d,count:%d",layer.type_,layer.count);

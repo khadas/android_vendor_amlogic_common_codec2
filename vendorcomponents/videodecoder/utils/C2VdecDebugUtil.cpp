@@ -58,12 +58,12 @@ void C2VdecComponent::DebugUtil::showGraphicBlockInfo() {
 
 void C2VdecComponent::DebugUtil::startShowPipeLineBuffer() {
     RETURN_ON_UNINITIALIZED_OR_ERROR();
-    BufferStatus(mComp, CODEC2_LOG_INFO, "in/out status {INS/OUTS=%lld(%d)/%lld(%d)}, pipeline status",
+    BufferStatus(mComp, CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64 "(%d)/%" PRId64 "(%zu)}, pipeline status",
             mComp->mInputWorkCount, mComp->mInputCSDWorkCount,
             mComp->mOutputWorkCount, mComp->mPendingBuffersToWork.size());
 #if 0
     BufferStatus(mComp, CODEC2_LOG_INFO, "pipeline status");
-    C2Vdec_LOG(CODEC2_LOG_INFO, "in/out status {INS/OUTS=%lld(%d)/%lld(%d)}",
+    C2Vdec_LOG(CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64"(%d)/%" PRId64"(%zu)}",
             mComp->mInputWorkCount, mComp->mInputCSDWorkCount,
             mComp->mOutputWorkCount, mComp->mPendingBuffersToWork.size());
 #endif

@@ -18,7 +18,6 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <fstream>
-#include <inttypes.h>
 #include <string.h>
 #include <algorithm>
 #include <string>
@@ -537,7 +536,7 @@ void C2VdecComponent::onDequeueWork() {
     }
 
     // Put work to mPendingWorks.
-    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "OnDequeueWork,queue work size:%d put pending work bitId:%lld, pending work size:%d",
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "OnDequeueWork,queue work size:%d put pending work bitId:%" PRId64 ", pending work size:%zd",
             queueWorkCount, work->input.ordinal.frameIndex.peeku(), mPendingWorks.size());
     mPendingWorks.emplace_back(std::move(work));
 
@@ -648,7 +647,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
             appendOutputBuffer(std::move(block), poolId, blockId, true);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
-            BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%d", info->mBlockId);
+            BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%u", info->mBlockId);
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
         } else {
             C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch current block(%d*%d) is pending and reset it.", block->width(), block->height());
@@ -693,7 +692,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     } else {
         C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] Can't found bitstreamId:%lld", __LINE__,bitstreamId);
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] Can't found bitstreamId:%" PRId64 "", __LINE__,bitstreamId);
             sendOutputBufferToAccelerator(info, true);
             return;
         }
@@ -703,12 +702,12 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags});
     mOutputWorkCount ++;
     CODEC2_ATRACE_INT64("c2OutPTS", timestamp);
-    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%lld, pictureid=%d, fags:%d pending size=%d",
+    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
             bitstreamId, pictureBufferId, flags, mPendingBuffersToWork.size());
     CODEC2_ATRACE_INT64("c2OutPTS", 0);
 
     if (mComponentState == ComponentState::FLUSHING) {
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] in flushing, pending bitstreamId=%lld first", __func__, bitstreamId);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] in flushing, pending bitstreamId=%" PRId64 " first", __func__, bitstreamId);
         mLastOutputBitstreamId = bitstreamId;
         return;
     }
@@ -767,7 +766,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
     while (!mPendingBuffersToWork.empty()) {
         auto nextBuffer = mPendingBuffersToWork.front();
         GraphicBlockInfo* info = getGraphicBlockById(nextBuffer.mBlockId);
-        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER,"[%s] Get pending bitstream id:%d, block id:%d inode:%llu",
+        CODEC2_LOG(CODEC2_LOG_TAG_BUFFER,"[%s] Get pending bitstream id:%d, block id:%d inode:%" PRId64 "",
             __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId, mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId));
         bool isSendCloneWork = false;
 
@@ -840,7 +839,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             // This buffer is ready to push into the corresponding work.
             // Output buffer will be passed to client soon along with mListener->onWorkDone_nb().
             GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_CLIENT);
-            BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "report to ccodec index=%d, bitstreamid=%d, pts=%lld",
+            BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "report to ccodec index=%d, bitstreamid=%d, pts=%llu",
                     info->mBlockId, nextBuffer.mBitstreamId, work->input.ordinal.timestamp.peekull());
             mBuffersInClient++;
             updateUndequeuedBlockIds(info->mBlockId);
@@ -1241,8 +1240,8 @@ void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inp
         reportError(C2_CORRUPTED);
         return;
     }
-    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s@%d]Decode bitstream ID: %d timestamp:%llu offset: %u size: %u hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
-            bitstreamId, timestamp, input.offset(), input.size(), hdrlen,flags);
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s@%d]Decode bitstream ID: %d timestamp:%" PRId64 "offset: %u size: %d hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
+            bitstreamId, timestamp, input.offset(), (int)input.size(), hdrlen, flags);
     if (mVideoDecWraper) {
         mDeviceUtil->save_stream_info(timestamp,input.size());
         mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, hdrbuf, hdrlen, flags);
@@ -1279,7 +1278,7 @@ C2Work* C2VdecComponent::getPendingWorkByBitstreamId(int32_t bitstreamId) {
 C2Work* C2VdecComponent::getPendingWorkByMediaTime(int64_t mediaTime) {
     auto workIter = findPendingWorkByMediaTime(mediaTime);
     if (workIter == mPendingWorks.end()) {
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] Can't find pending work by mediaTime: %lld", __func__, mediaTime);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] Can't find pending work by mediaTime: %" PRId64"", __func__, mediaTime);
         return nullptr;
     }
     return workIter->get();
@@ -1500,7 +1499,7 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
 
             size_t inc_buf_num = mOutputFormat.mMinNumBuffers - mLastOutputFormat.mMinNumBuffers;
             size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Increase buffer num:%d graphic blocks size: %d", inc_buf_num, mGraphicBlocks.size());
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Increase buffer num:%d graphic blocks size: %d", (int)inc_buf_num, (int)mGraphicBlocks.size());
             auto err = mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount));
             if (err != C2_OK) {
                 C2Vdec_LOG(CODEC2_LOG_ERR, "Failed to request new buffer set to block pool: %d", err);
@@ -1545,7 +1544,7 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
             resetBlockPoolUtil();
             size_t inc_buf_num = mOutputFormat.mMinNumBuffers - mLastOutputFormat.mMinNumBuffers;
             size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Increase buffer num:%d graphic blocks size: %d", inc_buf_num, mGraphicBlocks.size());
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Increase buffer num:%d graphic blocks size: %d", (int)inc_buf_num, (int)mGraphicBlocks.size());
             auto err = mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount - kDefaultSmoothnessFactor));
             if (err != C2_OK) {
                 C2Vdec_LOG(CODEC2_LOG_ERR, "Failed to request new buffer set to block pool: %d", err);
@@ -1631,7 +1630,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
 
     // Get block pool ID configured from the client.
     std::shared_ptr<C2BlockPool> blockPool;
-    int64_t poolId = -1;
+    uint64_t poolId = -1;
     c2_status_t err;
     if (!mBlockPoolUtil) {
         poolId = mIntfImpl->getBlockPoolId();
@@ -1655,8 +1654,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
 
     if (useBufferQueue) {
         mUseBufferQueue = true;
-        C2Vdec_LOG(CODEC2_LOG_INFO, "Using C2BlockPool ID:%lld for allocating output buffers, blockpooolId:%d",
-                (long long)poolId, blockPool->getAllocatorId());
+        CODEC2_LOG(CODEC2_LOG_INFO, "Using C2BlockPool ID:%" PRId64" for allocating output buffers, blockpooolId:%d", poolId, blockPool->getAllocatorId());
     }
 
     size_t minBuffersForDisplay = 0;
@@ -1687,7 +1685,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
 
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count = %zu Usage %llx", minBuffersForDisplay, usage.expected);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count = %zu  usage= %" PRId64"", minBuffersForDisplay, usage.expected);
 
     for (size_t i = 0; i < bufferCount; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
@@ -1753,7 +1751,7 @@ void C2VdecComponent::resetBlockPoolUtil() {
     auto poolId = mIntfImpl->getBlockPoolId();
     auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
     if (err != C2_OK || !blockPool) {
-        C2Vdec_LOG(CODEC2_LOG_INFO, "Get block pool ok, id:%lld", poolId);
+        CODEC2_LOG(CODEC2_LOG_INFO, "Get block pool ok, id:%" PRId64 "", poolId);
         err = CreateCodec2BlockPool(poolId, shared_from_this(), &blockPool);
         if (err != C2_OK) {
             C2Vdec_LOG(CODEC2_LOG_ERR, "Graphic block allocator is invalid");
@@ -1789,9 +1787,9 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     if (!mUseBufferQueue) {
         dequeue_buffer_num = bufferCount;
     }
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %llx",
-                minBuffersForDisplay, bufferCount, dequeue_buffer_num, usage.expected);
-    for (size_t i = 0; i < dequeue_buffer_num; ++i) {
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %" PRId64"",
+                minBuffersForDisplay, (int)bufferCount, dequeue_buffer_num, usage.expected);
+    for (int i = 0; i < dequeue_buffer_num; ++i) {
         std::shared_ptr<C2GraphicBlock> block;
 
         int32_t retries_left = kAllocateBufferMaxRetries;
@@ -1867,7 +1865,7 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
     if (isTunnelMode() || !mDeviceUtil->getNeedReallocBuffer()) {
         mOutBufferCount = getDefaultMaxBufNum(GetIntfImpl()->getInputCodec());
         if (bufferCount > mOutBufferCount) {
-            C2Vdec_LOG(CODEC2_LOG_INFO, "required outbuffer count %d large than default num %d", bufferCount, mOutBufferCount);
+            C2Vdec_LOG(CODEC2_LOG_INFO, "required outbuffer count %d large than default num %d", (int)bufferCount, mOutBufferCount);
             mOutBufferCount = bufferCount;
         } else {
             bufferCount = mOutBufferCount;
@@ -1888,8 +1886,8 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
             reportError(err);
             return err;
         }
-        C2Vdec_LOG(CODEC2_LOG_INFO,"Using C2BlockPool ID:%lld for allocating output buffers, allocator id:%d",
-            (long long)poolId, blockPool->getAllocatorId());
+        CODEC2_LOG(CODEC2_LOG_INFO,"Using C2BlockPool ID:%" PRId64 "for allocating output buffers, allocator id:%d",
+                   poolId, blockPool->getAllocatorId());
         mBlockPoolUtil = std::make_shared<C2VdecBlockPoolUtil> (blockPool);
     }
 
@@ -1898,7 +1896,7 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
     if (mBlockPoolUtil->isBufferQueue()) {
         mUseBufferQueue = true;
         surfaceUsage = mBlockPoolUtil->getConsumerUsage();
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Get block pool usage:%lld", surfaceUsage);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Get block pool usage:%" PRId64 "", surfaceUsage);
         if (!(surfaceUsage & GRALLOC_USAGE_HW_COMPOSER)) {
             usersurfacetexture = true;
             mDeviceUtil->setUseSurfaceTexture(true);
@@ -1939,7 +1937,7 @@ void C2VdecComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, 
     }
     info.mBind = bind;
     info.mFdHaveSet = false;
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] graphicblock: %p,fd:%d blockid: %d, size: %dx%d bind %d->%d GraphicBlockSize:%d", __func__, info.mGraphicBlock->handle(), fd,
+    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] graphicblock: %p,fd:%d blockid: %d, size: %dx%d bind %d->%d GraphicBlockSize:%zu", __func__, info.mGraphicBlock->handle(), fd,
             info.mBlockId, info.mGraphicBlock->width(), info.mGraphicBlock->height(), info.mPoolId, info.mBlockId, mGraphicBlocks.size());
     mGraphicBlocks.push_back(std::move(info));
 }
@@ -2084,7 +2082,7 @@ void C2VdecComponent::updateHDR10PlusInfo() {
         if (hdr10Data.size() != 0) {
             //std::memcpy(mCurrentHdr10PlusInfo->m.value, hdr10Data.c_str(), hdr10Data.size());
             //mCurrentHdr10PlusInfo->setFlexCount(hdr10Data.size());
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Get HDR10Plus data size:%d ", hdr10Data.size());
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Get HDR10Plus data size:%d ", (int)hdr10Data.size());
         }
     }
 }
@@ -2117,7 +2115,7 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
         auto poolId = mIntfImpl->getBlockPoolId();
         auto err = GetCodec2BlockPool(poolId, shared_from_this(), &blockPool);
         if (err != C2_OK || !blockPool) {
-            C2Vdec_LOG(CODEC2_LOG_INFO, "Get block pool ok, id:%lld", poolId);
+            CODEC2_LOG(CODEC2_LOG_INFO, "Get block pool ok, id:%" PRId64 "", poolId);
             err = CreateCodec2BlockPool(poolId, shared_from_this(), &blockPool);
             if (err != C2_OK) {
                 C2Vdec_LOG(CODEC2_LOG_ERR, "Graphic block allocator is invalid");
@@ -2248,7 +2246,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
     if (mFlushDoneCond.waitRelative(mFlushDoneLock, 500000000ll) == ETIMEDOUT) {  // 500ms Time out
         mComponentState = ComponentState::STARTED;
         uint64_t nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] last flush time:%lld, now time:%lld", __func__, mLastFlushTimeMs, nowTimeMs);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] last flush time:%" PRId64", now time:%" PRId64"", __func__, mLastFlushTimeMs, nowTimeMs);
         return C2_TIMED_OUT;
     }
 
@@ -2696,7 +2694,7 @@ void C2VdecComponent::reportAbandonedWorks() {
         if (mTunnelHelper) {
             mTunnelHelper->storeAbandonedFrame(work->input.ordinal.timestamp.peekull());
         }
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] tunnel mode abandon mediatimeus:%lld", __func__, work->input.ordinal.timestamp.peekull());
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] tunnel mode abandon mediatimeus:%llu", __func__, work->input.ordinal.timestamp.peekull());
         if (!mUseBufferQueue && abandonedWorks.empty() && mIsReportEosWork) {
             for (auto & info : mGraphicBlocks) {
                 if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
@@ -2721,7 +2719,7 @@ void C2VdecComponent::reportAbandonedWorks() {
         if (!work->input.buffers.empty()) {
             work->input.buffers.front().reset();
         }
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] tunnel mode abandon mediatimeus:%lld", __func__, work->input.ordinal.timestamp.peekull());
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] tunnel mode abandon mediatimeus:%llu", __func__, work->input.ordinal.timestamp.peekull());
         if (mTunnelHelper) {
             mTunnelHelper->storeAbandonedFrame(work->input.ordinal.timestamp.peekull());
         }
@@ -2815,7 +2813,7 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
-    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] usage %llx size(%d*%d)report out put work num:%lld", __func__, usage.expected, size.width(), size.height(),mOutputWorkCount);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] usage %" PRId64" size(%d*%d)report out put work num:%" PRId64 "", __func__, usage.expected, size.width(), size.height(),mOutputWorkCount);
     uint64_t timeOutCount = 0;
     uint64_t lastFetchBlockTimeMs = 0;
     uint64_t timeOutMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
@@ -2890,7 +2888,7 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                     }
                     nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
                     CODEC2_ATRACE_INT32("c2FetchOutBlockId", blockId);
-                    C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%lld",
+                    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%" PRId64 "",
                             __func__, (old ? "old" : "new"), blockId, width, height, block.use_count(),
                             nowTimeMs - lastFetchBlockTimeMs);
                     CODEC2_ATRACE_INT32("c2FetchOutBlockId", 0);
@@ -2910,7 +2908,7 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 if (timeOutCount == 0)
                     timeOutMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
                 timeOutCount++;
-                C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block retry timeout[%lld][%lld][%lld]timeOutCount[%lld].",
+                CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block retry timeout[%" PRId64"][%" PRId64 "][%" PRId64 "]timeOutCount[%" PRId64"].",
                         (systemTime(SYSTEM_TIME_MONOTONIC) / 1000000) - timeOutMs,
                         (systemTime(SYSTEM_TIME_MONOTONIC) / 1000000),
                         timeOutMs,

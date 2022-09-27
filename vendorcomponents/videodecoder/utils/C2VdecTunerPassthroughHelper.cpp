@@ -100,7 +100,7 @@ void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough
         .mediaUs = rendertime.mediaUs,
         .renderUs = rendertime.renderUs,
     };
-    C2VdecTPH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Rendertime:%lld", __func__, __LINE__, renderTime.mediaUs);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Rendertime:%" PRId64"", __func__, __LINE__, renderTime.mediaUs);
     sendOutputBufferToWorkTunerPassthrough(&renderTime);
 }
 
