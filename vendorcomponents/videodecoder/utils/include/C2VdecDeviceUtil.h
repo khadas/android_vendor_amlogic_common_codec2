@@ -81,8 +81,6 @@ public:
         return mMarginBufferNum;
     }
 
-    /* check and adjust out pts */
-    int64_t checkAndAdjustOutPts(C2Work* work, int32_t flags);
     //int check_color_aspects();
     uint64_t getPlatformUsage();
     uint32_t getOutAlignedSize(uint32_t size, bool forceAlign = false);
@@ -97,17 +95,24 @@ public:
     void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
         mHDRStaticInfoColorAspects = coloraspect;
     }
-    int32_t getUnstablePts();
-    int64_t getLastOutputPts();
+
     uint32_t getDoubleWriteModeValue();
+
 
     // bit depth
     void queryStreamBitDepth();
     uint32_t getStreamPixelFormat(uint32_t pixelFormat);
 
+    int64_t getLastOutputPts();
+    void setLastOutputPts(int64_t);
+    bool setUnstable();
+    bool setDuration();
+
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();
     bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
+    int setVideoDecWraper(VideoDecWraper* videoDecWraper);
+
     aml_stream_info mAmlStreamInfo;
 
     bool checkConfigInfoFromDecoderAndReconfig(int type);
@@ -132,6 +137,7 @@ private:
 
     int mUvmFd;
     C2VdecComponent::IntfImpl* mIntfImpl;
+    VideoDecWraper* mVideoDecWraper;
     mediahal_cfg_parms* mConfigParam;
     C2VdecComponent* mComp;
     bool mUseSurfaceTexture;
@@ -160,7 +166,6 @@ private:
     uint64_t mLastOutPts;
     uint64_t mInPutWorkCount;
     uint64_t mOutputWorkCount;
-    int32_t  mLastbitStreamId;
     int32_t  mOutputPtsValidCount;
 
     int32_t mMarginBufferNum;

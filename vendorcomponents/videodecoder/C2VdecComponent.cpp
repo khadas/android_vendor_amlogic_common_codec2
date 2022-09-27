@@ -227,7 +227,8 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mFirstInputTimestamp(-1),
         mLastOutputBitstreamId(-1),
         mIsReportEosWork(false),
-        mResolutionChanging(false) {
+        mResolutionChanging(false),
+        mUnstable(0) {
 
     mInstanceNum ++;
     mInstanceID ++;
@@ -382,7 +383,11 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         }
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
                 (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
-
+        mDeviceUtil->setVideoDecWraper(mVideoDecWraper.get());
+        //set some decoder config
+        //set unstable state and duration to vdec
+        mDeviceUtil->setUnstable();
+        mDeviceUtil->setDuration();
     } else {
         mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
     }
@@ -729,7 +734,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
     }
 }
 
-void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags) {
+void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags, uint64_t timestamp) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
@@ -739,7 +744,6 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         return;
     }
 
-    int64_t timestamp = -1;
     GraphicBlockInfo* info = getGraphicBlockById(pictureBufferId);
 
     if (!info) {
@@ -751,19 +755,17 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
         GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
     }
-    if (mLastOutputBitstreamId == bitstreamId) {
-        timestamp = 0;
-    } else {
+
+    if (mLastOutputBitstreamId != bitstreamId) {
         C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] “Can't found bitstreamId,should have been flushed:%" PRId64 "", __LINE__,bitstreamId);
             sendOutputBufferToAccelerator(info, true);
             return;
         }
-        timestamp = work->input.ordinal.timestamp.peekull();
     }
 
-    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
+    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, (int64_t)timestamp, flags, false});
     mOutputWorkCount ++;
     CODEC2_VDEC_ATRACE("c2OutPTS", timestamp);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
@@ -808,7 +810,9 @@ void C2VdecComponent::sendClonedWork(C2Work* work, int32_t flags) {
     work->result = C2_OK;
     work->workletsProcessed = 1;
 
-    work->input.ordinal.customOrdinal = mDeviceUtil->checkAndAdjustOutPts(work,flags);
+    //save last out pts
+    mDeviceUtil->setLastOutputPts((int64_t)work->input.ordinal.customOrdinal.peekull());
+    //work->input.ordinal.customOrdinal = mDeviceUtil->checkAndAdjustOutPts(work,flags);
     c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                             - work->input.ordinal.timestamp;
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2,"Reported finished work index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
@@ -870,7 +874,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             delete mLastOutputReportWork;
             mLastOutputReportWork = NULL;
         }
-
+        work->input.ordinal.customOrdinal = nextBuffer.mMediaTimeUs;
         if (mHDR10PlusMeteDataNeedCheck) {
             unsigned char  buffer[META_DATA_SIZE];
             int buffer_size = 0;
@@ -2332,6 +2336,11 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
             }
             mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                         (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecFlags);
+            mDeviceUtil->setVideoDecWraper(mVideoDecWraper.get());
+            //set some decoder config
+            //set unstable state and duration to vdec
+            mDeviceUtil->setUnstable();
+            mDeviceUtil->setDuration();
         }
     } else {
         //use BUFFERPOOL, no surface
@@ -2353,6 +2362,11 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
         }
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                   (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
+        mDeviceUtil->setVideoDecWraper(mVideoDecWraper.get());
+        //set some decoder config
+        //set unstable state and duration to vdec
+        mDeviceUtil->setUnstable();
+        mDeviceUtil->setDuration();
     }
 
     mSurfaceUsageGeted = true;
@@ -2577,7 +2591,29 @@ void C2VdecComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
 
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferDone,
                                                   ::base::Unretained(this),
-                                                  pictureBufferId, bitstreamId, flags));
+                                                  pictureBufferId, bitstreamId, flags, 0));
+}
+
+void C2VdecComponent::PictureReady(output_buf_param_t* params) {
+
+    int32_t pictureBufferId = params->pictureBufferId;
+    int64_t bitstreamId = params->bitstreamId;
+    uint32_t x = params->x;
+    uint32_t y = params->y;
+    uint32_t w = params->width;
+    uint32_t h = params->height;
+    int32_t flags = params->flags;
+    uint64_t timestamp = params->timestamp;
+
+    if (mRequestedVisibleRect != media::Rect(x, y, w, h)) {
+        mRequestedVisibleRect = media::Rect(x, y, w, h);
+        mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onVisibleRectChanged,
+                                                      ::base::Unretained(this), media::Rect(x, y, w, h)));
+    }
+
+    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferDone,
+                                                   ::base::Unretained(this),
+                                                   pictureBufferId, bitstreamId, flags, timestamp));
 }
 
 void C2VdecComponent::UpdateDecInfo(const uint8_t* info, uint32_t isize) {
@@ -2775,7 +2811,9 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
         }
         work->result = C2_OK;
         work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
-        work->input.ordinal.customOrdinal = mDeviceUtil->checkAndAdjustOutPts(work, flags);
+        //save last out pts
+        mDeviceUtil->setLastOutputPts((int64_t)work->input.ordinal.customOrdinal.peekull());
+        //work->input.ordinal.customOrdinal = mDeviceUtil->checkAndAdjustOutPts(work, flags);
         c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                                 - work->input.ordinal.timestamp;
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Reported finished work index=%llu pts=%llu,%d",

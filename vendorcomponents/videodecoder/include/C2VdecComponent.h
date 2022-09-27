@@ -88,6 +88,7 @@ public:
     virtual void DismissPictureBuffer(int32_t picture_buffer_id);
     virtual void PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t x, uint32_t y, uint32_t w, uint32_t h, int32_t flags);
+    virtual void PictureReady(output_buf_param_t* params);
     virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize);
     virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id);
     virtual void NotifyFlushDone();
@@ -244,7 +245,7 @@ private:
     void onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<C2StreamHdr10PlusInfo::input> info);
     void onDequeueWork();
     void onInputBufferDone(int32_t bitstreamId);
-    void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags);
+    void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags, uint64_t timestamp);
     void onDrain(uint32_t drainMode);
     void onDrainDone();
     void onFlush();
@@ -535,7 +536,7 @@ private:
     bool mResolutionChanging;
 
     C2Work *mLastOutputReportWork;
-
+    int32_t mUnstable;
     DISALLOW_COPY_AND_ASSIGN(C2VdecComponent);
 };
 

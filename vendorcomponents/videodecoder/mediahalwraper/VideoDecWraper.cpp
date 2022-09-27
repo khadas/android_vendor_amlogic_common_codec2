@@ -308,8 +308,17 @@ void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
     CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "pictureReady:pictureBufferId:%d bitstreamId:%" PRId64 " mDecoderCallback:%p w:%d, h:%d, flags:%d",
         pictureBufferId, bitstreamId, mDecoderCallback, width, height, flags);
     if (mDecoderCallback)
-        mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height,flags);
+        mDecoderCallback->PictureReady(pictureBufferId, bitstreamId, 0, 0, width, height, flags);
 }
+
+void VideoDecWraper::onOutputBufferDone(output_buf_param_t* params) {
+
+    C2VdecWraper_LOG(CODEC2_LOG_INFO, "onOutputBufferDone info %lld\n", params->bitstreamId);
+
+    if (mDecoderCallback)
+        mDecoderCallback->PictureReady(params);
+}
+
 
 void VideoDecWraper::onInputBufferDone(int32_t bitstream_buffer_id) {
     C2VdecWraper_LOG(CODEC2_LOG_TAG_BUFFER, "notifyEndOfBitstreamBuffer:bitstream_buffer_id:%d", bitstream_buffer_id);

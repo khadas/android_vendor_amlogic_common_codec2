@@ -61,7 +61,6 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mLastOutPts(0),
     mInPutWorkCount(0),
     mOutputWorkCount(0),
-    mLastbitStreamId(0),
     mOutputPtsValidCount(0),
     mMarginBufferNum(0),
     mStreamBitDepth(-1),
@@ -69,7 +68,7 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mBufferHeight(0),
     mSignalType(0),
     mEnableAdaptivePlayback(false) {
-
+    mVideoDecWraper = NULL;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
     mIntfImpl = mComp->GetIntfImpl();
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
@@ -173,6 +172,13 @@ uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat)
     return format;
 }
 
+int C2VdecComponent::DeviceUtil::setVideoDecWraper(VideoDecWraper* videoDecWraper) {
+    C2VdecMDU_LOG(CODEC2_LOG_ERR, "setVideoDecWraper into.[%p]", videoDecWraper);
+    if (videoDecWraper)
+        mVideoDecWraper = videoDecWraper;
+    return 0;
+}
+
 void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     uint32_t doubleWriteMode = 3;
     int default_margin = 6;
@@ -217,13 +223,10 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     if (inputFrameRateInfo.value != 0) {
        mDurationUs = 1000 * 1000 / inputFrameRateInfo.value;
        mCredibleDuration = true;
-    } else {
-       mDurationUs = 33333; //default 30fps
     }
 
     mDurationUsFromApp = mDurationUs;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] query frame rate:%f updata mDurationUs = %d, unstablePts :%d",__func__, __LINE__, inputFrameRateInfo.value, mDurationUs, mUnstablePts);
-
     C2GlobalLowLatencyModeTuning lowLatency;
     err = mIntfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
@@ -400,9 +403,43 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     }
 }
 
-int32_t C2VdecComponent::DeviceUtil::getUnstablePts() {
-    return mUnstablePts;
+
+bool C2VdecComponent::DeviceUtil::setUnstable()
+{
+    bool ret = false;
+    C2VdecMDU_LOG(CODEC2_LOG_INFO,"into set mUnstablePts = %d ", mUnstablePts);
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    if (msg != NULL) {
+        msg->setInt32("unstable", mUnstablePts);
+        mVideoDecWraper->postAndReplyMsg(msg);
+        ret = true;
+    }
+    if (msg != NULL)
+        delete msg;
+    return ret;
 }
+
+bool C2VdecComponent::DeviceUtil::setDuration()
+{
+    bool ret = false;
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "into set mDurationUs = %d ", mDurationUs);
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    if (msg != NULL && mDurationUs != 0) {
+        msg->setInt32("duration", mDurationUs);
+        msg->setInt32("type", 2);
+        mVideoDecWraper->postAndReplyMsg(msg);
+        ret = true;
+    }
+    if (msg != NULL) {
+        delete msg;
+    }
+    return ret;
+}
+
+void C2VdecComponent::DeviceUtil::setLastOutputPts(int64_t pts) {
+    mLastOutPts = pts;
+}
+
 int64_t C2VdecComponent::DeviceUtil::getLastOutputPts() {
     return mLastOutPts;
 }
@@ -895,75 +932,6 @@ bool C2VdecComponent::DeviceUtil::isYcbcRP010Stream() const {
     }
 
     return false;
-}
-
-int64_t C2VdecComponent::DeviceUtil::checkAndAdjustOutPts(C2Work* work, int32_t flags) {
-
-    int64_t out_pts = work->worklets.front()->output.ordinal.timestamp.peekull();
-    int64_t input_timestamp = work->input.ordinal.timestamp.peekull();
-    int64_t custom_timestamp = work->input.ordinal.customOrdinal.peekull();
-    int64_t raw_pts = out_pts;
-
-    uint32_t bitstreamId = static_cast<int32_t>(work->input.ordinal.frameIndex.peeku() & 0x3FFFFFFF);
-    uint32_t duration = mDurationUs == 0 ? 33366 : mDurationUs;
-
-    if (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork) {
-
-        if ((out_pts == 0 && input_timestamp == 0 && custom_timestamp == 0) ||
-            (mUnstablePts && !(flags & PICTURE_FLAG_KEYFRAME))) {
-            mOutputPtsValidCount++;
-            if (mOutputPtsValidCount >= kOutPutPtsValidNum) {
-                mOutputPtsValid = true;
-            }
-
-            if ((mOutputPtsValid || mCredibleDuration) && mFirstOutputWork)
-                out_pts = mLastOutPts + duration;
-        }
-
-        if (!(mInPtsInvalid || mIsInterlaced)) {
-            if (bitstreamId == mLastbitStreamId && out_pts == 0 && mFirstOutputWork == true) {
-                out_pts = mLastOutPts + duration / 2;
-            } else if (bitstreamId != mLastbitStreamId && out_pts == 0 && mFirstOutputWork == true) {
-                out_pts = mLastOutPts + duration;
-            }
-        }
-
-        if (mIsInterlaced && mFirstOutputWork) {
-            if (bitstreamId == mLastbitStreamId) {
-                out_pts = mLastOutPts + duration / 2;
-            } else if (bitstreamId != mLastbitStreamId) {
-                int64_t ptsTemp = ( raw_pts >= mLastOutPts) ?  (raw_pts - mLastOutPts) : (mLastOutPts - raw_pts);
-                int64_t harfStep = ptsTemp / (duration / 4);
-
-                if (harfStep == 1 || harfStep == 2) {
-                    if (raw_pts == 0)
-                        out_pts = mLastOutPts + duration / 2;
-                } else {
-                    out_pts = mLastOutPts + duration / 2;
-                }
-            }
-        }
-
-        //update flag
-        if (!mFirstOutputWork && mOutputWorkCount == 0) {
-            mFirstOutputWork = true;
-        }
-        mOutputWorkCount++;
-        mLastOutPts = out_pts;
-        mLastbitStreamId = bitstreamId;
-    }
-
-//for debug
-    if (flags & PICTURE_FLAG_KEYFRAME) {
-        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"CheckAndAdjustOutPts: I frame found. %x",flags);
-    }
-    int64_t render_pts = work->worklets.front()->output.ordinal.timestamp.peekull() + out_pts - work->input.ordinal.timestamp.peekull();
-    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"CheckAndAdjustOutPts(%d):duration:%u(%u),mLastOutPts:%" PRId64",index=%llu , input-pts:%llu output-pts:%llu  customOrdinal-pts:%" PRId64 " %" PRId64 "Final-pts:%" PRId64"",
-                (!(work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || mFirstOutputWork), duration, mDurationUs, mLastOutPts,
-                work->input.ordinal.frameIndex.peekull(),work->input.ordinal.timestamp.peekull(),
-                work->worklets.front()->output.ordinal.timestamp.peekull(), out_pts, custom_timestamp, render_pts);
-
-    return out_pts;
 }
 
 uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {

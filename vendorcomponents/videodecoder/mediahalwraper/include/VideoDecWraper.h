@@ -30,6 +30,8 @@ public:
         virtual void DismissPictureBuffer(int32_t picture_buffer_id)  = 0;
         virtual void PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
                                       uint32_t x, uint32_t y, uint32_t w, uint32_t h, int32_t flags)  = 0;
+        virtual void PictureReady(output_buf_param_t* params)  = 0;
+
         virtual void UpdateDecInfo(const uint8_t* info, uint32_t isize) = 0;
         virtual void NotifyEndOfBitstreamBuffer(int32_t bitstream_buffer_id)  = 0;
         virtual void NotifyFlushDone()  = 0;
@@ -82,6 +84,8 @@ public:
                 uint32_t width, uint32_t height);
     virtual void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId,
             uint32_t width, uint32_t height, int32_t flags);
+    virtual void onOutputBufferDone(output_buf_param_t* params);
+
     virtual void onInputBufferDone(int32_t bitstream_buffer_id);
     virtual void onUserdataReady(const uint8_t* userdata, uint32_t usize);
     virtual void onUpdateDecInfo(const uint8_t* info, uint32_t isize);
