@@ -1,0 +1,474 @@
+/*
+* Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+*
+* This source code is subject to the terms and conditions defined in below
+* which is part of this source code package.
+*
+* Description:
+*/
+
+// Copyright (C) 2019 Amlogic, Inc. All rights reserved.
+//
+// All information contained herein is Amlogic confidential.
+//
+// This software is provided to you pursuant to Software License
+// Agreement (SLA) with Amlogic Inc ("Amlogic"). This software may be
+// used only in accordance with the terms of this agreement.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification is strictly prohibited without prior written permission
+// from Amlogic.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+#ifndef _INCLUDED_COM_VIDEO_MULTI_CODEC
+#define _INCLUDED_COM_VIDEO_MULTI_CODEC
+
+#include <stdlib.h>
+#include <stdbool.h>
+
+#include <stdint.h>
+#define vl_codec_handle_t long
+
+
+ typedef struct enc_frame_extra_info {
+  int frame_type; /* encoded frame type as vl_frame_type_t */
+  int average_qp_value; /* average qp value of the encoded frame */
+  int intra_blocks;  /* intra blockes (in 8x8) of the encoded frame */
+  int merged_blocks; /* merged blockes (in 8x8) of the encoded frame */
+  int skipped_blocks; /* skipped blockes (in 8x8) of the encoded frame */
+} enc_frame_extra_info_t;
+
+/* encoded frame info */
+typedef struct encoding_metadata_e {
+  int encoded_data_length_in_bytes; /* size of the encoded buffer */
+  bool is_key_frame; /* if true, the encoded frame is a keyframe */
+  int timestamp_us;  /* timestamp in usec of the encode frame */
+  bool is_valid;     /* if true, the encoding was successful */
+  enc_frame_extra_info_t extra; /* extra info of encoded frame if is_valid true */
+  int err_cod; /* error code if is_valid is false: >0 normal, others error */
+} encoding_metadata_t;
+
+typedef enum vl_codec_id_e {
+  CODEC_ID_NONE,
+  CODEC_ID_VP8,
+  CODEC_ID_H261,
+  CODEC_ID_H263,
+  CODEC_ID_H264, /* must support */
+  CODEC_ID_H265,
+} vl_codec_id_t;
+
+typedef enum vl_img_format_e {
+  IMG_FMT_NONE,
+  IMG_FMT_NV12, /* must support  */
+  IMG_FMT_NV21,
+  IMG_FMT_YUV420P,
+  IMG_FMT_YV12,
+  IMG_FMT_RGB888,
+  IMG_FMT_RGBA8888,
+} vl_img_format_t;
+
+typedef enum vl_frame_type_e {
+  FRAME_TYPE_NONE,
+  FRAME_TYPE_AUTO, /* encoder self-adaptation(default) */
+  FRAME_TYPE_IDR,
+  FRAME_TYPE_I,
+  FRAME_TYPE_P,
+  FRAME_TYPE_B,
+  FRAME_TYPE_DROPPABLE_P,
+} vl_frame_type_t;
+
+typedef enum vl_fmt_type_e {
+  AML_FMT_ENC = 0,
+  AML_FMT_RAW = 1,
+} vl_fmt_type_t;
+/* buffer type*/
+typedef enum {
+  VMALLOC_TYPE = 0,
+  CANVAS_TYPE = 1,
+  PHYSICAL_TYPE = 2,
+  DMA_TYPE = 3,
+} vl_buffer_type_t;
+
+/* encoder features configure flags bit masks for enc_feature_opts */
+/* Enable RIO feature.
+        bit field value 1: enable, 0: diablae (default) */
+#define ENABLE_ROI_FEATURE      0x1
+/* Encode parameter update on the fly.
+        bit field value: 1: enable, 0: disable (default) */
+#define ENABLE_PARA_UPDATE      0x2
+/* Encode long term references feature.
+        bit field value: 1 enable, 0: disable (default)*/
+#define ENABLE_LONG_TERM_REF    0x80
+/* encoder info config */
+typedef struct vl_encode_info {
+  int width;
+  int height;
+  int frame_rate;
+  int bit_rate;
+  int gop;
+  bool prepend_spspps_to_idr_frames;
+  vl_img_format_t img_format;
+  int qp_mode; /* 1: use customer QP range, 0:use default QP range */
+  int forcePicQpEnable;
+  int forcePicQpI;
+  int forcePicQpP;
+  int forcePicQpB;
+  int enc_feature_opts; /* option features flag settings.*/
+                        /* See above for fields definition in detail */
+                       /* bit 0: qp hint(roi) 0:disable (default) 1: enable */
+                       /* bit 1: param_change 0:disable (default) 1: enable */
+                       /* bit 2 to 6: gop_opt:0 (default), 1:I only 2:IP, */
+                       /*                     3: IBBBP, 4: IP_SVC1, 5:IP_SVC2 */
+                       /*                     6: IP_SVC3, 7: IP_SVC4,  8:CustP*/
+                       /*                     see define of AMVGOPModeOPT */
+                       /* bit 7:LTR control   0:disable (default) 1: enable*/
+  int intra_refresh_mode; /* refresh mode select */
+                       /* 0: no refresh, 1:row 2:column, 3: step size */
+                       /* 4 (for HEVC only): adaptive */
+  int intra_refresh_arg; /* number of MB(CTU) rows, columns, MB(CTU)s */
+  int profile; /* encoding profile: 0 auto (H.264 high, H.265 main profile) */
+               /* H.264 1: baseline 2: Main, 3 High profile*/
+  /*frame rotation angle before encoding, counter clock-wise
+	0: no rotation
+	90: rotate 90 degree
+	180: rotate 180 degree
+	270: rotate 270 degree*/
+  uint32_t frame_rotation;
+  /*frame mirroring before encoding
+	0: no mirroring
+	1: vertical mirroring
+	2: horizontal mirroring
+	3: both v and h mirroring*/
+  uint32_t frame_mirroring;
+  int bitstream_buf_sz; /* the encoded bitstream buffer size in MB (range 1-32)*/
+                        /* 0: use the default value 2MB */
+  int multi_slice_mode; /* init multi-slice control */
+                        /*  0: only one slice per frame (default)
+                            1. multiple slice by MB(H.264)/CTU (H.265)
+                            2: by encoded size(dependant Slice) and
+                              CTU (independant Slice) combination (H.265 only)*/
+  int multi_slice_arg;  /*  when multi_slice_mode ==1:
+                                numbers of MB(16x16 blocks)/ CTU (64x64 blocks)
+                           when: multi_slice_mode ==2
+                           bit 0-15: CTUs per independent Slices
+                           bit 16-31: size of dependeant slices in bytes */
+  int cust_gop_qp_delta;   /* an qp delta for P  frames
+                            apply to cust GOP mode (>=IP_SVC1)           */
+  int strict_rc_window;     /* strict bitrate control window (frames count)
+                             0 disbled max 120, larger value will be clipped*/
+  int strict_rc_skip_thresh;/* threshold of actual bitrate in compare with target
+                              bitrate to trigger skip frame (in percentage)  */
+  int bitstream_buf_sz_kb; /* the encoded bitstream buffer size in KB */
+} vl_encode_info_t;
+
+/* dma buffer info*/
+/*for nv12/nv21, num_planes can be 1 or 2
+  for yv12, num_planes can be 1 or 3
+ */
+typedef struct vl_dma_info {
+  int shared_fd[3];
+  unsigned int num_planes;//for nv12/nv21, num_planes can be 1 or 2
+} vl_dma_info_t;
+
+/*When the memory type is V4L2_MEMORY_DMABUF, dma_info.shared_fd is a
+  file descriptor associated with a DMABUF buffer.
+  When the memory type is V4L2_MEMORY_USERPTR, in_ptr is a userspace
+  pointer to the memory allocated by an application.
+*/
+
+typedef union {
+  vl_dma_info_t dma_info;
+  unsigned long in_ptr[3];
+  uint32_t canvas;
+} vl_buf_info_u;
+
+/* input buffer info
+ * buf_type = VMALLOC_TYPE correspond to  buf_info.in_ptr
+   buf_type = DMA_TYPE correspond to  buf_info.dma_info
+ */
+typedef struct vl_buffer_info {
+  vl_buffer_type_t buf_type;
+  vl_buf_info_u buf_info;
+  int buf_stride; //buf stride for Y, if 0,use width as stride (default)
+  vl_img_format_t buf_fmt;
+} vl_buffer_info_t;
+
+/* noise reduction type*/
+typedef enum {
+  NR_DISABLE = 0,
+  NR_SPATIAL = 1,
+  NR_TEMPORAL = 2,
+  NR_BOTH = 3,
+} nr_mode_type_t;
+
+typedef struct vl_param_runtime {
+  int* idr;
+  int bitrate;
+  int frame_rate;
+
+  bool enable_vfr;
+  int min_frame_rate;
+
+  nr_mode_type_t nr_mode;
+} vl_param_runtime_t;
+
+typedef struct qp_param_s {
+  int qp_min;
+  int qp_max;
+  int qp_I_base;
+  int qp_P_base;
+  int qp_B_base;
+  int qp_I_min;
+  int qp_I_max;
+  int qp_P_min;
+  int qp_P_max;
+  int qp_B_min;
+  int qp_B_max;
+} qp_param_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/**
+ * Getting version information
+ *
+ *@return : version information
+ */
+const char* vl_get_version();
+
+/**
+ * init encoder
+ *
+ *@param : codec_id: codec type
+ *@param : vl_encode_info_t: encode info
+ *         width:      video width
+ *         height:     video height
+ *         frame_rate: framerate
+ *         bit_rate:   bitrate
+ *         gop GOP:    max I frame interval
+ *         prepend_spspps_to_idr_frames: if true, adds spspps header
+ *         to all idr frames (keyframes).
+ *         buf_type:
+ *         0: need memcpy from input buf to encoder internal dma buffer.
+ *         3: input buf is dma buffer, encoder use input buf without memcopy.
+ *img_format: image format
+ *@return : if success return encoder handle,else return <= 0
+ */
+vl_codec_handle_t vl_multi_encoder_init(vl_codec_id_t codec_id,
+                                        vl_encode_info_t encode_info,
+                                        qp_param_t* qp_tbl);
+
+
+/**
+ * gemerate header
+ *
+ *@param : codec_handle: handle
+ *@param : vl_encode_info_t: encode info
+ *         width:      video width
+ *         height:     video height
+ *         frame_rate: framerate
+ *         bit_rate:   bitrate
+ *         gop GOP:    max I frame interval
+ *         prepend_spspps_to_idr_frames: if true, adds spspps header
+ *         to all idr frames (keyframes).
+ *         buf_type:
+ *         0: need memcpy from input buf to encoder internal dma buffer.
+ *         3: input buf is dma buffer, encoder use input buf without memcopy.
+ *img_format: image format
+ *@return : if success return encoder handle,else return <= 0
+ */
+encoding_metadata_t vl_multi_encoder_generate_header(vl_codec_handle_t codec_handle,
+                                                     unsigned char *pHeader,
+                                                     unsigned int *pLength);
+
+
+/**
+ * encode video
+ *
+ *@param : handle
+ *@param : type: frame type
+ *@param : in: data to be encoded
+ *@param : in_size: data size
+ *@param : out: data output,need header(0x00，0x00，0x00，0x01),and format
+ *         must be I420(apk set param out，through jni,so modify "out" in the
+ *         function,don't change address point)
+ *@param : in_buffer_info
+ *         buf_type:
+ *              VMALLOC_TYPE: need memcpy from input buf to encoder internal dma buffer.
+ *              DMA_TYPE: input buf is dma buffer, encoder use input buf without memcopy.
+ *         buf_info.dma_info: input buf dma info.
+ *              num_planes:For nv12/nv21, num_planes can be 1 or 2.
+ *                         For YV12, num_planes can be 1 or 3.
+ *              shared_fd: DMA buffer fd.
+ *         buf_info.in_ptr: input buf ptr.
+ *@param : ret_buffer_info
+ *         buf_type:
+ *              VMALLOC_TYPE: need memcpy from input buf to encoder internal dma buffer.
+ *              DMA_TYPE: input buf is dma buffer, encoder use input buf without memcopy.
+ *              due to references and reordering, the DMA buffer may not return immedialtly.
+ *         buf_info.dma_info: returned buf dma info if any.
+ *              num_planes:For nv12/nv21, num_planes can be 1 or 2.
+ *                         For YV12, num_planes can be 1 or 3.
+ *              shared_fd: DMA buffer fd.
+ *         buf_info.in_ptr: returned input buf ptr.
+ *@return ：if success return encoded data length,else return <= 0
+ */
+encoding_metadata_t vl_multi_encoder_encode(vl_codec_handle_t handle,
+                                           vl_frame_type_t type,
+                                           unsigned char* out,
+                                           vl_buffer_info_t *in_buffer_info,
+                                           vl_buffer_info_t *ret_buffer_info);
+
+
+/**
+ *
+ * vl_video_encoder_update_qp_hint
+ *@param : handle
+ *@param : pq_hint_table: the char pointer with hint qp value (0-51) of each
+ *block in raster scan order.block size for AVC is 16x16, HEVC is 32x32)
+ *@size : size of the pq_hint_table.it must be equal or larger than the total
+ *number of the blocks of the whole frame. otherwise it will take no action.
+ *
+ *@return : if success return 0 ,else return <= 0
+ */
+int vl_video_encoder_update_qp_hint(vl_codec_handle_t handle,
+                            unsigned char *pq_hint_table,
+                            int size);
+/**
+ *
+ * vl_video_encoder_change_bitrate
+ * Change the taget bitrate in encoding
+ *@param : handle
+ *@param : bitRate: the new target encode bitrate
+ *@return : if success return 0 ,else return <= 0
+ */
+int vl_video_encoder_change_bitrate(vl_codec_handle_t handle,
+                            int bitRate);
+
+/**
+ *
+ * vl_video_encoder_change_qp
+ * Change the QP setings in the encoding
+ * Please note that I frame QP range have to larger than P/B frame range.
+ *
+ *@param : handle
+ *@param : minQpI  the new min QP for I frame
+ *@param : maxQpI  the new max QP for I frame
+ *@param : maxDeltaQp  the new max QP differences for HVS (human visual system)
+ *@param : minQpP  the new min QP for P frame
+ *@param : maxQpP  the new max QP for P frame
+ *@param : minQpB  the new min QP for B frame
+ *@param : maxQpB  the new max QP for B frame
+ *@return : if success return 0 ,else return <= 0
+ */
+int vl_video_encoder_change_qp(vl_codec_handle_t handle,
+                                int minQpI, int maxQpI, int maxDeltaQp,
+                                int minQpP, int maxQpP,
+                                int minQpB, int maxQpB);
+/*
+ * vl_video_encoder_change_gop
+ * Change the Gop period settings
+ *
+ *@param : handle
+ *@param : intraQP  the new init QP for the I frame
+ *@param : GOPPeriod the new GOP period
+ *@return : if success return 0 ,else return <= 0
+ */
+int vl_video_encoder_change_gop(vl_codec_handle_t handle,
+                                int intraQP, int GOPPeriod);
+
+/*
+ * vl_video_encoder_change_multi_slice
+ * set up long term reference flags
+ *
+ *@param : handle
+ *@param : multi_slice_mode:
+ *                          0: one-slices per frame
+ *                          1: slice by MB(16x16 H.264)/CTU (64x64 H.265)
+ *                          2: by encoded size(dependant Slice) and
+ *                             CTU (independant Slice) combination (H.265 only)
+ *@param : multi_slice_para:
+ *                          when multi_slice_mode ==1:
+ *                               numbers of MB(16x16 blocks)/ CTU (64x64 blocks)
+ *                          when: multi_slice_mode ==2
+ *                          bit 0-15: CTUs per independent Slices
+ *                          bit 16-31: size of dependeant slices in bytes
+ *
+ *@return : if success return 0 ,else return <= 0
+ */
+int vl_video_encoder_change_multi_slice(vl_codec_handle_t handle,
+                                  int multi_slice_mode, int multi_slice_para);
+/*
+ * vl_video_encoder_longterm_ref
+ * set up long term reference flags
+ *
+ *@param : handle
+ *@param : LongtermRefFlags:
+ *         bit 0: current frame use as long term reference
+ *         bit 1: current frame use LTF as reference to encode.
+ *
+ *@return : if success return 0 ,else return <= 0
+ */
+int vl_video_encoder_longterm_ref(vl_codec_handle_t codec_handle,
+                                  int LongtermRefFlags);
+/**
+
+ * vl_video_encoder_skip_frame(vl_codec_handle_t codec_handle)
+ *
+ * Change skip the encoding of current frame.
+ *@param : handle
+ *@return : if success return 0 ,else return <= 0
+ */
+int vl_video_encoder_skip_frame(vl_codec_handle_t handle);
+
+/**
+
+ * vl_video_encoder_change_strict_rc(vl_codec_handle_t handle,
+                                  int bitrate_window, int skip_threshold)
+  Change the strict bit-rate control by encoding skip frames
+
+*
+ *@param : handle
+ *@param : bitrate_window:
+ *                          the length of windows (in frames) to calculate
+ *                                   current bitrate
+ *                          0: will disable the feature
+ *                          other value: last number of frames to calculate
+ *                                 current bitrate (max 120 frames)
+ *                                  value larger than that will be clipped
+ *
+ *@param : skip_threshold:  percentage of the current bitrate in compare with
+ *                           the origianl bitrates settings to trigger skip
+ *                           encoding of next frame
+ *
+ *@return : if success return 0 ,else return <= 0
+ **/
+int vl_video_encoder_change_strict_rc(vl_codec_handle_t handle,
+                                  int bitrate_window, int skip_threshold);
+
+/**
+ * destroy encoder
+ *
+ *@param ：handle: encoder handle
+ *@return ：if success return 1,else return 0
+ */
+int vl_multi_encoder_destroy(vl_codec_handle_t handle);
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _INCLUDED_COM_VIDEO_MULTI_CODEC */

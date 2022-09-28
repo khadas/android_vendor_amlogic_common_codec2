@@ -1002,7 +1002,7 @@ c2_status_t C2VencW420::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFr
         inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.vPlane;//inputInfo.YCbCr[0] + mSize->width * mSize->height;//(unsigned long)uPlane;
         inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;//(unsigned long)vPlane;
     }
-    if (IMG_FMT_RGBA8888 != InputFrameInfo.colorFmt) {
+    if (IMG_FMT_RGBA8888 != inputInfo.fmt) {
         inputInfo.pitch = InputFrameInfo.yStride;//mSize->width;//pitch,need modify,fix me ????
     }
     else {
