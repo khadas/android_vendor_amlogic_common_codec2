@@ -945,6 +945,15 @@ void C2VencMulti::getResolution(int *pWidth,int *pHeight)
     *pHeight = mSize->height;
 }
 
+void C2VencMulti::getCodecDumpFileName(std::string &strName,DumpFileType_e type) {
+    char pName[128];
+    memset(pName,0,sizeof(pName));
+    sprintf(pName, "/data/venc_dump_%lx.%s", mCodecHandle,(C2_DUMP_RAW == type) ? "yuv" : "h264");
+    strName = pName;
+    ALOGD("Enable Dump raw file, name: %s", strName.c_str());
+}
+
+
 
 c2_status_t C2VencMulti::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min,
                                 int32_t *b_qp_max,int32_t *b_qp_min) {
