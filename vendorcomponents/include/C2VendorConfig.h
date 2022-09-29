@@ -8,10 +8,10 @@
 
 enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexStreamPtsUnstable = C2Param::TYPE_INDEX_VENDOR_START,
-    kParamIndexVendorTunerHal = C2Param::TYPE_INDEX_VENDOR_START + 1,
-    kParamIndexVendorVdecWorkMode = C2Param:: TYPE_INDEX_VENDOR_START + 2,
-    kParamIndexVendorDataSourceType = C2Param:: TYPE_INDEX_VENDOR_START + 3,
-    kParamIndexVendorTunerPassthroughTrickMode =  C2Param:: TYPE_INDEX_VENDOR_START + 4,
+    kParamIndexVendorTunerHal,
+    kParamIndexVendorVdecWorkMode,
+    kParamIndexVendorDataSourceType,
+    kParamIndexVendorTunerPassthroughTrickMode,
 };
 
 struct C2StreamPtsUnstableStruct {

@@ -10,6 +10,7 @@
 #include <C2VendorSupport.h>
 #include <util/C2InterfaceHelper.h>
 
+#include <C2VendorProperty.h>
 #include <cutils/properties.h>
 #include <utils/Log.h>
 #include <inttypes.h>
@@ -501,13 +502,13 @@ C2VendorComponentStore::C2VendorComponentStore()
       mReflector(std::make_shared<C2ReflectorHelper>()),
       mInterface(mReflector) {
     // TODO: move this also into a .so so it can be updated
-    bool supportC2Vdec = property_get_bool("vendor.media.c2.vdec.support", true);
+    bool supportC2Vdec = property_get_bool(C2_PROPERTY_VDEC_SUPPORT, true);
 #ifdef SUPPORT_SOFT_VDEC
-    bool supportC2SoftVdec = property_get_bool("vendor.media.c2.soft.vdec.support", true);
+    bool supportC2SoftVdec = property_get_bool(C2_PROPERTY_SOFTVDEC_SUPPORT, true);
 #endif
-    bool disableC2SecureVdec = property_get_bool("vendor.media.c2.vdec.secure.disable", false);
-    bool supportC2VEnc = property_get_bool("vendor.media.c2.venc.support", true);
-    bool supportC2Adec = property_get_bool("vendor.media.c2.adec.support", false);
+    bool disableC2SecureVdec = property_get_bool(C2_PROPERTY_VDEC_SECURE_DISABLE, false);
+    bool supportC2VEnc = property_get_bool(C2_PROPERTY_VENC_SUPPORT, true);
+    bool supportC2Adec = property_get_bool(C2_PROPERTY_ADEC_SUPPORT, false);
     if (supportC2Vdec) {
         for (int i = 0; i < sizeof(gC2VideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
             if (disableC2SecureVdec && strstr(gC2VideoDecoderComponents[i].compname.c_str(), (const char *)".secure"))
@@ -547,7 +548,7 @@ std::vector<std::shared_ptr<const C2Component::Traits>> C2VendorComponentStore::
     // This method SHALL return within 500ms.
     std::vector<std::shared_ptr<const C2Component::Traits>> list;
     ALOGV("C2VendorComponentStore::listComponents\n");
-    if (!property_get_bool("debug.vdecstore.enable-c2", true)) {
+    if (!property_get_bool(C2_PROPERTY_VENDOR_STORE_ENABLE, true)) {
         // Temporarily disable all vdec components.
         return list;
     }

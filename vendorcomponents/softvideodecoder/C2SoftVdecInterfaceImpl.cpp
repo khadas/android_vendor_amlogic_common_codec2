@@ -5,6 +5,7 @@
 #include <C2PlatformSupport.h>
 
 #include <C2VendorSupport.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2SoftVdecInterfaceImpl.h>
 #include <AmMediaDefsExt.h>
@@ -294,8 +295,8 @@ void C2SoftVdec::IntfImpl::onBufferSizeDeclareParam() {
         static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
                                         const C2P<C2StreamMaxPictureSizeTuning::output>& size) {
             (void)mayBlock;
-            size_t maxInputSize = property_get_int32("vendor.codec2.max.input.size", 6291456);
-            size_t paddingSize = property_get_int32("vendor.codec2.max.input.paddingsize", 262144);
+            size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, 6291456);
+            size_t paddingSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_PADDINGSIZE, 262144);
             size_t defaultSize = me.get().value;
             if (defaultSize > 0)
             defaultSize += paddingSize;

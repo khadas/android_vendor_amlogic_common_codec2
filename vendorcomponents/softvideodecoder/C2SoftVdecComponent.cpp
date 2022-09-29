@@ -27,6 +27,7 @@
 #include <Codec2BufferUtils.h>
 #include <Codec2CommonUtils.h>
 
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2SoftVdecComponent.h>
 
@@ -585,7 +586,7 @@ C2SoftVdecComponent::C2SoftVdecComponent(
       mIntf(intf),
       mLooper(new ALooper),
       mHandler(new WorkHandler) {
-    propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     mLooper->setName(intf->getName().c_str());
     (void)mLooper->registerHandler(mHandler);
     mLooper->start(false, false, ANDROID_PRIORITY_VIDEO);

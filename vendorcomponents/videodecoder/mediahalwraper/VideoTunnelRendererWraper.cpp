@@ -10,6 +10,7 @@
 #define LOG_TAG "VideoTunnelRendererWraper"
 
 #include <VideoTunnelRendererWraper.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <unistd.h>
@@ -17,6 +18,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 
 namespace android {
@@ -54,6 +56,7 @@ static VideoTunnelRendererBase* getVideoTunnelRenderer() {
 
 VideoTunnelRendererWraper::VideoTunnelRendererWraper(bool secure) {
     mVideoTunnelRenderer = getVideoTunnelRenderer();
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     CODEC2_LOG(CODEC2_LOG_INFO,"mVideoTunnelRenderer:%p\n", mVideoTunnelRenderer);
 }
 

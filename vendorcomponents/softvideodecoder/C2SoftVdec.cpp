@@ -19,6 +19,7 @@
 #include <Codec2CommonUtils.h>
 #include <Codec2Mapper.h>
 
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2SoftVdec.h>
 #include <C2SoftVdecInterfaceImpl.h>
@@ -40,7 +41,7 @@ std::atomic<int32_t> C2SoftVdec::sConcurrentInstances = 0;
 std::shared_ptr<C2Component> C2SoftVdec::create(
         const std::string& name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl) {
     static const int32_t kMaxConcurrentInstances =
-            property_get_int32("vendor.codec2.soft.vdec.concurrent-instances", 2);
+            property_get_int32(C2_PROPERTY_SOFTVDEC_INST_MAX_NUM, 2);
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
@@ -74,8 +75,8 @@ C2SoftVdec::C2SoftVdec(C2String name, c2_node_id_t id,
 
         CODEC2_LOG(CODEC2_LOG_INFO, "Create %s(%s)", __func__, name.c_str());
 
-        propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
-        bool mDumpYuvEnable = property_get_bool("vendor.media.codec2.dumpyuv", false);
+        propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
+        bool mDumpYuvEnable = property_get_bool(C2_PROPERTY_SOFTVDEC_DUMP_YUV, false);
         if (mDumpYuvEnable) {
             char pathFile[1024] = { '\0'  };
             sprintf(pathFile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);

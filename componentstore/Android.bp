@@ -32,12 +32,12 @@ cc_library_headers {
     export_include_dirs: [
         "include",
     ],
-    vendor_available: true,
+    vendor: true,
 }
 
 cc_library_shared {
     name: "libvendor_c2componentstore",
-    vendor_available: true,
+    vendor: true,
     srcs: [
         "C2VendorComponentStore.cpp",
     ],
@@ -48,6 +48,7 @@ cc_library_shared {
     header_libs: [
         "media_plugin_headers",
         "libcodec2_headers",
+        "libvendor_component_headers",
     ],
     cflags: [
       "-Werror",

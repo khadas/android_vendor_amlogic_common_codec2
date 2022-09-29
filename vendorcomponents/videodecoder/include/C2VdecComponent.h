@@ -294,7 +294,6 @@ private:
     // without blocking.
     c2_status_t sendOutputBufferToWorkIfAny(bool dropIfUnavailable);
     void updateWorkParam(C2Work* work, GraphicBlockInfo* info);
-    void dumpGraphicBlockYuv(GraphicBlockInfo* info);
     // Update |mUndequeuedBlockIds| FIFO by pushing |blockId|.
     void updateUndequeuedBlockIds(int32_t blockId);
     void onCheckVideoDecReconfig();
@@ -470,9 +469,6 @@ private:
     std::shared_ptr<C2PortActualDelayTuning::output> mOutputDelay;
     // init param
     mediahal_cfg_parms mConfigParam;
-    FILE* mDumpYuvFp;
-    bool mDumpYuvEnable;
-    static uint32_t mDumpFileCnt;
 
     std::shared_ptr<VideoDecWraper> mVideoDecWraper;
     std::shared_ptr<DeviceUtil> mDeviceUtil;

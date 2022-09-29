@@ -44,6 +44,7 @@
 #include <C2VdecTunnelHelper.h>
 #include <C2VdecTunerPassthroughHelper.h>
 #include <C2VdecDebugUtil.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <amuvm.h>
 
@@ -67,7 +68,6 @@
 
 #define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mInstanceID, mCurInstanceID, ##str)
 
-uint32_t android::C2VdecComponent::mDumpFileCnt = 0;
 uint32_t android::C2VdecComponent::mInstanceNum = 0;
 uint32_t android::C2VdecComponent::mInstanceID = 0;
 
@@ -146,9 +146,9 @@ std::shared_ptr<C2Component> C2VdecComponent::create(
         C2ComponentFactory::ComponentDeleter deleter) {
     UNUSED(deleter);
     static const int32_t kMaxConcurrentInstances =
-            property_get_int32("vendor.codec2.decode.concurrent-instances", 9);
+            property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM, 9);
     static const int32_t kMaxSecureConcurrentInstances =
-            property_get_int32("vendor.codec2.securedecode.concurrent-instances", 2);
+            property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM_SECURE, 2);
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     bool isSecure = name.find(".secure") != std::string::npos;
@@ -183,7 +183,6 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mState(State::UNLOADED),
         mWeakThisFactory(this),
         mOutputDelay(nullptr),
-        mDumpYuvFp(NULL),
         mVideoDecWraper(NULL),
         mDeviceUtil(NULL),
         mTunnelHelper(NULL),
@@ -237,22 +236,11 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     mInstanceID ++;
     mUpdateDurationUsCount = 0;
 
-    propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
-    mDumpYuvEnable = property_get_bool("vendor.media.codec2.dumpyuv", false);
-    if (mDumpYuvEnable && !mSecureMode) {
-        char pathFile[1024] = { '\0'  };
-        sprintf(pathFile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
-        mDumpYuvFp = fopen(pathFile, "wb");
-        if (mDumpYuvFp) {
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "open file %s", pathFile);
-        } else {
-            C2Vdec_LOG(CODEC2_LOG_ERR, "Open file %s error:%s", pathFile, strerror(errno));
-        }
-    }
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     //default 1min
-    mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32("vendor.codec2.default.retryblock.timeout", DEFAULT_RETRYBLOCK_TIMEOUT_MS);
-    mFdInfoDebugEnable =  property_get_bool("debug.vendor.media.codec2.vdec.fd_info_debug", false);
-    mSupport10BitDepth =  property_get_bool("debug.vendor.media.codec2.vdec.support_10bit", false);
+    mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32(C2_PROPERTY_VDEC_RETRYBLOCK_TIMEOUT, DEFAULT_RETRYBLOCK_TIMEOUT_MS);
+    mFdInfoDebugEnable =  property_get_bool(C2_PROPERTY_VDEC_FD_INFO_DEBUG, false);
+    mSupport10BitDepth =  property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, false);
 
     mDebugUtil = std::make_shared<DebugUtil>(this);
     if (mFdInfoDebugEnable && mDebugUtil) {
@@ -302,8 +290,6 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
             mDeviceUtil.reset();
             mDeviceUtil = NULL;
         }
-        if (mDumpYuvFp)
-            fclose(mDumpYuvFp);
     }
     if (mTunerPassthroughHelper) {
         mTunerPassthroughHelper.reset();
@@ -845,9 +831,6 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             updateUndequeuedBlockIds(info->mBlockId);
             // Attach output buffer to the work corresponded to bitstreamId.
 
-            if (mDumpYuvEnable)
-                dumpGraphicBlockYuv(info);
-
             updateWorkParam(work, info);
             info->mGraphicBlock.reset();
         }
@@ -911,27 +894,6 @@ void C2VdecComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
         mOutputDelay = nullptr;
     }
     work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
-}
-
-void C2VdecComponent::dumpGraphicBlockYuv(GraphicBlockInfo* info) {
-    if (info == NULL) {
-        C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] Graphicblock is null and return.", __func__);
-        return;
-    }
-
-    C2ConstGraphicBlock constBlock = info->mGraphicBlock->share(
-                                        C2Rect(mOutputFormat.mVisibleRect.width(),
-                                        mOutputFormat.mVisibleRect.height()),
-                                        C2Fence());
-    //for dump
-    if (mDumpYuvFp && !mSecureMode) {
-        const C2GraphicView& view = constBlock.map().get();
-        const uint8_t* const* data = view.data();
-        int size = info->mGraphicBlock->width() * info->mGraphicBlock->height() * 3 / 2;
-        //ALOGV("%s C2ConstGraphicBlock database:%x, y:%p u:%p",
-            //       __FUNCTION__, reinterpret_cast<intptr_t>(data[0]), data[C2PlanarLayout::PLANE_Y], data[C2PlanarLayout::PLANE_U]);
-        fwrite(data[0], 1, size, mDumpYuvFp);
-    }
 }
 
 void C2VdecComponent::onAndroidVideoPeek() {

@@ -7,6 +7,7 @@
 #include <C2BufferPriv.h>
 #include <C2Buffer.h>
 #include <utility>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -52,7 +53,7 @@ public:
         bool useSurface = C2PlatformAllocatorStore::BUFFERQUEUE == base->getAllocatorId();
         std::shared_ptr<C2AllocatorStore> allocatorStore = GetCodec2PlatformAllocatorStore();
         c2_status_t status = allocatorStore->fetchAllocator(base->getAllocatorId(), &mAllocatorBase);
-        propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
+        propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
 
         if (status != C2_OK) {
             CODEC2_LOG(CODEC2_LOG_ERR, "Create block block pool fail.");

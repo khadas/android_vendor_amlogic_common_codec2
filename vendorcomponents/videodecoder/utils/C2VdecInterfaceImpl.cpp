@@ -5,6 +5,7 @@
 #include <C2VendorSupport.h>
 #include <C2VdecInterfaceImpl.h>
 #include <C2VdecComponent.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 
 #include <C2PlatformSupport.h>
@@ -677,7 +678,7 @@ void C2VdecComponent::IntfImpl::onUnstablePtsDeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onOutputDelayDeclareParam() {
-        int32_t propOutputDelay = property_get_int32("vendor.media.codec2.output.delay",kDefaultOutputDelay);
+        int32_t propOutputDelay = property_get_int32(C2_PROPERTY_VDEC_OUT_DELAY,kDefaultOutputDelay);
         addParameter(
                 DefineParam(mActualOutputDelay, C2_PARAMKEY_OUTPUT_DELAY)
                 .withDefault(new C2PortActualDelayTuning::output(propOutputDelay))
@@ -690,7 +691,7 @@ void C2VdecComponent::IntfImpl::onInputDelayDeclareParam() {
         int32_t inputDelayNum = 0;
         int32_t inputDelayMax = 0;
         if (mSecureMode) {
-                inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num_secure", 4);
+                inputDelayNum = property_get_int32(C2_PROPERTY_VDEC_INPUT_DELAY_NUM_SECURE, 4);
                 if (inputDelayNum > kMaxInputDelaySecure) {
                         CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] exceed max secure input delay num %d %d",
                                 __func__, __LINE__, inputDelayNum, kMaxInputDelaySecure);
@@ -705,7 +706,7 @@ void C2VdecComponent::IntfImpl::onInputDelayDeclareParam() {
                 .build());
                 inputDelayMax = kMaxInputDelaySecure;
         } else {
-                inputDelayNum = property_get_int32("vendor.media.c2.vdec.input.delay_num", 4);
+                inputDelayNum = property_get_int32(C2_PROPERTY_VDEC_INPUT_DELAY_NUM, 4);
                 if (inputDelayNum > kMaxInputDelay) {
                         CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] exceed max no-secure input delay num %d %d",
                                 __func__, __LINE__, inputDelayNum, kMaxInputDelay);
@@ -858,8 +859,8 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
                 static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
                                                 const C2P<C2StreamPictureSizeInfo::output>& size) {
                         (void)mayBlock;
-                        size_t maxInputSize = property_get_int32("vendor.codec2.max.input.size", 6291456);
-                        size_t paddingSize = property_get_int32("vendor.codec2.max.input.paddingsize", 262144);
+                        size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, 6291456);
+                        size_t paddingSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_PADDINGSIZE, 262144);
                         size_t defaultSize = me.get().value;
                         if (defaultSize > 0)
                         defaultSize += paddingSize;

@@ -14,6 +14,7 @@
 #include <video_decode_accelerator.h>
 #include <dlfcn.h>
 #include <unistd.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 namespace android {
 
@@ -131,6 +132,7 @@ VideoDecWraper::VideoDecWraper() :
     gInstanceCnt++;
     gInstanceNum++;
     mInstanceCnt = gInstanceCnt;
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     C2VdecWraper_LOG(CODEC2_LOG_INFO, "VideoDecWraper");
 }
 

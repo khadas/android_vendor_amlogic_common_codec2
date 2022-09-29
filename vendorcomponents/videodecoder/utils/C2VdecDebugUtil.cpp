@@ -16,6 +16,7 @@
 #include <base/bind.h>
 #include <base/bind_helpers.h>
 
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2VdecDebugUtil.h>
 #include <C2VdecInterfaceImpl.h>
@@ -40,7 +41,7 @@ C2VdecComponent::DebugUtil::DebugUtil(C2VdecComponent* comp):
     mIntfImpl = mComp->GetIntfImpl();
     DCHECK(mIntfImpl != NULL);
 
-    propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
 }
 
 C2VdecComponent::DebugUtil::~DebugUtil() {

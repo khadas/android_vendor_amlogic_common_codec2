@@ -17,6 +17,7 @@
 
 #include <am_gralloc_ext.h>
 
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2VdecTunnelHelper.h>
 #include <C2VdecInterfaceImpl.h>
@@ -56,7 +57,7 @@ C2VdecComponent::TunnelHelper::TunnelHelper(C2VdecComponent* comp, bool secure):
     if (mIntfImpl->getInputCodec() == InputCodec::H264) {
         mReallocWhenResChange = true;
     }
-    mReallocWhenResChange = property_get_bool("vendor.media.c2.vdec.realloc_for_tunnel_reschange", mReallocWhenResChange);
+    mReallocWhenResChange = property_get_bool(C2_PROPERTY_VDEC_REALLOC_TUNNEL_RESCHANGE, mReallocWhenResChange);
 
     if (mVideoTunnelRenderer) {
         mTunnelId = mVideoTunnelRenderer->getTunnelId();
@@ -67,7 +68,7 @@ C2VdecComponent::TunnelHelper::TunnelHelper(C2VdecComponent* comp, bool secure):
         }
     }
     mAndroidPeekFrameReady = false;
-    propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 }
 
@@ -645,7 +646,7 @@ uint64_t C2VdecComponent::TunnelHelper::getPlatformUsage() {
 
     /* check debug doublewrite */
     char value[PROPERTY_VALUE_MAX];
-    if (property_get("vendor.media.doublewrite", value, NULL) > 0) {
+    if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
         int32_t doublewrite_debug = atoi(value);
         C2VdecTMH_LOG(CODEC2_LOG_INFO, "Set double:%d", doublewrite_debug);
         if (doublewrite_debug != 0) {

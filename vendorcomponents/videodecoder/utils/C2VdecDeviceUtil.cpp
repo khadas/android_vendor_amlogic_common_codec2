@@ -12,6 +12,7 @@
 #include <VideoDecodeAcceleratorAdaptor.h>
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <am_gralloc_ext.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2VendorConfig.h>
 #include <inttypes.h>
@@ -65,7 +66,7 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
 
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
     mIntfImpl = mComp->GetIntfImpl();
-    propGetInt(CODEC2_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
 
     mUvmFd = amuvm_open();
     if (mUvmFd < 0) {
@@ -90,10 +91,10 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     bool dvUseTwoLayer = false;
     char value[PROPERTY_VALUE_MAX];
 
-    mEnableNR = property_get_bool("vendor.c2.nr.enable", false);
-    mEnableDILocalBuf = property_get_bool("vendor.c2.di.localbuf.enable", false);
-    mEnable8kNR = property_get_bool("vendor.c2.8k.nr.enable", false);
-    mDisableErrPolicy = property_get_bool("vendor.c2.disable.err.policy", true);
+    mEnableNR = property_get_bool(C2_PROPERTY_VDEC_DISP_NR_ENABLE, false);
+    mEnableDILocalBuf = property_get_bool(C2_PROPERTY_VDEC_DISP_DI_LOCALBUF_ENABLE, false);
+    mEnable8kNR = property_get_bool(C2_PROPERTY_VDEC_DISP_NR_8K_ENABLE, false);
+    mDisableErrPolicy = property_get_bool(C2_PROPERTY_VDEC_ERRPOLICY_DISABLE, true);
 
     mConfigParam = configParam;
     memset(mConfigParam, 0, sizeof(mediahal_cfg_parms));
@@ -243,12 +244,12 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         default_margin = 7;
     }
 
-    if (property_get("vendor.media.doublewrite", value, NULL) > 0) {
+    if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
         doubleWriteMode = atoi(value);
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "set double:%d", doubleWriteMode);
     }
     memset(value, 0, sizeof(value));
-    if (property_get("vendor.media.margin", value, NULL) > 0) {
+    if (property_get(C2_PROPERTY_VDEC_MARGIN, value, NULL) > 0) {
         default_margin = atoi(value);
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "set margin:%d", default_margin);
     }
@@ -427,7 +428,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
         return 0;
     }
 
-    bool enable = property_get_bool("vendor.c2.hdr.littleendian.enable", false);
+    bool enable = property_get_bool(C2_PROPERTY_VDEC_HDR_LITTLE_ENDIAN_ENABLE, false);
 
     std::function<int(int)> BLEndianInt = [=] (int value) -> int {
         if (enable)
@@ -877,7 +878,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
     } else {
         char value[PROPERTY_VALUE_MAX];
-        if (property_get("vendor.media.doublewrite", value, NULL) > 0) {
+        if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
             int32_t doublewrite_debug = atoi(value);
             C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set double:%d", doublewrite_debug);
             if (doublewrite_debug != 0) {
@@ -952,7 +953,7 @@ uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forc
 bool C2VdecComponent::DeviceUtil::getNeedReallocBuffer()
 {
     bool realloc = true;
-    bool debugrealloc = property_get_bool("vendor.media.codec2.reallocbuf", false);
+    bool debugrealloc = property_get_bool(C2_PROPERTY_VDEC_OUT_BUF_REALLOC, false);
 
     if (debugrealloc)
         return true;

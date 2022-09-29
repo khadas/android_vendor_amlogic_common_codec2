@@ -661,7 +661,7 @@ C2VencHCodec::C2VencHCodec(const char *name, c2_node_id_t id, const std::shared_
               mCodecHandle(0),
               mIDRInterval(0) {
     ALOGD("C2VencHCodec constructor!");
-    propGetInt(CODEC2_ENCODER_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
     sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
     mInstanceID++;

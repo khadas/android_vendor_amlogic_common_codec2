@@ -17,6 +17,7 @@
 
 #include <am_gralloc_ext.h>
 
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2VdecTunerPassthroughHelper.h>
 #include <c2logdebug.h>
@@ -56,8 +57,8 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(C2VdecComponent*
     mIntfImpl = mComp->GetIntfImpl();
     mTaskRunner = mComp->GetTaskRunner();
     DCHECK(mTaskRunner != NULL);
-
     mSyncId = mIntfImpl->mVendorTunerHalParam->hwAVSyncId;
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     if ((mSyncId & 0x0000FF00) == 0xFF00 || mSyncId == 0x0) {
         mSyncId = mSyncId | HWSYNCID_PASSTHROUGH_FLAG;
     } else {

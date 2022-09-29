@@ -16,6 +16,7 @@
 #include <C2Enum.h>
 #include <C2Param.h>
 #include <C2ParamDef.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 
 #include <SimpleC2Interface.h>

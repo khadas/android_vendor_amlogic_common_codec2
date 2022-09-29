@@ -167,7 +167,7 @@ C2VencComponent::C2VencComponent(const std::shared_ptr<C2ComponentInterface> &in
                   mDumpYuvEnable(false),
                   mDumpEsEnable(false) {
     ALOGD("C2VencComponent constructor!");
-    propGetInt(CODEC2_ENCODER_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
 }
 

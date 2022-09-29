@@ -10,6 +10,6 @@ cc_library_headers {
     export_include_dirs: [
         "include",
     ],
-    vendor_available: true,
+    vendor: true,
 }
 

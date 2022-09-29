@@ -11,7 +11,9 @@
 #define LOG_TAG "TunerPassthroughWrapper"
 #include <dlfcn.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <utils/Log.h>
+#include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include "TunerPassthroughWrapper.h"
 #include "VideoTunnelRendererBase.h"
@@ -62,7 +64,8 @@ TunerPassthroughWrapper::TunerPassthroughWrapper() {
     gInstanceCnt++;
     gInstanceNum++;
     mInstanceCnt = gInstanceCnt;
-    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"Create");
+    propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO, "Create");
 }
 
 TunerPassthroughWrapper::~TunerPassthroughWrapper() {

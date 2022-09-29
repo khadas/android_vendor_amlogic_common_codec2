@@ -11,14 +11,11 @@
 
 static unsigned int gloglevel = 1;
 
-#define CODEC2_LOGDEBUG_PROPERTY "vendor.media.codec2.loglevels"
-#define CODEC2_ENCODER_LOGDEBUG_PROPERTY              "debug.vendor.media.c2.venc.loglevels"
-
 #define CODEC2_LOG_ERR 0
 #define CODEC2_LOG_INFO 1
-#define CODEC2_LOG_DEBUG_LEVEL1 2
-#define CODEC2_LOG_DEBUG_LEVEL2 4
-#define CODEC2_LOG_TAG_BUFFER 8
+#define CODEC2_LOG_TAG_BUFFER 2
+#define CODEC2_LOG_DEBUG_LEVEL1 4
+#define CODEC2_LOG_DEBUG_LEVEL2 8
 #define CODEC2_LOG_TRACE 16
 
 #define CODEC2_VENC_LOG_ERR    CODEC2_LOG_ERR
@@ -26,7 +23,6 @@ static unsigned int gloglevel = 1;
 #define CODEC2_VENC_LOG_DEBUG   CODEC2_LOG_DEBUG_LEVEL1
 #define CODEC2_VENC_LOG_TAG_BUFFER  CODEC2_LOG_TAG_BUFFER
 #define CODEC2_VENC_LOG_TRACE  CODEC2_LOG_TRACE
-
 
 #define CODEC2_LOG(level, f, s...) \
 do { \
