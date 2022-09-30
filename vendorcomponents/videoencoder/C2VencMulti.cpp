@@ -220,8 +220,8 @@ public:
             DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
             .withDefault(new C2StreamPictureSizeInfo::input(0u, 16, 16))
             .withFields({
-                C2F(mSize, width).inRange(2, 2560, 2),
-                C2F(mSize, height).inRange(2, 2560, 2),
+                C2F(mSize, width).inRange(2, 3840, 2),
+                C2F(mSize, height).inRange(2, 2160, 2),
             })
             .withSetter(SizeSetter)
             .build());
@@ -748,8 +748,8 @@ bool C2VencMulti::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCod
             break;
         }
         default: {
-            ALOGE("cannot suppoort colorformat:0x%x,set default:NV12",inputCodec);
-            *pOutputCodec = IMG_FMT_NV12;
+            ALOGE("cannot suppoort colorformat:0x%x,set default:NV21",inputCodec);
+            *pOutputCodec = IMG_FMT_NV21;
             ret = true;
             break;
         }
