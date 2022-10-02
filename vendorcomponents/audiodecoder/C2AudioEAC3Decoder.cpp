@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2022 Amlogic, Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@
 #include "C2VendorSupport.h"
 #include "C2AudioEAC3Decoder.h"
 #include "aml_ac3_decoder_api.h"
+#include "C2VendorAudioConfig.h"
 
 
 #define MAX_CHANNEL_COUNT            8  /* maximum number of audio channels that can be decoded */
@@ -116,9 +117,16 @@ public:
                 .withFields({C2F(mChannelMask, value).inRange(0, 4294967292)})
                 .withSetter(Setter<decltype(*mChannelMask)>::StrictValueWithNoDeps)
                 .build());
+
+        addParameter(DefineParam(mPassthroughEnable, C2_PARAMKEY_VENDOR_PASSTHROUGH_ENABLE)
+                .withDefault(new C2PassthroughEnable::input(0))
+                .withFields({C2F(mPassthroughEnable, value).any()})
+                .withSetter(Setter<decltype(*mPassthroughEnable)>::StrictValueWithNoDeps)
+                .build());
     }
 
     u_int32_t getMaxChannelCount() const { return mMaxChannelCount->value; }
+    int32_t getPassthroughEnable() const { return mPassthroughEnable->value; }
 
 private:
     std::shared_ptr<C2StreamSampleRateInfo::output> mSampleRate;
@@ -127,6 +135,7 @@ private:
     std::shared_ptr<C2StreamMaxBufferSizeInfo::input> mInputMaxBufSize;
     std::shared_ptr<C2StreamMaxChannelCountInfo::input> mMaxChannelCount;
     std::shared_ptr<C2StreamChannelMaskInfo::output> mChannelMask;
+    std::shared_ptr<C2PassthroughEnable::input> mPassthroughEnable;
 };
 
 /*static unsigned long amsysfs_get_sysfs_ulong(const char *path)
@@ -281,8 +290,8 @@ int parse_frame_header
         goto error;
     }
     else {
-        ALOGV("dolby head:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x \n",
-         inheader[0],inheader[1],inheader[2], inheader[3],inheader[4],inheader[5]);
+        //ALOGV("dolby head:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x \n",
+        // inheader[0],inheader[1],inheader[2], inheader[3],inheader[4],inheader[5]);
         int bsid = (inheader[5] >> 3) & 0x1f;//bitstream_id,bit[40,44]
         if (bsid > 16)
             goto error;//invalid bitstream_id
@@ -293,7 +302,7 @@ int parse_frame_header
         *IsEc3 = nIsEc3;
 
         if (nIsEc3 == 0) {
-            ALOGI("%02x",inheader[6]);
+            //ALOGI("%02x",inheader[6]);
             int use_bits = 0;
 
             substreamid = 0;
@@ -323,7 +332,6 @@ int parse_frame_header
             lfeOn = inheader[4] &0x1;
             numblkscod = (sr_code == 0x3) ? 0x3 : ( (inheader[4] >> 4) & 0x3);
             numblk_per_frame = (numblkscod == 0x3) ? 6 : (numblkscod + 1);
-
         }
     }
     return 0;
@@ -337,16 +345,10 @@ C2AudioEAC3Decoder::C2AudioEAC3Decoder(
         const std::shared_ptr<IntfImpl> &intfImpl)
     : C2AudioDecComponent(std::make_shared<AudioDecInterface<IntfImpl>>(name, id, intfImpl)),
       mIntf(intfImpl),
-
-      //add by amlogic
-    mInputFlushing(false),
-    mOutputFlushing(false),
-    mInputFlushDone(false),
-    mOutputFlushDone(false),
-      nAudioCodec(1),
-      digital_raw(0),
-      nIsEc3(1),
-      adec_call(false),
+    nAudioCodec(1),
+    digital_raw(0),
+    nIsEc3(1),
+    adec_call(false),
     mAnchorTimeUs(0),
     decoder_offset(0),
     mNumFramesOutput(0)
@@ -534,6 +536,7 @@ bool C2AudioEAC3Decoder::setUpAudioDecoder_l() {
             mConfig->debug_dump = 1;
         }
 
+        digital_raw = mIntf->getPassthroughEnable();
         if (digital_raw >= 3) {
             if (digital_raw == 3) {
                 adec_call = false;
@@ -608,13 +611,7 @@ c2_status_t C2AudioEAC3Decoder::onInit() {
 
 c2_status_t C2AudioEAC3Decoder::onStop() {
     ALOGV("%s() %d", __func__, __LINE__);
-
-    mBuffersInfo.clear();
-    {
-         AutoMutex l(mFlushLock);
-         mRunning = false;
-     }
-     mAbortPlaying = true;
+    mAbortPlaying = true;
 
     return C2_OK;
 }
@@ -647,17 +644,7 @@ void C2AudioEAC3Decoder::onReset() {
 }
 
 void C2AudioEAC3Decoder::onRelease() {
-    ALOGV("%s() %d", __func__, __LINE__);
     LOG_LINE();
-    {
-        AutoMutex l(mFlushLock);
-        mRunning = false;
-    }
-
-    mInputFlushing = false;
-    mOutputFlushing = false;
-    mInputFlushDone = false;
-    mOutputFlushDone = false;
     if (ddp_decoder_cleanup != NULL && handle != NULL) {
         (*ddp_decoder_cleanup)(handle);
         handle = NULL;
@@ -680,15 +667,6 @@ status_t C2AudioEAC3Decoder::initDecoder() {
         return C2_OMITTED;
     }
     mAbortPlaying = false;
-    {
-        AutoMutex l(mFlushLock);
-        mInputFlushing = false;
-        mOutputFlushing = false;
-        mInputFlushDone = false;
-        mOutputFlushDone = false;
-        mRunning = true;
-    }
-
 
     //setConfig default
     nAudioCodec = 1;
@@ -711,7 +689,9 @@ void C2AudioEAC3Decoder::drainOutBuffer(
         Info &outInfo = mBuffersInfo.front();
         int numFrames = outInfo.decodedSizes.size();
         int outputDataSize =  mConfig->outputFrameSize;
-        ALOGV("%s outputDataSize:%d,  outInfo numFrames:%d,frameIndex = %" PRIu64 "",__func__, outputDataSize, numFrames, outInfo.frameIndex);
+        if (mConfig->debug_print) {
+            ALOGV("%s outputDataSize:%d,  outInfo numFrames:%d,frameIndex = %" PRIu64 "",__func__, outputDataSize, numFrames, outInfo.frameIndex);
+        }
 
         std::shared_ptr<C2LinearBlock> block;
         std::function<void(const std::unique_ptr<C2Work>&)> fillWork =
@@ -767,7 +747,9 @@ void C2AudioEAC3Decoder::drainOutBuffer(
         }
 
         mBuffersInfo.pop_front();
-        ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
+        if (mConfig->debug_print) {
+            ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
+        }
     }
 }
 
@@ -785,9 +767,7 @@ void C2AudioEAC3Decoder::process(
 
     int prevSampleRate = pcm_out_info.sample_rate;
     int prevNumChannels = pcm_out_info.channel_num;
-
     bool eos = (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) != 0;
-    ALOGV("%s input.flags:0x%x  eos:%d", __func__, work->input.flags, eos);
 
     uint8* inBuffer = NULL;
     C2ReadView view = mDummyReadView;
@@ -805,7 +785,9 @@ void C2AudioEAC3Decoder::process(
     inInfo.timestamp = work->input.ordinal.timestamp.peeku();
     inInfo.bufferSize = inBuffer_nFilledLen;
     inInfo.decodedSizes.clear();
-    ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%llu, timestamp:%llu", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
+    if (mConfig->debug_print) {
+        ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%llu, timestamp:%llu", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
+    }
 
 
     uint32_t inBuffer_offset = 0;
@@ -837,7 +819,7 @@ void C2AudioEAC3Decoder::process(
 
                 memcpy(mRemainBuffer + mRemainLen, mConfig->pInputBuffer, copy_size);
                 ret = parse_frame_header(mRemainBuffer, mRemainLen + copy_size, &framesize, &offset, &nIsEc3);
-                ALOGV("%s() 111 ret:%d, inBuffer_len:%zu  avail_size:%d, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, avail_size, framesize, offset,  nIsEc3);
+                //ALOGV("%s() 111 ret:%d, inBuffer_len:%zu  avail_size:%d, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, avail_size, framesize, offset,  nIsEc3);
                 if (ret == 0 && (framesize - mRemainLen >= 0)) {
                     inBuffer_offset += (framesize - mRemainLen);
                     inBuffer_nFilledLen -= (framesize - mRemainLen);
@@ -853,7 +835,7 @@ void C2AudioEAC3Decoder::process(
                 mConfig->pInputBuffer = inBuffer + inBuffer_offset;
                 mConfig->inputBufferCurrentLength = inBuffer_nFilledLen;
                 ret = parse_frame_header(mConfig->pInputBuffer,mConfig->inputBufferCurrentLength,&framesize,&offset,&nIsEc3);
-                ALOGV("%s() 222 ret:%d, inBuffer_len:%zu, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, framesize, offset,  nIsEc3);
+                //ALOGV("%s() 222 ret:%d, inBuffer_len:%zu, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, framesize, offset,  nIsEc3);
                 if (ret == 0) {
                     if (framesize > mConfig->inputBufferCurrentLength - offset) {
                         mRemainLen = mConfig->inputBufferCurrentLength - offset;
@@ -978,7 +960,6 @@ void C2AudioEAC3Decoder::process(
             }
         }
 
-        //ALOGV("%s  push_back after decode", __func__);
         mBuffersInfo.push_back(std::move(inInfo));
     } else {
            // This case is designed for Xiaomi. When digital_raw=3,

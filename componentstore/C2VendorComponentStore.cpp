@@ -278,6 +278,10 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
         std::string destroyFactoryName;
         if (isAudio) {
             switch (codec) {
+                case C2VendorCodec::ADEC_FFMPEG:
+                    createFactoryName = "CreateC2AudioDecoderFFMPEGFactory";
+                    destroyFactoryName = "DestroyC2AudioDecoderFFMPEGFactory";
+                    break;
               case C2VendorCodec::ADEC_AAC:
                   createFactoryName = "CreateC2AudioDecoderAACFactory";
                   destroyFactoryName = "DestroyC2AudioDecoderAACFactory";
