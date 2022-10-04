@@ -1059,7 +1059,8 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
     ALOGD("Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,bitrate:%d",inputInfo.buf_info.in_ptr[0],
          inputInfo.buf_info.in_ptr[1],inputInfo.buf_info.in_ptr[2],inputInfo.buf_type,inputInfo.buf_fmt,inputInfo.buf_stride,bitrate->value);
     ret = mEncFrameFunc(mCodecHandle, frameType, (unsigned char*)pOutFrameInfo->Data, &inputInfo, &retbuf);
-
+    pOutFrameInfo->Length = ret.encoded_data_length_in_bytes;
+    ALOGD("encode finish,output len:%d",ret.encoded_data_length_in_bytes);
     if (!ret.is_valid) {
         ALOGE("multi encode frame failed,errcode:%d",ret.err_cod);
         return C2_CORRUPTED;
