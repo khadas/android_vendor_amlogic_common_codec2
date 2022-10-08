@@ -178,7 +178,7 @@ private:
     FILE* mDumpYuvFp;
     static uint32_t mDumpFileCnt;
 
-    // For decode time caculate.
+    // For decode time calculate.
     nsecs_t mTimeStart = 0;
     nsecs_t mTimeEnd = 0;
     nsecs_t mTimeTotal = 0;
