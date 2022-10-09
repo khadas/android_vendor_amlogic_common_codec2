@@ -43,12 +43,16 @@
 
 namespace android {
 
+/** Used to remove warnings about unused parameters */
+#define UNUSED(x) ((void)(x))
+
 constexpr char COMPONENT_NAME[] = "c2.amlogic.avc.encoder";
 
 #define C2HCodec_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
 
 uint32_t C2VencHCodec::mInstanceID = 0;
 
+#define SUPPORT_DMA   1  //support dma mode or not
 
 #define MAX_INPUT_BUFFER_HEADERS 4
 #define MAX_CONVERSION_BUFFERS   4
@@ -207,9 +211,14 @@ public:
             .withConstValue(new C2StreamBufferTypeSetting::output(0u, C2BufferData::LINEAR))
             .build());*/
     addParameter(
+            DefineParam(mInputFormat, C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE)
+            .withConstValue(new C2StreamBufferTypeSetting::input(0u, C2BufferData::GRAPHIC))
+            .build());
+
+    addParameter(
                 DefineParam(mUsage, C2_PARAMKEY_INPUT_STREAM_USAGE)
                 .withConstValue(new C2StreamUsageTuning::input(
-                        0u, (uint64_t)C2MemoryUsage::CPU_READ))
+                        0u, SUPPORT_DMA ? 0 : (uint64_t)C2MemoryUsage::CPU_READ))
                 .build());
 
     addParameter(
@@ -373,6 +382,28 @@ public:
             .withSetter((Setter<decltype(*mPixelFormat)>::StrictValueWithNoDeps))
             .build());
 
+    addParameter(
+            DefineParam(mPrependHeader, C2_PARAMKEY_PREPEND_HEADER_MODE)
+            .withConstValue(new C2PrependHeaderModeSetting(
+                C2Config::PREPEND_HEADER_TO_ALL_SYNC))
+            .build());
+
+    constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;
+
+    addParameter(
+            DefineParam(mMaxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
+            .withDefault(new C2StreamMaxBufferSizeInfo::input(0u, kLinearBufferSize))
+            .withFields({C2F(mMaxInputSize, value).any()})
+            .calculatedAs(MaxSizeCalculator)
+            .build());
+
+    addParameter(
+        DefineParam(mVencCanvasMode, C2_PARAMKEY_VENDOR_VENC_CANVAS_MODE)
+                .withDefault(new C2VencCanvasMode::input(0))
+                .withFields({C2F(mVencCanvasMode, value).any()})
+                .withSetter(Setter<decltype(*mVencCanvasMode)>::StrictValueWithNoDeps)
+        .build());
+
 }
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
         C2P<C2StreamPictureSizeInfo::input> &me) {
@@ -388,6 +419,15 @@ public:
             me.set().height = oldMe.v.height;
         }
         return res;
+    }
+
+    static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me/*,
+                                       const C2P<C2StreamPictureSizeInfo::output>& size*/) /*(bool mayBlock, const C2P<C2StreamMaxBufferSizeInfo::input>& me)*/ {
+        (void)mayBlock;
+        ALOGE("MaxSizeCalculator enter");
+
+        me.set().value = 4*1024*1024;
+        return C2R::Ok();
     }
 
     /*static C2R InputDelaySetter(
@@ -620,6 +660,8 @@ public:
     std::shared_ptr<C2StreamPixelFormatInfo::input> getCodedPixelFormat() const { return mPixelFormat; }
     std::shared_ptr<C2StreamProfileLevelInfo::output> getProfileInfo() const { return mProfileLevel; }
     std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> getIFrameInterval() const {return mSyncFramePeriod; }
+    std::shared_ptr<C2PrependHeaderModeSetting> getPrependHeader() const {return mPrependHeader; }
+    std::shared_ptr<C2VencCanvasMode::input> getCanvasMode() const{return mVencCanvasMode; };
 private:
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamUsageTuning::input> mUsage;
@@ -634,6 +676,10 @@ private:
     std::shared_ptr<C2StreamColorAspectsInfo::input> mColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> mCodedColorAspects;
     std::shared_ptr<C2StreamPixelFormatInfo::input> mPixelFormat;
+    std::shared_ptr<C2StreamMaxBufferSizeInfo::input> mMaxInputSize;
+    std::shared_ptr<C2StreamPictureSizeInfo::output> mSizeOutput;
+    std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
+    std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
 
 };
 
@@ -672,6 +718,18 @@ C2VencHCodec::~C2VencHCodec() {
     ALOGD("C2VencHCodec destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     mInstanceID--;
+}
+
+
+bool C2VencHCodec::isSupportDMA() {
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"hcodec support dma mode:%d",SUPPORT_DMA);
+    return SUPPORT_DMA;
+}
+
+
+bool C2VencHCodec::isSupportCanvas() {
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"hcodec support canvas mode!");
+    return true;
 }
 
 
@@ -858,11 +916,15 @@ c2_status_t C2VencHCodec::Init() {
     mCodedColorAspects = mIntfImpl->getCodedColorAspects();
     mProfileLevel = mIntfImpl->getProfileInfo();
     mSyncFramePeriod = mIntfImpl->getIFrameInterval();
+    mPrependHeader = mIntfImpl->getPrependHeader();
+    mVencCanvasMode = mIntfImpl->getCanvasMode();
     mIDRInterval = (mSyncFramePeriod->value / 1000000) * mFrameRate->value; //max_int:just one i frame,0:all i frame
 
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"canvas mode:%d",mVencCanvasMode->value);
     memset(&initParam,0,sizeof(initParam));
     getQp(&initParam.i_qp_max,&initParam.i_qp_min,&initParam.p_qp_max,&initParam.p_qp_min);
     codecTypeTrans(mPixelFormat->value,&colorformat);
+    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"prepend data:%d",mPrependHeader->value);
     C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"upper set pixelformat:0x%x,colorformat:%d,colorAspect:%d",mPixelFormat->value,colorformat,mCodedColorAspects->matrix);
     /*if (mGop && mGop->flexCount() > 0) {
         uint32_t syncInterval = 1;
@@ -1020,7 +1082,7 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
     vl_enc_result_e ret = ENC_SUCCESS;
     vl_frame_info_t inputInfo;
     vl_frame_type_t frameType = FRAME_TYPE_NONE;
-    if (!InputFrameInfo.yPlane || !InputFrameInfo.uPlane || !InputFrameInfo.vPlane || !pOutFrameInfo) {
+    if (!pOutFrameInfo) {
         C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
@@ -1044,42 +1106,57 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
         }
         mRequestSync = requestSync;
     }
-    inputInfo.type = VMALLOC_BUFFER_TYPE;
+
     C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
-    //if (HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED == mPixelFormat->value) {
-        codec2TypeTrans(InputFrameInfo.colorFmt,&inputInfo.fmt);
-    /*}
-    else {
-        codecTypeTrans(mPixelFormat->value,&inputInfo.fmt);//for surface color,fix me????
-    }*/
-    if (IMG_FMT_RGBA8888 == inputInfo.fmt) {
+    codec2TypeTrans(InputFrameInfo.colorFmt,&inputInfo.fmt);
+    if (DMA == InputFrameInfo.bufType) { //for rgba dma is not ok
+        inputInfo.type = DMA_BUFF_TYPE;
+        inputInfo.YCbCr[0] = InputFrameInfo.shareFd[0];
+        inputInfo.YCbCr[1] = InputFrameInfo.shareFd[1];
+        inputInfo.YCbCr[2] = InputFrameInfo.shareFd[2];
+        inputInfo.plane_num = 1;
+    }
+    else if (CANVAS == InputFrameInfo.bufType) {
+        inputInfo.type = CANVAS_BUFFER_TYPE;
+        inputInfo.canvas = InputFrameInfo.canvas;
+        uint32_t CanvasWidth = ((mSize->width + 31) >> 5) << 5;
+        if (((inputInfo.canvas & 0xff00) != 0) && ((inputInfo.canvas & 0xff0000) == 0)) {
+            inputInfo.fmt = IMG_FMT_NV21;
+        }
+        if (inputInfo.fmt == IMG_FMT_YV12)
+            CanvasWidth = ((mSize->width + 63) >> 6) << 6;
         inputInfo.YCbCr[0] = (unsigned long)InputFrameInfo.yPlane;
-        inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.uPlane;
-        inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;
+        inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.yPlane + mSize->height * CanvasWidth;
+        inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.uPlane + (mSize->height * CanvasWidth >> 2);
     }
     else {
-        inputInfo.YCbCr[0] = (unsigned long)InputFrameInfo.yPlane;
-        inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.vPlane;//inputInfo.YCbCr[0] + mSize->width * mSize->height;//(unsigned long)uPlane;
-        inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;//(unsigned long)vPlane;
+        inputInfo.type = VMALLOC_BUFFER_TYPE;
+        if (IMG_FMT_RGBA8888 == inputInfo.fmt) {
+            inputInfo.YCbCr[0] = (unsigned long)InputFrameInfo.yPlane;
+            inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.uPlane;
+            inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;
+        }
+        else {
+            inputInfo.YCbCr[0] = (unsigned long)InputFrameInfo.yPlane;
+            inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.vPlane;//inputInfo.YCbCr[0] + mSize->width * mSize->height;//(unsigned long)uPlane;
+            inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;//(unsigned long)vPlane;
+        }
     }
-    if (IMG_FMT_RGBA8888 != inputInfo.fmt) {
-        inputInfo.pitch = InputFrameInfo.yStride;//mSize->width;//pitch,need modify,fix me ????
-    }
-    else {
-        inputInfo.pitch = mSize->width;
-    }
+
+    inputInfo.pitch = InputFrameInfo.yStride;//mSize->width;//pitch,need modify,fix me ????
+
     inputInfo.height = mSize->height;
     inputInfo.coding_timestamp = InputFrameInfo.timeStamp;//pts ???
     inputInfo.bitrate = bitrate->value;
-    inputInfo.canvas = 0;//canvas?
+    //inputInfo.canvas = 0;//canvas?
     inputInfo.scale_width = 0;//scale_width;
     inputInfo.scale_height = 0;//scale_height;
     inputInfo.crop_left = 0;//crop_left;
     inputInfo.crop_right = 0;//crop_right;
     inputInfo.crop_top = 0;//crop_top;
     inputInfo.crop_bottom = 0;//crop_bottom;
-    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,height:%d,coding_timestamp:%d,bitrate:%d",inputInfo.YCbCr[0],
-         inputInfo.YCbCr[1],inputInfo.YCbCr[2],inputInfo.frame_type,inputInfo.fmt,inputInfo.pitch,inputInfo.height,inputInfo.coding_timestamp,inputInfo.bitrate);
+    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,height:%d,coding_timestamp:%d,bitrate:%d,canvas:%x",inputInfo.YCbCr[0],
+         inputInfo.YCbCr[1],inputInfo.YCbCr[2],inputInfo.frame_type,inputInfo.fmt,inputInfo.pitch,inputInfo.height,inputInfo.coding_timestamp,inputInfo.bitrate,inputInfo.canvas);
     ret = mEncFrameFunc(mCodecHandle,inputInfo,(unsigned char *)pOutFrameInfo->Data,(int *)&pOutFrameInfo->Length,&frameType);
     if (ENC_SUCCESS != ret && ENC_IDR_FRAME != ret) {
         C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"hcodec encode frame failed,errcode:%d",ret);

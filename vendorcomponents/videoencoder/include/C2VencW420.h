@@ -29,6 +29,8 @@ public:
     void Close() override;
     void getResolution(int *pWidth,int *pHeight) override;
     void getCodecDumpFileName(std::string &strName,DumpFileType_e type) override;
+    bool isSupportDMA() override;
+    bool isSupportCanvas() override;
 
 //protected:
     virtual ~C2VencW420();

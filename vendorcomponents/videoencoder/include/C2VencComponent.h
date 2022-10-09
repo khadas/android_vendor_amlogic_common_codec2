@@ -18,11 +18,13 @@
 #include <C2ParamDef.h>
 #include <C2VendorProperty.h>
 #include <c2logdebug.h>
+#include <C2VendorConfig.h>
 
 #include <SimpleC2Interface.h>
 //#include <util/C2InterfaceHelper.h>
 #include "ThreadWorker.h"
 #include <media/stagefright/foundation/Mutexed.h>
+#include <buffer.h>
 
 //#include <base/macros.h>
 //#include <base/memory/ref_counted.h>
@@ -38,10 +40,6 @@
 //#include <unordered_map>
 
 namespace android {
-
-/** Used to remove warnings about unused parameters */
-#define UNUSED(x) ((void)(x))
-
 
 typedef enum FrameType {
     FRAMETYPE_IDR,
@@ -64,6 +62,12 @@ typedef struct OutputFrameInfo {
     uint32_t Length;
 }OutputFrameInfo_t;
 
+typedef enum BufferType {
+    VMALLOC,
+    DMA,
+	CANVAS
+}BufferType_e;
+
 typedef struct InputFrameInfo{
     uint8_t *yPlane;
     uint8_t *uPlane;
@@ -74,12 +78,24 @@ typedef struct InputFrameInfo{
     int32_t yStride;
     int32_t uStride;
     int32_t vStride;
+    BufferType_e bufType;
+    int shareFd[3];
+    int planeNum;
+    uint64_t canvas;
+    int size;
+    bool needunmap;
 }InputFrameInfo_t;
 
 typedef enum DumpFileType {
     C2_DUMP_RAW,
     C2_DUMP_ES
 }DumpFileType_e;
+
+typedef struct DataModeInfo {
+    unsigned long type;
+    unsigned long pAddr;
+    unsigned long canvas;
+}DataModeInfo_t;
 
 class C2VencComponent : public C2Component ,
                                  public std::enable_shared_from_this<C2VencComponent> {
@@ -120,6 +136,8 @@ protected:
     virtual void Close() = 0;
     virtual void getResolution(int *pWidth,int *pHeight) = 0;
     virtual void getCodecDumpFileName(std::string &strName,DumpFileType_e type) = 0;
+    virtual bool isSupportDMA() = 0;
+    virtual bool isSupportCanvas() = 0;
     // The pointer of component listener.
 private:
     std::shared_ptr<C2Buffer> createLinearBuffer(
@@ -132,6 +150,12 @@ private:
     uint32_t dumpDataToFile(int fd,uint8_t *data,uint32_t size);
     bool doSomeInit();
     void ProcessData();
+    c2_status_t CanvasDataProc(DataModeInfo_t *pDataMode,InputFrameInfo *pFrameInfo);
+    c2_status_t DMAProc(const private_handle_t *priv_handle,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);
+    c2_status_t ViewDataProc(std::shared_ptr<const C2GraphicView> view,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);
+    c2_status_t LinearDataProc(std::shared_ptr<const C2ReadView> view,InputFrameInfo *pFrameInfo);
+    c2_status_t GraphicDataProc(std::shared_ptr<C2Buffer> inputBuffer,InputFrameInfo *pFrameInfo);
+    bool codecFmtTrans(uint32_t inputCodec,ColorFmt *pOutputCodec);
     void finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &work,OutputFrameInfo_t OutFrameInfo);
     void finish(uint64_t frameIndex, std::function<void(std::unique_ptr<C2Work> &)> fillWork);
     void WorkDone(std::unique_ptr<C2Work> &work);

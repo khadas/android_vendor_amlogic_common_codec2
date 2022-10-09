@@ -21,6 +21,9 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorAdecExtraData,
     kParamIndexVendorAdecBlockAlign,
     kParamIndexVendorAdecPassthroughEnable,
+
+    /*these are Video Encoder config parameters.*/
+    kParamIndexVendorVencCanvasMode = C2Param:: TYPE_INDEX_VENDOR_START + 0x400,
 };
 
 struct C2StreamPtsUnstableStruct {
@@ -131,6 +134,13 @@ constexpr char KEY_VENDOR_EXTRA_DATA[] = "vendor.adec.extra-data.value";
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorAdecPassthroughEnable> C2PassthroughEnable;
 constexpr char C2_PARAMKEY_VENDOR_PASSTHROUGH_ENABLE[] = "adec.is_passthrough_enable";
 constexpr char KEY_VENDOR_PASSTHROUGH_ENABLE[] = "vendor.adec.is_passthrough_enable.value";
+
+
+/* ================================ Video Encoder Config Parameter ================================ */
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorVencCanvasMode> C2VencCanvasMode;
+constexpr char C2_PARAMKEY_VENDOR_VENC_CANVAS_MODE[] = "venc.canvasmode";
+constexpr char KEY_VENDOR_CANVAS_MODE[] = "vendor.venc.canvasmode.value";
+
 
 
 #endif//C2_VENDOR_CONFIG_H_

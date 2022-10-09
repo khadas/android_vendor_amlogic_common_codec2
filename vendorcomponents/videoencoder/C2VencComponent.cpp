@@ -12,9 +12,6 @@
 
 #include <cutils/native_handle.h>
 #include <media/stagefright/MediaDefs.h>
-#include <media/stagefright/foundation/ADebug.h>
-#include <media/stagefright/foundation/AUtils.h>
-
 
 #include <ui/GraphicBuffer.h>
 #include <utils/Log.h>
@@ -29,12 +26,22 @@
 
 namespace android {
 
+/** Used to remove warnings about unused parameters */
+#define UNUSED(x) ((void)(x))
+
 #define OUTPUT_BUFFERSIZE_MIN (2 * 1024 * 1024)
 #define ENABLE_DUMP_ES        1
 #define ENABLE_DUMP_RAW       (1 << 1)
 #define ENCODER_PROP_DUMP_DATA        "debug.vendor.media.c2.venc.dump_data"
 
+#define USE_CONTINUES_PHYBUFF(h) ((h->consumer_usage | h->producer_usage) & GRALLOC_USAGE_HW_VIDEO_ENCODER)
+
 #define C2Venc_LOG(level, fmt, str...) CODEC2_LOG(level, fmt, ##str)
+
+#define kMetadataBufferTypeCanvasSource 3
+#define kMetadataBufferTypeANWBuffer 2
+
+#define CANVAS_MODE_ENABLE  1
 
 class C2VencComponent::BlockingBlockPool : public C2BlockPool {
 public:
@@ -354,11 +361,416 @@ uint32_t C2VencComponent::dumpDataToFile(int fd,uint8_t *data,uint32_t size) {
 }
 
 
+bool C2VencComponent::codecFmtTrans(uint32_t inputCodec,ColorFmt *pOutputCodec) {
+    bool ret = true;
+    if (!pOutputCodec) {
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"param check failed!!");
+        return false;
+    }
+    switch (inputCodec) {
+        case HAL_PIXEL_FORMAT_YCBCR_420_888: {
+            *pOutputCodec = C2_ENC_FMT_NV12;
+            ret = true;
+            break;
+        }
+        case HAL_PIXEL_FORMAT_YCRCB_420_SP: {
+            *pOutputCodec = C2_ENC_FMT_NV21;
+            ret = true;
+            break;
+        }
+        default: {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputCodec);
+            ret = false;
+            break;
+        }
+    }
+    return ret;
+}
+
+
+c2_status_t C2VencComponent::CanvasDataProc(DataModeInfo_t *pDataMode,InputFrameInfo *pFrameInfo) {
+    if (pFrameInfo == nullptr) {
+        return C2_BAD_VALUE;
+    }
+
+    pFrameInfo->bufType = CANVAS;
+    pFrameInfo->canvas = pDataMode->canvas;
+    pFrameInfo->yPlane = (uint8_t *)pDataMode->pAddr;
+    pFrameInfo->uPlane = 0;
+    pFrameInfo->vPlane = 0;
+    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"canvas mode,canvas id:%" PRId64"",pFrameInfo->canvas);
+    return C2_OK;
+}
+
+
+c2_status_t C2VencComponent::LinearDataProc(std::shared_ptr<const C2ReadView> view,InputFrameInfo *pFrameInfo) {
+    //private_handle_t *priv_handle = NULL;
+    uint32_t dumpFileSize = 0;
+
+    if ( nullptr == pFrameInfo) {
+        return C2_BAD_VALUE;
+    }
+
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"datalen:%d",view->capacity());
+    DataModeInfo_t *pDataMode = (DataModeInfo_t *)(view->data());
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"type:%lx",pDataMode->type);
+    C2StreamPictureSizeInfo::input PicSize(0u, 16, 16);
+    C2StreamPixelFormatInfo::input InputFmt(0u, HAL_PIXEL_FORMAT_YCRCB_420_SP);
+
+    if (kMetadataBufferTypeCanvasSource == pDataMode->type && sizeof(DataModeInfo_t) == view->capacity()) {
+        return CanvasDataProc(pDataMode,pFrameInfo);
+    }
+    else if(kMetadataBufferTypeANWBuffer == pDataMode->type && sizeof(DataModeInfo_t) == view->capacity()) {
+        #if 0
+        ALOGE("111111,pDataMode:%p",pDataMode);
+        ANativeWindowBuffer *pNativeWindow = (ANativeWindowBuffer *)pDataMode->pAddr;
+        int fence_id = pDataMode->canvas;
+        ALOGE("111111,pNativeWindow:%p,fence_id:%d",pNativeWindow,fence_id);
+        priv_handle = (private_handle_t *)pNativeWindow->handle;
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"native window source,handle:%p",priv_handle);
+        //int share_fd = priv_handle->share_fd;
+        //C2Venc_LOG(CODEC2_VENC_LOG_INFO,"share_fd:%d",priv_handle->share_fd);
+        if (priv_handle && priv_handle->share_fd && USE_CONTINUES_PHYBUFF(priv_handle) && isSupportDMA()) {
+            //const C2PlanarLayout &layout = view->layout();
+
+            c2_status_t err = intf()->query_vb({&PicSize,&InputFmt},{},C2_DONT_BLOCK,nullptr);
+            if (err == C2_BAD_INDEX) {
+                if (!PicSize || !InputFmt) {
+                    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get PicSize or InputFmt failed!!");
+                    return C2_BAD_VALUE;
+                }
+            } else if (err != C2_OK) {
+                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get subclass param failed!!");
+                return C2_BAD_VALUE;
+            }
+            pFrameInfo->bufType = DMA;
+            pFrameInfo->shareFd[0] = priv_handle->share_fd;
+            pFrameInfo->shareFd[1] = -1;
+            pFrameInfo->shareFd[2] = -1;
+            pFrameInfo->planeNum = 1;
+            pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride;
+            pFrameInfo->uStride = priv_handle->plane_info[1].byte_stride;
+            pFrameInfo->vStride = priv_handle->plane_info[2].byte_stride;
+            int format = priv_handle->format;
+            switch (format) {
+                case HAL_PIXEL_FORMAT_RGBA_8888:
+                case HAL_PIXEL_FORMAT_RGB_888:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_RGBA8888;
+                    dumpFileSize = pFrameInfo->yStride * PicSize.height;
+                    break;
+                case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
+                    dumpFileSize = pFrameInfo->yStride * PicSize.height * 3 / 2;
+                    break;
+                case HAL_PIXEL_FORMAT_YV12:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_YV12;
+                    dumpFileSize = pFrameInfo->yStride * PicSize.height * 3 / 2;
+                    break;
+                default:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
+                    dumpFileSize = pFrameInfo->yStride * PicSize.height * 3 / 2;
+                    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot find support fmt,default:%d",pFrameInfo->colorFmt);
+                    break;
+            }
+            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"native window source:yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,plane num:%d",
+                pFrameInfo->yStride,pFrameInfo->uStride,pFrameInfo->vStride,PicSize.width,PicSize.height,pFrameInfo->planeNum);
+        }
+        #endif
+    }
+    else {  //linear picture buffer
+        C2StreamPictureSizeInfo::input PicSize(0u, 16, 16);
+        C2StreamPixelFormatInfo::input InputFmt(0u, HAL_PIXEL_FORMAT_YCRCB_420_SP);
+
+        c2_status_t err = intf()->query_vb({&PicSize,&InputFmt},{},C2_DONT_BLOCK,nullptr);
+        if (err == C2_BAD_INDEX) {
+            if (!PicSize || !InputFmt) {
+                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get PicSize or InputFmt failed!!");
+                return C2_BAD_VALUE;
+            }
+        } else if (err != C2_OK) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get subclass param failed!!");
+            return C2_BAD_VALUE;
+        }
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"get width:%d,height:%d,colorfmt:%d,ptr:%p",PicSize.width,PicSize.height,InputFmt.value,const_cast<uint8_t *>(view->data()));
+        pFrameInfo->bufType = VMALLOC;
+        codecFmtTrans(InputFmt.value,&pFrameInfo->colorFmt);
+        pFrameInfo->yPlane = const_cast<uint8_t *>(view->data());
+        pFrameInfo->uPlane = pFrameInfo->yPlane + PicSize.width * PicSize.height;
+        pFrameInfo->vPlane = pFrameInfo->uPlane;
+        pFrameInfo->yStride = PicSize.width;
+        pFrameInfo->uStride = PicSize.width;
+        pFrameInfo->vStride = PicSize.width;
+    }
+    if (mDumpYuvEnable) {
+        if (pFrameInfo->bufType == DMA) {
+            uint8_t *pVirAddr = NULL;
+            pVirAddr = (uint8_t *)mmap( NULL, dumpFileSize,PROT_READ | PROT_WRITE, MAP_SHARED, pFrameInfo->shareFd[0], 0);
+            if (pVirAddr) {
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"dma mode,viraddr: %p", pVirAddr);
+                dumpDataToFile(mfdDumpInput,pVirAddr,dumpFileSize);
+                munmap(pVirAddr, dumpFileSize);
+            }
+        }
+        else {
+            dumpDataToFile(mfdDumpInput,pFrameInfo->yPlane,dumpFileSize);
+        }
+    }
+    return C2_OK;
+}
+
+
+c2_status_t C2VencComponent::DMAProc(const private_handle_t *priv_handle,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize) {
+    if (NULL == priv_handle || NULL == pFrameInfo || NULL == dumpFileSize) {
+        return C2_BAD_VALUE;
+    }
+
+    C2StreamPictureSizeInfo::input PicSize(0u, 16, 16);
+    C2StreamPixelFormatInfo::input InputFmt(0u, HAL_PIXEL_FORMAT_YCRCB_420_SP);
+
+    c2_status_t err = intf()->query_vb({&PicSize,&InputFmt},{},C2_DONT_BLOCK,nullptr);
+    if (err == C2_BAD_INDEX) {
+        if (!PicSize || !InputFmt) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get PicSize or InputFmt failed!!");
+            return C2_BAD_VALUE;
+        }
+    } else if (err != C2_OK) {
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get subclass param failed!!");
+        return C2_BAD_VALUE;
+    }
+
+    pFrameInfo->bufType = DMA;
+    pFrameInfo->shareFd[0] = priv_handle->share_fd;
+    pFrameInfo->shareFd[1] = -1;
+    pFrameInfo->shareFd[2] = -1;
+    pFrameInfo->planeNum = 1;
+    pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride;
+    pFrameInfo->uStride = priv_handle->plane_info[1].byte_stride;
+    pFrameInfo->vStride = priv_handle->plane_info[2].byte_stride;
+    int format = priv_handle->format;
+    switch (format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+        case HAL_PIXEL_FORMAT_RGB_888:
+            pFrameInfo->colorFmt = C2_ENC_FMT_RGBA8888;
+            pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride / 4;
+            (*dumpFileSize) = pFrameInfo->yStride * PicSize.height * 4;
+            break;
+        case HAL_PIXEL_FORMAT_YCbCr_420_888:
+        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+            pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
+            (*dumpFileSize) = pFrameInfo->yStride * PicSize.height * 3 / 2;
+            break;
+        case HAL_PIXEL_FORMAT_YV12:
+            pFrameInfo->colorFmt = C2_ENC_FMT_YV12;
+            (*dumpFileSize) = pFrameInfo->yStride * PicSize.height * 3 / 2;
+            break;
+        default:
+            pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
+            (*dumpFileSize) = pFrameInfo->yStride * PicSize.height * 3 / 2;
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot find support fmt,default:%d",pFrameInfo->colorFmt);
+            break;
+    }
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,plane num:%d",
+    pFrameInfo->yStride,pFrameInfo->uStride,pFrameInfo->vStride,PicSize.width,PicSize.height,pFrameInfo->planeNum);
+
+    return C2_OK;
+}
+
+
+c2_status_t C2VencComponent::ViewDataProc(std::shared_ptr<const C2GraphicView> view,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize) {
+    if (NULL == view || NULL == pFrameInfo || NULL == dumpFileSize) {
+        return C2_BAD_VALUE;
+    }
+    const C2PlanarLayout &layout = view->layout();
+    pFrameInfo->bufType = VMALLOC;
+    pFrameInfo->yPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_Y]);
+    pFrameInfo->uPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_U]);
+    pFrameInfo->vPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_V]);
+    pFrameInfo->yStride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
+    pFrameInfo->uStride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
+    pFrameInfo->vStride = layout.planes[C2PlanarLayout::PLANE_V].rowInc;
+    (*dumpFileSize) = view->width() * view->height() * 3 / 2;
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,root plane num:%d,component plan num:%d",
+        pFrameInfo->yStride,pFrameInfo->uStride,pFrameInfo->vStride,view->width(),view->height(),layout.rootPlanes,layout.numPlanes);
+    switch (layout.type) {
+        case C2PlanarLayout::TYPE_RGB:
+        case C2PlanarLayout::TYPE_RGBA: {
+            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"TYPE_RGBA or TYPE_RGB");
+            pFrameInfo->yPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_R]);
+            pFrameInfo->uPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_G]);
+            pFrameInfo->vPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_B]);
+            pFrameInfo->yStride = layout.planes[C2PlanarLayout::PLANE_R].rowInc / 4;
+            pFrameInfo->uStride = layout.planes[C2PlanarLayout::PLANE_G].rowInc;
+            pFrameInfo->vStride = layout.planes[C2PlanarLayout::PLANE_B].rowInc;
+            (*dumpFileSize) = view->width() * view->height() * 4;
+            pFrameInfo->colorFmt = C2_ENC_FMT_RGBA8888;
+            break;
+        }
+        case C2PlanarLayout::TYPE_YUV: {
+            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"TYPE_YUV");
+            if (IsNV12(*view.get())) {
+                pFrameInfo->colorFmt = C2_ENC_FMT_NV12;
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_NV12");
+            }
+            else if (IsNV21(*view.get())) {
+                pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_NV21");
+            }
+            else if (IsI420(*view.get())) {
+                pFrameInfo->colorFmt = C2_ENC_FMT_I420;
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_I420");
+            }
+            else {
+                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"type yuv,but not support fmt!!!");
+            }
+            (*dumpFileSize) = pFrameInfo->yStride * view->height() * 3 / 2;
+            break;
+        }
+        case C2PlanarLayout::TYPE_YUVA: {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"TYPE_YUVA not support!!");
+            break;
+        }
+        default:
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"layout.type:%d",layout.type);
+            break;
+    }
+    return C2_OK;
+}
+
+
+
+
+
+c2_status_t C2VencComponent::GraphicDataProc(std::shared_ptr<C2Buffer> inputBuffer,InputFrameInfo *pFrameInfo) {
+    std::shared_ptr<const C2GraphicView> view;
+    uint32_t dumpFileSize = 0;
+    const private_handle_t *priv_handle = NULL;
+    c2_status_t res = C2_OK;
+
+    if (nullptr == inputBuffer.get() || nullptr == pFrameInfo ) {
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"GraphicDataProc bad parameter!!");
+        return C2_BAD_VALUE;
+    }
+
+    const native_handle_t* c2Handle = inputBuffer->data().graphicBlocks().front().handle();
+    priv_handle = (private_handle_t *)UnwrapNativeCodec2GrallocHandle(c2Handle);
+
+    if (priv_handle && priv_handle->share_fd && USE_CONTINUES_PHYBUFF(priv_handle) && isSupportDMA()) {
+        if (1) {
+            res = DMAProc(priv_handle,pFrameInfo,&dumpFileSize);
+            if (C2_OK != res) {
+                return res;
+            }
+        }
+        else {
+            pFrameInfo->bufType = VMALLOC;
+            pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride;
+            pFrameInfo->uStride = priv_handle->plane_info[1].byte_stride;
+            pFrameInfo->vStride = priv_handle->plane_info[2].byte_stride;
+            pFrameInfo->size = priv_handle->size;
+            void *mapaddr = mmap(NULL, priv_handle->size, PROT_READ | PROT_WRITE, MAP_SHARED, priv_handle->share_fd, 0);
+            if (NULL  == mapaddr)
+            {
+                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"mmap(share_fd = %d) failed: %s", priv_handle->share_fd, strerror(errno));
+                return C2_BAD_VALUE;
+            }
+            pFrameInfo->needunmap = true;
+            (dumpFileSize) = priv_handle->size;
+            int format = priv_handle->format;
+            switch (format) {
+                case HAL_PIXEL_FORMAT_RGBA_8888:
+                case HAL_PIXEL_FORMAT_RGB_888:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_RGBA8888;
+                    pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride / 4;
+                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
+                    pFrameInfo->uPlane = (uint8_t *)mapaddr;
+                    pFrameInfo->vPlane = (uint8_t *)mapaddr;
+                    break;
+                case HAL_PIXEL_FORMAT_YCbCr_420_888:
+                case HAL_PIXEL_FORMAT_YCrCb_420_SP:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
+                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
+                    pFrameInfo->uPlane = (uint8_t *)mapaddr + pFrameInfo->yStride * priv_handle->height;
+                    pFrameInfo->vPlane = (uint8_t *)pFrameInfo->uPlane;
+                    break;
+                case HAL_PIXEL_FORMAT_YV12:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_YV12;
+                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
+                    pFrameInfo->uPlane = (uint8_t *)mapaddr + pFrameInfo->yStride * priv_handle->height;
+                    pFrameInfo->vPlane = (uint8_t *)pFrameInfo->uPlane;
+                    break;
+                default:
+                    pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
+                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
+                    pFrameInfo->uPlane = (uint8_t *)mapaddr + pFrameInfo->yStride * priv_handle->height;
+                    pFrameInfo->vPlane = (uint8_t *)pFrameInfo->uPlane;
+                    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot find support fmt,default:%d",pFrameInfo->colorFmt);
+                    break;
+            }
+            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"dma in vmalloc mode:yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,plane num:%d",
+            pFrameInfo->yStride,pFrameInfo->uStride,pFrameInfo->vStride,priv_handle->width,priv_handle->height,pFrameInfo->planeNum);
+        }
+    }
+    else {
+        view = std::make_shared<const C2GraphicView>(inputBuffer->data().graphicBlocks().front().map().get());
+        if (C2_OK != view->error() || nullptr == view.get()) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic view map err = %d or view is null", view->error());
+            return C2_BAD_VALUE;
+        }
+
+        C2VencCanvasMode::input CanvasInput(0u);
+
+        c2_status_t err = intf()->query_vb({&CanvasInput},{},C2_DONT_BLOCK,nullptr);
+        if (err == C2_OK && CanvasInput.value == CANVAS_MODE_ENABLE) {
+            DataModeInfo_t *pDataMode = (DataModeInfo_t *)(view->data()[C2PlanarLayout::PLANE_Y]);
+            if (kMetadataBufferTypeCanvasSource == pDataMode->type) {
+                C2Venc_LOG(CODEC2_VENC_LOG_INFO,"enter canvas mode!!");
+                res = CanvasDataProc(pDataMode,pFrameInfo);
+                if (C2_OK != res) {
+                    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"CanvasDataProc failed!!!");
+                    return res;
+                }
+            }
+            else {
+                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"canvas mode,but the data is not right!!!,type:%lx,canvas:%lx",pDataMode->type,pDataMode->canvas);
+                return C2_BAD_VALUE;
+            }
+        }
+        else {
+            res = ViewDataProc(view,pFrameInfo,&dumpFileSize);
+            if (C2_OK != res) {
+                C2Venc_LOG(CODEC2_VENC_LOG_INFO,"ViewDataProc failed!!!");
+                return res;
+            }
+        }
+    }
+
+    //native_handle_close((native_handle_t*)priv_handle);
+    //native_handle_delete((native_handle_t*)priv_handle);
+    if (mDumpYuvEnable) {
+        if (pFrameInfo->bufType == DMA) {
+            uint8_t *pVirAddr = NULL;
+            pVirAddr = (uint8_t *)mmap( NULL, dumpFileSize,PROT_READ | PROT_WRITE, MAP_SHARED, pFrameInfo->shareFd[0], 0);
+            if (pVirAddr) {
+                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"dma mode,viraddr: %p", pVirAddr);
+                dumpDataToFile(mfdDumpInput,pVirAddr,dumpFileSize);
+                munmap(pVirAddr, dumpFileSize);
+            }
+        }
+        else {
+            dumpDataToFile(mfdDumpInput,pFrameInfo->yPlane,dumpFileSize);
+        }
+    }
+    return C2_OK;
+}
+
+
 void C2VencComponent::ProcessData()
 {
-    uint32_t dumpFileSize = 0;
+//    uint32_t dumpFileSize = 0;
     std::unique_ptr<C2Work> work;
     InputFrameInfo_t InputFrameInfo;
+    std::shared_ptr<const C2ReadView> Linearview;
     memset(&InputFrameInfo,0,sizeof(InputFrameInfo));
 
     {
@@ -394,106 +806,56 @@ void C2VencComponent::ProcessData()
         work->input.buffers.clear();
     }
 
-    std::shared_ptr<const C2GraphicView> view;
-    std::shared_ptr<C2Buffer> inputBuffer;
-    if (!work->input.buffers.empty()) {
-        inputBuffer = work->input.buffers[0];
-        view = std::make_shared<const C2GraphicView>(
-                inputBuffer->data().graphicBlocks().front().map().get());
-        if (view->error() != C2_OK) {
-            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic view map err = %d", view->error());
-            work->workletsProcessed = 1u;
-            WorkDone(work);
-            return;
-        }
-    }
-
-    //C2Handle *handle = inputBuffer->data.graphicBlocks().front().handle();
-
     work->result = C2_OK;
     work->workletsProcessed = 0u;
     work->worklets.front()->output.flags = work->input.flags;
+
+    //std::shared_ptr<const C2GraphicView> view;
 
     if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
         C2Venc_LOG(CODEC2_VENC_LOG_ERR,"saw eos flag");
         mSawInputEOS = true;
     }
 
-    if (view.get() == nullptr) {
-        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic view is null");
+    std::shared_ptr<C2Buffer> inputBuffer;
+    if (work->input.buffers.empty()) {
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"input buffer list is empty");
         work->workletsProcessed = 1u;
         WorkDone(work);
         return;
     }
 
-    /*if (view.get()->width() < mSize->width ||
-        view.get()->height() < mSize->height) {
-        ALOGW("unexpected Capacity Aspect %d(%d) x %d(%d)", view.get()->width(),
-              mSize->width, view.get()->height(), mSize->height);
+    //C2Handle *handle = inputBuffer->data.graphicBlocks().front().handle();
+
+    inputBuffer = work->input.buffers[0];
+    int type = inputBuffer->data().type();
+    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"inputbuffer type:%d",type);
+    if (C2BufferData::GRAPHIC == type) {
+        if (C2_OK != GraphicDataProc(inputBuffer,&InputFrameInfo)) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic buffer proc failed!!");
+            work->workletsProcessed = 1u;
+            WorkDone(work);
+            return;
+        }
+    }
+    else if(C2BufferData::LINEAR == type) {
+        Linearview = std::make_shared<const C2ReadView>(inputBuffer->data().linearBlocks().front().map().get());
+        if (C2_OK != Linearview->error() || nullptr == Linearview.get()) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"linear view map err = %d or view is null", Linearview->error());
+            return;
+        }
+        if (C2_OK != LinearDataProc(Linearview,&InputFrameInfo)) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"linear buffer proc failed!!");
+            work->workletsProcessed = 1u;
+            WorkDone(work);
+            return;
+        }
+    }
+    else {
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"invalid data type:%d!!",type);
         return;
-    }*/
-
-    //C2StreamPictureSizeInfo::input size;
-    //std::vector<std::unique_ptr<C2Param>> queried;
-    //c2_status_t c2err = intf()->query_vb({ &size}, {}, C2_DONT_BLOCK, &queried);
-
-
-    const C2PlanarLayout &layout = view->layout();
-    InputFrameInfo.yPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_Y]);
-    InputFrameInfo.uPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_U]);
-    InputFrameInfo.vPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_V]);
-    InputFrameInfo.yStride = layout.planes[C2PlanarLayout::PLANE_Y].rowInc;
-    InputFrameInfo.uStride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
-    InputFrameInfo.vStride = layout.planes[C2PlanarLayout::PLANE_V].rowInc;
-    dumpFileSize = view->width() * view->height() * 3 / 2;
-    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,root plane num:%d,component plan num:%d",
-        InputFrameInfo.yStride,InputFrameInfo.uStride,InputFrameInfo.vStride,view->width(),view->height(),layout.rootPlanes,layout.numPlanes);
-    switch (layout.type) {
-        case C2PlanarLayout::TYPE_RGB:
-        case C2PlanarLayout::TYPE_RGBA: {
-            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"TYPE_RGBA or TYPE_RGB");
-            InputFrameInfo.yPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_R]);
-            InputFrameInfo.uPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_G]);
-            InputFrameInfo.vPlane = const_cast<uint8_t *>(view->data()[C2PlanarLayout::PLANE_B]);
-            InputFrameInfo.yStride = layout.planes[C2PlanarLayout::PLANE_R].rowInc;
-            InputFrameInfo.uStride = layout.planes[C2PlanarLayout::PLANE_G].rowInc;
-            InputFrameInfo.vStride = layout.planes[C2PlanarLayout::PLANE_B].rowInc;
-            dumpFileSize = view->width() * view->height() * 4;
-            InputFrameInfo.colorFmt = C2_ENC_FMT_RGBA8888;
-            break;
-        }
-        case C2PlanarLayout::TYPE_YUV: {
-            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"TYPE_YUV");
-            if (IsNV12(*view.get())) {
-                InputFrameInfo.colorFmt = C2_ENC_FMT_NV12;
-                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_NV12");
-            }
-            else if (IsNV21(*view.get())) {
-                InputFrameInfo.colorFmt = C2_ENC_FMT_NV21;
-                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_NV21");
-            }
-            else if (IsI420(*view.get())) {
-                InputFrameInfo.colorFmt = C2_ENC_FMT_I420;
-                C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo colorfmt :C2_ENC_FMT_I420");
-            }
-            else {
-                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"type yuv,but not support fmt!!!");
-            }
-            dumpFileSize = InputFrameInfo.yStride * view->height() * 3 / 2;
-            break;
-        }
-        case C2PlanarLayout::TYPE_YUVA: {
-            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"TYPE_YUVA not support!!");
-            break;
-        }
-        default:
-            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"layout.type:%d",layout.type);
-            break;
     }
-    //InputFrameInfo.colorFmt = layout.type;
-    if (mDumpYuvEnable) {
-        dumpDataToFile(mfdDumpInput,InputFrameInfo.yPlane,dumpFileSize);
-    }
+
     if (!mOutputBlockPool) {
         std::shared_ptr<C2BlockPool> blockPool;
         c2_status_t err = GetCodec2BlockPool(C2BlockPool::BASIC_LINEAR, shared_from_this(), &blockPool);
@@ -584,6 +946,13 @@ void C2VencComponent::ProcessData()
         }
         C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"processoneframe ok,do finishwork begin!");
         finishWork(InputFrameInfo.frameIndex,work,OutInfo);
+    }
+    if (InputFrameInfo.needunmap && InputFrameInfo.yPlane) {
+        if (munmap(InputFrameInfo.yPlane, InputFrameInfo.size) < 0)
+        {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"munmap(base = %p, size = %d) failed: %s", InputFrameInfo.yPlane, InputFrameInfo.size, strerror(errno));
+        }
+        InputFrameInfo.needunmap = false;
     }
 }
 

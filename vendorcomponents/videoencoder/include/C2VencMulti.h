@@ -39,6 +39,8 @@ public:
     void Close() override;
     void getResolution(int *pWidth,int *pHeight) override;
     void getCodecDumpFileName(std::string &strName,DumpFileType_e type) override;
+    bool isSupportDMA() override;
+    bool isSupportCanvas() override;
 
 //protected:
     virtual ~C2VencMulti();
@@ -69,6 +71,8 @@ private:
     std::shared_ptr<C2StreamColorAspectsInfo::output> mCodedColorAspects;
     std::shared_ptr<C2StreamProfileLevelInfo::output> mProfileLevel;
     std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> mSyncFramePeriod;
+    std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
+    std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
 
     std::shared_ptr<IntfImpl> mIntfImpl;
     fn_vl_multi_encoder_init mInitFunc;

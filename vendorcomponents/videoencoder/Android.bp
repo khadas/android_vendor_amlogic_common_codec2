@@ -57,7 +57,8 @@ cc_library_shared {
         "libnativebase_headers",
         //"libmediahal_headers",
         "libvendor_c2componentstore_headers",
-        "libvendor_component_headers"
+        "libvendor_component_headers",
+        "libgralloc_headers",
     ],
 
     // -Wno-unused-parameter is needed for libchrome/base codes

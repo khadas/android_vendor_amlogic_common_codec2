@@ -40,11 +40,16 @@
 
 namespace android {
 
+/** Used to remove warnings about unused parameters */
+#define UNUSED(x) ((void)(x))
+
 constexpr char COMPONENT_NAME[] = "c2.amlogic.hevc.encoder";
 
 #define C2W420_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
 
 uint32_t C2VencW420::mInstanceID = 0;
+
+#define SUPPORT_DMA   0  //support dma mode or not
 
 
 #define MAX_INPUT_BUFFER_HEADERS 4
@@ -208,7 +213,7 @@ public:
     addParameter(
                 DefineParam(mUsage, C2_PARAMKEY_INPUT_STREAM_USAGE)
                 .withConstValue(new C2StreamUsageTuning::input(
-                        0u, (uint64_t)C2MemoryUsage::CPU_READ))
+                        0u, SUPPORT_DMA ? 0 : (uint64_t)C2MemoryUsage::CPU_READ))
                 .build());
 
     addParameter(
@@ -665,6 +670,16 @@ C2VencW420::~C2VencW420() {
 }
 
 
+bool C2VencW420::isSupportDMA() {
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"w420 support dma mode:%d!",SUPPORT_DMA);
+    return SUPPORT_DMA;
+}
+
+bool C2VencW420::isSupportCanvas() {
+    C2W420_LOG(CODEC2_VENC_LOG_INFO,"w420 not support canvas mode!");
+    return false;
+}
+
 bool C2VencW420::LoadModule() {
     C2W420_LOG(CODEC2_VENC_LOG_INFO,"C2VencW420 initModule!");
     void *handle = dlopen("libvp_hevc_codec.so", RTLD_NOW);
@@ -1001,12 +1016,8 @@ c2_status_t C2VencW420::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFr
         inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.vPlane;//inputInfo.YCbCr[0] + mSize->width * mSize->height;//(unsigned long)uPlane;
         inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;//(unsigned long)vPlane;
     }
-    if (IMG_FMT_RGBA8888 != inputInfo.fmt) {
-        inputInfo.pitch = InputFrameInfo.yStride;//mSize->width;//pitch,need modify,fix me ????
-    }
-    else {
-        inputInfo.pitch = mSize->width;
-    }
+
+    inputInfo.pitch = InputFrameInfo.yStride;
 
     inputInfo.height = mSize->height;
     inputInfo.coding_timestamp = InputFrameInfo.timeStamp;//pts ???
@@ -1024,11 +1035,13 @@ c2_status_t C2VencW420::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFr
     //(vl_codec_handle_t handle, vl_frame_type_t type, unsigned char *in, unsigned int outputBufferLen, unsigned char *out, int format)
     C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"mEncFrameFunc:%p,mCodecHandle:%ld,frameType:%d,inputInfo.YCbCr[0]:%lx,pOutFrameInfo->Length:%d,pOutFrameInfo->Data:%p",
           mEncFrameFunc,mCodecHandle,frameType,inputInfo.YCbCr[0],pOutFrameInfo->Length,pOutFrameInfo->Data);
-    pOutFrameInfo->Length = mEncFrameFunc(mCodecHandle,inputInfo,(unsigned int)pOutFrameInfo->Length,(unsigned char *)pOutFrameInfo->Data,&frameType);
-    if (0 == pOutFrameInfo->Length) {
+    int ires = mEncFrameFunc(mCodecHandle,inputInfo,(unsigned int)pOutFrameInfo->Length,(unsigned char *)pOutFrameInfo->Data,&frameType);
+    ALOGE("pOutFrameInfo->Length:%d",ires);
+    if (ires < 0) {
         C2W420_LOG(CODEC2_VENC_LOG_ERR,"wave420 encode frame failed");
         return C2_CORRUPTED;
     }
+    pOutFrameInfo->Length = ires;
     pOutFrameInfo->FrameType = FRAMETYPE_P;
     if (FRAME_TYPE_IDR == frameType || FRAME_TYPE_I == frameType) {
         pOutFrameInfo->FrameType = FRAMETYPE_IDR;
