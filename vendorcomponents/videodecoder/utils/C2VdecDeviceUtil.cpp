@@ -933,7 +933,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
         } else {
             uint32_t doubleWrite = getDoubleWriteModeValue();
             usage = getUsageFromDouleWrite(doubleWrite);
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, usage, doubleWrite);
+            CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite);
         }
     }
 
