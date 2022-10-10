@@ -160,8 +160,10 @@ void C2VdecComponent::DeviceUtil::queryStreamBitDepth() {
         } else {
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "Query the stream bit depth failed.");
         }
-        delete msg;
     }
+
+    if (msg != NULL)
+        delete msg;
 }
 
 uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat) {
@@ -968,8 +970,8 @@ uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forc
     return size;
 }
 
-bool C2VdecComponent::DeviceUtil::getNeedReallocBuffer()
-{
+
+bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
     bool realloc = true;
     bool debugrealloc = property_get_bool(C2_PROPERTY_VDEC_OUT_BUF_REALLOC, false);
 
@@ -998,22 +1000,37 @@ bool C2VdecComponent::DeviceUtil::getNeedReallocBuffer()
     return realloc;
 }
 
-bool C2VdecComponent::DeviceUtil::checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new)
-{
+bool C2VdecComponent::DeviceUtil::checkReallocOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
+                                                    bool *sizechange, bool *buffernumincrease) {
+    bool realloc = false, frameSizeChanged = false;
     bool bufferNumChanged = false;
-    bool frameSizeChanged = false;
 
-    if (video_format_new.mMinNumBuffers != video_format_old.mMinNumBuffers)
+    if (currentFormat.mMinNumBuffers != rawFormat.mMinNumBuffers) {
         bufferNumChanged = true;
-
-    if (video_format_new.mCodedSize.width() != video_format_old.mCodedSize.width() ||
-        video_format_new.mCodedSize.height() !=  video_format_old.mCodedSize.height())
-        frameSizeChanged = true;
-
-    if (bufferNumChanged || frameSizeChanged) {
-        return true;
     }
-    return false;
+
+    if (currentFormat.mCodedSize.width() != rawFormat.mCodedSize.width() ||
+        currentFormat.mCodedSize.height() !=  rawFormat.mCodedSize.height()) {
+        frameSizeChanged = true;
+        *sizechange = true;
+    }
+
+    if ((currentFormat.mMinNumBuffers != 0 && rawFormat.mMinNumBuffers != 0) &&
+        (currentFormat.mMinNumBuffers > rawFormat.mMinNumBuffers)) {
+        *buffernumincrease = true;
+    }
+
+    if (mNoSurface) {
+        realloc = (bufferNumChanged || frameSizeChanged);
+    } else {
+        realloc = frameSizeChanged;
+    }
+
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] raw size:%s %d new size:%s %d realloc:%d",__func__, __LINE__,
+        rawFormat.mCodedSize.ToString().c_str(), rawFormat.mMinNumBuffers,
+        currentFormat.mCodedSize.ToString().c_str(),currentFormat.mMinNumBuffers, realloc);
+
+    return realloc;
 }
 
 bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t* width, uint32_t* height) {
@@ -1230,11 +1247,13 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
             if (!videoWraper->postAndReplyMsg(msg)) {
                 C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
             }
-            delete msg;
         } else {
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
         }
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] reconfig decoder", __func__, __LINE__);
+
+        if (msg != NULL)
+            delete msg;
     }
 
     return ret;

@@ -596,13 +596,13 @@ void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
     // When the work is done, the input buffer shall be reset by component.
     work->input.buffers.front().reset();
     mInputQueueNum --;
-    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "queue input done index=%d", bitstreamId);
+    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "queue input done index=%d pending size:%zu", bitstreamId, mPendingBuffersToWork.size());
     //report csd work
-    if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG)) {
+    if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || work->worklets.front()->output.flags == C2FrameData::FLAG_DROP_FRAME) {
         reportWorkIfFinished(bitstreamId,0);
     } else {
        if (!mPendingBuffersToWork.empty() && isNonTunnelMode()) {
-             mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::sendOutputBufferToWorkIfAnyTask,
+            mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::sendOutputBufferToWorkIfAnyTask,
                                              ::base::Unretained(this),
                                              false));
         }
@@ -934,12 +934,12 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         if (isSendCloneWork) {
             sendClonedWork(work, nextBuffer.flags);
         } else {
-           mPendingBuffersToWork.at(0).mSetOutInfo = true;
-           c2_status_t status = reportWorkIfFinished(nextBuffer.mBitstreamId, nextBuffer.flags);
-           if (status != C2_OK) {
-             C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] reportWorkIfFinished- error.size(%zd) workdone[%d]input[%d]", __func__, mPendingBuffersToWork.size(), isWorkDone(work),isInputWorkDone(work));
-             return C2_OK;
-           }
+            mPendingBuffersToWork.at(0).mSetOutInfo = true;
+            c2_status_t status = reportWorkIfFinished(nextBuffer.mBitstreamId, nextBuffer.flags);
+            if (status != C2_OK) {
+                C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] reportWorkIfFinished- error.size(%zd) workdone[%d]input[%d]", __func__, mPendingBuffersToWork.size(), isWorkDone(work),isInputWorkDone(work));
+                return C2_OK;
+            }
         }
 
         mPendingBuffersToWork.pop_front();
@@ -1530,9 +1530,10 @@ void C2VdecComponent::tryChangeOutputFormat() {
     CHECK(mPendingOutputFormat);
 
     if (!mPendingBuffersToWork.empty()) {
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Pending buffers has work, and wait...");
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::tryChangeOutputFormat,
                                             ::base::Unretained(this)));
-       return;
+        return;
     }
 
     // At this point, all output buffers should not be owned by accelerator. The component is not
@@ -1626,11 +1627,16 @@ void C2VdecComponent::tryChangeOutputFormat() {
 c2_status_t C2VdecComponent::videoResolutionChange() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "VideoResolutionChange");
 
+    bool bufferSizeChanged = false;
+    bool bufferNumIncreased = false;
     mPendingOutputFormat.reset();
     stopDequeueThread();
 
+    auto reallocate = mDeviceUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat, &bufferSizeChanged, &bufferNumIncreased);
+    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "output buffer reallocate:%d size change:%d number increase:%d", reallocate, bufferSizeChanged, bufferNumIncreased);
+
     if (mBlockPoolUtil->isBufferQueue()) {
-        if (mDeviceUtil->getNeedReallocBuffer()) {
+        if (bufferSizeChanged) {
             for (auto& info : mGraphicBlocks) {
                 info.mFdHaveSet = false;
                 info.mBind = false;
@@ -1666,8 +1672,21 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
             if (mVideoDecWraper) {
                 mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
             }
-        } else {
+        } else if (bufferNumIncreased) {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Do not need realloc", __func__, __LINE__);
+            if (mVideoDecWraper) {
+                mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
+            }
+            for (auto& info : mGraphicBlocks) {
+                info.mFdHaveSet = false;
+                if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                    sendOutputBufferToAccelerator(&info, true /* ownByAccelerator */);
+                }
+            }
+        } else {
+            // The size and number of buffers in the current decoder have not changed,
+            // so it is unnecessary to reallocate buffers.
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Component assign the number of buffer to decoder now.");
             if (mVideoDecWraper) {
                 mVideoDecWraper->assignPictureBuffers(mOutputFormat.mMinNumBuffers);
             }
@@ -1685,9 +1704,7 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
             return C2_CORRUPTED;
         }
     } else {
-        bool reallocOutputBuffer = mDeviceUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat);
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Realloc output buffer:%d", reallocOutputBuffer);
-        if (reallocOutputBuffer) {
+        if (reallocate) {
             for (auto& info : mGraphicBlocks) {
                 mBlockPoolUtil->resetGraphicBlock(info.mBlockId);
                 info.mFdHaveSet = false;
@@ -2039,7 +2056,7 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
     C2Vdec_LOG(CODEC2_LOG_INFO, "AllocateBuffersFromBlockPool(%s, 0x%x)", size.ToString().c_str(), pixelFormat);
     stopDequeueThread();
     size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-    if (isTunnelMode() || !mDeviceUtil->getNeedReallocBuffer()) {
+    if (isTunnelMode() || !mDeviceUtil->needAllocWithMaxSize()) {
         mOutBufferCount = getDefaultMaxBufNum(GetIntfImpl()->getInputCodec());
         if (bufferCount > mOutBufferCount) {
             C2Vdec_LOG(CODEC2_LOG_INFO, "required outbuffer count %d large than default num %d", (int)bufferCount, mOutBufferCount);
@@ -2555,7 +2572,7 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     uint32_t max_width = width;
     uint32_t max_height = height;
 
-    if (!mDeviceUtil->getNeedReallocBuffer()) {
+    if (!mDeviceUtil->needAllocWithMaxSize()) {
         mDeviceUtil->getMaxBufWidthAndHeight(&max_width, &max_height);
     }
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,
@@ -2697,7 +2714,7 @@ void C2VdecComponent::onErrorFrameWorksAndReportIfFinised(uint32_t bitstreamId) 
 
     work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
     mErrorFrameWorkCount++;
-    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] discard bitstream id:%d count:%" PRId64 "", __func__, __LINE__,  bitstreamId, mErrorFrameWorkCount);
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]if current work finish input buffer done,so discard bitstream id:%d count:%" PRId64 "", __func__, __LINE__,  bitstreamId, mErrorFrameWorkCount);
     reportWorkIfFinished(bitstreamId, 0);
 }
 
@@ -2998,12 +3015,10 @@ void C2VdecComponent::reportAbandonedWorks() {
             mTunnelHelper->storeAbandonedFrame(work->input.ordinal.timestamp.peekull());
         }
 
-        CODEC2_LOG(CODEC2_LOG_INFO, "[%s] %s mode abandon bitsreamid:%d mediatimeus:%llu", __func__,
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %s mode abandon bitsreamid:%d mediatimeus:%llu", __func__,
             (isTunnelMode() ? "tunnel" : "no-tunnel"),
             frameIndexToBitstreamId(work->input.ordinal.frameIndex),
             work->input.ordinal.timestamp.peekull());
-
-
         abandonedWorks.emplace_back(std::move(work));
     }
     mAbandonedWorks.clear();

@@ -84,8 +84,9 @@ public:
     //int check_color_aspects();
     uint64_t getPlatformUsage();
     uint32_t getOutAlignedSize(uint32_t size, bool forceAlign = false);
-    bool getNeedReallocBuffer();
-    bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new);
+    bool needAllocWithMaxSize();
+    bool checkReallocOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
+                                 bool *sizechange, bool *buffernumincrease);
     bool getMaxBufWidthAndHeight(uint32_t *width, uint32_t *height);
     bool getUvmMetaData(int fd,unsigned char *data,int *size);
     void parseAndProcessMetaData(unsigned char *data, int size, C2Work& work);
