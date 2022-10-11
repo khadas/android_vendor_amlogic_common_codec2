@@ -626,10 +626,14 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
 
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
+    if (block == nullptr) {
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] got null block, donot use it", __func__);
+        return;
+    }
 
     if (getVideoResolutionChanged()) {
-        if ((mOutputFormat.mCodedSize.width() == block->width() &&
-             mOutputFormat.mCodedSize.height() == block->height())) {
+        if ((mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width()) == block->width() &&
+             mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height()) == block->height())) {
             appendOutputBuffer(std::move(block), poolId, blockId, true);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
