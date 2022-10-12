@@ -82,6 +82,7 @@ C2VdecComponent::DeviceUtil::~DeviceUtil() {
     }
 }
 
+
 uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
     uint32_t doubleWriteValue = 3;
     InputCodec codec = mIntfImpl->getInputCodec();
@@ -1004,6 +1005,10 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t* width, uint3
         } else {
             *width = kMaxWidth4k;
             *height = kMaxHeight4k;
+        }
+        if (mIntfImpl->getInputCodec() == InputCodec::H265 && mIsInterlaced) {
+            *width = kMaxWidth1080p;
+            *height = kMaxHeight1080p;
         }
     } else {
         *width = kMaxWidth1080p;
