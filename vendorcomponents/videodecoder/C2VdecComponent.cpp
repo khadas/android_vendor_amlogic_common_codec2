@@ -265,7 +265,13 @@ C2VdecComponent::~C2VdecComponent() {
         done.Wait();
         mThread.Stop();
     }
-
+    //mDebugUtil used thread task to loop show debug info,
+    //so we need destory "mDebugUtil" after thread is stopped
+    if (mDebugUtil) {
+        mDebugUtil->showGraphicBlockInfo();
+        mDebugUtil.reset();
+        mDebugUtil = NULL;
+    }
     if (mSecureMode)
         sConcurrentInstanceSecures.fetch_sub(1, std::memory_order_relaxed);
     else
@@ -298,12 +304,6 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
     if (mTunnelHelper) {
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
-    }
-
-    if (mDebugUtil) {
-        mDebugUtil->showGraphicBlockInfo();
-        mDebugUtil.reset();
-        mDebugUtil = NULL;
     }
 
     for (auto& info : mGraphicBlocks) {
@@ -1767,8 +1767,13 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     if (!mUseBufferQueue) {
         dequeue_buffer_num = bufferCount;
     }
-
-    if (mDeviceUtil->isInterlaced())
+    //fixed android.mediav2.cts.CodecDecoderSurfaceTest#testFlushNative[28(c2.amlogic.mpeg2.decoder_video/mpeg2)]
+    //android.mediav2.cts.CodecDecoderSurfaceTest#testFlushNative[29(c2.amlogic.mpeg2.decoder_video/mpeg2)]
+    //do not change dequeue buf count too big when codec is mpeg2 and used bufferqueue.
+    //out buf release is slow at surface mode,
+    //we cannot get out buf so fast.
+    if (mDeviceUtil->isInterlaced() &&
+        !(mIntfImpl->getCodecProfile() == media::MPEG2_PROFILE && mBlockPoolUtil->isBufferQueue()))
         dequeue_buffer_num = mOutBufferCount - (2 + kDefaultSmoothnessFactor);
 
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %" PRId64"",
