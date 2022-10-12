@@ -42,6 +42,7 @@ public:
     enum Event_v4l2 {
         // Event file is a interlaced
         FIELD_INTERLACED = 1,
+        FRAME_ERROR = 3,
     };
 
     VideoDecWraper();

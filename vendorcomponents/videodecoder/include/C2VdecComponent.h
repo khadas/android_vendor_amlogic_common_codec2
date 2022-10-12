@@ -309,6 +309,10 @@ private:
     // by comparing timestamps. If there are works with no-show frame, call reportWorkIfFinished()
     // to report to listener if finished.
     void detectNoShowFrameWorksAndReportIfFinished(const C2WorkOrdinalStruct& currOrdinal);
+    // For the frames that cannot be decoded by the decoder, the work ID is returned through the event,
+    // and then directly returned to the framework for discarding.
+    void onErrorFrameWorksAndReportIfFinised(uint32_t bitstreamId);
+
     void reportWorkForNoShowFrames();
     // Check if the corresponding work is finished by |bitstreamId|. If yes, make onWorkDone call to
     // listener and erase the work from |mPendingWorks|.
@@ -495,6 +499,7 @@ private:
     int32_t mInputBufferNum;
     int32_t mInputQueueNum;
     int64_t mOutputWorkCount;
+    int64_t mErrorFrameWorkCount;
     int64_t mOutputFinishedWorkCount;
     int32_t mSyncId;
     int64_t mSyncType;

@@ -200,6 +200,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mInputBufferNum(0),
         mInputQueueNum(0),
         mOutputWorkCount(0),
+        mErrorFrameWorkCount(0),
         mOutputFinishedWorkCount(0),
         mSyncType(C2_SYNC_TYPE_NON_TUNNEL),
         mDefaultDummyReadView(DummyReadView()),
@@ -1068,6 +1069,7 @@ void C2VdecComponent::resetInputAndOutputBufInfo() {
     mInputWorkCount = 0;
     mInputCSDWorkCount = 0;
     mOutputWorkCount = 0;
+    mErrorFrameWorkCount = 0;
     mHasQueuedWork = false;
     mUpdateDurationUsCount = 0;
     mOutputFinishedWorkCount = 0;
@@ -2440,15 +2442,41 @@ void C2VdecComponent::NotifyError(int error) {
 void C2VdecComponent::NotifyEvent(uint32_t event, void *param, uint32_t paramsize) {
     UNUSED(param);
     UNUSED(paramsize);
+    int32_t bitstreamId = -1;
     switch (event) {
         case VideoDecWraper::FIELD_INTERLACED:
             CODEC2_LOG(CODEC2_LOG_INFO, "Is interlaced");
             mDeviceUtil->updateInterlacedInfo(true);
             break;
+        case VideoDecWraper::FRAME_ERROR:
+            bitstreamId = *(uint32_t *)(param);
+            mTaskRunner->PostTask(FROM_HERE,
+                          ::base::Bind(&C2VdecComponent::onErrorFrameWorksAndReportIfFinised, ::base::Unretained(this), bitstreamId));
+            break;
         default:
             CODEC2_LOG(CODEC2_LOG_INFO, "NotifyEvent:event:%d", event);
             break;
     }
+}
+
+void C2VdecComponent::onErrorFrameWorksAndReportIfFinised(uint32_t bitstreamId) {
+    DCHECK(mTaskRunner->BelongsToCurrentThread());
+
+    if (bitstreamId < 0) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "bitstream id is error,please check it.");
+        return;
+    }
+
+    auto work = getPendingWorkByBitstreamId(bitstreamId);
+    if (!work) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not get pending work with bitstreamId:%d", __func__, __LINE__,  bitstreamId);
+        return;
+    }
+
+    work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
+    mErrorFrameWorkCount++;
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] discard bitstream id:%d count:%" PRId64 "", __func__, __LINE__,  bitstreamId, mErrorFrameWorkCount);
+    reportWorkIfFinished(bitstreamId, 0);
 }
 
 void C2VdecComponent::detectNoShowFrameWorksAndReportIfFinished(
