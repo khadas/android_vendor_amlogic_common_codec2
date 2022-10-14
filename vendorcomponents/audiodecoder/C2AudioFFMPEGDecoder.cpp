@@ -213,7 +213,7 @@ static void dump(const char * path, char *data, int size)
     if (fp != NULL) {
         size_t  write_size = fwrite(data, sizeof(char), (size_t)size, fp);
         if (write_size != (size_t)size)
-            ALOGE("error: write data to file failed[want:%d]-[ret:%d]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
+            ALOGE("error: write data to file failed[want:%d]-[ret:%zu]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
         fclose(fp);
     }else {
         ALOGE("error: open file failed\n");
@@ -627,7 +627,7 @@ void C2AudioFFMPEGDecoder::process(
     inInfo.bufferSize = inBuffer_nFilledLen;
     inInfo.decodedSizes.clear();
     if (debug_print) {
-        ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%llu, timestamp:%llu", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
+        ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%" PRIu64 ", timestamp:%" PRIu64 "", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
     }
 
 

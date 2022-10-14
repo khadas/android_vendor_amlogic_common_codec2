@@ -173,7 +173,7 @@ static void dump(const char * path, char *data, int size)
     if (fp != NULL) {
         size_t  write_size = fwrite(data, sizeof(char), (size_t)size, fp);
         if (write_size != (size_t)size)
-            ALOGE("error: write data to file failed[want:%d]-[ret:%d]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
+            ALOGE("error: write data to file failed[want:%d]-[ret:%zu]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
         fclose(fp);
     }else
         ALOGE("error: open file failed\n");
@@ -786,7 +786,7 @@ void C2AudioEAC3Decoder::process(
     inInfo.bufferSize = inBuffer_nFilledLen;
     inInfo.decodedSizes.clear();
     if (mConfig->debug_print) {
-        ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%llu, timestamp:%llu", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
+        ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%" PRIu64 ", timestamp:%" PRIu64 "", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
     }
 
 
@@ -803,7 +803,7 @@ void C2AudioEAC3Decoder::process(
         mNumFramesOutput = 0;
         decoder_offset += inBuffer_nFilledLen;
         if (mConfig->debug_print == 1)
-            ALOGI("inHeader->nFilledLen:%d  inHeader->nTimeStamp %lld",inBuffer_nFilledLen,inInfo.timestamp);
+            ALOGI("inHeader->nFilledLen:%zu  inHeader->nTimeStamp %" PRIu64 "",inBuffer_nFilledLen,inInfo.timestamp);
             if (mConfig->debug_dump == 1) {
                 dump("/data/vendor/audiohal/c2_decoder_in.ac3", (char *)mConfig->pInputBuffer, inBuffer_nFilledLen);
             }
@@ -872,7 +872,7 @@ void C2AudioEAC3Decoder::process(
                                                     ,(int *)&spdif_len,
                                                     handle);
                 if (mConfig->debug_print == 1)
-                    ALOGI("%s ret:%d used_size:%d inHeader->nFilledLen:%d mRemainLen %d mConfig->outputFrameSize %d",
+                    ALOGI("%s ret:%d used_size:%d inHeader->nFilledLen:%zu mRemainLen %d mConfig->outputFrameSize %d",
                         __func__, ret,used_size,inBuffer_nFilledLen,mRemainLen, mConfig->outputFrameSize);
                 if (inBuffer_nFilledLen + mRemainLen >= (uint32_t)used_size) {
                     if (mConfig->debug_dump == 1) {
