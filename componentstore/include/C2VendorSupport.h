@@ -33,6 +33,7 @@ const C2String kRM40DecoderName = "c2.amlogic.rm40.decoder.sw";
 const C2String kWMV1DecoderName = "c2.amlogic.wmv1.decoder.sw";
 const C2String kWMV2DecoderName = "c2.amlogic.wmv2.decoder.sw";
 const C2String kWMV3DecoderName = "c2.amlogic.wmv3.decoder.sw";
+const C2String kVC1DecoderName = "c2.amlogic.vc1.decoder.sw";
 
 /* secure */
 const C2String kH264SecureDecoderName = "c2.amlogic.avc.decoder.secure";
@@ -140,6 +141,7 @@ enum class C2VendorCodec {
     VDEC_WMV1,
     VDEC_WMV2,
     VDEC_WMV3,
+    VDEC_VC1,
 #endif
     VENC_H264,
     VENC_H265,
@@ -197,6 +199,7 @@ static C2VendorComponent gC2SoftVideoDecoderComponents [] = {
     {kWMV1DecoderName, C2VendorCodec::VDEC_WMV1},
     {kWMV2DecoderName, C2VendorCodec::VDEC_WMV2},
     {kWMV3DecoderName, C2VendorCodec::VDEC_WMV3},
+    {kVC1DecoderName, C2VendorCodec::VDEC_VC1},
 };
 #endif
 

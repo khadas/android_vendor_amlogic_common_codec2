@@ -113,6 +113,11 @@ c2_status_t C2SoftVdec::onInit() {
         CODEC2_LOG(CODEC2_LOG_INFO, "Set mWidth=%d, mHeight=%d from CCodecConfig", mWidth, mHeight);
     }
 
+    if ((mDecoderName == "c2.amlogic.vc1.decoder.sw") && (mWidth * mHeight > 1280 * 720)) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "Unsupported resolution!");
+        return C2_CORRUPTED;
+    }
+
     status_t err = initDecoder();
     return err == OK ? C2_OK : C2_CORRUPTED;
 }
@@ -632,6 +637,7 @@ CreateC2SoftVdecFactory(RM40)
 CreateC2SoftVdecFactory(WMV1)
 CreateC2SoftVdecFactory(WMV2)
 CreateC2SoftVdecFactory(WMV3)
+CreateC2SoftVdecFactory(VC1)
 
 DestroyC2SoftVdecFactory(VP6A)
 DestroyC2SoftVdecFactory(VP6F)
@@ -644,4 +650,5 @@ DestroyC2SoftVdecFactory(RM40)
 DestroyC2SoftVdecFactory(WMV1)
 DestroyC2SoftVdecFactory(WMV2)
 DestroyC2SoftVdecFactory(WMV3)
+DestroyC2SoftVdecFactory(VC1)
 
