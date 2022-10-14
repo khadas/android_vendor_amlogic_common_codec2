@@ -62,7 +62,7 @@
 constexpr char COMPONENT_NAME_AC3[] = "c2.amlogic.audio.decoder.ac3";
 constexpr char COMPONENT_NAME_EAC3[] = "c2.amlogic.audio.decoder.eac3";
 
-bool component_is_eac3 = 0;
+static bool component_is_eac3 = 0;
 
 namespace android {
 
@@ -544,10 +544,13 @@ bool C2AudioEAC3Decoder::setUpAudioDecoder_l() {
                 digital_raw = digital_raw  - 3;
                 adec_call = true;
             }
-            ALOGI("adec_call % d digital_raw %d ",adec_call, digital_raw);
+            ALOGI("adec_call % d digital_raw %d ", adec_call, digital_raw);
         }
 
-        ALOGV("nAudioCodec %d,digital_raw %d adec_call %d \n",nAudioCodec,digital_raw,adec_call);
+        /* nAudioCodec: 1 - AC3,  2 - EAC3 */
+        nAudioCodec = component_is_eac3 ? 2 : 1;
+
+        ALOGV("nAudioCodec %d, digital_raw %d adec_call %d \n", nAudioCodec, digital_raw, adec_call);
         if (digital_raw <= 1 ) {/*ac3,eac3 spdif mode passthrough*/
             (*ddp_decoder_init)(1, 1,&handle);
         } else if (digital_raw == 2 && (nAudioCodec == 1)) {/*ac3 hdmi mode passthrough*/
@@ -804,9 +807,9 @@ void C2AudioEAC3Decoder::process(
         decoder_offset += inBuffer_nFilledLen;
         if (mConfig->debug_print == 1)
             ALOGI("inHeader->nFilledLen:%zu  inHeader->nTimeStamp %" PRIu64 "",inBuffer_nFilledLen,inInfo.timestamp);
-            if (mConfig->debug_dump == 1) {
-                dump("/data/vendor/audiohal/c2_decoder_in.ac3", (char *)mConfig->pInputBuffer, inBuffer_nFilledLen);
-            }
+
+        if (mConfig->debug_dump == 1)
+            dump("/data/vendor/audiohal/c2_decoder_in.ac3", (char *)mConfig->pInputBuffer, inBuffer_nFilledLen);
     }
 
     if (digital_raw < 3) {
@@ -872,12 +875,9 @@ void C2AudioEAC3Decoder::process(
                                                     ,(int *)&spdif_len,
                                                     handle);
                 if (mConfig->debug_print == 1)
-                    ALOGI("%s ret:%d used_size:%d inHeader->nFilledLen:%zu mRemainLen %d mConfig->outputFrameSize %d",
-                        __func__, ret,used_size,inBuffer_nFilledLen,mRemainLen, mConfig->outputFrameSize);
+                    ALOGI("%s ret:%d used_size:%d inHeader->nFilledLen:%zu mRemainLen %d mConfig->outputFrameSize %d nIsEc3:%d",
+                        __func__, ret,used_size,inBuffer_nFilledLen,mRemainLen, mConfig->outputFrameSize, nIsEc3);
                 if (inBuffer_nFilledLen + mRemainLen >= (uint32_t)used_size) {
-                    if (mConfig->debug_dump == 1) {
-                        dump("/data/vendor/audiohal/c2_decoder_in.ac3", (char *)pInputBuffer, used_size);
-                    }
                     if (mRemainLen && inBuffer_nFilledLen) {
                         mRemainLen = 0;
                         memset (mRemainBuffer , 0 ,mRemainBufLen);
@@ -898,9 +898,7 @@ void C2AudioEAC3Decoder::process(
                             amsysfs_set_sysfs_str(REPORT_DECODED_INFO, sysfs_buf);
                         }
                     }
-                    if (mConfig->debug_dump == 1) {
-                        dump("/data/vendor/audiohal/c2_decoder_in.ac3", (char *)pInputBuffer, used_size);
-                    }
+
                     if (mRemainLen && inBuffer_nFilledLen) {
                         memset (mRemainBuffer , 0 ,mRemainBufLen);
                         mRemainLen = 0;
@@ -922,7 +920,7 @@ void C2AudioEAC3Decoder::process(
         }
 
         if (digital_raw > 0) {
-            memset((char *)mConfig->pOutputBuffer, 0, mConfig->outputFrameSize);
+            memset((char *)mConfig->pOutputBuffer, 0, spdif_len);
             memcpy((char *)mConfig->pOutputBuffer, (char *)spdif_addr, spdif_len);
             mConfig->outputFrameSize = spdif_len;
         }

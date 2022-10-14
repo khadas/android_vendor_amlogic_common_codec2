@@ -35,6 +35,7 @@
 #include "C2VendorSupport.h"
 #include "C2AudioDTSDecoder.h"
 #include "aml_dts_decoder_api.h"
+#include "C2VendorAudioConfig.h"
 
 #define LOGE ALOGE
 #define LOGI ALOGI
@@ -153,9 +154,16 @@ public:
                 .withFields({C2F(mChannelMask, value).inRange(0, 4294967292)})
                 .withSetter(Setter<decltype(*mChannelMask)>::StrictValueWithNoDeps)
                 .build());
+
+        addParameter(DefineParam(mPassthroughEnable, C2_PARAMKEY_VENDOR_PASSTHROUGH_ENABLE)
+                .withDefault(new C2PassthroughEnable::input(0))
+                .withFields({C2F(mPassthroughEnable, value).any()})
+                .withSetter(Setter<decltype(*mPassthroughEnable)>::StrictValueWithNoDeps)
+                .build());
     }
 
     u_int32_t getMaxChannelCount() const { return mMaxChannelCount->value; }
+    int32_t getPassthroughEnable() const { return mPassthroughEnable->value; }
 
 private:
     std::shared_ptr<C2StreamSampleRateInfo::output> mSampleRate;
@@ -164,6 +172,7 @@ private:
     std::shared_ptr<C2StreamMaxBufferSizeInfo::input> mInputMaxBufSize;
     std::shared_ptr<C2StreamMaxChannelCountInfo::input> mMaxChannelCount;
     std::shared_ptr<C2StreamChannelMaskInfo::output> mChannelMask;
+    std::shared_ptr<C2PassthroughEnable::input> mPassthroughEnable;
 };
 
 C2AudioDTSDecoder::C2AudioDTSDecoder(
@@ -612,6 +621,7 @@ bool C2AudioDTSDecoder::setUpAudioDecoder_l() {
             mConfig->debug_dump = 1;
         }
 
+        nPassThroughEnable = mIntf->getPassthroughEnable();
         if (nPassThroughEnable >= AMADEC_CALL_OFFSET) {
             mConfig->digital_raw = nPassThroughEnable - AMADEC_CALL_OFFSET;
             adec_call = true;
