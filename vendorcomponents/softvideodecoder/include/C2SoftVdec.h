@@ -156,6 +156,10 @@ private:
     std::shared_ptr<IntfImpl> mIntfImpl;
     std::shared_ptr<C2GraphicBlock> mOutBlock;
     std::shared_ptr<C2StreamPictureSizeInfo::output> mSize;
+    // Store all pending works. The dequeued works are placed here until they are finished and then
+    // sent out by onWorkDone call to listener.
+    // TODO: maybe use priority_queue instead.
+    std::list<uint64_t> mPendingWorkFrameIndexs;
 
     C2String mDecoderName;
     uint32_t mWidth;
@@ -165,12 +169,12 @@ private:
     std::atomic_uint64_t mOutIndex;
     bool mSignalledOutputEos;
     bool mSignalledError;
-    bool mResolutionChanged;
+    bool mFirstPictureReviced;
 
     bool mDecInit;
     VIDEO_FRAME_WRAPPER_T *mPic;
     VIDEO_INFO_T mVideoInfo;
-    void *gAmFFmpegCodecLibHandler;
+    void *mFFmpegCodecLibHandler;
     AmVideoCodec *mCodec;
     uint8_t* mExtraData;
 

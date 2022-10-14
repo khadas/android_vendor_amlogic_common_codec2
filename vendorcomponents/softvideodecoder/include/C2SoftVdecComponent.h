@@ -142,9 +142,10 @@ protected:
      * to the client.
      *
      * \param[in]   frameIndex    the index of the pending work
+     * \param[in]   customOrdinal the out pts of the pending work
      * \param[in]   fillWork      the function to fill the retrieved work.
      */
-    void finish(uint64_t frameIndex, std::function<void(const std::unique_ptr<C2Work> &)> fillWork);
+    void finish(uint64_t frameIndex, uint64_t customOrdinal, std::function<void(const std::unique_ptr<C2Work> &)> fillWork);
 
     /**
      * Clone pending or current work and send the work back to client.

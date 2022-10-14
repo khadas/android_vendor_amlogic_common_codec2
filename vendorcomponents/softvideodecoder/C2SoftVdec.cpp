@@ -24,6 +24,7 @@
 #include <C2SoftVdec.h>
 #include <C2SoftVdecInterfaceImpl.h>
 
+#define MAX_WORK_PENDING_COUNT (7)
 
 #define UNUSED(expr)  \
     do {              \
@@ -63,10 +64,10 @@ C2SoftVdec::C2SoftVdec(C2String name, c2_node_id_t id,
         mOutIndex(0u),
         mSignalledOutputEos(false),
         mSignalledError(false),
-        mResolutionChanged(false),
+        mFirstPictureReviced(false),
         mDecInit(false),
         mPic(NULL),
-        gAmFFmpegCodecLibHandler(NULL),
+        mFFmpegCodecLibHandler(NULL),
         mCodec(NULL),
         mExtraData(NULL),
         mDumpYuvFp(NULL) {
@@ -91,6 +92,7 @@ C2SoftVdec::C2SoftVdec(C2String name, c2_node_id_t id,
 
 C2SoftVdec::~C2SoftVdec() {
     CODEC2_LOG(CODEC2_LOG_INFO, "%s", __func__);
+    mPendingWorkFrameIndexs.clear();
     onRelease();
     if (mExtraData) {
         free(mExtraData);
@@ -149,43 +151,45 @@ c2_status_t C2SoftVdec::onFlush_sm() {
     resetDecoder();
     resetPlugin();
     mSignalledOutputEos = false;
+    mFirstPictureReviced = false;
+    mPendingWorkFrameIndexs.clear();
     return C2_OK;
 }
 
 bool C2SoftVdec::load_ffmpeg_decoder_lib(){
-    if (gAmFFmpegCodecLibHandler) {
+    if (mFFmpegCodecLibHandler) {
         return true;
     }
 
-    gAmFFmpegCodecLibHandler = dlopen("libamffmpegcodec.so", RTLD_NOW);
-    if (!gAmFFmpegCodecLibHandler) {
+    mFFmpegCodecLibHandler = dlopen("libamffmpegcodec.so", RTLD_NOW);
+    if (!mFFmpegCodecLibHandler) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Failed to open ffmpeg decoder lib, %s", dlerror());
         goto Error;
     }
 
     mFFmpegVideoDecoderInitFunc = NULL;
-    mFFmpegVideoDecoderInitFunc = (ffmpeg_video_decoder_init_fn)dlsym(gAmFFmpegCodecLibHandler, "ffmpeg_video_decoder_init");
+    mFFmpegVideoDecoderInitFunc = (ffmpeg_video_decoder_init_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_init");
     if (mFFmpegVideoDecoderInitFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err:,%s", dlerror());
         goto Error;
     }
 
     mFFmpegVideoDecoderProcessFunc = NULL;
-    mFFmpegVideoDecoderProcessFunc = (ffmpeg_video_decoder_process_fn)dlsym(gAmFFmpegCodecLibHandler, "ffmpeg_video_decoder_process");
+    mFFmpegVideoDecoderProcessFunc = (ffmpeg_video_decoder_process_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_process");
     if (mFFmpegVideoDecoderProcessFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err,%s", dlerror());
         goto Error;
     }
 
     mFFmpegVideoDecoderFreeFrameFunc = NULL;
-    mFFmpegVideoDecoderFreeFrameFunc = (ffmpeg_video_decoder_free_frame_fn)dlsym(gAmFFmpegCodecLibHandler, "ffmpeg_video_decoder_free_frame");
+    mFFmpegVideoDecoderFreeFrameFunc = (ffmpeg_video_decoder_free_frame_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_free_frame");
     if (mFFmpegVideoDecoderFreeFrameFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err,%s", dlerror());
         goto Error;
     }
 
     mFFmpegVideoDecoderCloseFunc = NULL;
-    mFFmpegVideoDecoderCloseFunc = (ffmpeg_video_decoder_close_fn)dlsym(gAmFFmpegCodecLibHandler, "ffmpeg_video_decoder_close");
+    mFFmpegVideoDecoderCloseFunc = (ffmpeg_video_decoder_close_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_close");
     if (mFFmpegVideoDecoderCloseFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err:%s", dlerror());
         goto Error;
@@ -206,9 +210,9 @@ bool C2SoftVdec::unload_ffmpeg_decoder_lib(){
     mFFmpegVideoDecoderProcessFunc = NULL;
     mFFmpegVideoDecoderFreeFrameFunc = NULL;
     mFFmpegVideoDecoderCloseFunc = NULL;
-    if (gAmFFmpegCodecLibHandler != NULL) {
-        dlclose(gAmFFmpegCodecLibHandler);
-        gAmFFmpegCodecLibHandler = NULL;
+    if (mFFmpegCodecLibHandler != NULL) {
+        dlclose(mFFmpegCodecLibHandler);
+        mFFmpegCodecLibHandler = NULL;
     }
     return true;
 }
@@ -313,7 +317,7 @@ void C2SoftVdec::finishWork(uint64_t index, const std::unique_ptr<C2Work> &work)
             fillWork(work);
         }
     } else {
-        finish(index, fillWork);
+        finish(index, work->input.ordinal.customOrdinal.peeku(), fillWork);
     }
 }
 
@@ -378,6 +382,8 @@ void C2SoftVdec::process(
     uint8_t *inBuffuer = const_cast<uint8_t *>(rView.data());
     bool codecConfig = ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) !=0);
     bool eos = ((work->input.flags & C2FrameData::FLAG_END_OF_STREAM) != 0);
+    bool frameHasData = (inSize > 0);
+    bool flushPendingWork = (eos && !mPendingWorkFrameIndexs.empty());
     bool hasPicture = false;
 
     // Config csd data
@@ -392,16 +398,13 @@ void C2SoftVdec::process(
             mVideoInfo.extra_data = mExtraData;
             mVideoInfo.extra_data_size = inSize;
         }
-        if ((mDecoderName.find("wmv3") != std::string::npos)
-            || (mDecoderName.find("vc1") != std::string::npos)) {
-            CODEC2_LOG(CODEC2_LOG_INFO, "For %s don't input config pkt to ffmpeg", mDecoderName.c_str());
-            fillEmptyWork(work);
-            return;
-        }
+        CODEC2_LOG(CODEC2_LOG_INFO, "For %s don't input config pkt to ffmpeg", mDecoderName.c_str());
+        fillEmptyWork(work);
+        return;
     }
 
     // Loop for resolution changed case.
-    while (inSize > 0) {
+    while (frameHasData || flushPendingWork) {
         if (C2_OK != ensureDecoderState(pool)) {
             mSignalledError = true;
             work->workletsProcessed = 1u;
@@ -445,7 +448,7 @@ void C2SoftVdec::process(
                 return;
             }
             memset(mPic, 0, sizeof(VIDEO_FRAME_WRAPPER_T));
-            mPic->pts = (int64_t)work->input.ordinal.timestamp.peeku();
+            mPic->pts = work->input.ordinal.timestamp.peeku();
 
             mTimeStart = systemTime();
             nsecs_t delay = mTimeStart - mTimeEnd;
@@ -455,16 +458,15 @@ void C2SoftVdec::process(
             mTimeTotal += decodeTime;
             mTotalProcessedFrameNum++;
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,
-                "Average DecodeTime=%" PRId64 "us, DecodeTime=%" PRId64 "us, Delay=%" PRId64 "us, FrameIndex=%d, Size=%d, In_Pts=%" PRId64", Out_Pts=%" PRId64", Flags=%x",
-                (int64_t)(mTimeTotal / mTotalProcessedFrameNum / 1000), (decodeTime / 1000), (delay / 1000), (int)work->input.ordinal.frameIndex.peeku(), size,
-                (int64_t)work->input.ordinal.timestamp.peeku(), mPic->pts, work->input.flags);
-            if (size > 0) {
+                "Average DecodeTime=%" PRId64 "us, DecodeTime=%" PRId64 "us, Delay=%" PRId64 "us, FrameIndex=%" PRId64", In_Size=%zu, Out_Size=%d, In_Pts=%" PRId64", Out_Pts=%" PRId64", Flags=%x",
+                (int64_t)(mTimeTotal / mTotalProcessedFrameNum / 1000), (decodeTime / 1000), (delay / 1000), work->input.ordinal.frameIndex.peeku(), inSize, size,
+                work->input.ordinal.timestamp.peeku(), mPic->pts, work->input.flags);
+            if (size >= 0) {
                 if (mPic->width != 0 && mPic->height != 0
                     && (mPic->width != mWidth ||  mPic->height != mHeight)) {
                     CODEC2_LOG(CODEC2_LOG_INFO, "Resolution changed from %d x %d to %d x %d", mWidth, mHeight, mPic->width, mPic->height);
                     mWidth = mPic->width;
                     mHeight = mPic->height;
-                    mResolutionChanged = true;
                     work->workletsProcessed = 0u;
 
                     C2StreamPictureSizeInfo::output size(0u, mWidth, mHeight);
@@ -486,16 +488,18 @@ void C2SoftVdec::process(
                     continue;
                 }
                 hasPicture = true;
+                mFirstPictureReviced = true;
             } else {
                 // Decode frame failed.
                 mTotalDropedOutputFrameNum++;
-                CODEC2_LOG(CODEC2_LOG_ERR, "Decode failed, drop frame Index %d, In_Pts %" PRId64", total droped %" PRId64"",
-                    (int)work->input.ordinal.frameIndex.peeku(), (int64_t)work->input.ordinal.timestamp.peeku(), mTotalDropedOutputFrameNum);
+                CODEC2_LOG(CODEC2_LOG_ERR, "Decode failed, frame Index %" PRId64", In_Pts %" PRId64"",
+                    work->input.ordinal.frameIndex.peeku(), work->input.ordinal.timestamp.peeku());
                 free(mPic);
-                mPic = NULL;;
+                mPic = NULL;
             }
         } else {
             hasPicture = true;
+            mFirstPictureReviced = true;
         }
 
         if (hasPicture) {
@@ -531,24 +535,37 @@ void C2SoftVdec::process(
             mFFmpegVideoDecoderFreeFrameFunc(mCodec);
             free(mPic);
             mPic = NULL;
-            finishWork(workIndex, work);
-        }
 
-        // Reset decoder for resolution changed.
-        if (mResolutionChanged) {
-            resetDecoder();
-            resetPlugin();
-            mResolutionChanged = false;
+            if (!mPendingWorkFrameIndexs.empty()) {
+                if (!flushPendingWork) {
+                    mPendingWorkFrameIndexs.push_back(work->input.ordinal.frameIndex.peeku());
+                }
+                finishWork(mPendingWorkFrameIndexs.front(), work);
+                mPendingWorkFrameIndexs.pop_front();
+            } else {
+                finishWork(workIndex, work);
+            }
         }
-        // Work done, break.
-        break;
+        // Exit directly if no need flushPendingWork or flush done.
+        if (!flushPendingWork || mPendingWorkFrameIndexs.empty()) {
+            break;
+        }
     }
 
     if (eos) {
         drainInternal(DRAIN_COMPONENT_WITH_EOS, pool, work);
         mSignalledOutputEos = true;
     } else if (!hasPicture) {
-        fillEmptyWork(work);
+        // Pending or drop frame when decode faild.
+        // For VP8 first 3(ffmpeg_decode_thread_num - 1) frames decode failed case.
+        if (!mFirstPictureReviced && mPendingWorkFrameIndexs.size() < MAX_WORK_PENDING_COUNT) {
+            mPendingWorkFrameIndexs.push_back(work->input.ordinal.frameIndex.peeku());
+        } else {
+            mTotalDropedOutputFrameNum++;
+            CODEC2_LOG(CODEC2_LOG_ERR, "Drop frame Index %" PRId64", In_Pts %" PRId64", total droped %" PRId64"",
+                work->input.ordinal.frameIndex.peeku(), work->input.ordinal.timestamp.peeku(), mTotalDropedOutputFrameNum);
+            fillEmptyWork(work);
+        }
     }
 }
 

@@ -786,7 +786,7 @@ std::list<std::unique_ptr<C2Work>> vec(std::unique_ptr<C2Work> &work) {
 }  // namespace
 
 void C2SoftVdecComponent::finish(
-        uint64_t frameIndex, std::function<void(const std::unique_ptr<C2Work> &)> fillWork) {
+        uint64_t frameIndex, uint64_t customOrdinal, std::function<void(const std::unique_ptr<C2Work> &)> fillWork) {
     std::unique_ptr<C2Work> work;
     {
         Mutexed<WorkQueue>::Locked queue(mWorkQueue);
@@ -798,6 +798,8 @@ void C2SoftVdecComponent::finish(
         queue->pending().erase(frameIndex);
     }
     if (work) {
+        // Set out pts
+        work->input.ordinal.customOrdinal = customOrdinal;
         fillWork(work);
         std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
         listener->onWorkDone_nb(shared_from_this(), vec(work));
@@ -891,6 +893,13 @@ bool C2SoftVdecComponent::processQueue() {
                     (unsigned long long)(
                             blockPool ? blockPool->getLocalId() : 111000111),
                     err);
+            if (err != C2_OK || !blockPool) {
+                CODEC2_LOG(CODEC2_LOG_INFO, "Get block pool ok, poolID %llu", (unsigned long long)poolId);
+                err = CreateCodec2BlockPool(poolId, shared_from_this(), &blockPool);
+                if (err != C2_OK) {
+                    CODEC2_LOG(CODEC2_LOG_ERR, "Graphic block allocator is invalid");
+                }
+            }
             if (err == C2_OK) {
                 mOutputBlockPool = std::make_shared<BlockingBlockPool>(blockPool);
             }
