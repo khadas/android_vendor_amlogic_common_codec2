@@ -24,7 +24,7 @@ func componentstoreDefaults(ctx android.LoadHookContext) {
 
     vconfig := ctx.Config().VendorConfig("amlogic_vendorconfig")
     if vconfig.Bool("enable_swcodec") == true {
-        cppflags = append(cppflags, "-DSUPPORT_SOFT_VDEC=1")
+        cppflags = append(cppflags, "-DSUPPORT_SOFT_VDEC=1 -DSUPPORT_SOFT_AFFMPEG=1")
     }
 
     if vconfig.Bool("enable_hwcodec") == true {

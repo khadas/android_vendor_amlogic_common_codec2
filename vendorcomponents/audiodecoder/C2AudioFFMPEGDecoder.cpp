@@ -341,6 +341,9 @@ Error:
 
 bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
     char value[PROPERTY_VALUE_MAX];
+    uint8_t *data = nullptr;
+    uint32_t dataLen = 0;
+
     debug_print = 0;
     debug_dump = 0;
     memset(value,0,sizeof(value));
@@ -362,9 +365,11 @@ bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
         debug_dump = 1;
     }
 
+    if (NULL == mAInfo ||  NULL == mIntf) {
+        ALOGE("%s  mAInfo or mIntf is null, so exit directly", __func__);
+        goto Error;
+    }
     mAInfo->extradata_size = mIntf->getExtraDataSize();
-    uint8_t *data = nullptr;
-    uint32_t dataLen = 0;
     mIntf->getExtraData(&data, &dataLen);
     if (dataLen > 0) {
         mAInfo->extradata_size = dataLen;
@@ -394,6 +399,9 @@ bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
     }
 
     return true;
+
+Error:
+    return false;
 }
 
 bool C2AudioFFMPEGDecoder::setUp() {
