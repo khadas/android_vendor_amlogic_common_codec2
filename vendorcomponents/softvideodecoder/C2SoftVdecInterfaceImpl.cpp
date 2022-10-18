@@ -392,7 +392,7 @@ void C2SoftVdec::IntfImpl::onColorAspectsDeclareParam(const std::shared_ptr<C2Re
     addParameter(
             DefineParam(mCodedColorAspects, C2_PARAMKEY_VUI_COLOR_ASPECTS)
             .withDefault(new C2StreamColorAspectsInfo::input(
-                    0u, C2Color::RANGE_LIMITED, C2Color::PRIMARIES_UNSPECIFIED,
+                    0u, C2Color::RANGE_UNSPECIFIED, C2Color::PRIMARIES_UNSPECIFIED,
                     C2Color::TRANSFER_UNSPECIFIED, C2Color::MATRIX_UNSPECIFIED))
             .withFields({
                 C2F(mCodedColorAspects, range).inRange(
