@@ -89,6 +89,10 @@ private:
     std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
     std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
 
+    void onH263DeclareParam();
+
+    void onVp8DeclareParam();
+
     void onBaseDeclareParam();
 
     void onMediaTypeDeclareParam(const char* mime);

@@ -163,26 +163,73 @@ C2SoftVdec::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorH
       : C2InterfaceHelper(helper) {
     setDerivedInstance(this);
 
-    //base setting
+    const char* mime = ConvertComponentNameToMimeType(name.c_str());
+
+    // profile and level
+    if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_H263)) {
+        onH263DeclareParam();
+    } else if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_VP8)) {
+        onVp8DeclareParam();
+    }
+
+    // base setting
     onBaseDeclareParam();
 
-    //media type
-    onMediaTypeDeclareParam(ConvertComponentNameToMimeType(name.c_str()));
+    // media type
+    onMediaTypeDeclareParam(mime);
 
-    //input delay
+    // input delay
     onInputDelayDeclareParam();
 
-    //output delay
+    // output delay
     onOutputDelayDeclareParam();
 
-    //buffer size
+    // buffer size
     onBufferSizeDeclareParam();
 
-    //buffer pool
+    // buffer pool
     onBufferPoolDeclareParam();
 
-    //ColorAspects
+    // ColorAspects
     onColorAspectsDeclareParam(helper);
+}
+
+void C2SoftVdec::IntfImpl::onH263DeclareParam() {
+    addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_H263_BASELINE, C2Config::LEVEL_H263_10))
+            .withFields({
+                C2F(mProfileLevel, profile).oneOf({
+                    C2Config::PROFILE_H263_BASELINE,
+                    C2Config::PROFILE_H263_ISWV2,
+                }),
+                C2F(mProfileLevel, level).oneOf({
+                    C2Config::LEVEL_H263_10,
+                    C2Config::LEVEL_H263_20,
+                    C2Config::LEVEL_H263_30,
+                    C2Config::LEVEL_H263_40,
+                    C2Config::LEVEL_H263_45,
+                })
+            })
+            .withSetter(ProfileLevelSetter)
+            .build());
+}
+
+void C2SoftVdec::IntfImpl::onVp8DeclareParam() {
+    addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_VP8_0, C2Config::LEVEL_UNUSED))
+            .withFields({
+                C2F(mProfileLevel, profile).equalTo(
+                    PROFILE_VP8_0
+                ),
+                C2F(mProfileLevel, level).equalTo(
+                    LEVEL_UNUSED),
+            })
+            .withSetter(ProfileLevelSetter)
+            .build());
 }
 
 void C2SoftVdec::IntfImpl::onBaseDeclareParam() {
@@ -204,29 +251,6 @@ void C2SoftVdec::IntfImpl::onBaseDeclareParam() {
 }
 
 void C2SoftVdec::IntfImpl::onMediaTypeDeclareParam(const char* mime) {
-    addParameter(
-            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-            .withDefault(new C2StreamProfileLevelInfo::input(
-                    0u, C2Config::PROFILE_AVC_MAIN, C2Config::LEVEL_AVC_4))
-            .withFields({
-                C2F(mProfileLevel, profile).oneOf({
-                        C2Config::PROFILE_AVC_BASELINE,
-                        C2Config::PROFILE_AVC_CONSTRAINED_BASELINE,
-                        C2Config::PROFILE_AVC_MAIN,
-                        C2Config::PROFILE_AVC_HIGH,
-                        C2Config::PROFILE_AVC_CONSTRAINED_HIGH}),
-                C2F(mProfileLevel, level).oneOf({
-                        C2Config::LEVEL_AVC_1, C2Config::LEVEL_AVC_1B,
-                        C2Config::LEVEL_AVC_1_1, C2Config::LEVEL_AVC_1_2,
-                        C2Config::LEVEL_AVC_1_3, C2Config::LEVEL_AVC_2,
-                        C2Config::LEVEL_AVC_2_1, C2Config::LEVEL_AVC_2_2,
-                        C2Config::LEVEL_AVC_3, C2Config::LEVEL_AVC_3_1,
-                        C2Config::LEVEL_AVC_3_2, C2Config::LEVEL_AVC_4,
-                        C2Config::LEVEL_AVC_4_1, C2Config::LEVEL_AVC_4_2,
-                        C2Config::LEVEL_AVC_5, C2Config::LEVEL_AVC_5_1})})
-            .withSetter(ProfileLevelSetter)
-            .build());
-
     addParameter(
             DefineParam(mInputFormat, C2_PARAMKEY_INPUT_STREAM_BUFFER_TYPE)
             .withConstValue(new C2StreamBufferTypeSetting::input(0u, C2BufferData::LINEAR))
