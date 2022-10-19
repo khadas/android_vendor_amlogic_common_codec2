@@ -175,7 +175,7 @@ uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat)
 
 void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     uint32_t doubleWriteMode = 3;
-    int default_margin = 9;
+    int default_margin = 6;
     uint32_t bufwidth = 4096;
     uint32_t bufheight = 2304;
     uint32_t margin = default_margin;
@@ -257,6 +257,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     mBufferHeight = bufheight;
     if (bufwidth * bufheight > 4096 * 2304) {
         doubleWriteMode = 0x04;
+        default_margin = 5;
         mIs8k = true;
         if (!mEnable8kNR) {
             mEnableNR = false;
@@ -266,10 +267,6 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
     if (mIntfImpl->getInputCodec() == InputCodec::H264) {
         doubleWriteMode = 0x10;
-    }
-
-    if (bufwidth * bufheight > 1920 * 1088) {
-        default_margin = 7;
     }
 
     doubleWriteMode = getDoubleWriteModeValue();
