@@ -17,20 +17,14 @@
 #ifndef AC3DECODER_API_H
 #define AC3DECODER_API_H
 
+#include "AmlAudioCommon.h"
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-typedef int8_t int8;
-typedef uint8_t uint8;
-typedef int16_t int16;
-typedef uint16_t uint16;
-typedef int32_t int32;
-typedef uint32_t uint32;
-typedef int64_t int64;
-typedef uint64_t uint64;
-typedef int32_t Int32;
+
 #define AVCODEC_MAX_AUDIO_FRAME_SIZE 500*1024
 #define AUDIO_EXTRA_DATA_SIZE   (8192)
 

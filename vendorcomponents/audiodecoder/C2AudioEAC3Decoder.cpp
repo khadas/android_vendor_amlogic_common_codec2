@@ -35,7 +35,7 @@
 #include "C2VendorSupport.h"
 #include "C2AudioEAC3Decoder.h"
 #include "aml_ac3_decoder_api.h"
-#include "C2VendorAudioConfig.h"
+#include "C2VendorConfig.h"
 
 
 #define MAX_CHANNEL_COUNT            8  /* maximum number of audio channels that can be decoded */

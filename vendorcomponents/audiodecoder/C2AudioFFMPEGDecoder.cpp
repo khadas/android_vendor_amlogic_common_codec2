@@ -34,8 +34,7 @@
 
 #include "C2VendorSupport.h"
 #include "C2AudioFFMPEGDecoder.h"
-#include "aml_ac3_decoder_api.h"
-#include "C2VendorAudioConfig.h"
+#include "C2VendorConfig.h"
 
 #define MAX_CHANNEL_COUNT            8  /* maximum number of audio channels that can be decoded */
 
@@ -131,10 +130,10 @@ public:
                 .withSetter(Setter<decltype(*mChannelMask)>::StrictValueWithNoDeps)
                 .build());
 
-        addParameter(DefineParam(mAdecCodecId, C2_PARAMKEY_VENDOR_ADEC_CODECID)
-                .withDefault(new C2AdecCodecId::input(0))
-                .withFields({C2F(mAdecCodecId, value).any()})
-                .withSetter(Setter<decltype(*mAdecCodecId)>::StrictValueWithNoDeps)
+        addParameter(DefineParam(mSdkCodecId, C2_PARAMKEY_VENDOR_CODECID)
+                .withDefault(new C2SdkCodecId::input(0))
+                .withFields({C2F(mSdkCodecId, value).any()})
+                .withSetter(Setter<decltype(*mSdkCodecId)>::StrictValueWithNoDeps)
                 .build());
 
         addParameter(DefineParam(mBlockAlign, C2_PARAMKEY_VENDOR_BLOCK_ALIGN)
@@ -162,7 +161,7 @@ public:
 
 
     u_int32_t getMaxChannelCount() const { return mMaxChannelCount->value; }
-    int32_t getCodecId() const { return mAdecCodecId->value; }
+    int32_t getSdkCodecId() const { return mSdkCodecId->value; }
     int32_t getExtraDataSize() const { return mExtraDataSize->value; }
     void getExtraData(uint8_t** pbuf, uint32_t* plen) const {
         if (pbuf == NULL || plen == NULL) {
@@ -178,7 +177,6 @@ public:
     int32_t getBitRate() const { return mBitrate->value; }
     int32_t getBlockAlign() const { return mBlockAlign->value; }
 
-
 private:
     std::shared_ptr<C2StreamSampleRateInfo::output> mSampleRate;
     std::shared_ptr<C2StreamChannelCountInfo::output> mChannelCount;
@@ -186,7 +184,7 @@ private:
     std::shared_ptr<C2StreamMaxBufferSizeInfo::input> mInputMaxBufSize;
     std::shared_ptr<C2StreamMaxChannelCountInfo::input> mMaxChannelCount;
     std::shared_ptr<C2StreamChannelMaskInfo::output> mChannelMask;
-    std::shared_ptr<C2AdecCodecId::input> mAdecCodecId;
+    std::shared_ptr<C2SdkCodecId::input> mSdkCodecId;
     std::shared_ptr<C2ExtraDataSize::input> mExtraDataSize;
     std::shared_ptr<C2ExtraData::input> mExtraData;
     std::shared_ptr<C2BlockAlign::input> mBlockAlign;
@@ -343,6 +341,7 @@ bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
     char value[PROPERTY_VALUE_MAX];
     uint8_t *data = nullptr;
     uint32_t dataLen = 0;
+    int ret  = 0;
 
     debug_print = 0;
     debug_dump = 0;
@@ -376,7 +375,7 @@ bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
         memcpy(mAInfo->extradata, data, dataLen);
     }
 
-    mAInfo->codec_id = mIntf->getCodecId();
+    mAInfo->codec_id = mIntf->getSdkCodecId();
     mAInfo->blockalign = mIntf->getBlockAlign();
     mAInfo->channels = mIntf->getChannelCount();
     mAInfo->samplerate = mIntf->getSampleRate();
@@ -384,22 +383,13 @@ bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
     mAInfo->bitspersample =  mIntf->getBitRate() / (mIntf->getSampleRate() * mIntf->getChannelCount());
     if ( mAInfo->codec_id == AV_CODEC_ID_ADPCM_IMA_WAV || mAInfo->codec_id == AV_CODEC_ID_ADPCM_MS)
         mAInfo->bitspersample = 4;
+
     ALOGI("mAInfo codec_id:(0x%x %d) blockalign:%d bitspersample:%d channelCount:%d SampleRate:%d BitRate:%d",
         mAInfo->codec_id, mAInfo->codec_id, mAInfo->blockalign, mAInfo->bitspersample, mIntf->getChannelCount(), mIntf->getSampleRate(), mIntf->getBitRate());
 
-    if ((mAInfo->codec_id == AV_CODEC_ID_MP2
-        || mAInfo->codec_id == AV_CODEC_ID_WMA
-        || mAInfo->codec_id == AV_CODEC_ID_WMAPRO
-        || mAInfo->codec_id == AV_CODEC_ID_WMAVOICE
-        || mAInfo->codec_id == AV_CODEC_ID_ADPCM_IMA_WAV
-        || mAInfo->codec_id == AV_CODEC_ID_ADPCM_MS
-        || mAInfo->codec_id == AV_CODEC_ID_COOK) && mComponentName) {
-        int ret = (*ffmpeg_decoder_init)(mMimeType, mAInfo, &mCodec);
-        ALOGI("ffmpeg audio_decode_init return %d", ret);
-    }
-
+    ret = (*ffmpeg_decoder_init)(mMimeType, mAInfo, &mCodec);
+    ALOGI("ffmpeg audio_decode_init return %d", ret);
     return true;
-
 Error:
     return false;
 }

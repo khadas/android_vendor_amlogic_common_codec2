@@ -12,6 +12,13 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorVdecWorkMode,
     kParamIndexVendorDataSourceType,
     kParamIndexVendorTunerPassthroughTrickMode,
+
+    /*these are Audio Decoder config parameters.*/
+    kParamIndexVendorAdecCodecId = C2Param:: TYPE_INDEX_VENDOR_START + 0x200,
+    kParamIndexVendorAdecExtraDataSize,
+    kParamIndexVendorAdecExtraData,
+    kParamIndexVendorAdecBlockAlign,
+    kParamIndexVendorAdecPassthroughEnable,
 };
 
 struct C2StreamPtsUnstableStruct {
@@ -81,5 +88,29 @@ constexpr char C2_PARAMKEY_VENDOR_VDEC_WORK_MODE[] = "vdec.workmode";
 constexpr char KEY_VENDOR_WORK_MODE[] = "vendor.vdec.workmode.value";
 constexpr char C2_PARAMKEY_VENDOR_DATASOURCE_TYPE[] = "datasource.type";
 constexpr char KEY_VENDOR_DATASOURCE_TYPE[] = "vendor.datasource.type.value";
+
+
+
+/* ================================ Audio Config Parameter ================================ */
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorAdecCodecId> C2SdkCodecId;
+constexpr char C2_PARAMKEY_VENDOR_CODECID[] = "adec.codec-id";
+constexpr char KEY_VENDOR_CODECID[] = "vendor.adec.codec-id.value";
+
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorAdecBlockAlign> C2BlockAlign;
+constexpr char C2_PARAMKEY_VENDOR_BLOCK_ALIGN[] = "adec.block-align";
+constexpr char KEY_VENDOR_BLOCK_ALIGN[] = "vendor.adec.block-align.value";
+
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorAdecExtraDataSize> C2ExtraDataSize;
+constexpr char C2_PARAMKEY_VENDOR_EXTRA_DATA_SIZE[] = "adec.extra-data-size";
+constexpr char KEY_VENDOR_EXTRA_DATA_SIZE[] = "vendor.adec.extra-data-size.value";
+
+typedef C2StreamParam<C2Info, C2BlobValue, kParamIndexVendorAdecExtraData> C2ExtraData;
+constexpr char C2_PARAMKEY_VENDOR_EXTRA_DATA[] = "adec.extra-data";
+constexpr char KEY_VENDOR_EXTRA_DATA[] = "vendor.adec.extra-data.value";
+
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorAdecPassthroughEnable> C2PassthroughEnable;
+constexpr char C2_PARAMKEY_VENDOR_PASSTHROUGH_ENABLE[] = "adec.is_passthrough_enable";
+constexpr char KEY_VENDOR_PASSTHROUGH_ENABLE[] = "vendor.adec.is_passthrough_enable.value";
+
 
 #endif//C2_VENDOR_CONFIG_H_

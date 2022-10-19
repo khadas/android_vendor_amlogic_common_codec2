@@ -35,7 +35,7 @@
 #include "C2VendorSupport.h"
 #include "C2AudioDTSDecoder.h"
 #include "aml_dts_decoder_api.h"
-#include "C2VendorAudioConfig.h"
+#include "C2VendorConfig.h"
 
 #define LOGE ALOGE
 #define LOGI ALOGI

@@ -18,6 +18,7 @@
 #define ANDROID_C2_AUDIO_FFMPEG_DECODER_H_
 
 #include <C2AudioDecComponent.h>
+#include "AmlAudioCommon.h"
 
 class AmAudioCodec;
 
