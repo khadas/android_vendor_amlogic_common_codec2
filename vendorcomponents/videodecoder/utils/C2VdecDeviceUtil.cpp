@@ -86,6 +86,14 @@ C2VdecComponent::DeviceUtil::~DeviceUtil() {
 uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
     uint32_t doubleWriteValue = 3;
     InputCodec codec = mIntfImpl->getInputCodec();
+
+    int32_t defaultDoubleWrite = getPropertyDoubleWrite();
+    if (defaultDoubleWrite >= 0) {
+        doubleWriteValue = defaultDoubleWrite;
+        CODEC2_LOG(CODEC2_LOG_INFO, "set double write(%d) from property", doubleWriteValue);
+        return doubleWriteValue;
+    }
+
     switch (codec) {
         case InputCodec::H264:
         case InputCodec::DVAV:
@@ -125,11 +133,6 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         doubleWriteValue = 0x10;
     }
 
-    uint32_t defaultDoubleWrite = getPropertyDoubleWrite();
-    if (defaultDoubleWrite > 0) {
-        doubleWriteValue = defaultDoubleWrite;
-        CODEC2_LOG(CODEC2_LOG_INFO, "set double:%d", doubleWriteValue);
-    }
     CODEC2_LOG(CODEC2_LOG_INFO, "component double write value:%d", doubleWriteValue);
     return doubleWriteValue;
 }
@@ -771,14 +774,12 @@ int C2VdecComponent::DeviceUtil::getVideoType() {
     return videotype;
 }
 
-uint32_t C2VdecComponent::DeviceUtil::getPropertyDoubleWrite() {
+int32_t C2VdecComponent::DeviceUtil::getPropertyDoubleWrite() {
     char value[PROPERTY_VALUE_MAX];
-    if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
-        int32_t doublewrite = atoi(value);
-        CODEC2_LOG(CODEC2_LOG_INFO, "get property double write:%d", doublewrite);
-        return doublewrite;
-    }
-    return 0;
+    property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, "-1");
+    int32_t doubleWrite = atoi(value);
+    CODEC2_LOG(CODEC2_LOG_INFO, "get property double write:%d", doubleWrite);
+    return doubleWrite;
 }
 
 uint64_t C2VdecComponent::DeviceUtil::getUsageFromDouleWrite(uint32_t doublewrite) {
@@ -919,20 +920,14 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
     if (mUseSurfaceTexture || mNoSurface) {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
     } else {
-        uint32_t doublewrite_debug = getPropertyDoubleWrite();
-        if (doublewrite_debug > 0) {
-            CODEC2_LOG(CODEC2_LOG_INFO, "set double:%d", doublewrite_debug);
-            if (doublewrite_debug != 0) {
-               usage = getUsageFromDouleWrite(doublewrite_debug);
-            }
-        } else if (mIs8k) {
+        uint32_t doubleWrite = getDoubleWriteModeValue();
+        if (mIs8k) {
             usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Is 8k use 1/4 usage:%llx",__func__, __LINE__, (unsigned long long)usage);
         } else if (mForceFullUsage) {
             usage = am_gralloc_get_video_decoder_full_buffer_usage();
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
         } else {
-            uint32_t doubleWrite = getDoubleWriteModeValue();
             usage = getUsageFromDouleWrite(doubleWrite);
             CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite);
         }

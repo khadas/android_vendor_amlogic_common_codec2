@@ -120,7 +120,7 @@ private:
     // static
     static const uint32_t kOutPutPtsValidNum = 5;
 
-    uint32_t getPropertyDoubleWrite();
+    int32_t getPropertyDoubleWrite();
     uint64_t getUsageFromDouleWrite(uint32_t doublewrite);
     bool checkDvProfileAndLayer();
 
