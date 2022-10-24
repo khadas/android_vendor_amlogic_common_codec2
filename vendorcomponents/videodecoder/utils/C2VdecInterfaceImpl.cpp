@@ -170,7 +170,7 @@ c2_status_t C2VdecComponent::IntfImpl::config(
         switch (param->coreIndex().coreIndex()) {
             case C2PortTunneledModeTuning::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config",
-                        C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 if (mComponent) {
                     mComponent->onConfigureTunnelMode();
                     // change to bufferpool
@@ -180,34 +180,34 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 break;
             case C2VendorTunerHalParam::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
-                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 if (mComponent) {
                     mComponent->onConfigureTunerPassthroughMode();
                 }
                 break;
             case C2VendorTunerPassthroughTrickMode::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough trick mode config",
-                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 if (mComponent) {
                     mComponent->onConfigureTunerPassthroughTrickMode();
                 }
                 break;
             case C2VdecWorkMode::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
-                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mVdecWorkMode->value);
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mVdecWorkMode->value);
                 break;
             case C2DataSourceType::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d",
-                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mDataSourceType->value);
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mDataSourceType->value);
                 break;
             case C2StreamTunnelStartRender::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config tunnel startRender",
-                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 mComponent->onAndroidVideoPeek();
                 break;
             case C2StreamHdr10PlusInfo::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config HDR10PlusInfo",
-                    C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 break;
 
             default:

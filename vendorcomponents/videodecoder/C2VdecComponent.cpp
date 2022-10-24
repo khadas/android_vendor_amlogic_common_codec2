@@ -66,7 +66,19 @@
         (void)(expr); \
     } while (0)
 
-#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mInstanceID, mCurInstanceID, ##str)
+#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mCurInstanceID, mInstanceNum, ##str)
+
+#define CODEC2_VDEC_ATRACE(tag, num) \
+do { \
+    size_t len = strlen(tag) + 12; \
+    char tag_name[len]; \
+    snprintf(tag_name, len, "%s-%d", tag, mCurInstanceID); \
+    if (sizeof(num) == sizeof(uint32_t)) { \
+        CODEC2_ATRACE_INT32(tag_name, num); \
+    } else if (sizeof(num) == sizeof(uint64_t)) { \
+        CODEC2_ATRACE_INT64(tag_name, num); \
+    } \
+} while(0)
 
 uint32_t android::C2VdecComponent::mInstanceNum = 0;
 uint32_t android::C2VdecComponent::mInstanceID = 0;
@@ -210,6 +222,9 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mIsReportEosWork(false),
         mResolutionChanging(false) {
 
+    mInstanceNum ++;
+    mInstanceID ++;
+    mCurInstanceID = mInstanceID;
     C2Vdec_LOG(CODEC2_LOG_INFO, "Create %s(%s)", __func__, name.c_str());
     mSecureMode = name.find(".secure") != std::string::npos;
     if (mSecureMode)
@@ -232,9 +247,6 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     }
     mTaskRunner = mThread.task_runner();
     mState.store(State::LOADED);
-    mCurInstanceID = mInstanceID;
-    mInstanceNum ++;
-    mInstanceID ++;
     mUpdateDurationUsCount = 0;
 
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
@@ -405,10 +417,10 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
         mFirstInputTimestamp = work->input.ordinal.timestamp.peekull();
     }
 
-    CODEC2_ATRACE_INT64("c2InPTS", work->input.ordinal.timestamp.peekull());
-    CODEC2_ATRACE_INT64("c2BitstreamId", work->input.ordinal.frameIndex.peekull());
-    CODEC2_ATRACE_INT64("c2InPTS", 0);
-    CODEC2_ATRACE_INT64("c2BitstreamId", 0);
+    CODEC2_VDEC_ATRACE("c2InPTS", work->input.ordinal.timestamp.peekull());
+    CODEC2_VDEC_ATRACE("c2BitstreamId", work->input.ordinal.frameIndex.peekull());
+    CODEC2_VDEC_ATRACE("c2InPTS", 0);
+    CODEC2_VDEC_ATRACE("c2BitstreamId", 0);
 
     mInputWorkCount ++;
     mInputQueueNum ++;
@@ -700,10 +712,10 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
 
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags});
     mOutputWorkCount ++;
-    CODEC2_ATRACE_INT64("c2OutPTS", timestamp);
+    CODEC2_VDEC_ATRACE("c2OutPTS", timestamp);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
             bitstreamId, pictureBufferId, flags, mPendingBuffersToWork.size());
-    CODEC2_ATRACE_INT64("c2OutPTS", 0);
+    CODEC2_VDEC_ATRACE("c2OutPTS", 0);
 
     mLastOutputBitstreamId = bitstreamId;
     if (isNonTunnelMode()) {
@@ -2661,9 +2673,9 @@ void C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, b
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-        CODEC2_ATRACE_INT64("c2FinishedWorkPTS", work->input.ordinal.timestamp.peekull());
+        CODEC2_VDEC_ATRACE("c2FinishedWorkPTS", work->input.ordinal.timestamp.peekull());
         mPendingWorks.erase(workIter);
-        CODEC2_ATRACE_INT64("c2FinishedWorkPTS", 0);
+        CODEC2_VDEC_ATRACE("c2FinishedWorkPTS", 0);
         mOutputFinishedWorkCount++;
     }
 }
@@ -2978,11 +2990,11 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                         old = true;
                     }
                     nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-                    CODEC2_ATRACE_INT32("c2FetchOutBlockId", blockId);
+                    CODEC2_VDEC_ATRACE("c2FetchOutBlockId", blockId);
                     CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%" PRId64 "",
                             __func__, (old ? "old" : "new"), blockId, width, height, block.use_count(),
                             nowTimeMs - lastFetchBlockTimeMs);
-                    CODEC2_ATRACE_INT32("c2FetchOutBlockId", 0);
+                    CODEC2_VDEC_ATRACE("c2FetchOutBlockId", 0);
                     timeOutCount = 0;
                     lastFetchBlockTimeMs = nowTimeMs;
                 } else {

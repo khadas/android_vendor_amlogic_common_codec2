@@ -31,7 +31,7 @@ namespace android {
             return;                                                        \
     } while (0)
 
-#define C2VdecDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, C2VdecComponent::mInstanceID, mComp->mCurInstanceID, ##str)
+#define C2VdecDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
 
 C2VdecComponent::DebugUtil::DebugUtil(C2VdecComponent* comp):
     mComp(comp) {
