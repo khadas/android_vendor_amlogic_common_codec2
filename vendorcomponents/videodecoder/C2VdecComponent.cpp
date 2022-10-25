@@ -224,6 +224,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
 
     mInstanceNum ++;
     mInstanceID ++;
+    mReportEosWork = false;
     mCurInstanceID = mInstanceID;
     C2Vdec_LOG(CODEC2_LOG_INFO, "Create %s(%s)", __func__, name.c_str());
     mSecureMode = name.find(".secure") != std::string::npos;
@@ -435,6 +436,15 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
 
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
+    if (mReportEosWork == true) {
+        if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat),
+                    false /* resetBuffersInClient */)) {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
+        } else {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Success", __func__, __LINE__);
+            mReportEosWork = false;
+        }
+    }
 }
 
 void C2VdecComponent::onDequeueWork() {
@@ -568,8 +578,16 @@ void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
     work->input.buffers.front().reset();
     mInputQueueNum --;
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "queue input done index=%d", bitstreamId);
-
-    reportWorkIfFinished(bitstreamId,0);
+    //report csd work
+    if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG)) {
+        reportWorkIfFinished(bitstreamId,0);
+    } else {
+       if (!mPendingBuffersToWork.empty() && isNonTunnelMode()) {
+             mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::sendOutputBufferToWorkIfAnyTask,
+                                             ::base::Unretained(this),
+                                             false));
+        }
+    }
 }
 
 void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block,uint32_t poolId,
@@ -646,11 +664,28 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
         return;
     }
 
+    bool resolutionchanging = false;
+    {
+        AutoMutex l(mResolutionChangingLock);
+        resolutionchanging = mResolutionChanging;
+    }
+    if (resolutionchanging == true) {
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] resolutionchanging true, return", __func__);
+        return;
+    }
+    if (mComponentState == ComponentState::STOPPING) {
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s:%d] mComponentState is STOPPING, return", __func__, __LINE__);
+        return;
+    }
     if (getVideoResolutionChanged()) {
         if ((mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width()) == block->width() &&
              mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height()) == block->height())) {
             appendOutputBuffer(std::move(block), poolId, blockId, true);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+            if (info == nullptr) {
+                C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] got null blockinfo, donot use it", __func__);
+                return;
+            }
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
             BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%u", info->mBlockId);
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
@@ -667,6 +702,10 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
                 mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height(), block->width(), block->height());
             appendOutputBuffer(std::move(block), poolId, blockId, true);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+            if (info == nullptr) {
+                C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] got null 1 blockinfo, donot use it", __func__);
+                return;
+            }
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
             BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%d", info->mBlockId);
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
@@ -710,7 +749,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         timestamp = work->input.ordinal.timestamp.peekull();
     }
 
-    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags});
+    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
     mOutputWorkCount ++;
     CODEC2_VDEC_ATRACE("c2OutPTS", timestamp);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
@@ -770,10 +809,11 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
     while (!mPendingBuffersToWork.empty()) {
         auto nextBuffer = mPendingBuffersToWork.front();
         GraphicBlockInfo* info = getGraphicBlockById(nextBuffer.mBlockId);
-        CODEC2_LOG(CODEC2_LOG_TAG_BUFFER,"[%s] Get pending bitstream id:%d, block id:%d inode:%" PRId64 "",
-            __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId, mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId));
+        CODEC2_LOG(CODEC2_LOG_TAG_BUFFER,"[%s] Get pending bitstream id:%d, block id:%d inode:%" PRId64 " size:%zd",
+            __func__, nextBuffer.mBitstreamId, nextBuffer.mBlockId,
+            mBlockPoolUtil->getBlockInodeByBlockId(nextBuffer.mBlockId),
+            mPendingBuffersToWork.size());
         bool isSendCloneWork = false;
-
         if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
             C2Vdec_LOG(CODEC2_LOG_ERR, "Graphic block (id=%d) should not be owned by accelerator", info->mBlockId);
             reportError(C2_BAD_STATE);
@@ -786,6 +826,11 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         if (!work) {
             isSendCloneWork = true;
             work = cloneWork(mLastOutputReportWork);
+        } else {
+            if (isInputWorkDone(work) == false) {
+                C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] input work done error. size(%zd)", __func__, mPendingBuffersToWork.size());
+                return C2_OK;
+            }
         }
 
         if (!work) {
@@ -793,9 +838,19 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
             BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "discard index=%d", info->mBlockId);
             sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
+            mPendingBuffersToWork.pop_front();
             return C2_OK;
         }
-
+        if (isSendCloneWork == false && nextBuffer.mSetOutInfo == true) {
+           c2_status_t status = reportWorkIfFinished(nextBuffer.mBitstreamId, nextBuffer.flags);
+           if (status != C2_OK) {
+                C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] reportWorkIfFinished- error.size(%zd) workdone[%d]input[%d]", __func__, mPendingBuffersToWork.size(), isWorkDone(work),isInputWorkDone(work));
+                return C2_OK;
+           } else {
+                mPendingBuffersToWork.pop_front();
+                continue;
+           }
+        }
         mLastFinishedBitstreamId = nextBuffer.mBitstreamId;
         if (mLastOutputReportWork != NULL) {
             delete mLastOutputReportWork;
@@ -861,7 +916,12 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         if (isSendCloneWork) {
             sendClonedWork(work, nextBuffer.flags);
         } else {
-            reportWorkIfFinished(nextBuffer.mBitstreamId, nextBuffer.flags);
+           nextBuffer.mSetOutInfo = true;
+           c2_status_t status = reportWorkIfFinished(nextBuffer.mBitstreamId, nextBuffer.flags);
+           if (status != C2_OK) {
+             C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] reportWorkIfFinished- error.size(%zd) workdone[%d]input[%d]", __func__, mPendingBuffersToWork.size(), isWorkDone(work),isInputWorkDone(work));
+             return C2_OK;
+           }
         }
 
         mPendingBuffersToWork.pop_front();
@@ -869,9 +929,14 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
     return C2_OK;
 }
 
+void C2VdecComponent::sendOutputBufferToWorkIfAnyTask(bool dropIfUnavailable) {
+    DCHECK(mTaskRunner->BelongsToCurrentThread());
+    sendOutputBufferToWorkIfAny(dropIfUnavailable);
+}
+
 void C2VdecComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
-    if (info == NULL) {
-        C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] Graphicblock is null and return.", __func__);
+    if (work == nullptr || info == nullptr || info->mGraphicBlock == nullptr) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] Graphicblock or work is null and return.", __func__);
         return;
     }
 
@@ -911,6 +976,8 @@ void C2VdecComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
         work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mOutputDelay));
         mOutputDelay = nullptr;
     }
+    if (buffer == nullptr)
+        C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] buffer is null", __func__);
     work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
 }
 
@@ -1055,7 +1122,7 @@ void C2VdecComponent::onStop(::base::WaitableEvent* done) {
     mInputCSDWorkCount = 0;
     mStopDoneEvent = done;  // restore done event which should be signaled in onStopDone().
     mComponentState = ComponentState::STOPPING;
-
+    stopDequeueThread();
     if (mTunerPassthroughHelper) {
         mTunerPassthroughHelper->stop();
     }
@@ -1438,7 +1505,17 @@ void C2VdecComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format)
 void C2VdecComponent::tryChangeOutputFormat() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "TryChangeOutputFormat");
+    if (mPendingOutputFormat == nullptr) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "TryChangeOutputFormat return mPendingOutputFormat is reset");
+        return;
+    }
     CHECK(mPendingOutputFormat);
+
+    if (!mPendingBuffersToWork.empty()) {
+        mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::tryChangeOutputFormat,
+                                            ::base::Unretained(this)));
+       return;
+    }
 
     // At this point, all output buffers should not be owned by accelerator. The component is not
     // able to know when a client will release all owned output buffers by now. But it is ok to
@@ -1791,6 +1868,10 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
         }
         appendOutputBuffer(std::move(block), poolId, blockId,true);
         GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+        if (info == nullptr) {
+            C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] got null blockinfo, donot use it", __func__);
+            return C2_OK;
+        }
         sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
     }
 
@@ -1914,6 +1995,10 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         }
         appendOutputBuffer(std::move(block), poolId, blockId, true);
         GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
+        if (info == nullptr) {
+            C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] got null blockinfo, donot use it", __func__);
+            return C2_OK;
+        }
         GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
         BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "initialize alloc outbuf index=%d", info->mBlockId);
         sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
@@ -2018,7 +2103,9 @@ void C2VdecComponent::appendOutputBuffer(std::shared_ptr<C2GraphicBlock> block, 
 
 void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool ownByAccelerator) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
-
+    if (info == nullptr) {
+        return;
+    }
     if (ownByAccelerator) {
         CHECK_EQ(info->mState, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
         GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_ACCELERATOR);
@@ -2038,7 +2125,8 @@ void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool
       if (mBlockPoolUtil->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE) {
             const native_handle_t* c2Handle = info->mGraphicBlock->handle();
             const native_handle_t* handle = UnwrapNativeCodec2GrallocHandle(c2Handle);
-            mDeviceUtil->updateDisplayInfoToGralloc(handle, mDeviceUtil->getVideoType(), mCurInstanceID);
+            if (handle != nullptr)
+                mDeviceUtil->updateDisplayInfoToGralloc(handle, mDeviceUtil->getVideoType(), mCurInstanceID);
         }
         if (mVideoDecWraper) {
             mVideoDecWraper->importBufferForPicture(info->mBlockId, info->mFd,
@@ -2649,14 +2737,14 @@ void C2VdecComponent::reportWork(std::unique_ptr<C2Work> work) {
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
 }
 
-void C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork) {
+c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
     auto workIter = findPendingWorkByBitstreamId(bitstreamId);
     if (workIter == mPendingWorks.end()) {
         C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%d", __func__, __LINE__, bitstreamId);
         reportError(C2_CORRUPTED);
-        return;
+        return C2_OK;
     }
 
     // EOS work will not be reported here. reportEOSWork() does it.
@@ -2682,8 +2770,26 @@ void C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, b
         mPendingWorks.erase(workIter);
         CODEC2_VDEC_ATRACE("c2FinishedWorkPTS", 0);
         mOutputFinishedWorkCount++;
+        return C2_OK;
     }
+    return C2_CANNOT_DO;
 }
+
+bool C2VdecComponent::isInputWorkDone(const C2Work* work) const {
+    if (work->input.buffers.front()) {
+        // Input buffer is still owned by Vdec.
+        return false;
+    }
+
+    if (mPendingOutputEOS && mPendingWorks.size() == 1u) {
+        // If mPendingOutputEOS is true, the last returned work should be marked EOS flag and
+        // returned by reportEOSWork() instead.
+        C2Vdec_LOG(CODEC2_LOG_ERR, "isInputWorkDone eos false.");
+        return false;
+    }
+    return true;  // This work is input done.
+}
+
 
 bool C2VdecComponent::isWorkDone(const C2Work* work) const {
     if (work->input.buffers.front()) {
@@ -2694,6 +2800,7 @@ bool C2VdecComponent::isWorkDone(const C2Work* work) const {
     if (mPendingOutputEOS && mPendingWorks.size() == 1u) {
         // If mPendingOutputEOS is true, the last returned work should be marked EOS flag and
         // returned by reportEOSWork() instead.
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "isWorkDone eos false.");
         return false;
     }
 
@@ -2760,7 +2867,8 @@ c2_status_t C2VdecComponent::reportEOSWork() {
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
-
+    stopDequeueThread();
+    mReportEosWork = true;
     mPendingOutputEOS = false;
     std::unique_ptr<C2Work> eosWork = std::move(mPendingWorks.back());
     mPendingWorks.pop_back();
@@ -2955,7 +3063,8 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
             mLastFlushTimeMs > 0 && nowTimeMs - mLastFlushTimeMs >= 2000) {
             C2Vdec_LOG(CODEC2_LOG_INFO, "OnFlush timeout we need force flush once time");
             mLastFlushTimeMs = 0;
-            mVideoDecWraper->stop(RESET_FLAG_NOWAIT);
+            if (mVideoDecWraper != nullptr)
+                mVideoDecWraper->stop(RESET_FLAG_NOWAIT);
         } else if (mComponentState == ComponentState::STOPPING) {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d]", __func__, __LINE__);
             break;
@@ -2971,7 +3080,18 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                 AutoMutex l(mResolutionChangingLock);
                 resolutionchanging = mResolutionChanging;
             }
-
+            if (mDeviceUtil == NULL || mBlockPoolUtil == NULL) {
+                C2Vdec_LOG(CODEC2_LOG_INFO, "[%s:%d] mDeviceUtil or mBlockPoolUtil is null", __func__, __LINE__);
+                return;
+            }
+            if (mComponentState == ComponentState::STOPPING) {
+                C2Vdec_LOG(CODEC2_LOG_INFO, "[%s:%d] mComponentState == ComponentState::STOPPING,not need to fatch new block", __func__, __LINE__);
+                return;
+            }
+            if (mReportEosWork == true) {
+                C2Vdec_LOG(CODEC2_LOG_INFO, "[%s:%d] mReportEosWork exit thread", __func__, __LINE__);
+                return;
+            }
             if (mDeviceUtil != NULL && mBlockPoolUtil != NULL && !resolutionchanging) {
                 mBlockPoolUtil->getPoolId(&poolId);
                 auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);

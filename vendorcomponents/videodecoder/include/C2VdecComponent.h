@@ -234,6 +234,7 @@ private:
         int32_t mBlockId;
         int64_t mMediaTimeUs;
         int32_t flags;
+        bool    mSetOutInfo;
     };
 
     // These tasks should be run on the component thread |mThread|.
@@ -301,6 +302,7 @@ private:
     // finished as many as possible. If |dropIfUnavailable|, drop all pending existing frames
     // without blocking.
     c2_status_t sendOutputBufferToWorkIfAny(bool dropIfUnavailable);
+    void sendOutputBufferToWorkIfAnyTask(bool dropIfUnavailable);
     void updateWorkParam(C2Work* work, GraphicBlockInfo* info);
     // Update |mUndequeuedBlockIds| FIFO by pushing |blockId|.
     void updateUndequeuedBlockIds(int32_t blockId);
@@ -318,7 +320,7 @@ private:
     void reportWorkForNoShowFrames();
     // Check if the corresponding work is finished by |bitstreamId|. If yes, make onWorkDone call to
     // listener and erase the work from |mPendingWorks|.
-    void reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork = false);
+    c2_status_t reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork = false);
     // Make onWorkDone call to listener for reporting EOS work in |mPendingWorks|.
     c2_status_t reportEOSWork();
     // Abandon all works in |mPendingWorks| and |mAbandonedWorks|.
@@ -329,6 +331,7 @@ private:
     bool isNoShowFrameWork(const C2Work& work, const C2WorkOrdinalStruct& currOrdinal) const;
     // Helper function to determine if the work is finished.
     bool isWorkDone(const C2Work* work) const;
+    bool isInputWorkDone(const C2Work* work) const;
 
     uint32_t getBitDepthByColorAspects();
     void resetInputAndOutputBufInfo(void);
@@ -519,6 +522,7 @@ private:
     int32_t mLastFinishedBitstreamId;
     bool mHasQueuedWork;
     bool mIsReportEosWork;
+    bool mReportEosWork;
     bool mSupport10BitDepth;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
