@@ -283,7 +283,6 @@ public:
             .withFields({
                 C2F(mProfileLevel, profile).oneOf({
                     PROFILE_HEVC_MAIN,
-                    PROFILE_HEVC_MAIN_10,
                 }),
                 C2F(mProfileLevel, level).oneOf({
                         LEVEL_HEVC_HIGH_4,  ///< HEVC (H.265) High Tier Level 4
