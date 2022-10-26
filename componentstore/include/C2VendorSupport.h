@@ -129,6 +129,13 @@ enum class C2VendorCodec {
 #ifdef SUPPORT_VDEC_AVS
     VDEC_AVS,
 #endif
+#ifdef SUPPORT_VDEC_AVS
+    VDEC_TYPE_MAX = VDEC_AVS,
+#elif  SUPPORT_VDEC_AVS2
+    VDEC_TYPE_MAX = VDEC_AV2,
+#else
+    VDEC_TYPE_MAX = VDEC_MJPG,
+#endif
 #ifdef SUPPORT_SOFT_VDEC
     VDEC_VP6A,
     VDEC_VP6F,

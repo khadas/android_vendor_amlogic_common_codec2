@@ -40,6 +40,7 @@ cc_library_shared {
     vendor: true,
     srcs: [
         "C2VendorComponentStore.cpp",
+        "C2VdecCodecConfig.cpp",
     ],
     defaults: [
         "componentstore_defaults",
@@ -65,4 +66,5 @@ cc_library_shared {
         "libcutils",
     ],
 
+    static_libs: ["libjsoncpp"],
 }

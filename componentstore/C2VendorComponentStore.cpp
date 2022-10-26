@@ -9,6 +9,7 @@
 #include <C2Config.h>
 #include <C2VendorSupport.h>
 #include <util/C2InterfaceHelper.h>
+#include <C2VdecCodecConfig.h>
 
 #include <C2VendorProperty.h>
 #include <cutils/properties.h>
@@ -214,6 +215,7 @@ private:
     std::map<C2String, ComponentLoader> mComponents;  ///< list of components
     std::shared_ptr<C2ReflectorHelper> mReflector;
     Interface mInterface;
+    std::shared_ptr<C2VdecCodecConfig> mVdecCodecConfig;
 };
 
 C2VendorComponentStore::ComponentModule::~ComponentModule() {
@@ -553,12 +555,19 @@ C2VendorComponentStore::C2VendorComponentStore()
     bool disableC2SecureVdec = property_get_bool(C2_PROPERTY_VDEC_SECURE_DISABLE, false);
     bool supportC2VEnc = property_get_bool(C2_PROPERTY_VENC_SUPPORT, true);
     bool supportC2Adec = property_get_bool(C2_PROPERTY_ADEC_SUPPORT, true);
+    bool supportVdecFeatureList = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_FEATURELIST, false);
+    mVdecCodecConfig = std::make_shared<C2VdecCodecConfig>();
     if (supportC2Vdec) {
         for (int i = 0; i < sizeof(gC2VideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
             if (disableC2SecureVdec && strstr(gC2VideoDecoderComponents[i].compname.c_str(), (const char *)".secure"))
                 continue;
-            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoDecoderComponents[i].compname),
+            if (supportVdecFeatureList && (!mVdecCodecConfig->codecSupport(gC2VideoDecoderComponents[i].codec))) {
+                ALOGW("%s not support for decoder not support or codec customize", gC2VideoDecoderComponents[i].compname.c_str());
+            } else {
+                mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoDecoderComponents[i].compname),
                     std::forward_as_tuple(kComponentLoadVideoDecoderLibray, gC2VideoDecoderComponents[i].codec));
+                ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2VideoDecoderComponents[i].compname.c_str(), gC2VideoDecoderComponents[i].codec);
+            }
         }
     }
 #ifdef SUPPORT_SOFT_VDEC
@@ -566,6 +575,7 @@ C2VendorComponentStore::C2VendorComponentStore()
         for (int i = 0; i < sizeof(gC2SoftVideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2SoftVideoDecoderComponents[i].compname),
                     std::forward_as_tuple(kComponentLoadSoftVideoDecoderLibray, gC2SoftVideoDecoderComponents[i].codec));
+            ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2SoftVideoDecoderComponents[i].compname.c_str(), gC2SoftVideoDecoderComponents[i].codec);
         }
     }
 #endif
@@ -573,6 +583,7 @@ C2VendorComponentStore::C2VendorComponentStore()
         for (int i = 0; i < sizeof(gC2VideoEncoderComponents) / sizeof(C2VendorComponent); i++) {
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoEncoderComponents[i].compname),
                     std::forward_as_tuple(kComponentLoadVideoEncoderLibray, gC2VideoEncoderComponents[i].codec));
+            ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2VideoEncoderComponents[i].compname.c_str(), gC2VideoEncoderComponents[i].codec);
         }
     }
     if (supportC2Adec) {
