@@ -57,6 +57,7 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mCredibleDuration(0),
     mUnstablePts(0),
     mLastOutPts(0),
+    mOutPtsOfLastbitstream(0),
     mInPutWorkCount(0),
     mOutputWorkCount(0),
     mLastbitStreamId(0),
@@ -552,6 +553,7 @@ void C2VdecComponent::DeviceUtil::updateInterlacedInfo(bool isInterlaced) {
 
 void C2VdecComponent::DeviceUtil::flush() {
     mLastOutPts = 0;
+    mOutPtsOfLastbitstream = 0;
     mOutputPtsValid  = false;
     mFirstOutputWork = false;
     mOutputWorkCount = 0;
@@ -881,23 +883,27 @@ int64_t C2VdecComponent::DeviceUtil::checkAndAdjustOutPts(C2Work* work, int32_t 
 
         if (mIsInterlaced && mFirstOutputWork) {
             if (bitstreamId == mLastbitStreamId) {
-                out_pts = mLastOutPts + duration / 2;
+                out_pts = mOutPtsOfLastbitstream + duration / 2;
             } else if (bitstreamId != mLastbitStreamId) {
                 int64_t ptsTemp = ( raw_pts >= mLastOutPts) ?  (raw_pts - mLastOutPts) : (mLastOutPts - raw_pts);
                 int64_t harfStep = ptsTemp / (duration / 4);
 
                 if (harfStep == 1 || harfStep == 2) {
                     if (raw_pts == 0)
-                        out_pts = mLastOutPts + duration / 2;
+                        out_pts = mOutPtsOfLastbitstream + duration;
                 } else {
-                    out_pts = mLastOutPts + duration / 2;
+                    out_pts = mOutPtsOfLastbitstream + duration;
                 }
+                mOutPtsOfLastbitstream = out_pts;
             }
         }
 
         //update flag
         if (!mFirstOutputWork && mOutputWorkCount == 0) {
             mFirstOutputWork = true;
+            if (mIsInterlaced) {
+                mOutPtsOfLastbitstream = out_pts;
+            }
         }
         mOutputWorkCount++;
         mLastOutPts = out_pts;
