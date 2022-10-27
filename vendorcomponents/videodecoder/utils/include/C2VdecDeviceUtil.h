@@ -148,6 +148,7 @@ private:
     bool mOutputPtsValid;
 
     uint32_t mDurationUs;
+    uint32_t mDurationUsFromApp;
     bool     mCredibleDuration;
     int32_t  mUnstablePts;
     uint64_t mLastOutPts;

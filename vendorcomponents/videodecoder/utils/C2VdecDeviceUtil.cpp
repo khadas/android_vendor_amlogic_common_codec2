@@ -53,6 +53,7 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mFirstOutputWork(false),
     mOutputPtsValid(false),
     mDurationUs(0),
+    mDurationUsFromApp(0),
     mCredibleDuration(0),
     mUnstablePts(0),
     mLastOutPts(0),
@@ -184,6 +185,8 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     } else {
        mDurationUs = 33333; //default 30fps
     }
+
+    mDurationUsFromApp = mDurationUs;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] query frame rate:%f updata mDurationUs = %d, unstablePts :%d",__func__, __LINE__, inputFrameRateInfo.value, mDurationUs, mUnstablePts);
 
     C2GlobalLowLatencyModeTuning lowLatency;
@@ -1134,12 +1137,21 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
         if (durationData != 0) {
             uint64_t rate64 = 1000000;
             rate64 = rate64 / (96000 * 1.0 / durationData);
+            uint32_t dur = 0;
             if (mIsInterlaced)
-                mDurationUs = 2 * rate64;
+                dur = 2 * rate64;
             else
-                mDurationUs = rate64;
+                dur = rate64;
             mCredibleDuration = true;
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL2,"Update mDurationUs = %d by meta data", mDurationUs);
+
+            float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
+            if (mDurationUsFromApp > 0 && dur > 0 && (durStep < 1.1f)) {
+                mDurationUs = dur;
+            } else {
+                mDurationUs = mDurationUsFromApp;
+            }
+
+            C2VdecMDU_LOG(CODEC2_LOG_INFO,"Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
         }
     }
 }
