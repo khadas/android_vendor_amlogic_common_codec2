@@ -639,15 +639,22 @@ void C2AudioFFMPEGDecoder::process(
     do {
         int usedsize = 0;
         int outsize = 0;
-        ret = (*ffmpeg_decoder_process)(  decoder_buffer,
-                                               inBuffer_nFilledLen,
-                                               &usedsize,
-                                               (char *)(mOutBuffer+mOutSize),
-                                               &outsize,
-                                               (struct pcm_info *)&pcm_out_info,
-                                               mCodec);
+        ret = (*ffmpeg_decoder_process)( decoder_buffer,
+                                         inBuffer_nFilledLen,
+                                         &usedsize,
+                                         (char *)(mOutBuffer+mOutSize),
+                                         &outsize,
+                                         (struct pcm_info *)&pcm_out_info,
+                                          mCodec);
+
+
+        if (ret < 0 || usedsize < 0) {//can't decode this frame
+            inBuffer_nFilledLen -= inBuffer_nFilledLen;
+        } else {
+            inBuffer_nFilledLen -= usedsize;
+        }
         mOutSize += outsize;
-        inBuffer_nFilledLen -= usedsize;
+
         if (debug_dump == 1) {
             dump("/data/vendor/audiohal/c2_audio_decoded.pcm", (char *)(mOutBuffer+mOutSize), outsize);
         }
