@@ -2233,11 +2233,10 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
         return C2_TIMED_OUT;
     }
 
-    CODEC2_LOG(CODEC2_LOG_INFO, "[%s] PendingWorks:%d PendingBuffersToWork size:%d Queue:%d AbandonedWorks:%d", __func__,
-            mPendingWorks.size(),
-            mPendingBuffersToWork.size(),
-            mQueue.size(),
-            mAbandonedWorks.size());
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s@%d] PendingWorks:%zd Queue:%zd AbandonedWorks:%zd PendingBuffersToWork:%zd",
+            __func__, __LINE__,
+            mPendingWorks.size(), mQueue.size(),
+            mAbandonedWorks.size(), mPendingBuffersToWork.size());
 
     // Pop all works in mAbandonedWorks and put into flushedWork.
     for (auto& work : mAbandonedWorks) {
@@ -2293,7 +2292,6 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
     }
     mPendingWorks.clear();
 
-    CODEC2_LOG(CODEC2_LOG_INFO, "[%s] mPendingBuffersToWork size:%d Queue:%d", __func__, mPendingBuffersToWork.size(), mQueue.size());
     while (!mPendingBuffersToWork.empty()) {
         auto nextBuffer = mPendingBuffersToWork.front();
         GraphicBlockInfo* info = getGraphicBlockById(nextBuffer.mBlockId);
