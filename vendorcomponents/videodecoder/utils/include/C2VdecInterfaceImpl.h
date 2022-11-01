@@ -44,7 +44,9 @@ public:
         return mPixelFormatInfo->value;
     }
     float getInputFrameRate() {  return  mFrameRateInfo->value; }
-
+    std::shared_ptr<C2StreamHdr10PlusInfo::input> getHdr10PlusInfo() {
+        return this->mHdr10PlusInfoInput;
+    }
     void getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen);
     void updateHdr10PlusInfoToWork(C2Work& work);
 private:

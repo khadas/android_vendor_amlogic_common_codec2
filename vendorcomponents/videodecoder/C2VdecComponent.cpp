@@ -402,7 +402,7 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     done->Signal();
 }
 
-void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
+void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<C2StreamHdr10PlusInfo::input> info) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
@@ -430,10 +430,9 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work) {
     if (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) {
         mInputCSDWorkCount ++;
     }
-
-    mQueue.push({std::move(work), drainMode});
+    //std::shared_ptr<C2StreamHdr10PlusInfo::input> info((mIntfImpl->getHdr10PlusInfo()));
+    mQueue.push({std::move(work), drainMode, info});
     //  TODO: set a maximum size of mQueue and check if mQueue is already full.
-
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
     if (mReportEosWork == true) {
@@ -467,6 +466,7 @@ void C2VdecComponent::onDequeueWork() {
     // Dequeue a work from mQueue.
     std::unique_ptr<C2Work> work(std::move(mQueue.front().mWork));
     auto drainMode = mQueue.front().mDrainMode;
+    std::shared_ptr<C2StreamHdr10PlusInfo::input> hdrInfo = mQueue.front().mHdr10PlusInfo;
     mQueue.pop();
 
     CHECK_LE(work->input.buffers.size(), 1u);
@@ -525,8 +525,17 @@ void C2VdecComponent::onDequeueWork() {
             }
         }
         if (!isHdr10PlusInfoWithWork) {
-            mIntfImpl->updateHdr10PlusInfoToWork(*work);
-            mIntfImpl->getHdr10PlusBuf(&hdr10plusBuf, &hdr10plusLen);
+            if (hdrInfo != nullptr) {
+                hdr10plusBuf = hdrInfo->m.value;
+                hdr10plusLen = hdrInfo->flexCount();
+                std::unique_ptr<C2StreamHdr10PlusInfo::output> hdr10PlusInfo =
+                    C2StreamHdr10PlusInfo::output::AllocUnique(hdr10plusLen);
+                memcpy(hdr10PlusInfo->m.value, hdr10plusBuf, hdr10plusLen);
+                work->worklets.front()->output.configUpdate.push_back(std::move(hdr10PlusInfo));
+            } else {
+                mIntfImpl->updateHdr10PlusInfoToWork(*work);
+                mIntfImpl->getHdr10PlusBuf(&hdr10plusBuf, &hdr10plusLen);
+            }
         }
         sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusBuf, hdr10plusLen);
     }
@@ -2358,9 +2367,12 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
 
     while (!items->empty()) {
         mHasQueuedWork = true;
+        std::shared_ptr<C2StreamHdr10PlusInfo::input> info((mIntfImpl->getHdr10PlusInfo()));
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VdecComponent::onQueueWork, ::base::Unretained(this),
-                                           ::base::Passed(&items->front())));
+                                           ::base::Passed(&items->front()),
+                                           std::move(info)));
+        //onQueueWork(std::move(items->front()));
         items->pop_front();
     }
     return C2_OK;

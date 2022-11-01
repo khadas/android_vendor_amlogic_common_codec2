@@ -184,6 +184,7 @@ private:
     struct WorkEntry {
         std::unique_ptr<C2Work> mWork;
         uint32_t mDrainMode = NO_DRAIN;
+        std::shared_ptr<C2StreamHdr10PlusInfo::input> mHdr10PlusInfo;
     };
 
     // Internal struct to keep the information of a specific graphic block.
@@ -240,7 +241,7 @@ private:
     // These tasks should be run on the component thread |mThread|.
     void onDestroy(::base::WaitableEvent* done);
     void onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done);
-    void onQueueWork(std::unique_ptr<C2Work> work);
+    void onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<C2StreamHdr10PlusInfo::input> info);
     void onDequeueWork();
     void onInputBufferDone(int32_t bitstreamId);
     void onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags);
