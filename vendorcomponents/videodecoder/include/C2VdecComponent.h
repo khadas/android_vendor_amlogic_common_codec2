@@ -413,6 +413,7 @@ private:
     // Store all abandoned works. When component gets flushed/stopped, remaining works in queue are
     // dumped here and sent out by onWorkDone call to listener after flush/stop is finished.
     std::vector<std::unique_ptr<C2Work>> mAbandonedWorks;
+    std::list<std::unique_ptr<C2Work>> mFlushPendingWorkList;
     // Store the visible rect provided from Vdec. If this is changed, component should issue a
     // visible size change event.
     media::Rect mRequestedVisibleRect;
@@ -520,6 +521,7 @@ private:
 
     uint64_t mDefaultRetryBlockTimeOutMs;
     Mutex mFlushDoneLock;
+    Mutex mFlushDoneWorkLock;
     Condition mFlushDoneCond;
 
     Mutex mResolutionChangingLock;
