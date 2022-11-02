@@ -327,21 +327,21 @@ c2_status_t C2SoftVdec::ensureDecoderState(const std::shared_ptr<C2BlockPool> &p
         return C2_CORRUPTED;
     }
     if (mOutBlock &&
-            (mOutBlock->width() != ALIGN128(mWidth) || mOutBlock->height() != mHeight)) {
+            (mOutBlock->width() != ALIGN16(mWidth) || mOutBlock->height() != mHeight)) {
         mOutBlock.reset();
     }
-    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Start fetchGraphicBlock, Required (%dx%d)", ALIGN128(mWidth), mHeight);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Start fetchGraphicBlock, Required (%dx%d)", ALIGN16(mWidth), mHeight);
     if (!mOutBlock) {
         uint32_t format = HAL_PIXEL_FORMAT_YV12;
         C2MemoryUsage usage = { C2MemoryUsage::CPU_READ, C2MemoryUsage::CPU_WRITE };
         c2_status_t err =
-            pool->fetchGraphicBlock(ALIGN128(mWidth), mHeight, format, usage, &mOutBlock);
+            pool->fetchGraphicBlock(ALIGN16(mWidth), mHeight, format, usage, &mOutBlock);
         if (err != C2_OK) {
             CODEC2_LOG(CODEC2_LOG_ERR, "FetchGraphicBlock for Output failed with status %d", err);
             return err;
         }
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "FetchGraphicBlock done, Provided (%dx%d) Required (%dx%d)",
-              mOutBlock->width(), mOutBlock->height(), ALIGN128(mWidth), mHeight);
+              mOutBlock->width(), mOutBlock->height(), ALIGN16(mWidth), mHeight);
     }
     return C2_OK;
 }

@@ -33,6 +33,7 @@
 class AmVideoCodec;
 namespace android {
 
+#define ALIGN16(x)                      ((((x) + 15) >> 4) << 4)
 #define ALIGN128(x)                     ((((x) + 127) >> 7) << 7)
 #define MIN(a, b)                       (((a) < (b)) ? (a) : (b))
 
