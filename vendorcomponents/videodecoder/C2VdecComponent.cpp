@@ -60,6 +60,10 @@
 
 #define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
 #define DEFAULT_RETRYBLOCK_TIMEOUT_MS (60*1000)// default timeout 1min
+#define MAX_INSTANCE_LOW_RAM 4
+#define MAX_INSTANCE_DEFAULT 9
+#define MAX_INSTANCE_SECURE_LOW_RAM 1
+#define MAX_INSTANCE_SECURE_DEFAULT 2
 
 #define UNUSED(expr)  \
     do {              \
@@ -157,10 +161,13 @@ std::shared_ptr<C2Component> C2VdecComponent::create(
         const std::string& name, c2_node_id_t id, const std::shared_ptr<C2ReflectorHelper>& helper,
         C2ComponentFactory::ComponentDeleter deleter) {
     UNUSED(deleter);
+    bool isLowMemDevice = !property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    int maxInstance = isLowMemDevice ? MAX_INSTANCE_LOW_RAM : MAX_INSTANCE_DEFAULT;
+    int maxInstanceSecure = isLowMemDevice ? MAX_INSTANCE_SECURE_LOW_RAM : MAX_INSTANCE_SECURE_DEFAULT;
     static const int32_t kMaxConcurrentInstances =
-            property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM, 9);
+            property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM, maxInstance);
     static const int32_t kMaxSecureConcurrentInstances =
-            property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM_SECURE, 2);
+            property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM_SECURE, maxInstanceSecure);
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     bool isSecure = name.find(".secure") != std::string::npos;

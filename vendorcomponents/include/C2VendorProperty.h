@@ -48,4 +48,7 @@
 
 /* venc */
 
+/* platform */
+#define PROPERTY_PLATFORM_SUPPORT_4K                "ro.vendor.platform.support.4k"
+
 #endif
