@@ -17,8 +17,6 @@
 #include <c2logdebug.h>
 #include <C2VendorProperty.h>
 
-//#include <media/stagefright/xmlparser/MediaCodecsXmlParser.h>
-
 #undef TEST
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
@@ -48,13 +46,55 @@
         }\
     } while (0)
 
-#define GetCompName(t, o) \
+#define GetCompName(t, s, o) \
     do {\
-        for (int i = 0; i < ARRAY_SIZE(gVdecCodecConfig); i++) {\
-            if (gVdecCodecConfig[i].type == t)\
-                o = gVdecCodecConfig[i].codecCompName;\
+        if (s) {\
+            for (int i = 0; i < ARRAY_SIZE(gSecureVdecCodecConfig); i++) {\
+                if (gSecureVdecCodecConfig[i].type == t)\
+                    o = gSecureVdecCodecConfig[i].codecCompName.c_str();\
+            }\
+        } else {\
+            for (int i = 0; i < ARRAY_SIZE(gVdecCodecConfig); i++) {\
+                if (gVdecCodecConfig[i].type == t)\
+                    o = gVdecCodecConfig[i].codecCompName.c_str();\
+            }\
         }\
     } while (0)
+
+//decoder module name
+const char* kH264ModuleName = "ammvdec_h264_v4l";
+const char* kH265ModuleName = "ammvdec_h265_v4l";
+const char* kVP9ModuelName = "ammvdec_vp9_v4l";
+const char* kAV1ModuelName = "ammvdec_av1_v4l";
+const char* kDVHEModuleName = "ammvdec_h265_v4l";
+const char* kDVAVModuleName = "ammvdec_h264_v4l";
+const char* kDVAV1ModuleName = "ammvdec_av1_v4l";
+const char* kMP2ModuleName = "ammvdec_mpeg2_v4l";
+const char* kMP4ModuleName = "ammvdec_mpeg4_v4l";
+const char* kMJPGModuleName = "ammvdec_mjpeg_v4l";
+#ifdef  SUPPORT_VDEC_AVS2
+const char* kAVS2ModuleName = "ammvdec_avs2_v4l";
+#endif
+#ifdef  SUPPORT_VDEC_AVS2
+const char* kAVSModuleName = "ammvdec_avs_v4l";
+#endif
+
+//decoder feature name
+const char* kFeatureCCSubtitle = "CC subtitle";
+const char* kFeatureDecoderInfoReport = "Decoder information report";
+const char* kFeatureGameMode = "GameMode";
+const char* kFeatureIOnly = "I only mode";
+const char* kFeatureDVSupport = "DolbyVision";
+const char* kFeatureMultiSupport = "multi_frame_dv";
+const char* kFeatureHDRSupport = "HDR";
+const char* kFeatureMaxResolution = "MaximumResolution";
+const char* kFeatureClockFrequency = "ClockFrequency";
+const char* kFeatureDecoderFccSupport = "Decoder FCC support";
+const char* kFeatureReqUcodeVersion = "UcodeVersionRequest";
+const char* kFeatureV4lDecNR = "V4ldec nr";
+const char* kFeatureDmaBufHeap = "DMA buffer heap";
+const char* kFeatureEsDmaMode = "Es dma mode";
+const char* kFeatureDoubleWrite = "DoubleWrite";
 
 namespace android {
 
@@ -64,46 +104,62 @@ static struct {
     const char* featureName;
     C2VdecCodecConfig::ValType featueType;
 } gCodecFeatures [] = {
-    {CC_SUBTITLE_SUPPORT, "CC subtitle", C2VdecCodecConfig::TYPE_BOOL},
-    {DECODER_INFO_REPORT, "Decoder information report", C2VdecCodecConfig::TYPE_BOOL},
-    {GAME_MODE_SUPPORT, "GameMode", C2VdecCodecConfig::TYPE_BOOL},
-    {I_ONLY, "I only mode", C2VdecCodecConfig::TYPE_BOOL},
-    {DV_SUPPORT, "DolbyVision", C2VdecCodecConfig::TYPE_BOOL},
-    {DV_MULTI_SUPPORT, "multi_frame_dv", C2VdecCodecConfig::TYPE_BOOL},
-    {HDR_SUPPORT, "HDR", C2VdecCodecConfig::TYPE_BOOL},
-    {MAX_RESOLUTION, "MaximumResolution", C2VdecCodecConfig::TYPE_STRING},
-    {CLOCK_FREQUENCY, "ClockFrequency", C2VdecCodecConfig::TYPE_STRING},
-    {DECODER_FCC_SUPPORT, "Decoder FCC support", C2VdecCodecConfig::TYPE_BOOL},
-    {REQ_UCODE_VERSION, "UcodeVersionRequest", C2VdecCodecConfig::TYPE_STRING},
-    {V4L_DEC_NR, "V4ldec nr", C2VdecCodecConfig::TYPE_BOOL},
-    {DMA_BUF_HEAP, "DMA buffer heap", C2VdecCodecConfig::TYPE_BOOL},
-    {ES_DMA_MODE, "Es dma mode", C2VdecCodecConfig::TYPE_BOOL},
-    {DOUBLE_WRITE, "DoubleWrite", C2VdecCodecConfig::TYPE_STRING_ARRAY},
+    {CC_SUBTITLE_SUPPORT, kFeatureCCSubtitle, C2VdecCodecConfig::TYPE_BOOL},
+    {DECODER_INFO_REPORT, kFeatureDecoderInfoReport, C2VdecCodecConfig::TYPE_BOOL},
+    {GAME_MODE_SUPPORT, kFeatureGameMode, C2VdecCodecConfig::TYPE_BOOL},
+    {I_ONLY, kFeatureIOnly, C2VdecCodecConfig::TYPE_BOOL},
+    {DV_SUPPORT, kFeatureDVSupport, C2VdecCodecConfig::TYPE_BOOL},
+    {DV_MULTI_SUPPORT, kFeatureMultiSupport, C2VdecCodecConfig::TYPE_BOOL},
+    {HDR_SUPPORT, kFeatureHDRSupport, C2VdecCodecConfig::TYPE_BOOL},
+    {MAX_RESOLUTION, kFeatureMaxResolution, C2VdecCodecConfig::TYPE_STRING},
+    {CLOCK_FREQUENCY, kFeatureClockFrequency, C2VdecCodecConfig::TYPE_STRING},
+    {DECODER_FCC_SUPPORT, kFeatureDecoderFccSupport, C2VdecCodecConfig::TYPE_BOOL},
+    {REQ_UCODE_VERSION, kFeatureReqUcodeVersion, C2VdecCodecConfig::TYPE_STRING},
+    {V4L_DEC_NR, kFeatureV4lDecNR, C2VdecCodecConfig::TYPE_BOOL},
+    {DMA_BUF_HEAP, kFeatureDmaBufHeap, C2VdecCodecConfig::TYPE_BOOL},
+    {ES_DMA_MODE, kFeatureEsDmaMode, C2VdecCodecConfig::TYPE_BOOL},
+    {DOUBLE_WRITE, kFeatureDoubleWrite, C2VdecCodecConfig::TYPE_STRING_ARRAY},
 };
 
 //codec config
 static struct {
     C2VendorCodec type;
-    const char* codecCompName;
+    const C2String codecCompName;
     const char* codecDecName;
 } gVdecCodecConfig[] = {
-    {C2VendorCodec::VDEC_H264, "c2.amlogic.avc.decoder", "ammvdec_h264_v4l"},
-    {C2VendorCodec::VDEC_H265, "c2.amlogic.hevc.decoder", "ammvdec_h265_v4l"},
-    {C2VendorCodec::VDEC_VP9, "c2.amlogic.vp9.decoder", "ammvdec_vp9_v4l"},
-    {C2VendorCodec::VDEC_AV1, "c2.amlogic.av1.decoder", "ammvdec_av1_v4l"},
-    {C2VendorCodec::VDEC_DVHE, "c2.amlogic.dvhe.decoder", ""},
-    {C2VendorCodec::VDEC_DVAV, "c2.amlogic.dvav.decoder", ""},
-    {C2VendorCodec::VDEC_DVAV1, "c2.amlogic.dvav1.decoder", ""},
-    {C2VendorCodec::VDEC_MP2V, "c2.amlogic.mpeg2.decoder", "ammvdec_mpeg2_v4l"},
-    {C2VendorCodec::VDEC_MP4V, "c2.amlogic.mpeg4.decoder", "ammvdec_mpeg4_v4l"},
-    {C2VendorCodec::VDEC_MJPG, "c2.amlogic.mjpeg.decoder", "ammvdec_mjpeg_v4l"},
+    {C2VendorCodec::VDEC_H264, kH264DecoderName, kH264ModuleName},
+    {C2VendorCodec::VDEC_H265, kH265DecoderName, kH264ModuleName},
+    {C2VendorCodec::VDEC_VP9, kVP9DecoderName, kVP9ModuelName},
+    {C2VendorCodec::VDEC_AV1, kAV1DecoderName, kAV1ModuelName},
+    {C2VendorCodec::VDEC_DVHE, kDVHEDecoderName, kH265ModuleName},
+    {C2VendorCodec::VDEC_DVAV, kDVAVDecoderName, kH264ModuleName},
+    {C2VendorCodec::VDEC_DVAV1, kDVAV1DecoderName, kAV1ModuelName},
+    {C2VendorCodec::VDEC_MP2V, kMP2VDecoderName, kMP2ModuleName},
+    {C2VendorCodec::VDEC_MP4V, kMP4VDecoderName, kMP4ModuleName},
+    {C2VendorCodec::VDEC_MJPG, kMJPGDecoderName, kMJPGModuleName},
 #ifdef  SUPPORT_VDEC_AVS2
-    {C2VendorCodec::VDEC_AVS2, "c2.amlogic.avs2.decoder", "ammvdec_avs2_v4l"},
+    {C2VendorCodec::VDEC_AVS2, kAVS2DecoderName, kAVS2ModuleName},
 #endif
 #ifdef  SUPPORT_VDEC_AVS
-    {C2VendorCodec::VDEC_AVS, "c2.amlogic.avs.decoder", "ammvdec_avs_v4l"},
+    {C2VendorCodec::VDEC_AVS, kAVSDecoderName, kAVSModuleName},
 #endif
 };
+
+static struct {
+    C2VendorCodec type;
+    const C2String codecCompName;
+    const char* codecDecName;
+} gSecureVdecCodecConfig[] = {
+    {C2VendorCodec::VDEC_H264, kH264SecureDecoderName, kH264ModuleName},
+    {C2VendorCodec::VDEC_H265, kH265SecureDecoderName, kH265ModuleName},
+    {C2VendorCodec::VDEC_VP9, kVP9SecureDecoderName, kVP9ModuelName},
+    {C2VendorCodec::VDEC_AV1, kAV1SecureDecoderName, kAV1ModuelName},
+    {C2VendorCodec::VDEC_DVHE, kDVHESecureDecoderName, kH265ModuleName},
+    {C2VendorCodec::VDEC_DVAV, kDVAVSecureDecoderName, kH264ModuleName},
+    {C2VendorCodec::VDEC_DVAV1, kDVAV1SecureDecoderName, kDVAV1ModuleName},
+};
+
+ANDROID_SINGLETON_STATIC_INSTANCE(C2VdecCodecConfig)
 
 #ifdef TEST
 #define FEATRUES_LIST_SIZE 4096
@@ -133,7 +189,10 @@ bool StringToJsonValue(const std::string& inStr, Json::Value& out) {
     return ret;
 }
 
-C2VdecCodecConfig::C2VdecCodecConfig() {
+C2VdecCodecConfig::C2VdecCodecConfig():
+    mParser() {
+    (void)mParser.parseXmlFilesInSearchDirs();
+    (void)mParser.parseXmlPath(mParser.defaultProfilingResultsXmlPath);
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     Json::Value value;
 #ifdef TEST
@@ -208,9 +267,9 @@ bool C2VdecCodecConfig::JsonValueToCodecsMap(Json::Value& json) {
                     } else if ((type == TYPE_INT_ARRAY) && subVal[feature_name].isArray()) {
                         std::vector<int> valVec;
                         int arrayVal = 0;
-                        for (int z = 0; z < subVal[feature_name].size(); z++) {
-                            if (subVal[feature_name][z].isInt()) {
-                                arrayVal = subVal[feature_name][z].asInt();
+                        for (int k = 0; k < subVal[feature_name].size(); k++) {
+                            if (subVal[feature_name][k].isInt()) {
+                                arrayVal = subVal[feature_name][k].asInt();
                                 valVec.push_back(arrayVal);
                             } else {
                                 CODEC2_LOG(CODEC2_LOG_ERR,"%s:%d can not parse %s int type, please check", __func__, __LINE__, feature_name);
@@ -220,9 +279,9 @@ bool C2VdecCodecConfig::JsonValueToCodecsMap(Json::Value& json) {
                         vec.push_back(Feature(feature_index, feature_name, valVec));
                     } else if ((type == TYPE_STRING_ARRAY) && subVal[feature_name].isArray()) {
                         std::vector<std::string> valVec;
-                        for (int z = 0; z < subVal[feature_name].size(); z++) {
-                            if (subVal[feature_name][z].isString()) {
-                                std::string val(subVal[feature_name][z].asString());
+                        for (int k = 0; k < subVal[feature_name].size(); k++) {
+                            if (subVal[feature_name][k].isString()) {
+                                std::string val(subVal[feature_name][k].asString());
                                 valVec.push_back(val);
                             } else {
                                 CODEC2_LOG(CODEC2_LOG_ERR, "%s:%d can not parse %s string type, please check", __func__, __LINE__, feature_name);
@@ -279,7 +338,7 @@ bool C2VdecCodecConfig::codecsMapToString() {
     return true;
 }
 
-bool C2VdecCodecConfig::codecSupport(C2VendorCodec type) {
+bool C2VdecCodecConfig::codecSupportFromFeatueList(C2VendorCodec type) {
     /* check from decoder featurelist */
     const char* decName = NULL;
     GetDecName(type, decName);
@@ -302,6 +361,29 @@ bool C2VdecCodecConfig::codecFeatureSupport(C2VendorCodec codec_type, FeatureInd
     }
 
     return true;
+}
+
+bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool secure)  {
+    const char* name = NULL;
+    GetCompName(type, secure, name);
+    const auto& codec = mParser.getCodecMap().find(name);
+    if (codec == mParser.getCodecMap().cend()) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s not support from mediacodec xml", name);
+        return false;
+    }
+
+    return true;
+}
+
+bool C2VdecCodecConfig::codecSupport(C2VendorCodec type, bool secure, bool fromFeatureList, bool fromMediaCodecXml) {
+    if (fromFeatureList && !fromMediaCodecXml)
+        return codecSupportFromFeatueList(type);
+    else if (fromMediaCodecXml && !fromFeatureList)
+        return codecSupportFromMediaCodecXml(type, secure);
+    else if (fromFeatureList && fromMediaCodecXml)
+        return codecSupportFromFeatueList(type) & codecSupportFromMediaCodecXml(type, secure);
+    else
+        return true;
 }
 
 }

@@ -50,6 +50,7 @@ cc_library_shared {
         "media_plugin_headers",
         "libcodec2_headers",
         "libvendor_component_headers",
+        "libstagefright_xmlparser_headers",
     ],
     cflags: [
       "-Werror",
@@ -64,6 +65,7 @@ cc_library_shared {
         "liblog",
         "libutils",
         "libcutils",
+        "libstagefright_xmlparser",
     ],
 
     static_libs: ["libjsoncpp"],

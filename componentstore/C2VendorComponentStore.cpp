@@ -215,7 +215,6 @@ private:
     std::map<C2String, ComponentLoader> mComponents;  ///< list of components
     std::shared_ptr<C2ReflectorHelper> mReflector;
     Interface mInterface;
-    std::shared_ptr<C2VdecCodecConfig> mVdecCodecConfig;
 };
 
 C2VendorComponentStore::ComponentModule::~ComponentModule() {
@@ -556,12 +555,13 @@ C2VendorComponentStore::C2VendorComponentStore()
     bool supportC2VEnc = property_get_bool(C2_PROPERTY_VENC_SUPPORT, true);
     bool supportC2Adec = property_get_bool(C2_PROPERTY_ADEC_SUPPORT, true);
     bool supportVdecFeatureList = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_FEATURELIST, false);
-    mVdecCodecConfig = std::make_shared<C2VdecCodecConfig>();
+    bool supportMediaCodecxml = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_MEDIACODEC, true);
     if (supportC2Vdec) {
         for (int i = 0; i < sizeof(gC2VideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
-            if (disableC2SecureVdec && strstr(gC2VideoDecoderComponents[i].compname.c_str(), (const char *)".secure"))
+            bool secure = strstr(gC2VideoDecoderComponents[i].compname.c_str(), (const char *)".secure");
+            if (disableC2SecureVdec && secure)
                 continue;
-            if (supportVdecFeatureList && (!mVdecCodecConfig->codecSupport(gC2VideoDecoderComponents[i].codec))) {
+            if (!C2VdecCodecConfig::getInstance().codecSupport(gC2VideoDecoderComponents[i].codec, secure, supportVdecFeatureList, supportMediaCodecxml)) {
                 ALOGW("%s not support for decoder not support or codec customize", gC2VideoDecoderComponents[i].compname.c_str());
             } else {
                 mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoDecoderComponents[i].compname),

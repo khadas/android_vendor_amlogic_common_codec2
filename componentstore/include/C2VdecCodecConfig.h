@@ -13,7 +13,9 @@
 #include <string.h>
 #include <string>
 #include <C2VendorSupport.h>
+#include <utils/Singleton.h>
 #include <json/json.h>
+#include <media/stagefright/xmlparser/MediaCodecsXmlParser.h>
 
 namespace android {
 
@@ -36,12 +38,12 @@ enum FeatureIndex {
     FEATURE_MAX = DOUBLE_WRITE + 1
 };
 
-class C2VdecCodecConfig {
+class C2VdecCodecConfig : public Singleton<C2VdecCodecConfig> {
 public:
     C2VdecCodecConfig();
     virtual ~C2VdecCodecConfig();
     bool JsonValueToCodecsMap(Json::Value& json);
-    bool codecSupport(C2VendorCodec type);
+    bool codecSupport(C2VendorCodec type, bool secure, bool fromFeatureList, bool fromMediaCodecXml);
     bool codecFeatureSupport(C2VendorCodec codec_type, FeatureIndex feature_type);
 
     enum ValType {
@@ -79,7 +81,10 @@ public:
 private:
     char* getCodecFeatures();
     bool codecsMapToString();
+    bool codecSupportFromMediaCodecXml(C2VendorCodec type, bool secure);
+    bool codecSupportFromFeatueList(C2VendorCodec type);
 
+    MediaCodecsXmlParser mParser;
     std::map<const char*, std::vector<Feature>> mCodecsMap;
 };
 

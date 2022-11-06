@@ -13,6 +13,7 @@
 #define C2_PROPERTY_ADEC_SUPPORT                    "vendor.media.c2.adec.support"
 #define C2_PROPERTY_VENDOR_STORE_ENABLE             "debug.vendorstore.enable-c2"
 #define C2_PROPERTY_VDEC_SUPPORT_FEATURELIST        "vendor.media.c2.vdec.support_featurelist"
+#define C2_PROPERTY_VDEC_SUPPORT_MEDIACODEC         "vendor.media.c2.vdec.support_mediacodec_xml"
 
 /* vdec */
 #define C2_PROPERTY_VDEC_INPUT_DELAY_NUM_SECURE     "vendor.media.c2.vdec.input.delay_num_secure"
