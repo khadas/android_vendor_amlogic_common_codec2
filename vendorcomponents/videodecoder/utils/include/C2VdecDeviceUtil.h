@@ -158,7 +158,6 @@ private:
     bool     mCredibleDuration;
     int32_t  mUnstablePts;
     uint64_t mLastOutPts;
-    uint64_t mOutPtsOfLastbitstream;
     uint64_t mInPutWorkCount;
     uint64_t mOutputWorkCount;
     int32_t  mLastbitStreamId;
