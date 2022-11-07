@@ -10,12 +10,33 @@
             "Android Video Peek",
             "TunnelMode",
             "Multi Frame Streams Playback",
-            "Hdr10 Hdr10Plus Streams Playback"
+            "Hdr10 Hdr10Plus Streams Playback",
+            "P010 Streams Playback",
+            "Tuner Passthrough Trick Mode"
+        ]
+    },
+    "softvdec": {
+        "features": [
+            "Adaptive Playback",
+            "Multi Instance"
         ]
     },
     "venc": {
         "features": [
-         "Multi Instance"
+            "Multi Instance",
+            "Surface Input",
+            "Canvas  Input",
+            "Linear  Input",
+            "Hh264   Encode",
+            "Wh265   Encode",
+            "WMulti  Encode"
+        ]
+    },
+    "adec": {
+        "features": [
+            "DD/DDP Dolby Decoder",
+            "Dts Decoder",
+            "FFmpeg Decoder"
         ]
     }
 }

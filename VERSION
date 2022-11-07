@@ -1,8 +1,69 @@
 Major_V=1
-Minor_V=3
-BaseCommitId=effa66df5f028c78b7804965cb9cbda7099df6ae
+Minor_V=4
+BaseCommitId=a3f1318f2bb52432dc7acb07d791a57e37f76074
 
 #history version
+#Release_ChangeId_V1_3=I692d861aa301eb834d7c97a77e7ad619714e83e1
+#CommitId:a3f1318f2bb52432dc7acb07d791a57e37f76074
+#V1.3.62-ga3f1318 ReleaseNote
+#  #Feature develop detail information:
+#  parse decoder featurelist
+#  fix vts flush fail case.
+#  fix vts VtsHalMediaC2V1_0TargetVideoDecTest fail.
+#  add digital_raw control for DTS.
+#  fix ffmpeg cts issue.
+#  add vc1 soft video decode support for codec2.
+#  add ffmpeg codec2 decoder.
+#  add codec2 dts decoder components.
+#  add codec2 audio decoder components.
+#  support avs/avs2 on android T.
+#  support tuner passthrough trick mode.
+#  add multi encoder porting.
+#  add dump file property.
+#  add codec2 soft video decode support.
+#  support tuner passthrough
+#  implementation of decoder communication message interface.
+#  support set sequence.
+#  codec2 log&trace print optimization.
+#  debug property optimization.
+#  codec2 support pipeline buffer monitor.
+#  add pipeline trace point
+
+#Fixed BUG detail information:
+#  cts CodecEncoderSurfaceTest h263 test failed
+#  fixing aac-adts file can't play issue.
+#  ffmpeg cts issue.
+#  cts h263 profile and level test failed.
+#  cts testDecodeGlAccuracyRGB failed.
+#  soft video decoder cts/vts test failed.
+#  fix CommonEncryptionDrmTest failed in GtsExoPlayerTestCases.
+#  set doublewrite to decoder for  h265 interlace stream.
+#  fix DecoderTest#testTunneledVideoPeekOnVp9 case.
+#  video playback fast forward.
+#  codec2 compile error for 64bit.
+#  fix play avc stream fast forward.
+#  remove profile main10 for hevc encoder.
+#  set double write to 0 for afbc.
+#  discard the work of the error frame.
+#  ctsMediaV2TestCases mpeg2 v2 case error.
+#  h265 interlace stream error.
+#  fix 64 bit build fail.
+#  add encode length for multiencoder.
+#  support 4k and fix the color fmt.
+#  add getfilename interface for multienc.
+#  support 64 bit build.
+#  add log level control property.
+#  clear graphicblock info when resolution change.
+#  optimization codec2 output log.
+#  add uname policy permission.
+#  mem leak issues.
+#  fix the block error crash.
+#  gts h264AdaptiveWithSeeking case failed.
+#  add hcodec's profile and level setting.
+#  fix the cts hevc cannot support 520 width.
+#  optimization codec2 output log level.
+#  fix error which can't dump yuv data.
+
 #V1.2.42-geffa66d ReleaseNote
 #Release_ChangeId_V1_2=Ic911358d50f1a5993dd6833f5b764928deff7988
 #CommitId:effa66df5f028c78b7804965cb9cbda7099df6ae
@@ -20,7 +81,6 @@ BaseCommitId=effa66df5f028c78b7804965cb9cbda7099df6ae
 #   support a packet of multi frame streams playback.
 #   avc add tunnel mode resoluion change.
 #   extend support streammode setting.
-
 #Fixed BUG detail information:
 #   fixed have more uvm msg.
 #   add state control for vts test.

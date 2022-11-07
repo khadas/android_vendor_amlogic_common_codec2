@@ -139,7 +139,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     baseCommitId = strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get basecommited:%s\n", string(baseCommitId))
 
-    execCmd = fmt.Sprintf("cd %s && git log | grep commit | grep -n %s | awk -F':' '{print $1-1}'", string(currentdir), baseCommitId)
+    execCmd = fmt.Sprintf("cd %s && git log | grep -E '^commit' | grep -n %s | awk -F':' '{print $1-1}'", string(currentdir), baseCommitId)
     //fmt.Printf("str:%s\n", string(execCmd))
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
