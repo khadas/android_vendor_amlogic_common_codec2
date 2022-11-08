@@ -179,32 +179,36 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
         uint64_t inode;
         int fd = fetchBlock->handle()->data[0];
         getINodeFromFd(fd, &inode);
-        auto iter = mRawGraphicBlockInfo.find(inode);
-        if (iter != mRawGraphicBlockInfo.end()) {
-            struct BlockBufferInfo info = mRawGraphicBlockInfo[inode];
-            CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block success, current block inode:%" PRId64" fd:%d -> %d id:%d BlockInfoSize:%d Max:%d",
-                inode, info.mFd, fd, info.mBlockId, (int)mRawGraphicBlockInfo.size(), (int)mMaxDequeuedBufferNum);
-        } else {
-            if (mUseSurface) {
-                c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
-                if (ret != C2_OK) {
-                    return ret;
-                }
+        //Scope of mBlockBufferMutex start
+        {
+            std::lock_guard<std::mutex> lock(mBlockBufferMutex);
+            auto iter = mRawGraphicBlockInfo.find(inode);
+            if (iter != mRawGraphicBlockInfo.end()) {
+                struct BlockBufferInfo info = mRawGraphicBlockInfo[inode];
+                CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block success, current block inode:%" PRId64" fd:%d -> %d id:%d BlockInfoSize:%d Max:%d",
+                    inode, info.mFd, fd, info.mBlockId, (int)mRawGraphicBlockInfo.size(), (int)mMaxDequeuedBufferNum);
             } else {
-                if (mRawGraphicBlockInfo.size() < mMaxDequeuedBufferNum) {
+                if (mUseSurface) {
                     c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
                     if (ret != C2_OK) {
                         return ret;
                     }
-                }
-                else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
-                    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Current block info size:%d",(int)mRawGraphicBlockInfo.size());
-                    fetchBlock.reset();
-                    mNextFetchTimeUs = GetNowUs();
-                    return C2_BLOCKING;
+                } else {
+                    if (mRawGraphicBlockInfo.size() < mMaxDequeuedBufferNum) {
+                        c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
+                        if (ret != C2_OK) {
+                            return ret;
+                        }
+                    }
+                    else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
+                        CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Current block info size:%d",(int)mRawGraphicBlockInfo.size());
+                        fetchBlock.reset();
+                        mNextFetchTimeUs = GetNowUs();
+                        return C2_BLOCKING;
+                    }
                 }
             }
-        }
+        }//Scope of mBlockBufferMutex end
     }
     else if (err == C2_TIMED_OUT) {
         CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block time out and try again now.");
@@ -270,26 +274,29 @@ c2_status_t C2VdecBlockPoolUtil::resetGraphicBlock(int32_t blockId) {
 }
 
 c2_status_t C2VdecBlockPoolUtil::resetGraphicBlock(std::shared_ptr<C2GraphicBlock> block) {
-    std::lock_guard<std::mutex> lock(mBlockBufferMutex);
+
     int fd = block->handle()->data[0];
+    uint32_t blockId = 0;
+    //Scope of mBlockBufferMutex start
+    {
+        std::lock_guard<std::mutex> lock(mBlockBufferMutex);
+        auto blockInfo = std::find_if(mRawGraphicBlockInfo.begin(), mRawGraphicBlockInfo.end(),
+            [fd, this](const std::pair<uint64_t, BlockBufferInfo> &gb) {
+            if (mUseSurface)
+                return gb.second.mDupFd == fd;
+            else
+                return gb.second.mFd == fd;
+        });
 
-    auto blockInfo = std::find_if(mRawGraphicBlockInfo.begin(), mRawGraphicBlockInfo.end(),
-        [fd, this](const std::pair<uint64_t, BlockBufferInfo> &gb) {
-        if (mUseSurface)
-            return gb.second.mDupFd == fd;
-        else
-            return gb.second.mFd == fd;
-    });
-
-    if (blockInfo != mRawGraphicBlockInfo.end()) {
-        uint32_t blockId = blockInfo->second.mBlockId;
-        return resetGraphicBlock(blockId);
-    } else {
-        CODEC2_LOG(CODEC2_LOG_INFO,"[%s] Reset but the block not found.", __func__);
-        return C2_BAD_VALUE;
+        if (blockInfo != mRawGraphicBlockInfo.end()) {
+            blockId = blockInfo->second.mBlockId;
+        } else {
+            CODEC2_LOG(CODEC2_LOG_INFO,"[%s] Reset but the block not found.", __func__);
+            return C2_BAD_VALUE;
+        }
     }
-
-    return C2_OK;
+    //Scope of mBlockBufferMutex end
+    return resetGraphicBlock(blockId);
 }
 
 uint64_t C2VdecBlockPoolUtil::getConsumerUsage() {
@@ -311,7 +318,7 @@ c2_status_t C2VdecBlockPoolUtil::getBlockIdByGraphicBlock(std::shared_ptr<C2Grap
         CODEC2_LOG(CODEC2_LOG_ERR, "[%s] The block is null", __func__);
         return C2_BAD_VALUE;
     }
-
+    std::lock_guard<std::mutex> lock(mBlockBufferMutex);
     int fd = block->handle()->data[0];
     uint64_t inode;
     getINodeFromFd(fd, &inode);
@@ -342,7 +349,7 @@ c2_status_t C2VdecBlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> bloc
         CODEC2_LOG(CODEC2_LOG_ERR, "[%s] The block is null", __func__);
         return C2_BAD_VALUE;
     }
-
+    std::lock_guard<std::mutex> lock(mBlockBufferMutex);
     uint64_t inode;
     getINodeFromFd(block->handle()->data[0], &inode);
     auto info = mRawGraphicBlockInfo.find(inode);
@@ -362,7 +369,7 @@ c2_status_t C2VdecBlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Grap
     }
 
     struct BlockBufferInfo info;
-    std::lock_guard<std::mutex> lock(mBlockBufferMutex);
+    //std::lock_guard<std::mutex> lock(mBlockBufferMutex);
     if (mUseSurface) {
         info.mFd = fd;
         info.mDupFd = dup(block->handle()->data[0]);
@@ -442,6 +449,7 @@ void C2VdecBlockPoolUtil::cancelAllGraphicBlock() {
 }
 
 uint64_t C2VdecBlockPoolUtil::getBlockInodeByBlockId(uint32_t blockId) {
+    std::lock_guard<std::mutex> lock(mBlockBufferMutex);
     auto blockIter = std::find_if(mRawGraphicBlockInfo.begin(), mRawGraphicBlockInfo.end(),
         [blockId](const std::pair<uint64_t, BlockBufferInfo> &gb) {
         return gb.second.mBlockId == blockId;
