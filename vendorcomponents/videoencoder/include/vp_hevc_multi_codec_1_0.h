@@ -100,6 +100,14 @@ typedef struct vl_encode_info_hevc {
                        /*                     6: IP_SVC3, 7: IP_SVC4,  8:CustP*/
                        /*                     see define of AMVGOPModeOPT */
                        /* bit 7:LTR control   0:disable (default) 1: enable*/
+  bool vui_info_present;
+  bool video_signal_type; /*video_signal_type_present_flag*/
+  bool color_description; /*color_description_present_flag*/
+  int primaries; /*color primaries*/
+  int transfer; /*color transfer charicstics*/
+  int matrix; /* color space matrix coefficients*/
+  bool range; /*color range flag, 0:full, 1:limitedd*/
+
 } vl_encode_info_hevc_t;
 
 /* dma buffer info*/
@@ -196,7 +204,8 @@ encoding_metadata_hevc_t vl_video_encoder_encode_hevc(vl_codec_handle_hevc_t han
                             int bitRate);
 
 int vl_video_encoder_change_framerate_hevc(vl_codec_handle_hevc_t codec_handle,
-                            int frameRate);
+                            int frameRate,int bitRate);
+
 
 /**
  * destroy encoder

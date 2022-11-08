@@ -16,7 +16,7 @@ cc_library_shared {
     srcs: [
         "C2VencComponent.cpp",
         "C2VencHCodec.cpp",
-        "C2VencW420.cpp",
+        "C2VencW420new.cpp",//"C2VencW420.cpp",
         "C2VencMulti.cpp",
         "ThreadWorker.cpp",
     ],

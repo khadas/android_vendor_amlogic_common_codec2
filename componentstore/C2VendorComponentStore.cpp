@@ -254,8 +254,8 @@ c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec
             ALOGD("amvenc_multi h265 present");
         }
         else if (access("/dev/HevcEnc", F_OK ) != -1) {
-            strFactoryName = "CreateC2VencW420Factory";
-            strDestroyFactoryName = "DestroyC2VencW420Factory";
+            strFactoryName = "CreateC2VencW420NewFactory";
+            strDestroyFactoryName = "DestroyC2VencW420NewFactory";
             ALOGD("HevcEnc present");
         }
         else {
