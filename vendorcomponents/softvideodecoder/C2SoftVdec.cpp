@@ -491,11 +491,13 @@ void C2SoftVdec::process(
                 mFirstPictureReviced = true;
             } else {
                 // Decode frame failed.
-                mTotalDropedOutputFrameNum++;
                 CODEC2_LOG(CODEC2_LOG_ERR, "Decode failed, frame Index %" PRId64", In_Pts %" PRId64"",
                     work->input.ordinal.frameIndex.peeku(), work->input.ordinal.timestamp.peeku());
                 free(mPic);
                 mPic = NULL;
+                if (flushPendingWork) {
+                    break;
+                }
             }
         } else {
             hasPicture = true;
