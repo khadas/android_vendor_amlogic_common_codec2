@@ -436,12 +436,10 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
     if (mReportEosWork == true) {
+        mReportEosWork = false;
         if (!startDequeueThread(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat),
                     false /* resetBuffersInClient */)) {
             C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
-        } else {
-            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Success", __func__, __LINE__);
-            mReportEosWork = false;
         }
     }
 }
@@ -925,7 +923,7 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         if (isSendCloneWork) {
             sendClonedWork(work, nextBuffer.flags);
         } else {
-           nextBuffer.mSetOutInfo = true;
+           mPendingBuffersToWork.at(0).mSetOutInfo = true;
            c2_status_t status = reportWorkIfFinished(nextBuffer.mBitstreamId, nextBuffer.flags);
            if (status != C2_OK) {
              C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] reportWorkIfFinished- error.size(%zd) workdone[%d]input[%d]", __func__, mPendingBuffersToWork.size(), isWorkDone(work),isInputWorkDone(work));
@@ -2790,13 +2788,6 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
 bool C2VdecComponent::isInputWorkDone(const C2Work* work) const {
     if (work->input.buffers.front()) {
         // Input buffer is still owned by Vdec.
-        return false;
-    }
-
-    if (mPendingOutputEOS && mPendingWorks.size() == 1u) {
-        // If mPendingOutputEOS is true, the last returned work should be marked EOS flag and
-        // returned by reportEOSWork() instead.
-        C2Vdec_LOG(CODEC2_LOG_ERR, "isInputWorkDone eos false.");
         return false;
     }
     return true;  // This work is input done.
