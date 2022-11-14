@@ -313,7 +313,7 @@ void VideoDecWraper::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstre
 
 void VideoDecWraper::onOutputBufferDone(output_buf_param_t* params) {
 
-    C2VdecWraper_LOG(CODEC2_LOG_INFO, "onOutputBufferDone info %lld\n", params->bitstreamId);
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "onOutputBufferDone info id: %" PRId64 "\n", params->bitstreamId);
 
     if (mDecoderCallback)
         mDecoderCallback->PictureReady(params);
