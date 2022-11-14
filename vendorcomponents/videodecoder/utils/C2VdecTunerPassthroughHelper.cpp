@@ -84,8 +84,11 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(C2VdecComponent*
 }
 
 C2VdecComponent::TunerPassthroughHelper::~TunerPassthroughHelper() {
-    delete mTunerPassthrough;
-    mTunerPassthrough = NULL;
+    if (mTunerPassthrough) {
+        mTunerPassthrough->regNotifyTunnelRenderTimeCallBack(NULL, NULL);
+        delete mTunerPassthrough;
+        mTunerPassthrough = NULL;
+    }
 }
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::start() {
@@ -135,11 +138,11 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
     return C2_OK;
 }
 
-void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough(struct VideoTunnelRendererWraper::renderTime rendertime) {
+void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough(struct renderTime rendertime) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
-    struct VideoTunnelRendererWraper::renderTime renderTime = {
+    struct renderTime renderTime = {
         .mediaUs = rendertime.mediaUs,
         .renderUs = rendertime.renderUs,
     };
@@ -149,12 +152,12 @@ void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough
 
 int C2VdecComponent::TunerPassthroughHelper::notifyTunerPassthroughRenderTimeCallback(void* obj, void* args) {
     C2VdecComponent::TunerPassthroughHelper* pPassthroughHelper = (C2VdecComponent::TunerPassthroughHelper*)obj;
-    struct VideoTunnelRendererWraper::renderTime* rendertime = (struct VideoTunnelRendererWraper::renderTime*)args;
+    struct renderTime* rendertime = (struct renderTime*)args;
     pPassthroughHelper->postNotifyRenderTimeTunerPassthrough(rendertime);
     return 0;
 }
-int C2VdecComponent::TunerPassthroughHelper::postNotifyRenderTimeTunerPassthrough(struct VideoTunnelRendererWraper::renderTime* rendertime) {
-    struct VideoTunnelRendererWraper::renderTime renderTime = {
+int C2VdecComponent::TunerPassthroughHelper::postNotifyRenderTimeTunerPassthrough(struct renderTime* rendertime) {
+    struct renderTime renderTime = {
         .mediaUs = rendertime->mediaUs,
         .renderUs = rendertime->renderUs,
     };
@@ -164,7 +167,7 @@ int C2VdecComponent::TunerPassthroughHelper::postNotifyRenderTimeTunerPassthroug
     return 0;
 }
 
-int C2VdecComponent::TunerPassthroughHelper::sendOutputBufferToWorkTunerPassthrough(struct VideoTunnelRendererWraper::renderTime* rendertime) {
+int C2VdecComponent::TunerPassthroughHelper::sendOutputBufferToWorkTunerPassthrough(struct renderTime* rendertime) {
     std::unique_ptr<C2Work> work(new C2Work);
 
     work->worklets.clear();

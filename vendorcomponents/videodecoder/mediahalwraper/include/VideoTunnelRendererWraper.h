@@ -11,26 +11,14 @@
 
 #include <cutils/native_handle.h>
 #include <sys/types.h>
-#include "VideoTunnelRendererBase.h"
+#include <VideoTunnelRendererBase.h>
 
 namespace android {
 
 class VideoTunnelRendererWraper
 {
-    typedef int (*callbackFunc)(void*obj, void* args);
-    enum {
-        CB_FILLVIDEOFRAME,
-        CB_NODIFYRENDERTIME,
-        CB_FUNS_MAX,
-    };
 
 public:
-    struct renderTime
-    {
-        int64_t mediaUs;
-        int64_t renderUs;
-    };
-
     VideoTunnelRendererWraper(bool secure = false);
     ~VideoTunnelRendererWraper();
     bool init(int hwsyncid);

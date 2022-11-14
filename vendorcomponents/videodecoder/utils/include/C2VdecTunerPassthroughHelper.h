@@ -39,9 +39,9 @@ public:
 
 private:
     static int notifyTunerPassthroughRenderTimeCallback(void* obj, void* args);
-    int postNotifyRenderTimeTunerPassthrough(struct VideoTunnelRendererWraper::renderTime* rendertime);
-    void onNotifyRenderTimeTunerPassthrough(struct VideoTunnelRendererWraper::renderTime rendertime);
-    int sendOutputBufferToWorkTunerPassthrough(struct VideoTunnelRendererWraper::renderTime* rendertime);
+    int postNotifyRenderTimeTunerPassthrough(struct renderTime* rendertime);
+    void onNotifyRenderTimeTunerPassthrough(struct renderTime rendertime);
+    int sendOutputBufferToWorkTunerPassthrough(struct renderTime* rendertime);
     C2VdecComponent* mComp;
     C2VdecComponent::TunnelHelper *mTunnelHelper;
     C2VdecComponent::IntfImpl* mIntfImpl;

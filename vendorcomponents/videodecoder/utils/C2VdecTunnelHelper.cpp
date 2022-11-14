@@ -70,10 +70,8 @@ C2VdecComponent::TunnelHelper::TunnelHelper(C2VdecComponent* comp, bool secure):
 }
 
 C2VdecComponent::TunnelHelper::~TunnelHelper() {
-    if (mVideoTunnelRenderer) {
-        delete mVideoTunnelRenderer;
-        mVideoTunnelRenderer = NULL;
-    }
+    stop();
+
     mTaskRunner = NULL;
     mIntfImpl = NULL;
     C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
@@ -104,6 +102,9 @@ bool C2VdecComponent::TunnelHelper::stop() {
     mAndroidPeekFrameReady = false;
 
     if (mVideoTunnelRenderer) {
+        mVideoTunnelRenderer->regFillVideoFrameCallBack(NULL, NULL);
+        mVideoTunnelRenderer->regNotifyTunnelRenderTimeCallBack(NULL, NULL);
+
         mVideoTunnelRenderer->stop();
         delete mVideoTunnelRenderer;
         mVideoTunnelRenderer = NULL;
@@ -187,7 +188,7 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
                     mComp->mPendingBuffersToWork.begin(), mComp->mPendingBuffersToWork.end(),
                     [id = info->mBlockId](const OutputBufferInfo& o) { return o.mBlockId == id;});
             if (pendingBuffer != mComp->mPendingBuffersToWork.end()) {
-                struct VideoTunnelRendererWraper::renderTime rendertime = {
+                struct renderTime rendertime = {
                     .mediaUs = (int64_t)pendingBuffer->mMediaTimeUs,
                     .renderUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000,
                 };
@@ -207,11 +208,11 @@ int C2VdecComponent::TunnelHelper::fillVideoFrameCallback2(void* obj, void* args
     return 0;
 }
 
-void C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel(struct VideoTunnelRendererWraper::renderTime rendertime) {
+void C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel(struct renderTime rendertime) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
-    struct VideoTunnelRendererWraper::renderTime renderTime = {
+    struct renderTime renderTime = {
         .mediaUs = rendertime.mediaUs,
         .renderUs = rendertime.renderUs,
     };
@@ -221,7 +222,7 @@ void C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel(struct VideoTunnelR
 
 int C2VdecComponent::TunnelHelper::notifyTunnelRenderTimeCallback(void* obj, void* args) {
     C2VdecComponent::TunnelHelper* pTunnelHelper = (C2VdecComponent::TunnelHelper*)obj;
-    struct VideoTunnelRendererWraper::renderTime* rendertime = (struct VideoTunnelRendererWraper::renderTime*)args;
+    struct renderTime* rendertime = (struct renderTime*)args;
     pTunnelHelper->postNotifyRenderTimeTunnel(rendertime);
     return 0;
 }
@@ -233,8 +234,8 @@ int C2VdecComponent::TunnelHelper::postFillVideoFrameTunnel2(int dmafd, bool ren
     return 0;
 }
 
-int C2VdecComponent::TunnelHelper::postNotifyRenderTimeTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
-    struct VideoTunnelRendererWraper::renderTime renderTime = {
+int C2VdecComponent::TunnelHelper::postNotifyRenderTimeTunnel(struct renderTime* rendertime) {
+    struct renderTime renderTime = {
         .mediaUs = rendertime->mediaUs,
         .renderUs = rendertime->renderUs,
     };
@@ -300,7 +301,7 @@ c2_status_t C2VdecComponent::TunnelHelper::flush() {
     return C2_OK;
 }
 
-c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct VideoTunnelRendererWraper::renderTime* rendertime) {
+c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct renderTime* rendertime) {
     DCHECK(mComp != NULL);
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Rendertime:%" PRId64 "", __func__, __LINE__, rendertime->mediaUs);
 
