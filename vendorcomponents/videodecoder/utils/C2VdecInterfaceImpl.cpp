@@ -166,6 +166,9 @@ c2_status_t C2VdecComponent::IntfImpl::config(
     std::vector<std::shared_ptr<C2Param>> *changes) {
     C2InterfaceHelper::config(params, mayBlock, failures, updateParams, changes);
 
+    size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, 8*1024*1024); // 8M
+    bool isLowMemDevice = !property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+
     for (C2Param* const param : params) {
         switch (param->coreIndex().coreIndex()) {
             case C2PortTunneledModeTuning::CORE_INDEX:
@@ -209,7 +212,15 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config HDR10PlusInfo",
                     mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 break;
-
+            case C2StreamMaxBufferSizeInfo::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config C2StreamMaxBufferSizeInfo",
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+                if (isLowMemDevice && (mMaxInputSize->value > maxInputSize)) {
+                    CODEC2_LOG(CODEC2_LOG_INFO, "set max input size to %d", maxInputSize);
+                    mActualInputDelay->value = 0;
+                    mMaxInputSize->value = maxInputSize;
+                }
+                break;
             default:
                 break;
         }
@@ -862,19 +873,6 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
                 static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
                                                 const C2P<C2StreamPictureSizeInfo::output>& size) {
                         (void)mayBlock;
-                        size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, 6291456);
-                        size_t paddingSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_PADDINGSIZE, 262144);
-                        size_t defaultSize = me.get().value;
-                        if (defaultSize > 0)
-                        defaultSize += paddingSize;
-                        else
-                        defaultSize = kLinearBufferSize;
-                        if (defaultSize > maxInputSize) {
-                            me.set().value = maxInputSize;
-                            CODEC2_LOG(CODEC2_LOG_INFO,"Force setting %u to max is %zu", me.get().value, maxInputSize);
-                        } else {
-                            me.set().value = defaultSize;
-                        }
                         //app may set too small
                         if (((size.v.width * size.v.height) > (1920 * 1088))
                             && (me.set().value < (4 * kLinearBufferSize))) {

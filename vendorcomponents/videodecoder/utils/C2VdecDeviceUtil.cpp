@@ -175,7 +175,7 @@ uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat)
 }
 
 int C2VdecComponent::DeviceUtil::setVideoDecWraper(VideoDecWraper* videoDecWraper) {
-    C2VdecMDU_LOG(CODEC2_LOG_ERR, "setVideoDecWraper into.[%p]", videoDecWraper);
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "setVideoDecWraper into.[%p]", videoDecWraper);
     if (videoDecWraper)
         mVideoDecWraper = videoDecWraper;
     return 0;
@@ -613,7 +613,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
 }
 
 void C2VdecComponent::DeviceUtil::updateDecParmInfo(aml_dec_params* pInfo) {
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "Parms status %x\n", pInfo->parms_status);
+    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Parms status %x\n", pInfo->parms_status);
     if (pInfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
         checkHDRMetadataAndColorAspects(&pInfo->hdr);
     }
@@ -1191,7 +1191,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
                 mDurationUs = mDurationUsFromApp;
             }
 
-            C2VdecMDU_LOG(CODEC2_LOG_INFO,"Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
         }
     }
 }
