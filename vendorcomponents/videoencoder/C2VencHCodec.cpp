@@ -705,7 +705,8 @@ C2VencHCodec::C2VencHCodec(const char *name, c2_node_id_t id, const std::shared_
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
               mIntfImpl(intfImpl),
               mCodecHandle(0),
-              mIDRInterval(0) {
+              mIDRInterval(0),
+              mtimeStampBak(0) {
     ALOGD("C2VencHCodec constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
@@ -961,6 +962,9 @@ c2_status_t C2VencHCodec::Init() {
     else
         initParam.gop = mIDRInterval + 1;
 
+    mFrameRateValue = mFrameRate->value;
+    mBitrateBk = mBitrate->value;
+    mBitRate = mBitrate->value;
     codec2ProfileLevelTrans(&initParam.profile,&initParam.level);
 
     C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"width:%d,height:%d,framerate:%f,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d,level:%d",
@@ -1086,6 +1090,8 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
     vl_enc_result_e ret = ENC_SUCCESS;
     vl_frame_info_t inputInfo;
     vl_frame_type_t frameType = FRAME_TYPE_NONE;
+    uint32_t curFrameRate = 0;
+
     if (!pOutFrameInfo) {
         C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
@@ -1095,6 +1101,7 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
     //std::shared_ptr<C2StreamIntraRefreshTuning::output> intraRefresh = mIntfImpl->getIntraRefresh();
     std::shared_ptr<C2StreamBitrateInfo::output> bitrate = mIntfImpl->getBitrate();
     std::shared_ptr<C2StreamRequestSyncFrameTuning::output> requestSync = mIntfImpl->getRequestSync();
+    mFrameRate = mIntfImpl->getFrameRate();
     lock.unlock();
 
     inputInfo.frame_type = FRAME_TYPE_P;
@@ -1147,12 +1154,50 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
         }
     }
 
+
     inputInfo.pitch = InputFrameInfo.yStride;//mSize->width;//pitch,need modify,fix me ????
 
+    int frame_rate = 0;
+    int64_t mElapsedTime = 0;
+
+    if (InputFrameInfo.frameIndex > 0 && InputFrameInfo.timeStamp != 0) {
+        mElapsedTime = InputFrameInfo.timeStamp - mtimeStampBak;
+        curFrameRate = 1000000.0 / mElapsedTime;
+        ALOGE("InputFrameInfo.frameIndex:%" PRId64",timestamp now:%" PRId64",timestamp last time:%" PRId64",mElapsedTime:%" PRId64"",InputFrameInfo.frameIndex,InputFrameInfo.timeStamp,mtimeStampBak,mElapsedTime);
+        ALOGE("now calculate current FrameRate:%d,mFrameRateValue:%d",curFrameRate,mFrameRateValue);
+        if (curFrameRate > 0 /*&& abs(curFrameRate - mFrameRateValue) >= 5*/) {
+            int absvalue = (curFrameRate > mFrameRateValue )?(curFrameRate - mFrameRateValue):(mFrameRateValue - curFrameRate);
+            if (absvalue >= 2) {
+                frame_rate = curFrameRate;
+                ALOGE("frame_rate change to :%d",frame_rate);
+                #if 0
+                //mEncBitrateChangeFunc(mCodecHandle,bitRateNeedChangeTo);
+                mBitRate = mBitrate->value / frame_rate * mFrameRate->value;
+                ALOGE("frame_rate change to :%d,bit_rate:%d",frame_rate,inputInfo.bitrate);
+                #endif
+                mFrameRateValue = curFrameRate;
+            }
+        }
+    }
+    frame_rate = mFrameRateValue;
+    inputInfo.frame_rate = frame_rate * 1000;
+
+    mtimeStampBak = InputFrameInfo.timeStamp;
+
+    //inputInfo.bitrate  = mBitrate->value / frame_rate * mFrameRate->value;
+    //ALOGE("frame_rate change to :%d,bit_rate:%d",frame_rate,inputInfo.bitrate);
+
+    ALOGE("mBitrateBk: %d,new bitrate:%d",mBitrateBk,bitrate->value);
+    if (mBitrateBk != bitrate->value) {
+        mBitRate = bitrate->value;
+        mBitrateBk = bitrate->value;
+        ALOGE("bitrate change to %d",bitrate->value);
+    }
+
     inputInfo.height = mSize->height;
+    inputInfo.bitrate = mBitRate;
     inputInfo.coding_timestamp = InputFrameInfo.timeStamp;//pts ???
-    inputInfo.bitrate = bitrate->value;
-    //inputInfo.canvas = 0;//canvas?
+
     inputInfo.scale_width = 0;//scale_width;
     inputInfo.scale_height = 0;//scale_height;
     inputInfo.crop_left = 0;//crop_left;

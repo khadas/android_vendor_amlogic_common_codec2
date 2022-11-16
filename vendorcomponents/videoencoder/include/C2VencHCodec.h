@@ -75,6 +75,10 @@ private:
 
     vl_codec_handle_t mCodecHandle;
     uint32_t mIDRInterval;
+    uint64_t mtimeStampBak;
+    uint32_t mFrameRateValue;
+    uint32_t mBitrateBk;
+    uint32_t mBitRate;
     //uint32_t mIInterval;
     //uint32_t mBframes;
 };

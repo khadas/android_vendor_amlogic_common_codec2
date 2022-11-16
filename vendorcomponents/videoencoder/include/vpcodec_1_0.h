@@ -132,6 +132,7 @@ typedef struct vl_frame_info
     unsigned int crop_bottom;
     unsigned int bitrate;
     unsigned int plane_num;
+    unsigned int frame_rate;
 } vl_frame_info_t;
 
 /**
