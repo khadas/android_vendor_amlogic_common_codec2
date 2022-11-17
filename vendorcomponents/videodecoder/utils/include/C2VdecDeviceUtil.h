@@ -112,6 +112,7 @@ public:
     void setLastOutputPts(uint64_t);
     bool setUnstable();
     bool setDuration();
+    bool shouldEnableMMU();
 
     void save_stream_info(uint64_t timestamp, int filledlen);
     void check_stream_info();
@@ -163,6 +164,7 @@ private:
     bool mInPtsInvalid;
     bool mFirstOutputWork;
     bool mOutputPtsValid;
+    bool mEnableAvc4kMMU;
 
     uint32_t mDurationUs;
     uint32_t mDurationUsFromApp;

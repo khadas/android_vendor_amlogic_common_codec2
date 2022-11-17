@@ -14,6 +14,8 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorDataSourceType,
     kParamIndexVendorTunerPassthroughTrickMode,
     kParamIndexVendorNetflixVPeek,
+    kParamIndexVendorSetAvc4kMMU,
+
 
     /*these are Audio Decoder config parameters.*/
     kParamIndexVendorAdecCodecId = C2Param:: TYPE_INDEX_VENDOR_START + 0x200,
@@ -99,7 +101,6 @@ constexpr char KEY_VENDOR_WORK_MODE[] = "vendor.vdec.workmode.value";
 constexpr char C2_PARAMKEY_VENDOR_DATASOURCE_TYPE[] = "datasource.type";
 constexpr char KEY_VENDOR_DATASOURCE_TYPE[] = "vendor.datasource.type.value";
 
-
 struct C2VendorNetflixVPeekStruct {
     inline C2VendorNetflixVPeekStruct() = default;
     inline C2VendorNetflixVPeekStruct(int32_t val)
@@ -113,6 +114,9 @@ typedef C2PortParam<C2Setting, C2VendorNetflixVPeekStruct, kParamIndexVendorNetf
 constexpr char C2_PARAMKEY_VENDOR_NETFLIXVPEEK[] = "nrdp";
 constexpr char KEY_VENDOR_NETFLIXVPEEK[] = "vendor.nrdp.video-peek-in-tunnel";
 
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorSetAvc4kMMU> C2Avc4kMMU;
+constexpr char C2_PARAMKEY_VENDOR_AVC_4K_MMU[] = "vdec.avc-4k-mmu";
+constexpr char KEY_VENDOR_AVC_4K_MMU[] = "vendor.vdec.avc-4k-mmu.value";
 
 /* ================================ Audio Config Parameter ================================ */
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorAdecCodecId> C2SdkCodecId;

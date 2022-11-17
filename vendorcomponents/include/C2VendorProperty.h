@@ -32,6 +32,7 @@
 #define C2_PROPERTY_VDEC_DISP_DI_LOCALBUF_ENABLE    "vendor.media.c2.disp.di.loacalbuf_enable"
 
 #define C2_PROPERTY_VDEC_DOUBLEWRITE                "vendor.media.c2.vdec.doublewrite"
+#define C2_PROPERTY_VDEC_ENABLE_AVC_4K_MMU          "vendor.media.c2.vdec.enable_h264_4k_mmu"
 #define C2_PROPERTY_VDEC_MARGIN                     "vendor.media.c2.vdec.margin"
 #define C2_PROPERTY_VDEC_HDR_LITTLE_ENDIAN_ENABLE   "vendor.media.c2.vdec.hdr.little_endian_enable"
 #define C2_PROPERTY_VDEC_ERRPOLICY_DISABLE          "vendor.media.c2.vdec.errpolicy_disable"

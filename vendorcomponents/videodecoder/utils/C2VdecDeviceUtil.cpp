@@ -54,6 +54,7 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mInPtsInvalid(false),
     mFirstOutputWork(false),
     mOutputPtsValid(false),
+    mEnableAvc4kMMU(false),
     mDurationUs(0),
     mDurationUsFromApp(0),
     mCredibleDuration(0),
@@ -140,6 +141,12 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
 
     if (codec == InputCodec::H264) {
         doubleWriteValue = 0x10;
+    }
+
+    if (shouldEnableMMU()) {
+        doubleWriteValue = 3;
+        CODEC2_LOG(CODEC2_LOG_INFO, "H264 4k mmu :DoubleWrite %d", doubleWriteValue);
+        return doubleWriteValue;
     }
 
     CODEC2_LOG(CODEC2_LOG_INFO, "component double write value:%d", doubleWriteValue);
@@ -250,6 +257,14 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     } else {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Disable low latency mode to v4l2 decoder.");
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABLE;
+    }
+
+    if (mIntfImpl->mAvc4kMMUMode->value ||
+           property_get_bool(C2_PROPERTY_VDEC_ENABLE_AVC_4K_MMU, false)) {
+        mEnableAvc4kMMU = true;
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "mEnableAvc4kMMU = %d", mEnableAvc4kMMU);
+    } else {
+         mEnableAvc4kMMU = false;
     }
 
     if (mComp->isAmDolbyVision()) {
@@ -852,7 +867,8 @@ int C2VdecComponent::DeviceUtil::getVideoType() {
         mConfigParam->aml_dec_cfg.cfg.double_write_mode == 3) {
         if (mIntfImpl->getInputCodec() == InputCodec::VP9 ||
             mIntfImpl->getInputCodec() == InputCodec::H265 ||
-            mIntfImpl->getInputCodec() == InputCodec::AV1) {
+            mIntfImpl->getInputCodec() == InputCodec::AV1 ||
+            mIntfImpl->getInputCodec() == InputCodec::H264) {
             videotype |= AM_VIDEO_AFBC;
         }
     }
@@ -1266,6 +1282,23 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
     }
 
     return ret;
+}
+
+bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
+    if ((mIntfImpl->getInputCodec() == InputCodec::H264) && mEnableAvc4kMMU) {
+        C2StreamPictureSizeInfo::output output;
+        c2_status_t err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
+        if (err != C2_OK)
+            C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query PictureSize error for avc 4k mmu", __func__, __LINE__);
+        else if(mUseSurfaceTexture)
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "mUseSurfaceTexture = %d, DO NOT Enable MMU", mUseSurfaceTexture);
+        else if (output.width * output.height >= 3840 * 2160) {
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "4k H264 Stream use MMU, width:%d height:%d",
+                      output.width, output.height);
+            return true;
+        }
+    }
+    return false;
 }
 
 }

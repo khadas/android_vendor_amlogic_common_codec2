@@ -359,6 +359,9 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
 
     //Register vendor extend paras
     onVendorExtendParam();
+
+    //enable avc 4k mmu
+    onAvc4kMMUEnable();
 }
 
 void C2VdecComponent::IntfImpl::onAvcDeclareParam() {
@@ -1063,6 +1066,15 @@ void C2VdecComponent::IntfImpl::onVendorExtendParam() {
                 .withDefault(new C2VendorPlayerId::input(0))
                 .withFields({C2F(mPlayerId,value).any()})
                 .withSetter(Setter<decltype(*mPlayerId)>::StrictValueWithNoDeps)
+        .build());
+}
+
+void C2VdecComponent::IntfImpl::onAvc4kMMUEnable() {
+        addParameter(
+        DefineParam(mAvc4kMMUMode, C2_PARAMKEY_VENDOR_AVC_4K_MMU)
+                .withDefault(new C2Avc4kMMU::input(0))
+                .withFields({C2F(mAvc4kMMUMode, value).any()})
+                .withSetter(Setter<decltype(*mAvc4kMMUMode)>::StrictValueWithNoDeps)
         .build());
 }
 

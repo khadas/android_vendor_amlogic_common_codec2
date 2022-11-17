@@ -151,6 +151,7 @@ private:
 
     std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
     std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
+    std::shared_ptr<C2Avc4kMMU::input> mAvc4kMMUMode;
     std::shared_ptr<C2StreamPixelFormatInfo::output> mPixelFormatInfo;
 
     c2_status_t mInitStatus;
@@ -189,6 +190,7 @@ private:
     void onLowLatencyDeclareParam();
     void onPixelFormatDeclareParam();
     void onVendorExtendParam();
+    void onAvc4kMMUEnable();
 };
 }
 
