@@ -12,6 +12,7 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorVdecWorkMode,
     kParamIndexVendorDataSourceType,
     kParamIndexVendorTunerPassthroughTrickMode,
+    kParamIndexVendorNetflixVPeek,
 
     /*these are Audio Decoder config parameters.*/
     kParamIndexVendorAdecCodecId = C2Param:: TYPE_INDEX_VENDOR_START + 0x200,
@@ -30,6 +31,7 @@ struct C2StreamPtsUnstableStruct {
     C2FIELD(enable, "enable")
 };
 
+/* ================================ video decoder Config Parameter ================================ */
 typedef C2StreamParam<C2Setting, C2StreamPtsUnstableStruct, kParamIndexStreamPtsUnstable> C2StreamUnstablePts;
 constexpr char C2_PARAMKEY_UNSTABLE_PTS[] = "unstable-pts";//"vendor.unstable-pts.enable"
 
@@ -67,7 +69,7 @@ struct C2VendorTunerPassthroughTrickModeStruct {
 
 typedef C2PortParam<C2Setting, C2VendorTunerPassthroughTrickModeStruct, kParamIndexVendorTunerPassthroughTrickMode> C2VendorTunerPassthroughTrickMode;
 constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughTrickMode[] = "tunerhal.passthrough";
-constexpr char KEY_VENDOR_TRAICKID[] = "vendor.tunerhal.passthrough.trick-mode";
+constexpr char KEY_VENDOR_TRAICKMODE[] = "vendor.tunerhal.passthrough.trick-mode";
 constexpr char KEY_VENDOR_TRICKSPEED[] = "vendor.tunerhal.passthrough.trick-speed";
 constexpr char KEY_VENDOR_FRAMEADVANCE[] = "vendor.tunerhal.passthrough.frame-advance";
 
@@ -89,6 +91,19 @@ constexpr char KEY_VENDOR_WORK_MODE[] = "vendor.vdec.workmode.value";
 constexpr char C2_PARAMKEY_VENDOR_DATASOURCE_TYPE[] = "datasource.type";
 constexpr char KEY_VENDOR_DATASOURCE_TYPE[] = "vendor.datasource.type.value";
 
+
+struct C2VendorNetflixVPeekStruct {
+    inline C2VendorNetflixVPeekStruct() = default;
+    inline C2VendorNetflixVPeekStruct(int32_t val)
+        :vpeek(val) {}
+    int32_t vpeek;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorNetflixVPeek)
+    C2FIELD(vpeek, "video-peek-in-tunnel")
+};
+
+typedef C2PortParam<C2Setting, C2VendorNetflixVPeekStruct, kParamIndexVendorNetflixVPeek> C2VendorNetflixVPeek;
+constexpr char C2_PARAMKEY_VENDOR_NETFLIXVPEEK[] = "nrdp";
+constexpr char KEY_VENDOR_NETFLIXVPEEK[] = "vendor.nrdp.video-peek-in-tunnel";
 
 
 /* ================================ Audio Config Parameter ================================ */

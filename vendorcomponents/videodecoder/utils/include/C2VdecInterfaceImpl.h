@@ -76,6 +76,7 @@ private:
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorNetflixVPeek::input, VendorNetflixVPeek);
 
     std::shared_ptr<C2ApiLevelSetting> mApiLevel;
     std::shared_ptr<C2ApiFeaturesSetting> mApiFeatures;
@@ -142,6 +143,7 @@ private:
     std::shared_ptr<C2VendorTunerHalParam::input> mVendorTunerHalParam;
     std::shared_ptr<C2StreamTunnelStartRender::output> mTunnelStartRender;
     std::shared_ptr<C2VendorTunerPassthroughTrickMode::input> mVendorTunerPassthroughTrickMode;
+    std::shared_ptr<C2VendorNetflixVPeek::input> mVendorNetflixVPeek;
 
     std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
     std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;

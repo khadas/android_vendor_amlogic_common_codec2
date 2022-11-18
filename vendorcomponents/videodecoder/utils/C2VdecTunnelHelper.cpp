@@ -283,7 +283,13 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
     if (mVideoTunnelRenderer) {
         GraphicBlockStateChange(mComp, info, GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER);
         BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel send to videotunnel fd=%d, pts=%" PRId64"", info->mFd, timestamp);
-        mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
+        if (mIntfImpl->mVendorNetflixVPeek->vpeek == true) {
+            //netflix vpeek need render at once.
+            mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp, true);
+            mIntfImpl->mVendorNetflixVPeek->vpeek = false;
+        } else {
+            mVideoTunnelRenderer->sendVideoFrame(info->mFd, timestamp);
+        }
     }
 
     return C2_OK;

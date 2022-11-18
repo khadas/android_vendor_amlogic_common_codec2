@@ -158,6 +158,7 @@ C2R C2VdecComponent::IntfImpl::StreamPtsUnstableSetter(bool mayBlock, C2P<C2Stre
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode)
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorNetflixVPeek::input, VendorNetflixVPeek)
 
 c2_status_t C2VdecComponent::IntfImpl::config(
     const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
@@ -220,6 +221,9 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                     mActualInputDelay->value = 0;
                     mMaxInputSize->value = maxInputSize;
                 }
+                break;
+            case C2VendorNetflixVPeek::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config netflix vpeek:%d", C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mVendorNetflixVPeek->vpeek);
                 break;
             default:
                 break;
@@ -789,6 +793,13 @@ void C2VdecComponent::IntfImpl::onTunnelDeclareParam() {
                 .withDefault(new C2StreamTunnelStartRender::output(0))
                 .withFields({C2F(mTunnelStartRender, value).any()})
                 .withSetter(C2_DEFAULT_UNSTRICT_SETTER(TunnelStartRender))
+                .build());
+
+        addParameter(
+        DefineParam(mVendorNetflixVPeek, C2_PARAMKEY_VENDOR_NETFLIXVPEEK)
+                .withDefault(new C2VendorNetflixVPeek::input(0))
+                .withFields({{C2F(mVendorNetflixVPeek, vpeek).any()}})
+                .withSetter(C2_DEFAULT_UNSTRICT_SETTER(VendorNetflixVPeek))
                 .build());
 }
 
