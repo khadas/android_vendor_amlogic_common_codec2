@@ -737,7 +737,15 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
 void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags, uint64_t timestamp) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
-
+    bool  changed = false;
+    {
+        AutoMutex l(mResolutionChangingLock);
+        changed = mResolutionChanging;
+    }
+    if (changed == true) {
+        C2Vdec_LOG(CODEC2_LOG_INFO, "onOutputBufferDone :%d mResolutionChanging true,ignore this buf", pictureBufferId);
+        return;
+    }
     if (mComponentState == ComponentState::FLUSHING) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] in flushing, pending bitstreamId=%" PRId64 " first", __func__, bitstreamId);
         mLastOutputBitstreamId = bitstreamId;
@@ -765,7 +773,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         }
     }
 
-    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, (int64_t)timestamp, flags, false});
+    mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
     mOutputWorkCount ++;
     CODEC2_VDEC_ATRACE("c2OutPTS", timestamp);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
@@ -811,7 +819,7 @@ void C2VdecComponent::sendClonedWork(C2Work* work, int32_t flags) {
     work->workletsProcessed = 1;
 
     //save last out pts
-    mDeviceUtil->setLastOutputPts((int64_t)work->input.ordinal.customOrdinal.peekull());
+    mDeviceUtil->setLastOutputPts(work->input.ordinal.customOrdinal.peekull());
     //work->input.ordinal.customOrdinal = mDeviceUtil->checkAndAdjustOutPts(work,flags);
     c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                             - work->input.ordinal.timestamp;
@@ -1459,13 +1467,13 @@ C2VdecComponent::GraphicBlockInfo* C2VdecComponent::getGraphicBlockByFd(int32_t 
     return &(*blockIter);
 }
 
-std::deque<C2VdecComponent::OutputBufferInfo>::iterator C2VdecComponent::findPendingBuffersToWorkByTime(int64_t timeus) {
+std::deque<C2VdecComponent::OutputBufferInfo>::iterator C2VdecComponent::findPendingBuffersToWorkByTime(uint64_t timeus) {
     return std::find_if(mPendingBuffersToWork.begin(), mPendingBuffersToWork.end(),
             [time=timeus](const OutputBufferInfo& o) {
                 return o.mMediaTimeUs == time;});
 }
 
-bool C2VdecComponent::erasePendingBuffersToWorkByTime(int64_t timeus) {
+bool C2VdecComponent::erasePendingBuffersToWorkByTime(uint64_t timeus) {
    auto buffer = findPendingBuffersToWorkByTime(timeus);
    if (buffer != mPendingBuffersToWork.end()) {
        mPendingBuffersToWork.erase(buffer);
@@ -2628,6 +2636,10 @@ void C2VdecComponent::PictureReady(output_buf_param_t* params) {
                                                       ::base::Unretained(this), media::Rect(x, y, w, h)));
     }
 
+    if (mResolutionChanging == true) {
+        C2Vdec_LOG(CODEC2_LOG_INFO, "PictureReady :%d mResolutionChanging true, ignore this buf", pictureBufferId);
+        return;
+    }
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferDone,
                                                    ::base::Unretained(this),
                                                    pictureBufferId, bitstreamId, flags, timestamp));
@@ -2780,6 +2792,7 @@ void C2VdecComponent::reportEmptyWork(int32_t bitstreamId, int32_t flags) {
     work->worklets.front()->output.buffers.clear();
     work->workletsProcessed = 1;
     work->input.ordinal.customOrdinal = mDeviceUtil->getLastOutputPts();
+
     c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                             - work->input.ordinal.timestamp;
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "ReportEmptyWork index=%llu pts=%llu,%d", work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
@@ -2829,7 +2842,7 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
         work->result = C2_OK;
         work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
         //save last out pts
-        mDeviceUtil->setLastOutputPts((int64_t)work->input.ordinal.customOrdinal.peekull());
+        mDeviceUtil->setLastOutputPts(work->input.ordinal.customOrdinal.peekull());
         //work->input.ordinal.customOrdinal = mDeviceUtil->checkAndAdjustOutPts(work, flags);
         c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                                 - work->input.ordinal.timestamp;

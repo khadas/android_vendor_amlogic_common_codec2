@@ -191,7 +191,7 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
                     [id = info->mBlockId](const OutputBufferInfo& o) { return o.mBlockId == id;});
             if (pendingBuffer != mComp->mPendingBuffersToWork.end()) {
                 struct VideoTunnelRendererWraper::renderTime rendertime = {
-                    .mediaUs = pendingBuffer->mMediaTimeUs,
+                    .mediaUs = (int64_t)pendingBuffer->mMediaTimeUs,
                     .renderUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000,
                 };
                 sendOutputBufferToWorkTunnel(&rendertime);

@@ -104,8 +104,8 @@ public:
     void queryStreamBitDepth();
     uint32_t getStreamPixelFormat(uint32_t pixelFormat);
 
-    int64_t getLastOutputPts();
-    void setLastOutputPts(int64_t);
+    uint64_t getLastOutputPts();
+    void setLastOutputPts(uint64_t);
     bool setUnstable();
     bool setDuration();
 

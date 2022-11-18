@@ -438,11 +438,11 @@ bool C2VdecComponent::DeviceUtil::setDuration()
     return ret;
 }
 
-void C2VdecComponent::DeviceUtil::setLastOutputPts(int64_t pts) {
+void C2VdecComponent::DeviceUtil::setLastOutputPts(uint64_t pts) {
     mLastOutPts = pts;
 }
 
-int64_t C2VdecComponent::DeviceUtil::getLastOutputPts() {
+uint64_t C2VdecComponent::DeviceUtil::getLastOutputPts() {
     return mLastOutPts;
 }
 

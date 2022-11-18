@@ -234,7 +234,7 @@ private:
     struct OutputBufferInfo {
         int32_t mBitstreamId;
         int32_t mBlockId;
-        int64_t mMediaTimeUs;
+        uint64_t mMediaTimeUs;
         int32_t flags;
         bool    mSetOutInfo;
     };
@@ -271,8 +271,8 @@ private:
     // Helper function to get the specified GraphicBlockInfo object by its pool id.
     GraphicBlockInfo* getGraphicBlockByBlockId(uint32_t poolId,uint32_t blockId);
     GraphicBlockInfo* getGraphicBlockByFd(int32_t fd);
-    std::deque<C2VdecComponent::OutputBufferInfo>::iterator findPendingBuffersToWorkByTime(int64_t timeus);
-    bool erasePendingBuffersToWorkByTime(int64_t timeus);
+    std::deque<C2VdecComponent::OutputBufferInfo>::iterator findPendingBuffersToWorkByTime(uint64_t timeus);
+    bool erasePendingBuffersToWorkByTime(uint64_t timeus);
 
     //get first unbind graphicblock
     GraphicBlockInfo* getUnbindGraphicBlock();
