@@ -216,7 +216,7 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config C2StreamMaxBufferSizeInfo",
                     mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 if (isLowMemDevice && (mMaxInputSize->value > maxInputSize)) {
-                    CODEC2_LOG(CODEC2_LOG_INFO, "set max input size to %d", maxInputSize);
+                    CODEC2_LOG(CODEC2_LOG_INFO, "set max input size to %zu", maxInputSize);
                     mActualInputDelay->value = 0;
                     mMaxInputSize->value = maxInputSize;
                 }
