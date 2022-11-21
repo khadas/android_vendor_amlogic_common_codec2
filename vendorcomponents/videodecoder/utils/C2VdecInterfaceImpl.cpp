@@ -116,6 +116,9 @@ C2R C2VdecComponent::IntfImpl::Hdr10PlusInfoOutputSetter(bool mayBlock, C2P<C2St
     return C2R::Ok();
 }
 
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::input, HdrDynamicInfoInput)
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::output, HdrDynamicInfoOutput)
+
 C2R C2VdecComponent::IntfImpl::HdrStaticInfoSetter(bool mayBlock, C2P<C2StreamHdrStaticInfo::output> &me) {
     (void)mayBlock;
     (void)me;  // TODO: validate
@@ -236,12 +239,12 @@ void C2VdecComponent::IntfImpl::getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen) 
     if (pbuf == NULL || plen == NULL) {
         return;
     }
-    *pbuf = mHdr10PlusInfoInput->m.value;
-    *plen = mHdr10PlusInfoInput->flexCount();
+    *pbuf = mHdrDynamicInfoInput->m.data;
+    *plen = mHdrDynamicInfoInput->flexCount();
 }
 
 void C2VdecComponent::IntfImpl::updateHdr10PlusInfoToWork(C2Work& work) {
-    work.worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mHdr10PlusInfoOutput.get()));
+    work.worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mHdrDynamicInfoOutput.get()));
 }
 
 C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
@@ -623,23 +626,23 @@ void C2VdecComponent::IntfImpl::onAvs2DeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper) {
-        mHdr10PlusInfoInput = C2StreamHdr10PlusInfo::input::AllocShared(0);
+        mHdrDynamicInfoInput = C2StreamHdrDynamicMetadataInfo::input::AllocShared(0);
         addParameter(
-                DefineParam(mHdr10PlusInfoInput, C2_PARAMKEY_INPUT_HDR10_PLUS_INFO)
-                .withDefault(mHdr10PlusInfoInput)
+                DefineParam(mHdrDynamicInfoInput, C2_PARAMKEY_INPUT_HDR_DYNAMIC_INFO)
+                .withDefault(mHdrDynamicInfoInput)
                 .withFields({
-                C2F(mHdr10PlusInfoInput, m.value).any(),
+                C2F(mHdrDynamicInfoInput, m.data).any(),
                 })
-        .withSetter(Hdr10PlusInfoInputSetter)
+        .withSetter(HdrDynamicInfoInputSetter)
         .build());
-        mHdr10PlusInfoOutput = C2StreamHdr10PlusInfo::output::AllocShared(0);
+        mHdrDynamicInfoOutput = C2StreamHdrDynamicMetadataInfo::output::AllocShared(0);
         addParameter(
-                DefineParam(mHdr10PlusInfoOutput, C2_PARAMKEY_OUTPUT_HDR10_PLUS_INFO)
-                .withDefault(mHdr10PlusInfoOutput)
+                DefineParam(mHdrDynamicInfoOutput, C2_PARAMKEY_OUTPUT_HDR_DYNAMIC_INFO)
+                .withDefault(mHdrDynamicInfoOutput)
                 .withFields({
-                C2F(mHdr10PlusInfoOutput, m.value).any(),
+                C2F(mHdrDynamicInfoOutput, m.data).any(),
                 })
-        .withSetter(Hdr10PlusInfoOutputSetter)
+        .withSetter(HdrDynamicInfoOutputSetter)
         .build());
         // sample BT.2020 static info
         mHdrStaticInfo = std::make_shared<C2StreamHdrStaticInfo::output>();

@@ -414,7 +414,7 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     done->Signal();
 }
 
-void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<C2StreamHdr10PlusInfo::input> info) {
+void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> info) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
@@ -476,7 +476,7 @@ void C2VdecComponent::onDequeueWork() {
     // Dequeue a work from mQueue.
     std::unique_ptr<C2Work> work(std::move(mQueue.front().mWork));
     auto drainMode = mQueue.front().mDrainMode;
-    std::shared_ptr<C2StreamHdr10PlusInfo::input> hdrInfo = mQueue.front().mHdr10PlusInfo;
+    std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> hdrInfo = mQueue.front().mHdr10PlusInfo;
     mQueue.pop();
 
     CHECK_LE(work->input.buffers.size(), 1u);
@@ -530,17 +530,21 @@ void C2VdecComponent::onDequeueWork() {
                         }
                     }
                     break;
+                case C2StreamHdrDynamicMetadataInfo::CORE_INDEX:
+                    C2Vdec_LOG(CODEC2_LOG_INFO, "[%d##%d] Config Update hdrDynamicMetadateInfo", mInstanceID, mCurInstanceID);
+                    break;
                 default:
                     break;
             }
         }
         if (!isHdr10PlusInfoWithWork) {
             if (hdrInfo != nullptr) {
-                hdr10plusBuf = hdrInfo->m.value;
+                hdr10plusBuf = hdrInfo->m.data;
                 hdr10plusLen = hdrInfo->flexCount();
-                std::unique_ptr<C2StreamHdr10PlusInfo::output> hdr10PlusInfo =
-                    C2StreamHdr10PlusInfo::output::AllocUnique(hdr10plusLen);
-                memcpy(hdr10PlusInfo->m.value, hdr10plusBuf, hdr10plusLen);
+                std::unique_ptr<C2StreamHdrDynamicMetadataInfo::output> hdr10PlusInfo =
+                    C2StreamHdrDynamicMetadataInfo::output::AllocUnique(hdr10plusLen);
+                hdr10PlusInfo->m.type_ = hdrInfo->m.type_;
+                memcpy(hdr10PlusInfo->m.data, hdr10plusBuf, hdr10plusLen);
                 work->worklets.front()->output.configUpdate.push_back(std::move(hdr10PlusInfo));
             } else {
                 mIntfImpl->updateHdr10PlusInfoToWork(*work);
@@ -2411,7 +2415,7 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
 
     while (!items->empty()) {
         mHasQueuedWork = true;
-        std::shared_ptr<C2StreamHdr10PlusInfo::input> info((mIntfImpl->getHdr10PlusInfo()));
+        std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> info((mIntfImpl->getHdr10PlusInfo()));
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VdecComponent::onQueueWork, ::base::Unretained(this),
                                            ::base::Passed(&items->front()),

@@ -44,8 +44,8 @@ public:
         return mPixelFormatInfo->value;
     }
     float getInputFrameRate() {  return  mFrameRateInfo->value; }
-    std::shared_ptr<C2StreamHdr10PlusInfo::input> getHdr10PlusInfo() {
-        return this->mHdr10PlusInfoInput;
+    std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> getHdr10PlusInfo() {
+        return this->mHdrDynamicInfoInput;
     }
     void getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen);
     void updateHdr10PlusInfoToWork(C2Work& work);
@@ -77,6 +77,8 @@ private:
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorNetflixVPeek::input, VendorNetflixVPeek);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::input, HdrDynamicInfoInput);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::output, HdrDynamicInfoOutput);
 
     std::shared_ptr<C2ApiLevelSetting> mApiLevel;
     std::shared_ptr<C2ApiFeaturesSetting> mApiFeatures;
@@ -120,8 +122,8 @@ private:
     std::shared_ptr<C2StreamColorAspectsInfo::output> mColorAspects;
     //hdr
     std::shared_ptr<C2StreamHdrStaticInfo::output> mHdrStaticInfo;
-    std::shared_ptr<C2StreamHdr10PlusInfo::input> mHdr10PlusInfoInput;
-    std::shared_ptr<C2StreamHdr10PlusInfo::output> mHdr10PlusInfoOutput;
+    std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> mHdrDynamicInfoInput;
+    std::shared_ptr<C2StreamHdrDynamicMetadataInfo::output> mHdrDynamicInfoOutput;
     std::shared_ptr<C2PortActualDelayTuning::input> mActualInputDelay;
 
     //frame rate

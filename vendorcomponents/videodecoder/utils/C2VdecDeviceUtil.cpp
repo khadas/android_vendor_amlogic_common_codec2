@@ -1120,11 +1120,11 @@ void C2VdecComponent::DeviceUtil::updateHDR10plusToWork(unsigned char *data, int
     std::lock_guard<std::mutex> lock(mMutex);
     if (size > 0) {
         mHDR10PLusInfoChanged = true;
-        std::unique_ptr<C2StreamHdr10PlusInfo::output> hdr10PlusInfo =
-            C2StreamHdr10PlusInfo::output::AllocUnique(size);
-        memcpy(hdr10PlusInfo->m.value, data, size);
+        std::unique_ptr<C2StreamHdrDynamicMetadataInfo::output> hdr10PlusInfo =
+            C2StreamHdrDynamicMetadataInfo::output::AllocUnique(size);
+        hdr10PlusInfo->m.type_ = C2Config::HDR_DYNAMIC_METADATA_TYPE_SMPTE_2094_40;
+        memcpy(hdr10PlusInfo->m.data, data, size);
         work.worklets.front()->output.configUpdate.push_back(std::move(hdr10PlusInfo));
-        //mHDR10PlusDataQueue.push(std::move(hdr10PlusInfo);
     }
 }
 bool C2VdecComponent::DeviceUtil::getHDR10PlusData(std::string &data)
