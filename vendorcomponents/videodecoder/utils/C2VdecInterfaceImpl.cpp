@@ -885,39 +885,79 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
         // the calculated value in MaxSizeCalculator().
         // This value is the default maximum of linear buffer size (kLinearBufferSize) in
         // CCodecBufferChannel.cpp.
-        constexpr static size_t kLinearBufferSize = 1 * 1024 * 1024;
+        constexpr static size_t kMinInputBufferSize = 2 * 1024 * 1024;
         struct LocalCalculator {
-                static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
-                                                const C2P<C2StreamPictureSizeInfo::output>& size) {
-                        (void)mayBlock;
-                        size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, 6291456);
-                        size_t paddingSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_PADDINGSIZE, 262144);
-                        size_t defaultSize = me.get().value;
-                        if (defaultSize > 0)
-                        defaultSize += paddingSize;
-                        else
-                        defaultSize = kLinearBufferSize;
+            static C2R MaxSizeCalculator_Func_1(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
+                                            const C2P<C2StreamPictureSizeInfo::output>& size) {
+                (void)mayBlock;
+                // assume compression ratio of 1
+                me.set().value = c2_max((((size.v.width + 15) / 16)
+                                * ((size.v.height + 15) / 16) * 384), kMinInputBufferSize);
+                ALOGV("[%s:%d] stream max buffer size:%d", __func__, __LINE__, (int)me.set().value);
+                return C2R::Ok();
+            }
 
-                        if (defaultSize > maxInputSize) {
-                            me.set().value = maxInputSize;
-                        } else {
-                            me.set().value = defaultSize;
-                        }
-                        //app may set too small
-                        if (((size.v.width * size.v.height) > (1920 * 1088))
-                            && (me.set().value < (4 * kLinearBufferSize))) {
-                            me.set().value = 4 * kLinearBufferSize;
-                        }
-                        return C2R::Ok();
-                }
+            static C2R MaxSizeCalculator_Func_2(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input> &me,
+                              const C2P<C2StreamPictureSizeInfo::output> &maxSize) {
+                (void)mayBlock;
+                // assume compression ratio of 2
+                me.set().value = c2_max((((maxSize.v.width + 15) / 16)
+                        * ((maxSize.v.height + 15) / 16) * 192), kMinInputBufferSize);
+                ALOGV("[%s:%d] stream max buffer size:%d", __func__, __LINE__, (int)me.set().value);
+                return C2R::Ok();
+            }
+
+            static C2R MaxSizeCalculator_Func_3( bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input> &me,
+                                    const C2P<C2StreamPictureSizeInfo::output> &maxSize) {
+                (void)mayBlock;
+                // assume compression ratio of 2, but enforce a floor
+                me.set().value = c2_max((((maxSize.v.width + 63) / 64)
+                                * ((maxSize.v.height + 63) / 64) * 3072), kMinInputBufferSize);
+                ALOGV("[%s:%d] stream max buffer size:%d", __func__, __LINE__, (int)me.set().value);
+                return C2R::Ok();
+            }
         };
-        addParameter(DefineParam(mMaxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
-                .withDefault(new C2StreamMaxBufferSizeInfo::input(0u, kLinearBufferSize))
+
+        InputCodec codec = getInputCodec();
+        if (codec == InputCodec::MP2V || codec == InputCodec::MP4V) {
+            addParameter(DefineParam(mMaxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
+                .withDefault(new C2StreamMaxBufferSizeInfo::input(0u, kMinInputBufferSize))
                 .withFields({
-                        C2F(mMaxInputSize, value).any(),
+                    C2F(mMaxInputSize, value).any(),
                 })
-        .calculatedAs(LocalCalculator::MaxSizeCalculator, mSize)
-        .build());
+            .calculatedAs(LocalCalculator::MaxSizeCalculator_Func_1, mSize)
+            .build());
+        }
+        else if (codec == InputCodec::H264) {
+            addParameter(DefineParam(mMaxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
+                .withDefault(new C2StreamMaxBufferSizeInfo::input(0u, kMinInputBufferSize))
+                .withFields({
+                    C2F(mMaxInputSize, value).any(),
+            })
+            .calculatedAs(LocalCalculator::MaxSizeCalculator_Func_2, mSize)
+            .build());
+        }
+        else if (codec == InputCodec::H265 || codec == InputCodec::DVHE ||
+                 codec == InputCodec::DVAV || codec == InputCodec::AV1  ||
+                 codec == InputCodec::DVAV1 || codec == InputCodec::AVS ||
+                 codec == InputCodec::AVS2 || codec == InputCodec::VP9) {
+            addParameter(DefineParam(mMaxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
+                .withDefault(new C2StreamMaxBufferSizeInfo::input(0u, kMinInputBufferSize))
+                .withFields({
+                    C2F(mMaxInputSize, value).any(),
+            })
+            .calculatedAs(LocalCalculator::MaxSizeCalculator_Func_3, mSize)
+            .build());
+        }
+        else {
+            addParameter(DefineParam(mMaxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
+                .withDefault(new C2StreamMaxBufferSizeInfo::input(0u, kMinInputBufferSize))
+                .withFields({
+                    C2F(mMaxInputSize, value).any(),
+                })
+            .calculatedAs(LocalCalculator::MaxSizeCalculator_Func_3, mSize)
+            .build());
+        }
 }
 
 void C2VdecComponent::IntfImpl::onBufferPoolDeclareParam() {
