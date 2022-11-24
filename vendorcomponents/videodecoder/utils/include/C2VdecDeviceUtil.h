@@ -81,6 +81,10 @@ public:
         return mMarginBufferNum;
     }
 
+    int32_t getPlayerId() {
+        return mPlayerId;
+    }
+
     //int check_color_aspects();
     uint64_t getPlatformUsage();
     uint32_t getOutAlignedSize(uint32_t size, bool forceAlign = false);
@@ -164,6 +168,7 @@ private:
     uint32_t mDurationUsFromApp;
     bool     mCredibleDuration;
     int32_t  mUnstablePts;
+    int32_t  mPlayerId;
     uint64_t mLastOutPts;
     uint64_t mInPutWorkCount;
     uint64_t mOutputWorkCount;

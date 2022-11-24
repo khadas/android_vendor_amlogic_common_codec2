@@ -19,7 +19,7 @@
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
 
-#define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
+#define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d##%d]"#fmt, mPlayerId, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
 
 #define OUTPUT_BUFS_ALIGN_SIZE (64)
 #define min(a, b) (((a) > (b))? (b):(a))
@@ -58,6 +58,7 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mDurationUsFromApp(0),
     mCredibleDuration(0),
     mUnstablePts(0),
+    mPlayerId(0),
     mLastOutPts(0),
     mInPutWorkCount(0),
     mOutputWorkCount(0),
@@ -220,6 +221,14 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamUnstablePts message error", __func__, __LINE__);
     } else {
         mUnstablePts = unstablePts.enable;
+    }
+
+    C2VendorPlayerId::input playerId;
+    err = mIntfImpl->query({&playerId}, {}, C2_MAY_BLOCK, nullptr);
+    if (err != C2_OK) {
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2VendorPlayerId message error", __func__, __LINE__);
+    } else {
+        mPlayerId = playerId.value;
     }
 
     if (inputFrameRateInfo.value != 0) {

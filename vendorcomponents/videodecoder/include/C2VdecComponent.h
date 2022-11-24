@@ -7,6 +7,11 @@
 
 #include <VideoDecodeAcceleratorAdaptor.h>
 
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <stdlib.h>
+
 #include <rect.h>
 #include <size.h>
 #include <video_codecs.h>
@@ -121,6 +126,13 @@ public:
     VideoDecWraper* getCompVideoDecWraper() {
         return  mVideoDecWraper.get();
     }
+
+    //for multi-instance trace
+    std::ostringstream TACE_NAME_IN_PTS;
+    std::ostringstream TACE_NAME_BITSTREAM_ID;
+    std::ostringstream TACE_NAME_FETCH_OUT_BLOCK_ID;
+    std::ostringstream TACE_NAME_OUT_PTS;
+    std::ostringstream TACE_NAME_FINISHED_WORK_PTS;
 
     static uint32_t mInstanceNum;
     static uint32_t mInstanceID;
@@ -536,6 +548,7 @@ private:
     bool mResolutionChanging;
 
     C2Work *mLastOutputReportWork;
+    int32_t mPlayerId;
     int32_t mUnstable;
     DISALLOW_COPY_AND_ASSIGN(C2VdecComponent);
 };

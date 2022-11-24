@@ -75,6 +75,7 @@ public:
     void stop(uint32_t flags = 0);
     void destroy();
     bool postAndReplyMsg(AmlMessageBase *msg);
+    void setInstanceId(int32_t id);
     //media::VideoDecodeAccelerator::SupportedProfiles GetSupportedProfiles(InputCodec inputCodec);
 
     // Implementation of the media::VideoDecodeAcceleratorAdaptor::Client interface.
@@ -95,11 +96,13 @@ public:
     virtual void onEvent(uint32_t event, void* param, uint32_t paramsize);
 
 private:
+    void setInstanceId2Hal();
     AmVideoDecBase* mAmVideoDec;
     VideoDecWraperCallback* mDecoderCallback;
     static uint32_t gInstanceCnt;
     static uint32_t gInstanceNum;
     uint32_t mInstanceCnt;
+    uint32_t mInstanceId;
 };
 
 enum {

@@ -70,13 +70,10 @@
         (void)(expr); \
     } while (0)
 
-#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mCurInstanceID, mInstanceNum, ##str)
+#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d##%d]"#fmt, mPlayerId, mCurInstanceID, mInstanceNum, ##str)
 
-#define CODEC2_VDEC_ATRACE(tag, num) \
+#define CODEC2_VDEC_ATRACE(tag_name, num) \
 do { \
-    size_t len = strlen(tag) + 12; \
-    char tag_name[len]; \
-    snprintf(tag_name, len, "%s-%d", tag, mCurInstanceID); \
     if (sizeof(num) == sizeof(uint32_t)) { \
         CODEC2_ATRACE_INT32(tag_name, num); \
     } else if (sizeof(num) == sizeof(uint64_t)) { \
@@ -228,6 +225,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
         mLastOutputBitstreamId(-1),
         mIsReportEosWork(false),
         mResolutionChanging(false),
+        mPlayerId(0),
         mUnstable(0) {
 
     mInstanceNum ++;
@@ -355,6 +353,7 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
 
     if (!isTunnerPassthroughMode()) {
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
+        mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
         mDeviceUtil =  std::make_shared<DeviceUtil>(this, mSecureMode);
         mDeviceUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
         mDeviceUtil->codecConfig(&mConfigParam);
@@ -391,6 +390,12 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     } else {
         mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
     }
+    mPlayerId = mDeviceUtil->getPlayerId();
+    TACE_NAME_IN_PTS << mCurInstanceID << "-" << mPlayerId << "-c2InPTS";
+    TACE_NAME_BITSTREAM_ID << mCurInstanceID << "-" << mPlayerId << "-c2InBitStreamID";
+    TACE_NAME_OUT_PTS << mCurInstanceID << "-" << mPlayerId << "-c2OutPts";
+    TACE_NAME_FETCH_OUT_BLOCK_ID << mCurInstanceID << "-" << mPlayerId << "-c2FetchOutBlockId";
+    TACE_NAME_FINISHED_WORK_PTS << mCurInstanceID << "-" << mPlayerId << "-c2FinishedWorkPTS";
 
     if (isTunnelMode() && mTunnelHelper) {
         mTunnelHelper->start();
@@ -430,10 +435,10 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
         mFirstInputTimestamp = work->input.ordinal.timestamp.peekull();
     }
 
-    CODEC2_VDEC_ATRACE("c2InPTS", work->input.ordinal.timestamp.peekull());
-    CODEC2_VDEC_ATRACE("c2BitstreamId", work->input.ordinal.frameIndex.peekull());
-    CODEC2_VDEC_ATRACE("c2InPTS", 0);
-    CODEC2_VDEC_ATRACE("c2BitstreamId", 0);
+    CODEC2_VDEC_ATRACE(TACE_NAME_IN_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
+    CODEC2_VDEC_ATRACE(TACE_NAME_BITSTREAM_ID.str().c_str(), work->input.ordinal.frameIndex.peekull());
+    CODEC2_VDEC_ATRACE(TACE_NAME_IN_PTS.str().c_str(), 0);
+    CODEC2_VDEC_ATRACE(TACE_NAME_BITSTREAM_ID.str().c_str(), 0);
 
     mInputWorkCount ++;
     mInputQueueNum ++;
@@ -779,10 +784,10 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
 
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
     mOutputWorkCount ++;
-    CODEC2_VDEC_ATRACE("c2OutPTS", timestamp);
+    CODEC2_VDEC_ATRACE(TACE_NAME_OUT_PTS.str().c_str(), timestamp);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
             bitstreamId, pictureBufferId, flags, mPendingBuffersToWork.size());
-    CODEC2_VDEC_ATRACE("c2OutPTS", 0);
+    CODEC2_VDEC_ATRACE(TACE_NAME_OUT_PTS.str().c_str(), 0);
 
     mLastOutputBitstreamId = bitstreamId;
     if (isNonTunnelMode()) {
@@ -2353,6 +2358,7 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
                 mVideoDecWraper->destroy();
             } else {
                 mVideoDecWraper = std::make_shared<VideoDecWraper>();
+                mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
             }
             mDeviceUtil->setUseSurfaceTexture(usersurfacetexture);
             mDeviceUtil->codecConfig(&mConfigParam);
@@ -2855,9 +2861,9 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-        CODEC2_VDEC_ATRACE("c2FinishedWorkPTS", work->input.ordinal.timestamp.peekull());
+        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
         mPendingWorks.erase(workIter);
-        CODEC2_VDEC_ATRACE("c2FinishedWorkPTS", 0);
+        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
         mOutputFinishedWorkCount++;
         return C2_OK;
     }
@@ -3213,11 +3219,11 @@ void C2VdecComponent::dequeueThreadLoop(const media::Size& size, uint32_t pixelF
                         old = true;
                     }
                     nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
-                    CODEC2_VDEC_ATRACE("c2FetchOutBlockId", blockId);
+                    CODEC2_VDEC_ATRACE(TACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), blockId);
                     CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] fetch %s block(id:%d,w:%d h:%d,count:%ld), time interval:%" PRId64 "",
                             __func__, (old ? "old" : "new"), blockId, width, height, block.use_count(),
                             nowTimeMs - lastFetchBlockTimeMs);
-                    CODEC2_VDEC_ATRACE("c2FetchOutBlockId", 0);
+                    CODEC2_VDEC_ATRACE(TACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), 0);
                     timeOutCount = 0;
                     lastFetchBlockTimeMs = nowTimeMs;
                 } else {

@@ -129,6 +129,7 @@ AmlMessageBase* VideoDecWraper::AmVideoDec_getAmlMessage() {
 VideoDecWraper::VideoDecWraper() :
     mAmVideoDec(NULL),
     mDecoderCallback(NULL) {
+    mInstanceId = -1;
     gInstanceCnt++;
     gInstanceNum++;
     mInstanceCnt = gInstanceCnt;
@@ -162,6 +163,7 @@ int VideoDecWraper::initialize(
     int ret = mAmVideoDec->initialize(mime, config, configLen, secureMode, true, flags);
     if (ret != 0)
         return -1;
+    setInstanceId2Hal();
     mAmVideoDec->setQueueCount(64);
     if (client)
         mDecoderCallback = client;
@@ -358,6 +360,29 @@ void VideoDecWraper::onEvent(uint32_t event, void* param, uint32_t paramsize) {
     C2VdecWraper_LOG(CODEC2_LOG_INFO, "event %d, param %p, paramsize:%d\n", event, param, paramsize);
     if (mDecoderCallback)
         mDecoderCallback->NotifyEvent(event, param, paramsize);
+}
+
+void VideoDecWraper::setInstanceId(int32_t id) {
+    mInstanceId = id;
+}
+
+void VideoDecWraper::setInstanceId2Hal() {
+    typedef AmlMessageBase* (*fGetAmlMessage)();
+    fGetAmlMessage getAmlMessage = (fGetAmlMessage)dlsym(gMediaHal, "AmVideoDec_getAmlMessage");
+
+    if (getAmlMessage == NULL) {
+        ALOGW("VideoDecWraper::setInstanceId %d, getAmlMessage == NULL",mInstanceId);
+        return ;
+    }
+
+    AmlMessageBase* msg = getAmlMessage();
+    if (msg == NULL) {
+        ALOGW("VideoDecWraper::setInstanceId %d, msg == NULL",mInstanceId);
+        return ;
+    }
+    msg->setInt32("callerinstanceid", mInstanceId);
+    postAndReplyMsg(msg);
+    delete msg;
 }
 
 }

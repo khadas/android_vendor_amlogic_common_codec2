@@ -1058,6 +1058,12 @@ void C2VdecComponent::IntfImpl::onVendorExtendParam() {
                 .withFields({C2F(mDataSourceType, value).any()})
                 .withSetter(Setter<decltype(*mDataSourceType)>::StrictValueWithNoDeps)
         .build());
+        addParameter(
+        DefineParam(mPlayerId,C2_PARAMKEY_PLAYER_ID)
+                .withDefault(new C2VendorPlayerId::input(0))
+                .withFields({C2F(mPlayerId,value).any()})
+                .withSetter(Setter<decltype(*mPlayerId)>::StrictValueWithNoDeps)
+        .build());
 }
 
 }

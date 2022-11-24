@@ -130,6 +130,8 @@ private:
     std::shared_ptr<C2StreamFrameRateInfo::input> mFrameRateInfo;
     //unstable pts
     std::shared_ptr<C2StreamUnstablePts::input> mUnstablePts;
+    //player id
+    std::shared_ptr<C2VendorPlayerId::input> mPlayerId;
     //stream mode
     std::shared_ptr<C2VdecWorkMode::input> mVdecWorkMode;
     //dmx source
