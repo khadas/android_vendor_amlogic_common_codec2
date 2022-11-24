@@ -128,7 +128,7 @@ static struct {
     const char* codecDecName;
 } gVdecCodecConfig[] = {
     {C2VendorCodec::VDEC_H264, kH264DecoderName, kH264ModuleName},
-    {C2VendorCodec::VDEC_H265, kH265DecoderName, kH264ModuleName},
+    {C2VendorCodec::VDEC_H265, kH265DecoderName, kH265ModuleName},
     {C2VendorCodec::VDEC_VP9, kVP9DecoderName, kVP9ModuelName},
     {C2VendorCodec::VDEC_AV1, kAV1DecoderName, kAV1ModuelName},
     {C2VendorCodec::VDEC_DVHE, kDVHEDecoderName, kH265ModuleName},

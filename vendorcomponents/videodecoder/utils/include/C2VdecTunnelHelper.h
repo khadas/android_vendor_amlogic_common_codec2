@@ -81,7 +81,6 @@ private:
 
     std::vector<struct fillVideoFrame2> mFillVideoFrameQueue;
     std::vector<int64_t> mTunnelAbandonMediaTimeQueue;
-    std::deque<int64_t> mTunnelRenderMediaTimeQueue;
     std::map<int, TunnelFdInfo> mOutBufferFdMap;
 
     uint32_t mOutBufferCount;

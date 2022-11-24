@@ -1541,7 +1541,7 @@ void C2VdecComponent::tryChangeOutputFormat() {
     }
     CHECK(mPendingOutputFormat);
 
-    if (!mPendingBuffersToWork.empty()) {
+    if (isNonTunnelMode() && !mPendingBuffersToWork.empty()) {
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Pending buffers has work, and wait...");
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::tryChangeOutputFormat,
                                             ::base::Unretained(this)));

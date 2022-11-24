@@ -24,12 +24,9 @@
 #include <C2VdecDebugUtil.h>
 #include <inttypes.h>
 
-
 #define C2VdecTMH_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
 
 namespace android {
-
-constexpr uint32_t kTunnelMediaTimeQueueMax = 16;   // Max queue size for tunnel mode render time.
 
 #define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
     do {                                                                   \
@@ -329,32 +326,9 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct V
             }
         }
 
-        if (/*mMetaDataUtil->isInterlaced()
-            && (mComp->mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD))*/0) {
-            auto time = std::find_if(mTunnelRenderMediaTimeQueue.begin(), mTunnelRenderMediaTimeQueue.end(),
-                    [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
-            if (time != mTunnelRenderMediaTimeQueue.end()) {
-                CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Have report mediaTime:%" PRId64 ", ignore it", rendertime->mediaUs);
-                mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
-                return C2_OK;
-            }
-        }
-
-        CODEC2_LOG(CODEC2_LOG_INFO, "Not find the correct work with mediaTime:%" PRId64 ", should have reported, discard report it", rendertime->mediaUs);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not found corresponed work with mediaTime:%lld", (long long)rendertime->mediaUs);
         mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
         return C2_OK;
-    }
-    if (/*mMetaDataUtil->isInterlaced()
-        && (mComp->mInterlacedType == (C2_INTERLACED_TYPE_SETUP | C2_INTERLACED_TYPE_2FIELD))*/0) {
-        auto time = std::find_if(mTunnelRenderMediaTimeQueue.begin(), mTunnelRenderMediaTimeQueue.end(),
-                [timeus=rendertime->mediaUs](const int64_t _timeus) {return _timeus == timeus;});
-        if (time == mTunnelRenderMediaTimeQueue.end()) {
-            mTunnelRenderMediaTimeQueue.push_back(rendertime->mediaUs);
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Tunnel push mediaTime:%" PRId64 "", rendertime->mediaUs);
-        }
-        if (mTunnelRenderMediaTimeQueue.size() > kTunnelMediaTimeQueueMax) {
-            mTunnelRenderMediaTimeQueue.pop_front();
-        }
     }
 
     mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs * 1000;
@@ -444,42 +418,17 @@ void C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder(const medi
     if (index >= mOutBufferCount || mIntfImpl == NULL) {
         return;
     }
-    uint64_t platformUsage = getPlatformUsage();
-    C2MemoryUsage usage = {
-            mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
-            (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
 
-    C2BlockPool::local_id_t poolId = -1;
-    uint32_t blockId = -1;
     int fd = -1;
-    std::shared_ptr<C2GraphicBlock> c2Block;
-    auto err = C2_TIMED_OUT;
+    allocTunnelBuffer(size, pixelFormat, &fd);
+    GraphicBlockInfo* info = mComp->getGraphicBlockByFd(fd);
+    GraphicBlockStateInit(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+    BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel allocate fd=%d, index=%d", info->mFd, info->mBlockId);
 
-    mBlockPoolUtil->getPoolId(&poolId);
-    err = mBlockPoolUtil->fetchGraphicBlock(size.width(), size.height(), pixelFormat, usage, &c2Block);
-    if (err != C2_OK) {
-        C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] alloc buffer failed, please check!", __func__);
-    } else {
-        err = mBlockPoolUtil->getBlockIdByGraphicBlock(c2Block, &blockId);
-        if (err != C2_OK) {
-            C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] get the block id failed, please check!", __func__);
-            return;
-        }
-        mBlockPoolUtil->getBlockFd(c2Block, &fd);
-
-        int dupfd = dup(fd);
-        DCHECK(dupfd >= 0);
-        appendTunnelOutputBuffer(c2Block, dupfd, blockId, poolId);
-        mOutBufferFdMap.insert(std::pair<int, TunnelFdInfo>(dupfd, TunnelFdInfo(fd, blockId)));
-        GraphicBlockInfo* info = mComp->getGraphicBlockByFd(dupfd);
-        GraphicBlockStateInit(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
-        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
-
-        mComp->sendOutputBufferToAccelerator(info, true);
-        mTaskRunner->PostTask(FROM_HERE,
-            ::base::Bind(&C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder, ::base::Unretained(this),
-            size, pixelFormat, index+1));
-    }
+    mComp->sendOutputBufferToAccelerator(info, true);
+    mTaskRunner->PostTask(FROM_HERE,
+        ::base::Bind(&C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder, ::base::Unretained(this),
+        size, pixelFormat, index+1));
 
     return;
 }
