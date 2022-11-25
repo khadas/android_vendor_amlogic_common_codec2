@@ -194,7 +194,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
       : mIntfImpl(std::make_shared<IntfImpl>(name, helper)),
         mIntf(std::make_shared<SimpleInterface<IntfImpl>>(name.c_str(), id, mIntfImpl)),
         mThread("C2VdecComponentThread"),
-        mDequeueThread("C2VdecComponentDequeueThread"),
+        mDequeueThread("C2VdecDequeueThread"),
         mVdecInitResult(VideoDecodeAcceleratorAdaptor::Result::ILLEGAL_STATE),
         mComponentState(ComponentState::UNINITIALIZED),
         mPendingOutputEOS(false),
@@ -352,7 +352,11 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     C2Vdec_LOG(CODEC2_LOG_INFO, "OnStart DolbyVision:%d", mIsDolbyVision);
     CHECK_EQ(mComponentState, ComponentState::UNINITIALIZED);
-
+    struct sched_param param = {0};
+    param.sched_priority = 1;
+    if (sched_setscheduler(0, SCHED_RR, &param) != 0) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "set sched_priority error: %s", strerror(errno));
+    }
     if (!isTunnerPassthroughMode()) {
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
         mDeviceUtil =  std::make_shared<DeviceUtil>(this, mSecureMode);
