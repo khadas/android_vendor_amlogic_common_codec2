@@ -331,6 +331,7 @@ void C2VdecComponent::Init(C2String compName) {
     mLastOutputBitstreamId = -1;
     mLastFinishedBitstreamId = -1;
     mPendingGraphicBlockBufferId = -1;
+    mLastInputTimestamp = 0;
 
     mSyncId = 0;
     mInstanceNum ++;
@@ -563,6 +564,17 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
     CODEC2_VDEC_ATRACE(TRACE_NAME_IN_PTS.str().c_str(), 0);
     CODEC2_VDEC_ATRACE(TRACE_NAME_BITSTREAM_ID.str().c_str(), 0);
 
+    if (mIntfImpl->mVendorGameModeLatency->enable) {
+        uint64_t now = systemTime();
+        if ((now - mLastInputTimestamp < 8000000) && (mInputWorkCount > 32)) {
+            int32_t bitstreamId = frameIndexToBitstreamId(work->input.ordinal.frameIndex);
+            mDropFrameForLatency.push(bitstreamId);
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%d] drop frame(%d/%zd) when frames too closed.", __LINE__, bitstreamId, mDropFrameForLatency.size());
+        } else {
+            mLastInputTimestamp = now;
+        }
+    }
+
     mInputWorkCount ++;
     mInputQueueNum ++;
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "queue input index=%llu, timestamp=%llu, flags=0x%x",
@@ -776,9 +788,14 @@ void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
 
     C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
     if (!work) {
-        C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not get pending work with bitstreamId:%d", __func__, __LINE__,  bitstreamId);
-        reportError(C2_CORRUPTED);
-        return;
+        if (mIntfImpl->mVendorGameModeLatency->enable) {
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] bitstreamId:%d gamemode already workdone", __func__, __LINE__, bitstreamId);
+            return;
+        } else {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not get pending work with bitstreamId:%d", __func__, __LINE__,  bitstreamId);
+            reportError(C2_CORRUPTED);
+            return;
+        }
     }
 
     // When the work is done, the input buffer shall be reset by component.
@@ -979,6 +996,14 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
             sendOutputBufferToAccelerator(info, true);
             return;
         }
+        if (!mDropFrameForLatency.empty() && (mDropFrameForLatency.front() == bitstreamId)) {
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%d]gamemode frame dropped:%" PRId64 "", __LINE__, bitstreamId);
+            mDropFrameForLatency.pop();
+            work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
+            reportWorkIfFinished(bitstreamId, 0);
+            sendOutputBufferToAccelerator(info, true);
+            return;
+        }
     }
 
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
@@ -1106,8 +1131,13 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             work = cloneWork(mLastOutputReportWork);
         } else {
             if (isInputWorkDone(work) == false) {
-                C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] input work done error. size(%zd)", __func__, mPendingBuffersToWork.size());
-                return C2_OK;
+                if (mIntfImpl->mVendorGameModeLatency->enable) {
+                    work->input.buffers.front().reset();
+                    mInputQueueNum --;
+                } else {
+                     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] input work done error. size(%zd)", __func__, mPendingBuffersToWork.size());
+                    return C2_OK;
+                }
             }
         }
 
@@ -2892,6 +2922,9 @@ c2_status_t C2VdecComponent::start() {
     mTaskRunner->PostDelayedTask(FROM_HERE,
         ::base::Bind(&C2VdecComponent::checkPreempting, ::base::Unretained(this)),
         ::base::TimeDelta::FromMilliseconds(100));
+    if (mIntfImpl->mVendorGameModeLatency->enable && mDeviceUtil) {
+        mDeviceUtil->setGameMode(true);
+    }
     mVdecComponentStopDone = false;
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done",__func__);
     return C2_OK;
@@ -2910,6 +2943,9 @@ c2_status_t C2VdecComponent::stop() {
     auto state = mState.load();
     if (!(state == State::RUNNING || state == State::ERROR)) {
         return C2_OK;  // Component is already in stopped state.
+    }
+    if (mIntfImpl->mVendorGameModeLatency->enable && mDeviceUtil) {
+        mDeviceUtil->setGameMode(false);
     }
 
     ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
@@ -3317,7 +3353,7 @@ bool C2VdecComponent::isInputWorkDone(const C2Work* work) const {
 
 
 bool C2VdecComponent::isWorkDone(const C2Work* work) const {
-    if (work->input.buffers.front()) {
+    if (work->input.buffers.front() && !mIntfImpl->mVendorGameModeLatency->enable) {
         // Input buffer is still owned by Vdec.
         return false;
     }

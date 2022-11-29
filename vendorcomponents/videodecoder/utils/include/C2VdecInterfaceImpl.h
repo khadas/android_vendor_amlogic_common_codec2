@@ -84,6 +84,7 @@ private:
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::input, HdrDynamicInfoInput);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::output, HdrDynamicInfoOutput);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughEventMask::input, VendorTunerPassthroughEventMask);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorGameModeLatency::input, VendorGameModeLatency);
 
     std::shared_ptr<C2ApiLevelSetting> mApiLevel;
     std::shared_ptr<C2ApiFeaturesSetting> mApiFeatures;
@@ -165,6 +166,7 @@ private:
     std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
     std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
     std::shared_ptr<C2Avc4kMMU::input> mAvc4kMMUMode;
+    std::shared_ptr<C2VendorGameModeLatency::input> mVendorGameModeLatency;
     std::shared_ptr<C2StreamPixelFormatInfo::output> mPixelFormatInfo;
     std::shared_ptr<C2ErrorPolicy::input> mErrorPolicy;
 
@@ -201,6 +203,7 @@ private:
     void onPipelineDelayDeclareParam();
     void onReorderBufferDepthDeclareParam();
     void onTunerPassthroughDeclareParam();
+    void onGameModeLatencyDeclareParam();
     void onBufferSizeDeclareParam(const char* mine);
     void onBufferPoolDeclareParam();
     void onColorAspectsDeclareParam();

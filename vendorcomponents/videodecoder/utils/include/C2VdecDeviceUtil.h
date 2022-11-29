@@ -123,6 +123,8 @@ public:
 
     bool checkConfigInfoFromDecoderAndReconfig(int type);
 
+    void setGameMode(bool enable);
+
 private:
     void init(bool secure);
     /* set hdr static to decoder */
@@ -179,6 +181,7 @@ private:
     int32_t mStreamBitDepth;
     uint32_t mBufferWidth;
     uint32_t mBufferHeight;
+    int32_t mMemcMode;
 
     /* for hdr10 plus */
     std::queue<std::string> mHDR10PlusData;

@@ -36,6 +36,8 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorStreammodePipeLinedelay,
     kParamIndexVendorTunerPassthroughEventMask,
     kParamIndexVendorStreammodeHwAvSyncID,
+    kParamIndexVendorGameModeLatency,
+
     /*these are Audio Decoder config parameters.*/
     kParamIndexVendorAdecCodecId = C2Param:: TYPE_INDEX_VENDOR_START + 0x200,
     kParamIndexVendorAdecExtraDataSize,
@@ -142,6 +144,17 @@ constexpr char C2_PARAMKEY_VENDOR_STREAMMODE_PIPELINE_DELAY[] = "streammode.pipe
 constexpr char KEY_VENDOR_STREAMMODE_PIPELINE_DELAY[] = "vendor.streammode.pipelinedelay.value";
 constexpr char C2_PARAMKEY_VENDOR_STREAMMODE_HWAVSYNCID[] = "streammode.hwavsyncid";
 constexpr char KEY_VENDOR_STREAMMODE_HWAVSYNCID[] = "vendor.streammode.hwavsyncid.value";
+
+struct C2VendorGameModeLatencyStruct {
+    inline C2VendorGameModeLatencyStruct() = default;
+    inline C2VendorGameModeLatencyStruct(int32_t val) : enable(val) {}
+    int32_t enable;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorGameModeLatency)
+    C2FIELD(enable, "enable")
+};
+typedef C2PortParam<C2Setting, C2VendorGameModeLatencyStruct, kParamIndexVendorGameModeLatency> C2VendorGameModeLatency;
+constexpr char C2_PARAMKEY_VENDOR_GAME_MODE_LATENCY[] = "START.low-latency";
+constexpr char KEY_VENDOR_GAME_MODE_LATENCY[] = "vendor.START.low-latency.enable";
 
 struct C2VendorNetflixVPeekStruct {
     inline C2VendorNetflixVPeekStruct() = default;

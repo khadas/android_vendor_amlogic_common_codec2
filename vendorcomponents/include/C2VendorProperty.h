@@ -57,6 +57,7 @@
 #define C2_PROPERTY_VDEC_REALLOC_TUNNEL_RESCHANGE   "vendor.media.c2.vdec.realloc_for_tunnel_reschange"
 #define C2_PROPERTY_VDEC_RETRYBLOCK_TIMEOUT         "vendor.media.c2.vdec.retryblock_timeout"
 #define C2_PROPERTY_VDEC_FORCE_DI_PERMISSION         "vendor.media.c2.vdec.force_di_permission"
+#define C2_PROPERTY_VDEC_GAME_LOW_LATENCY           "vendor.media.c2.vdec.game_low_latency"
 
 //debug
 #define C2_PROPERTY_VDEC_FD_INFO_DEBUG              "debug.vendor.media.c2.vdec.fd_info_debug"

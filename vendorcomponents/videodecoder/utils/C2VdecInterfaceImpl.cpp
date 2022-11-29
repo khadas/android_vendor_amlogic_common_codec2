@@ -186,6 +186,7 @@ DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStart
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorNetflixVPeek::input, VendorNetflixVPeek)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughEventMask::input, VendorTunerPassthroughEventMask)
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorGameModeLatency::input, VendorGameModeLatency)
 
 c2_status_t C2VdecComponent::IntfImpl::config(
     const std::vector<C2Param*> &params, c2_blocking_t mayBlock,
@@ -214,6 +215,10 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 break;
             case C2VendorTunerPassthroughEventMask::CORE_INDEX:
                 onTunerPassthroughEventMaskConfigParam();
+                break;
+            case C2VendorGameModeLatency::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config game mode latency",
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
                 break;
             case C2VdecWorkMode::CORE_INDEX:
                 onVdecWorkModeConfigParam();
@@ -383,6 +388,9 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
 
     //tunnel passthrough
     onTunerPassthroughDeclareParam();
+
+    // game mode latency
+    onGameModeLatencyDeclareParam();
 
     //buffer size
     onBufferSizeDeclareParam(inputMime.c_str());
@@ -982,6 +990,16 @@ void C2VdecComponent::IntfImpl::onTunerPassthroughDeclareParam() {
     .withSetter(C2_DEFAULT_UNSTRICT_SETTER(VendorTunerPassthroughEventMask))
     .build());
 }
+
+void C2VdecComponent::IntfImpl::onGameModeLatencyDeclareParam() {
+        addParameter(
+                DefineParam(mVendorGameModeLatency, C2_PARAMKEY_VENDOR_GAME_MODE_LATENCY)
+                .withDefault(new C2VendorGameModeLatency::input(0))
+                .withFields({C2F(mVendorGameModeLatency, enable).any()})
+        .withSetter(C2_DEFAULT_UNSTRICT_SETTER(VendorGameModeLatency))
+        .build());
+}
+
 
 void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
     // Get supported profiles from Vdec.

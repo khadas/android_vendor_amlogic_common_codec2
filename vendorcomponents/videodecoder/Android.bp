@@ -72,6 +72,9 @@ cc_library_shared {
         "libvendor_c2componentstore",
         "libamgralloc_ext",
         "libstagefright_xmlparser",
+        "libsystemcontrolservice",
+        "vendor.amlogic.hardware.systemcontrol@1.0",
+        "vendor.amlogic.hardware.systemcontrol@1.1",
     ],
 
     header_libs: [

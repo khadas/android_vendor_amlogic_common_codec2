@@ -22,6 +22,7 @@
 #include <utils/Log.h>
 #include <Codec2Mapper.h>
 #include <cutils/properties.h>
+#include <SystemControlClient.h>
 
 #include <C2VdecDeviceUtil.h>
 #include <C2VdecInterfaceImpl.h>
@@ -307,7 +308,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     C2GlobalLowLatencyModeTuning lowLatency = {0};
     err = intfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamPictureSizeInfo size error", __func__, __LINE__);
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2GlobalLowLatencyModeTuning error", __func__, __LINE__);
     }
 
     if (lowLatency.value) {
@@ -316,6 +317,13 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     } else {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Disable low latency mode to v4l2 decoder.");
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABLE;
+    }
+
+    if (intfImpl->mVendorGameModeLatency->enable) {
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Config game latency mode to v4l2 decoder.");
+        pAmlDecParam->cfg.low_latency_mode |= (LOWLATENCY_NORMAL|LOWLATENCY_FENCE);
+        mEnableNR = false;
+        mEnableDILocalBuf = false;
     }
 
     if (intfImpl->mAvc4kMMUMode->value ||
@@ -1489,6 +1497,21 @@ bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
         }
     }
     return false;
+}
+
+
+void C2VdecComponent::DeviceUtil::setGameMode(bool enable) {
+    static SystemControlClient *sc = SystemControlClient::getInstance();
+
+    CODEC2_LOG(CODEC2_LOG_INFO, "setGameMode:%d", enable);
+    if (enable) {
+        mMemcMode = sc->getMemcMode();
+        sc->setMemcMode(0, 0);
+        sc->setProperty(C2_PROPERTY_VDEC_GAME_LOW_LATENCY, "1");
+    } else {
+        sc->setProperty(C2_PROPERTY_VDEC_GAME_LOW_LATENCY, "0");
+        sc->setMemcMode(mMemcMode, 0);
+    }
 }
 
 }
