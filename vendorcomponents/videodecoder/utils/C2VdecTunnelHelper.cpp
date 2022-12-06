@@ -179,7 +179,7 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
         }
 
         GraphicBlockStateChange(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
-        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
+        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel reuse buffer fd=%d, index=%d", info->mFd, info->mBlockId);
         mComp->sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
 
         /* for drop, need report finished work */

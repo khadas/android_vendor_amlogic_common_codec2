@@ -45,6 +45,7 @@ public:
         // Event file is a interlaced
         FIELD_INTERLACED = 1,
         FRAME_ERROR = 3,
+        FARAME_INCOMPLETE = 4,
     };
 
     VideoDecWraper();

@@ -376,6 +376,10 @@ private:
     c2_status_t reallocateBuffersForUsageChanged(const media::Size& size, uint32_t pixelFormat);
     void resetBlockPoolUtil();
 
+    void onNoOutFrameNotify(int64_t bitstreamId);
+    bool isNoOutFrameDone(int64_t bitstreamId, const C2Work* work);
+    void onReportNoOutFrameFinished();
+
     //convert graphicblock state.
     const char* GraphicBlockState(GraphicBlockInfo::State state);
     //get the delay time of fetch block
@@ -538,6 +542,8 @@ private:
     bool mIsReportEosWork;
     bool mReportEosWork;
     bool mSupport10BitDepth;
+    //no correspond outframe work
+    std::deque<int64_t> mNoOutFrameWorkQueue;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
     Mutex mFlushDoneLock;

@@ -308,6 +308,7 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
 
     mPendingOutputFormat.reset();
     mPendingBuffersToWork.clear();
+    mNoOutFrameWorkQueue.clear();
 
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
@@ -1326,6 +1327,7 @@ void C2VdecComponent::onStopDone() {
     reportAbandonedWorks();
     mPendingOutputFormat.reset();
     mPendingBuffersToWork.clear();
+    mNoOutFrameWorkQueue.clear();
     stopDequeueThread();
     mHasQueuedWork = false;
 
@@ -2714,6 +2716,40 @@ void C2VdecComponent::NotifyError(int error) {
                           ::base::Bind(&C2VdecComponent::onReportError, ::base::Unretained(this), err));
 }
 
+void C2VdecComponent::onNoOutFrameNotify(int64_t bitstreamId) {
+    mNoOutFrameWorkQueue.push_back(bitstreamId);
+    mTaskRunner->PostTask(FROM_HERE,
+                          ::base::Bind(&C2VdecComponent::onReportNoOutFrameFinished, ::base::Unretained(this)));
+}
+
+void C2VdecComponent::onReportNoOutFrameFinished() {
+    while (!mNoOutFrameWorkQueue.empty()) {
+        int64_t bitstreamId = mNoOutFrameWorkQueue.front();
+        auto workIter = findPendingWorkByBitstreamId(bitstreamId);
+        if (workIter == mPendingWorks.end()) {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%lld", __func__, __LINE__, bitstreamId);
+            reportError(C2_CORRUPTED);
+        }
+
+        auto work = workIter->get();
+        if (!isNoOutFrameDone(bitstreamId, work)) {
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] no outframe work with bistreamId %lld not finished, will retry", __func__, __LINE__, bitstreamId);
+            return;
+        }
+        work->result = C2_OK;
+        work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
+        std::list<std::unique_ptr<C2Work>> finishedWorks;
+        finishedWorks.emplace_back(std::move(*workIter));
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Reported finished work index=%llu",__func__,__LINE__, work->input.ordinal.frameIndex.peekull());
+        mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
+        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
+        mPendingWorks.erase(workIter);
+        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
+        mOutputFinishedWorkCount++;
+        mNoOutFrameWorkQueue.pop_front();
+    }
+}
+
 void C2VdecComponent::NotifyEvent(uint32_t event, void *param, uint32_t paramsize) {
     UNUSED(param);
     UNUSED(paramsize);
@@ -2727,6 +2763,11 @@ void C2VdecComponent::NotifyEvent(uint32_t event, void *param, uint32_t paramsiz
             bitstreamId = *(uint32_t *)(param);
             mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onErrorFrameWorksAndReportIfFinised, ::base::Unretained(this), bitstreamId));
+            break;
+        case VideoDecWraper::FARAME_INCOMPLETE:
+            bitstreamId = *(uint32_t *)(param);
+            mTaskRunner->PostTask(FROM_HERE,
+                          ::base::Bind(&C2VdecComponent::onNoOutFrameNotify, ::base::Unretained(this), bitstreamId));
             break;
         default:
             CODEC2_LOG(CODEC2_LOG_INFO, "NotifyEvent:event:%d", event);
@@ -2845,6 +2886,23 @@ void C2VdecComponent::reportWork(std::unique_ptr<C2Work> work) {
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
 }
 
+bool C2VdecComponent::isNoOutFrameDone(int64_t bitstreamId, const C2Work* work) {
+    if (mNoOutFrameWorkQueue.empty()) {
+        return false;
+    }
+
+    if (work->input.buffers.front()) {
+        return false;
+    }
+
+    auto iter = std::find(mNoOutFrameWorkQueue.begin(), mNoOutFrameWorkQueue.end(), bitstreamId);
+    if (iter == mNoOutFrameWorkQueue.end()) {
+        return false;
+    }
+
+    return true;
+}
+
 c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t flags, bool isEmptyWork) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
 
@@ -2871,8 +2929,8 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
         //work->input.ordinal.customOrdinal = mDeviceUtil->checkAndAdjustOutPts(work, flags);
         c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal
                                 - work->input.ordinal.timestamp;
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Reported finished work index=%llu pts=%llu,%d",
-            work->input.ordinal.frameIndex.peekull(), timestamp.peekull(),__LINE__);
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Reported finished work index=%llu pts=%llu", __func__, __LINE__,
+            work->input.ordinal.frameIndex.peekull(), timestamp.peekull());
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
