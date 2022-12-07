@@ -15,6 +15,7 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorTunerPassthroughTrickMode,
     kParamIndexVendorNetflixVPeek,
     kParamIndexVendorSetAvc4kMMU,
+    kParamIndexVendorStreammodeInputdelay,
 
 
     /*these are Audio Decoder config parameters.*/
@@ -95,11 +96,15 @@ enum DATASOURCE_TYPE {
 
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorVdecWorkMode> C2VdecWorkMode;
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorDataSourceType> C2DataSourceType;
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorStreammodeInputdelay> C2StreamModeInputDelay;
 
 constexpr char C2_PARAMKEY_VENDOR_VDEC_WORK_MODE[] = "vdec.workmode";
 constexpr char KEY_VENDOR_WORK_MODE[] = "vendor.vdec.workmode.value";
 constexpr char C2_PARAMKEY_VENDOR_DATASOURCE_TYPE[] = "datasource.type";
 constexpr char KEY_VENDOR_DATASOURCE_TYPE[] = "vendor.datasource.type.value";
+constexpr char C2_PARAMKEY_VENDOR_STREAMMODE_INPUT_DELAY[] = "streammode.inputdelay";
+constexpr char KEY_VENDOR_STREAMMODE_INPUT_DELAY[] = "vendor.streammode.inputdelay.value";
+
 
 struct C2VendorNetflixVPeekStruct {
     inline C2VendorNetflixVPeekStruct() = default;
