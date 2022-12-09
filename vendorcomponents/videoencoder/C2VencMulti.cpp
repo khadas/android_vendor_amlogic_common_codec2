@@ -48,6 +48,7 @@ constexpr char COMPONENT_NAME_HEVC[] = "c2.amlogic.hevc.encoder";
 
 
 #define SUPPORT_DMA   1  //support dma mode or not
+constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;
 
 
 #define MAX_INPUT_BUFFER_HEADERS 4
@@ -391,6 +392,13 @@ public:
                 C2Config::PREPEND_HEADER_TO_ALL_SYNC))
             .build());
 
+    addParameter(
+            DefineParam(mMaxInputSize, C2_PARAMKEY_INPUT_MAX_BUFFER_SIZE)
+            .withDefault(new C2StreamMaxBufferSizeInfo::input(0u, kLinearBufferSize))
+            .withFields({C2F(mMaxInputSize, value).any()})
+            .calculatedAs(MaxSizeCalculator)
+            .build());
+
 }
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
         C2P<C2StreamPictureSizeInfo::input> &me) {
@@ -406,6 +414,15 @@ public:
             me.set().height = oldMe.v.height;
         }
         return res;
+    }
+
+    static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me/*,
+                                       const C2P<C2StreamPictureSizeInfo::output>& size*/) /*(bool mayBlock, const C2P<C2StreamMaxBufferSizeInfo::input>& me)*/ {
+        (void)mayBlock;
+        ALOGE("MaxSizeCalculator enter");
+
+        me.set().value = kLinearBufferSize;
+        return C2R::Ok();
     }
 
     /*static C2R InputDelaySetter(
@@ -654,6 +671,7 @@ private:
     std::shared_ptr<C2StreamColorAspectsInfo::input> mColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> mCodedColorAspects;
     std::shared_ptr<C2StreamPixelFormatInfo::input> mPixelFormat;
+    std::shared_ptr<C2StreamMaxBufferSizeInfo::input> mMaxInputSize;
     std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
     std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
 
@@ -909,7 +927,7 @@ c2_status_t C2VencMulti::Init() {
     encode_info.gop = mIDRInterval;
     encode_info.img_format = colorformat;
     mBitrateBak = mBitrate->value;
-    //encode_info.bitstream_buf_sz_kb = AmlogicConst::kVideoEncoderOutBufferSize / 1024;
+    encode_info.bitstream_buf_sz_kb = kLinearBufferSize / 1024;
     codec2ProfileTrans(&encode_info.profile);
 
     ALOGD("codecid:%d,width:%d,height:%d,framerate:%f,img_format:%d,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d",
