@@ -1013,8 +1013,8 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
             case InputCodec::MJPG:
                 realloc = true;
                 break;
-            case InputCodec::H265:
             case InputCodec::VP9:
+            case InputCodec::H265:
             case InputCodec::AV1:
                 realloc = false;
                 break;
@@ -1058,24 +1058,29 @@ bool C2VdecComponent::DeviceUtil::checkReallocOutputBuffer(VideoFormat rawFormat
     return realloc;
 }
 
-bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t* width, uint32_t* height) {
+bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint32_t& height) {
     bool support_4k = property_get_bool("ro.vendor.platform.support.4k", true);
 
     if (support_4k) {
         if (mIs8k) {
-            *width = kMaxWidth8k;
-            *height = kMaxHeight8k;
+            width = kMaxWidth8k;
+            height = kMaxHeight8k;
         } else {
-            *width = kMaxWidth4k;
-            *height = kMaxHeight4k;
+            width = kMaxWidth4k;
+            height = kMaxHeight4k;
         }
         if (mIntfImpl->getInputCodec() == InputCodec::H265 && mIsInterlaced) {
-            *width = kMaxWidth1080p;
-            *height = kMaxHeight1080p;
+            width = kMaxWidth1080p;
+            height = kMaxHeight1080p;
         }
     } else {
-        *width = kMaxWidth1080p;
-        *height = kMaxHeight1080p;
+        if (height > width) {
+            width = kMaxHeight1080p;
+            height = kMaxWidth1080p;
+        } else {
+            width = kMaxWidth1080p;
+            height = kMaxHeight1080p;
+        }
     }
     return true;
 }
@@ -1202,7 +1207,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
         if (durationData != 0) {
             uint64_t rate64 = 1000000;
             rate64 = rate64 / (96000 * 1.0 / durationData);
-            uint32_t dur = 0;
+            uint32_t dur = 0, oldDur = mDurationUs;
             if (mIsInterlaced)
                 dur = 2 * rate64;
             else
@@ -1210,12 +1215,13 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             mCredibleDuration = true;
 
             float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
-            if (mDurationUsFromApp > 0 && dur > 0 && (durStep < 1.1f)) {
+            if (mDurationUsFromApp > 0 && dur > 0 && (durStep < 1.3f)) {
                 mDurationUs = dur;
             } else {
                 mDurationUs = mDurationUsFromApp;
             }
-
+            if (oldDur != mDurationUs)
+                setDuration();
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
         }
     }
