@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+ *
+ * This source code is subject to the terms and conditions defined in the
+ * file 'LICENSE' which is part of this source code package.
+ *
+ * Description:
+ */
+
 #ifndef _C2_Vdec_BLOCK_POOL_UTIL_H_
 #define _C2_Vdec_BLOCK_POOL_UTIL_H_
 
@@ -163,6 +172,10 @@ private:
     // The timestamp for the next fetchGraphicBlock() call.
     // Set when the previous fetchGraphicBlock() call timed out.
     int64_t mNextFetchTimeUs GUARDED_BY(mMutex){0};
+    // This count is used to count the number of fetchblock.
+    int64_t mFetchBlockCount;
+    // This count is used to count the number of successful fetchblock.
+    int64_t mFetchBlockSuccessCount;
 };
 
 }

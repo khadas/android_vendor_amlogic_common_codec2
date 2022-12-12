@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+ *
+ * This source code is subject to the terms and conditions defined in the
+ * file 'LICENSE' which is part of this source code package.
+ *
+ * Description:
+ */
+
 #define LOG_NDEBUG 0
 #define LOG_TAG "C2VdecBlockPoolUtil"
 
@@ -23,7 +32,7 @@ namespace android {
 
 const size_t kDefaultFetchGraphicBlockDelay = 10; // Default smoothing margin for dequeue block.
                                                   // kDefaultSmoothnessFactor + 2
-
+const size_t kDefaultDequeueBlockCountMax = 64;
 int64_t GetNowUs() {
     struct timespec t;
     t.tv_sec = 0;
@@ -123,7 +132,9 @@ private:
 C2VdecBlockPoolUtil::C2VdecBlockPoolUtil(std::shared_ptr<C2BlockPool> blockPool)
     : mBlockingPool(std::make_shared<BlockingBlockPool>(blockPool)),
       mGraphicBufferId(0),
-      mMaxDequeuedBufferNum(0) {
+      mMaxDequeuedBufferNum(0),
+      mFetchBlockCount(0),
+      mFetchBlockSuccessCount(0) {
     mUseSurface = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
     CODEC2_LOG(CODEC2_LOG_INFO,"pool id:%" PRId64 " use surface:%d", blockPool->getLocalId(), mUseSurface);
 }
@@ -133,7 +144,6 @@ C2VdecBlockPoolUtil::~C2VdecBlockPoolUtil() {
 
     auto iter = mRawGraphicBlockInfo.begin();
     for (;iter != mRawGraphicBlockInfo.end(); iter++) {
-
         CODEC2_LOG(CODEC2_LOG_INFO, "[%s] block id:%d fd:%d dupFd:%d use count:%ld", __func__,
             iter->second.mBlockId, iter->second.mFd, iter->second.mDupFd,
             iter->second.mGraphicBlock.use_count());
@@ -149,7 +159,8 @@ C2VdecBlockPoolUtil::~C2VdecBlockPoolUtil() {
         }
         iter->second.mGraphicBlock.reset();
     }
-
+    CODEC2_LOG(CODEC2_LOG_INFO, "%s success:%" PRId64 " count:%" PRId64 " fetch level:%f ", __func__, mFetchBlockSuccessCount, mFetchBlockCount,
+         (float)mFetchBlockSuccessCount/(float)mFetchBlockCount);
     mRawGraphicBlockInfo.clear();
     if (mBlockingPool != nullptr) {
         mBlockingPool.reset();
@@ -173,11 +184,17 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
         mNextFetchTimeUs = 0;
     }
 
+    if (mUseSurface && (mRawGraphicBlockInfo.size() >= kDefaultDequeueBlockCountMax)) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "cancel fetch block. please check the number of block.");
+        return C2_BLOCKING;
+    }
+    mFetchBlockCount ++;
     err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock);
     if (err == C2_OK) {
         ALOG_ASSERT(fetchBlock != nullptr);
         uint64_t inode;
         int fd = fetchBlock->handle()->data[0];
+        mFetchBlockSuccessCount++;
         getINodeFromFd(fd, &inode);
         //Scope of mBlockBufferMutex start
         {

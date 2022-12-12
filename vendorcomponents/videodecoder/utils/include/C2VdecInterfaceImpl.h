@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+ *
+ * This source code is subject to the terms and conditions defined in the
+ * file 'LICENSE' which is part of this source code package.
+ *
+ * Description:
+ */
+
 #ifndef _C2_Vdec_INTERFACE_IMPL_H_
 #define _C2_Vdec_INTERFACE_IMPL_H_
 

@@ -68,10 +68,12 @@ public:
                    const std::shared_ptr<C2ReflectorHelper>& helper);
     virtual ~C2VdecComponent() override;
 
+    void  Init(C2String compName);
     class DeviceUtil;
     class TunnelHelper;
     class TunerPassthroughHelper;
     class DebugUtil;
+    class DequeueThreadUtil;
 
     // Implementation of C2Component interface
     virtual c2_status_t setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -111,8 +113,20 @@ public:
        return mIntfImpl.get();
     }
 
+    std::shared_ptr<C2VdecBlockPoolUtil> GetBlockPoolUtil() {
+        return mBlockPoolUtil;
+    }
+
+    std::shared_ptr<DeviceUtil> GetDeviceUtil() {
+        return mDeviceUtil;
+    }
+
     scoped_refptr<::base::SingleThreadTaskRunner> GetTaskRunner() {
         return mTaskRunner;
+    }
+
+    media::Size GetCurrentVideoSize() {
+        return mOutputFormat.mCodedSize;
     }
 
     bool isAmDolbyVision() {
@@ -121,6 +135,13 @@ public:
 
     bool isSecureMode() {
         return mSecureMode;
+    }
+
+    bool isResolutionChanging () {
+        {
+            AutoMutex l(mResolutionChangingLock);
+            return mResolutionChanging;
+        }
     }
 
     VideoDecWraper* getCompVideoDecWraper() {
@@ -140,6 +161,12 @@ public:
 
     static const uint32_t kUpdateDurationFramesNumMax = 10;
     int mUpdateDurationUsCount;
+
+    bool IsCompHaveCurrentBlock(uint32_t poolId, uint32_t blockId);
+    bool IsCheckStopDequeueTask();
+    void onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId);
+    void onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId);
+
 private:
     friend TunnelHelper;
     friend TunerPassthroughHelper;
@@ -267,8 +294,7 @@ private:
     void onStopDone();
     void onOutputFormatChanged(std::unique_ptr<VideoFormat> format);
     void onVisibleRectChanged(const media::Rect& cropRect);
-    void onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId);
-    void onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId);
+
     void onReportError(c2_status_t error);
 
     // Send input buffer to accelerator with specified bitstream id.
@@ -383,7 +409,6 @@ private:
     //convert graphicblock state.
     const char* GraphicBlockState(GraphicBlockInfo::State state);
     //get the delay time of fetch block
-    int32_t getFetchGraphicBlockDelayTimeUs(c2_status_t err);
     static std::atomic<int32_t> sConcurrentInstances;
     static std::atomic<int32_t> sConcurrentInstanceSecures;
 
@@ -398,18 +423,8 @@ private:
     ::base::Thread mThread;
     // The task runner on component thread.
     scoped_refptr<::base::SingleThreadTaskRunner> mTaskRunner;
-
-    // The dequeue buffer loop thread.
-    ::base::Thread mDequeueThread;
-    // The stop signal for dequeue loop which should be atomic (toggled by main thread).
-    std::atomic<bool> mDequeueLoopStop;
-    // The run signal for dequeue loop which should be atomic (toggled by main thread).
-    std::atomic<bool> mDequeueLoopRunning;
-
-    // The count of buffers owned by client which should be atomic.
-    std::atomic<uint32_t> mBuffersInClient;
-
-    // The following members should be utilized on component thread |mThread|.
+    media::Size mCurrentBlockSize;
+    uint32_t mCurrentPixelFormat;
 
     // The initialization result retrieved from Vdec.
     VideoDecodeAcceleratorAdaptor::Result mVdecInitResult;
@@ -509,6 +524,7 @@ private:
     std::shared_ptr<TunnelHelper> mTunnelHelper;
     std::shared_ptr<TunerPassthroughHelper> mTunerPassthroughHelper;
     std::shared_ptr<DebugUtil> mDebugUtil;
+    std::shared_ptr<DequeueThreadUtil> mDequeueThreadUtil;
 
     bool mUseBufferQueue; /*surface use buffer queue */
     bool mBufferFirstAllocated;

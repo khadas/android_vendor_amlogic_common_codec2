@@ -84,6 +84,9 @@ public:
     int32_t getPlayerId() {
         return mPlayerId;
     }
+    uint32_t getVideoDurationUs() {
+        return mDurationUs;
+    }
 
     //int check_color_aspects();
     uint64_t getPlatformUsage();

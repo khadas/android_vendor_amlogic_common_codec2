@@ -25,6 +25,7 @@ cc_library_shared {
         "utils/C2VdecTunnelHelper.cpp",
         "utils/C2VdecTunerPassthroughHelper.cpp",
         "utils/C2VdecDebugUtil.cpp",
+        "utils/C2VdecDequeueThreadUtil.cpp",
     ],
 
     local_include_dirs: [

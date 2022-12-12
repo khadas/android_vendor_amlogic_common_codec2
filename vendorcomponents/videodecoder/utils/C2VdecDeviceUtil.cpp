@@ -1,3 +1,13 @@
+
+/*
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+ *
+ * This source code is subject to the terms and conditions defined in the
+ * file 'LICENSE' which is part of this source code package.
+ *
+ * Description:
+ */
+
 #define LOG_NDEBUG 0
 #define LOG_TAG "C2VdecDeviceUtil"
 
@@ -149,7 +159,7 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         return doubleWriteValue;
     }
 
-    CODEC2_LOG(CODEC2_LOG_INFO, "component double write value:%d", doubleWriteValue);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "component double write value:%d", doubleWriteValue);
     return doubleWriteValue;
 }
 
@@ -1005,7 +1015,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
         } else {
             usage = getUsageFromDouleWrite(doubleWrite);
-            CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite);
         }
     }
 
