@@ -50,6 +50,9 @@ constexpr char COMPONENT_NAME_HEVC[] = "c2.amlogic.hevc.encoder";
 #define SUPPORT_DMA   1  //support dma mode or not
 constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;
 
+#define ENC_ENABLE_ROI_FEATURE      0x1
+#define ENC_ENABLE_PARA_UPDATE      0x2 //enable dynamic settings
+#define ENC_ENABLE_LONG_TERM_REF    0x80
 
 #define MAX_INPUT_BUFFER_HEADERS 4
 #define MAX_CONVERSION_BUFFERS   4
@@ -399,6 +402,14 @@ public:
             .calculatedAs(MaxSizeCalculator)
             .build());
 
+    addParameter(
+            DefineParam(mLayerCount, C2_PARAMKEY_TEMPORAL_LAYERING)
+            .withDefault(C2StreamTemporalLayeringTuning::output::AllocShared(0u, 0, 0, 0))
+            .withFields({C2F(mLayerCount, m.layerCount).any(),
+                         C2F(mLayerCount, m.bLayerCount).any()})
+            .withSetter(LayerCountSetter)
+            .build());
+
 }
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
         C2P<C2StreamPictureSizeInfo::input> &me) {
@@ -423,6 +434,20 @@ public:
 
         me.set().value = kLinearBufferSize;
         return C2R::Ok();
+    }
+
+    static C2R LayerCountSetter(bool mayBlock, C2P<C2StreamTemporalLayeringTuning::output> &me) {
+        (void)mayBlock;
+        C2R res = C2R::Ok();
+        ALOGE("LayerCountSetter enter,layercount:%d,bLayerCount:%d",me.v.m.layerCount,me.v.m.bLayerCount);
+        /*if (me.v.period < 1) {
+            me.set().mode = C2Config::INTRA_REFRESH_DISABLED;
+            me.set().period = 0;
+        } else {
+            // only support arbitrary mode (cyclic in our case)
+            me.set().mode = C2Config::INTRA_REFRESH_ARBITRARY;
+        }*/
+        return res;
     }
 
     /*static C2R InputDelaySetter(
@@ -657,6 +682,7 @@ public:
     std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> getIFrameInterval() const {return mSyncFramePeriod; }
     std::shared_ptr<C2VencCanvasMode::input> getCanvasMode() const{return mVencCanvasMode; };
     std::shared_ptr<C2PrependHeaderModeSetting> getPrependHeader() const {return mPrependHeader; }
+    std::shared_ptr<C2StreamTemporalLayeringTuning::output> getLayerCount() const {return mLayerCount; }
 private:
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamUsageTuning::input> mUsage;
@@ -674,6 +700,7 @@ private:
     std::shared_ptr<C2StreamMaxBufferSizeInfo::input> mMaxInputSize;
     std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
     std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
+    std::shared_ptr<C2StreamTemporalLayeringTuning::output> mLayerCount;
 
 
 };
@@ -902,7 +929,8 @@ c2_status_t C2VencMulti::Init() {
     mPrependHeader = mIntfImpl->getPrependHeader();
     mVencCanvasMode = mIntfImpl->getCanvasMode();
     mIDRInterval = (mSyncFramePeriod->value / 1000000) * mFrameRate->value; //max_int:just one i frame,0:all i frame
-    ALOGD("canvas mode:%d,prepend header:%d",mVencCanvasMode->value,mPrependHeader->value);
+    mLayerCount = mIntfImpl->getLayerCount();
+    ALOGD("canvas mode:%d,prepend header:%d,layercount:%d",mVencCanvasMode->value,mPrependHeader->value,mLayerCount->m.layerCount);
     memset(&encode_info,0,sizeof(encode_info));
     memset(&qp_tbl,0,sizeof(qp_tbl));
     encode_info.qp_mode = 1;
@@ -929,6 +957,19 @@ c2_status_t C2VencMulti::Init() {
     mBitrateBak = mBitrate->value;
     encode_info.bitstream_buf_sz_kb = kLinearBufferSize / 1024;
     codec2ProfileTrans(&encode_info.profile);
+
+    encode_info.enc_feature_opts |= ENC_ENABLE_PARA_UPDATE; //enable dynamic settings
+
+    uint a = 0;
+    if (mLayerCount->m.layerCount == 2) {
+        ALOGD("config ts layer with nLayerCount = 2");
+        a = 4;
+        encode_info.enc_feature_opts |= (a << 2) & 0x7c;
+    } else if (mLayerCount->m.layerCount == 3) {
+        ALOGD("config ts layer with nLayerCount = 3");
+        a = 10;
+        encode_info.enc_feature_opts |= (a << 2) & 0x7c;
+    }
 
     ALOGD("codecid:%d,width:%d,height:%d,framerate:%f,img_format:%d,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d",
                                                               mCodecID,

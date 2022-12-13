@@ -73,6 +73,7 @@ private:
     std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> mSyncFramePeriod;
     std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
     std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
+    std::shared_ptr<C2StreamTemporalLayeringTuning::output> mLayerCount;
 
     std::shared_ptr<IntfImpl> mIntfImpl;
     fn_vl_multi_encoder_init mInitFunc;
