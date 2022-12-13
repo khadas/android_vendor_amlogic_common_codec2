@@ -341,6 +341,9 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
         delete mLastOutputReportWork;
         mLastOutputReportWork = NULL;
     }
+    if (mStopDoneEvent != nullptr)
+        mStopDoneEvent = nullptr;
+
     mComponentState = ComponentState::DESTROYED;
     done->Signal();
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done", __func__);
@@ -1350,7 +1353,6 @@ void C2VdecComponent::onStopDone() {
 
     mBufferFirstAllocated = false;
     mSurfaceUsageGeted = false;
-    mStopDoneEvent->Signal();
     for (auto& info : mGraphicBlocks) {
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "GraphicBlock reset, block Info Id:%d Fd:%d poolId:%d State:%s block use count:%ld",
             info.mBlockId, info.mFd, info.mPoolId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
@@ -1363,8 +1365,10 @@ void C2VdecComponent::onStopDone() {
         mBlockPoolUtil = NULL;
     }
 
-    mStopDoneEvent = nullptr;
     mComponentState = ComponentState::UNINITIALIZED;
+    if (mStopDoneEvent != nullptr)
+        mStopDoneEvent->Signal();
+
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "OnStopDone OK");
 }
 
@@ -2556,6 +2560,10 @@ c2_status_t C2VdecComponent::stop() {
     done.Wait();
     mState.store(State::LOADED);
     mVdecComponentStopDone = true;
+
+    if (mStopDoneEvent != nullptr)
+        mStopDoneEvent = nullptr;
+
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done",__func__);
     return C2_OK;
 }
