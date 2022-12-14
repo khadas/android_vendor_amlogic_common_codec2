@@ -387,15 +387,16 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         //set unstable state and duration to vdec
         mDeviceUtil->setUnstable();
         mDeviceUtil->setDuration();
+        mPlayerId = mDeviceUtil->getPlayerId();
+        TACE_NAME_IN_PTS << mCurInstanceID << "-" << mPlayerId << "-c2InPTS";
+        TACE_NAME_BITSTREAM_ID << mCurInstanceID << "-" << mPlayerId << "-c2InBitStreamID";
+        TACE_NAME_OUT_PTS << mCurInstanceID << "-" << mPlayerId << "-c2OutPts";
+        TACE_NAME_FETCH_OUT_BLOCK_ID << mCurInstanceID << "-" << mPlayerId << "-c2FetchOutBlockId";
+        TACE_NAME_FINISHED_WORK_PTS << mCurInstanceID << "-" << mPlayerId << "-c2FinishedWorkPTS";
+
     } else {
         mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
     }
-    mPlayerId = mDeviceUtil->getPlayerId();
-    TACE_NAME_IN_PTS << mCurInstanceID << "-" << mPlayerId << "-c2InPTS";
-    TACE_NAME_BITSTREAM_ID << mCurInstanceID << "-" << mPlayerId << "-c2InBitStreamID";
-    TACE_NAME_OUT_PTS << mCurInstanceID << "-" << mPlayerId << "-c2OutPts";
-    TACE_NAME_FETCH_OUT_BLOCK_ID << mCurInstanceID << "-" << mPlayerId << "-c2FetchOutBlockId";
-    TACE_NAME_FINISHED_WORK_PTS << mCurInstanceID << "-" << mPlayerId << "-c2FinishedWorkPTS";
 
     if (isTunnelMode() && mTunnelHelper) {
         mTunnelHelper->start();
