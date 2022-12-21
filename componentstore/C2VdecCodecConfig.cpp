@@ -162,14 +162,14 @@ static struct {
 ANDROID_SINGLETON_STATIC_INSTANCE(C2VdecCodecConfig)
 
 #ifdef TEST
-#define FEATRUES_LIST_SIZE 4096
+#define FEATURES_LIST_SIZE 4096
 bool getFeatureList(const char* file_path, char **outbuf) {
     FILE* fd = fopen(file_path, "r");
     if (!fd) {
         ALOGE("open file %s failed, err %s",file_path,  strerror(errno));
         return false;
     }
-    fread(*outbuf, FEATRUES_LIST_SIZE, 1, fd);
+    fread(*outbuf, FEATURES_LIST_SIZE, 1, fd);
     fclose(fd);
     ALOGV("json:%s", *outbuf);
 
@@ -196,7 +196,7 @@ C2VdecCodecConfig::C2VdecCodecConfig():
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     Json::Value value;
 #ifdef TEST
-    char *featureListData = (char*)malloc(FEATRUES_LIST_SIZE);
+    char *featureListData = (char*)malloc(FEATURES_LIST_SIZE);
     getFeatureList("/data/featureList.json", &featureListData);
     if (featureListData)
         StringToJsonValue(std::string(featureListData), value);
