@@ -28,15 +28,15 @@ func c2_service_aml_Defaults(ctx android.LoadHookContext) {
     PlatformVndkVersion,err := strconv.Atoi(ctx.DeviceConfig().PlatformVndkVersion());
     //fmt.Println("PlatformVndkVersion:", PlatformVndkVersion)
     //fmt.Println("len(PlatformVndkVersion:", len(PlatformVndkVersion)
-    //After Andriod T, libavservices name changed
+    //After Android T, libavservices name changed
     //minijail is used to protect against unexpected system calls.
     if err != nil {
-        fmt.Printf("%v like UpsideDownCake may fail to convert", PlatformVndkVersion)
+        //fmt.Printf("%v like UpsideDownCake may fail to convert", PlatformVndkVersion)
         p.Shared_libs = append(p.Shared_libs, "libavservices_minijail")
     } else {
         if (PlatformVndkVersion > 31) {
             p.Shared_libs = append(p.Shared_libs, "libavservices_minijail")
-            fmt.Println("use libavservices_minijail")
+            //fmt.Println("use libavservices_minijail")
         } else {
             p.Shared_libs = append(p.Shared_libs, "libavservices_minijail_vendor")
         }
@@ -69,7 +69,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd := "cd " + currentdir + "&& git rev-parse --short HEAD"
     ret, err := exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get commitidshort err: %s\n", err)
+        //fmt.Printf("get commitidshort err: %s\n", err)
     }
     gitCommitIDShort = strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get commitid:%s\n", gitCommitIDShort)
@@ -77,7 +77,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd = "cd " + currentdir + "&& git rev-parse HEAD"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get commitid err: %s\n", err)
+        //fmt.Printf("get commitid err: %s\n", err)
     }
     gitCommitID = strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get commitid:%s\n", gitCommitID)GIT_COMMITID := "-DCOMMIT_CHANGEID=" + gitCommitID
@@ -87,7 +87,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd = "cd " + currentdir + "&& git log -1 | grep Change-Id | awk '{print $2}'"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get changeid err: %s\n", err)
+        //fmt.Printf("get changeid err: %s\n", err)
     }
     gitChangeID = strings.Replace(string(ret), "\n", "", -1)
     GIT_CHANGEID := "-DGIT_CHANGEID=" +  "\"" + gitChangeID +  "\""
@@ -97,7 +97,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd = fmt.Sprintf("cd %s && git log -1 | grep ']' | sed 's/\"/\\\\\"/g'", string(currentdir))
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get commitmsg err: %s\n", err)
+        //fmt.Printf("get commitmsg err: %s\n", err)
     }
     gitCommitMsg = strings.Replace(string(ret), "\n", "", -1)
     gitCommitMsg = strings.TrimSpace(string(gitCommitMsg))
@@ -107,7 +107,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd = "cd " + currentdir + "&& git log -1 | grep 'PD#'"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get pd err: %s\n", err)
+        //fmt.Printf("get pd err: %s\n", err)
     }
     gitPD = strings.Replace(string(ret), "\n", "", -1)
     gitPD = strings.Replace(gitPD, " ", "", -1)
@@ -118,7 +118,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd = "cd " + currentdir + "&& cat VERSION | grep Major_V | awk -F'=' '{print $2}'"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get major_v err: %s\n", err)
+        //fmt.Printf("get major_v err: %s\n", err)
     }
     major_v = strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get major_v:%s\n", major_v)
@@ -126,7 +126,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd = "cd " + currentdir + "&& cat VERSION | grep Minor_V | awk -F'=' '{print $2}'"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get minor_v err: %s\n", err)
+        //fmt.Printf("get minor_v err: %s\n", err)
     }
     minor_v = strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get major:%s\n", string(minor_v))
@@ -134,7 +134,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     execCmd = "cd " + currentdir + "&& cat VERSION | grep BaseCommitId | awk -F'=' '{print $2}'"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get baseCommitid err: %s\n", err)
+        //fmt.Printf("get baseCommitid err: %s\n", err)
     }
     baseCommitId = strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get basecommited:%s\n", string(baseCommitId))
@@ -143,18 +143,18 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     //fmt.Printf("str:%s\n", string(execCmd))
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get commitCnt err: %s\n", err)
+        //fmt.Printf("get commitCnt err: %s\n", err)
     }
     commitCnt = strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get commitCnt:%s\n", string(commitCnt))
 
     versionStr = fmt.Sprintf("V%s.%s.%s-g%s", major_v, minor_v, commitCnt, gitCommitIDShort);
-    fmt.Printf("codec2 version:%s\n", string(versionStr))
+    //fmt.Printf("codec2 version:%s\n", string(versionStr))
 
     execCmd = fmt.Sprintf("cd %s && cat featurelist.json | sed '1s/^.//' | tr -d '\n\r ' | sed 's/\"/\\\\\"/g'", string(currentdir))
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()
     if err != nil {
-        fmt.Printf("get featurelist err: %s\n", err)
+        //fmt.Printf("get featurelist err: %s\n", err)
     }
     featurelist := strings.Replace(string(ret), "\n", "", -1)
     //fmt.Printf("get featurelist:%s\n", string(featurelist))

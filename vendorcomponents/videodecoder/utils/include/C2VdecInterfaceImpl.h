@@ -111,7 +111,7 @@ private:
     // Component uses this ID to fetch corresponding output block pool from platform.
     std::shared_ptr<C2PortBlockPoolsTuning::output> mOutputBlockPoolIds;
     // The color aspects parsed from input bitstream. This parameter should be configured by
-    // component while decoding.
+    // Component while decoding.
     std::shared_ptr<C2StreamColorAspectsInfo::input> mCodedColorAspects;
     // The default color aspects specified by requested output format. This parameter should be
     // configured by client.

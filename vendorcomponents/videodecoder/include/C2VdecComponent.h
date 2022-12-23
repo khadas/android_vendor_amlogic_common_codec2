@@ -452,7 +452,7 @@ private:
     // A FIFO queue to record the block IDs which are currently undequequed for display. The size
     // of this queue will be equal to the minimum number of undequeued buffers.
     std::deque<int32_t> mUndequeuedBlockIds;
-    // The error state indicator which sets to true when an error is occured.
+    // The error state indicator which sets to true when an error is occurred.
     bool mHasError = false;
 
     // The indicator of enable dump current process information.

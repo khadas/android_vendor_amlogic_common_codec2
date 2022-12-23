@@ -82,7 +82,6 @@ cc_library_shared {
         "-Wno-unused-lambda-capture",
         "-Wno-unknown-warning-option",
     ],
-    clang: true,
     sanitize: {
         misc_undefined: [
             "unsigned-integer-overflow",

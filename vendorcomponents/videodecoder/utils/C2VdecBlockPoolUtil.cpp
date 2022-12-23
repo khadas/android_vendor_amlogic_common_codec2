@@ -324,7 +324,7 @@ c2_status_t C2VdecBlockPoolUtil::getBlockIdByGraphicBlock(std::shared_ptr<C2Grap
     getINodeFromFd(fd, &inode);
     auto info = mRawGraphicBlockInfo.find(inode);
     if (info == mRawGraphicBlockInfo.end()) {
-        CODEC2_LOG(CODEC2_LOG_ERR, "Get block id failed,this is unknow block");
+        CODEC2_LOG(CODEC2_LOG_ERR, "Get block id failed,this is unknown block");
         return C2_BAD_VALUE;
     }
 

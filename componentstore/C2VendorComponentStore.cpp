@@ -37,12 +37,12 @@ namespace android {
 typedef ::C2ComponentFactory* (*CreateCodec2FactoryFunc2)(bool);
 typedef void (*DestroyCodec2FactoryFunc2)(::C2ComponentFactory*);
 
-const C2String kComponentLoadVideoDecoderLibray = "libcodec2_aml_video_decoder.so";
+const C2String kComponentLoadVideoDecoderLibrary = "libcodec2_aml_video_decoder.so";
 #ifdef SUPPORT_SOFT_VDEC
-const C2String kComponentLoadSoftVideoDecoderLibray = "libcodec2_aml_soft_video_decoder.so";
+const C2String kComponentLoadSoftVideoDecoderLibrary = "libcodec2_aml_soft_video_decoder.so";
 #endif
-const C2String kComponentLoadVideoEncoderLibray = "libcodec2_aml_video_encoder.so";
-const C2String kComponentLoadAudioDecoderLibray = "libcodec2_aml_audio_decoder.so";
+const C2String kComponentLoadVideoEncoderLibrary = "libcodec2_aml_video_encoder.so";
+const C2String kComponentLoadAudioDecoderLibrary = "libcodec2_aml_audio_decoder.so";
 
 
 class C2VendorComponentStore : public C2ComponentStore {
@@ -565,7 +565,7 @@ C2VendorComponentStore::C2VendorComponentStore()
                 ALOGW("%s not support for decoder not support or codec customize", gC2VideoDecoderComponents[i].compname.c_str());
             } else {
                 mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoDecoderComponents[i].compname),
-                    std::forward_as_tuple(kComponentLoadVideoDecoderLibray, gC2VideoDecoderComponents[i].codec));
+                    std::forward_as_tuple(kComponentLoadVideoDecoderLibrary, gC2VideoDecoderComponents[i].codec));
                 ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2VideoDecoderComponents[i].compname.c_str(), gC2VideoDecoderComponents[i].codec);
             }
         }
@@ -574,7 +574,7 @@ C2VendorComponentStore::C2VendorComponentStore()
     if (supportC2SoftVdec) {
         for (int i = 0; i < sizeof(gC2SoftVideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2SoftVideoDecoderComponents[i].compname),
-                    std::forward_as_tuple(kComponentLoadSoftVideoDecoderLibray, gC2SoftVideoDecoderComponents[i].codec));
+                    std::forward_as_tuple(kComponentLoadSoftVideoDecoderLibrary, gC2SoftVideoDecoderComponents[i].codec));
             ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2SoftVideoDecoderComponents[i].compname.c_str(), gC2SoftVideoDecoderComponents[i].codec);
         }
     }
@@ -582,7 +582,7 @@ C2VendorComponentStore::C2VendorComponentStore()
     if (supportC2VEnc) {
         for (int i = 0; i < sizeof(gC2VideoEncoderComponents) / sizeof(C2VendorComponent); i++) {
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2VideoEncoderComponents[i].compname),
-                    std::forward_as_tuple(kComponentLoadVideoEncoderLibray, gC2VideoEncoderComponents[i].codec));
+                    std::forward_as_tuple(kComponentLoadVideoEncoderLibrary, gC2VideoEncoderComponents[i].codec));
             ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2VideoEncoderComponents[i].compname.c_str(), gC2VideoEncoderComponents[i].codec);
         }
     }
@@ -590,7 +590,7 @@ C2VendorComponentStore::C2VendorComponentStore()
         for (int i = 0; i < sizeof(gC2AudioDecoderComponents) / sizeof(C2VendorComponent); i++) {
             ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2AudioDecoderComponents[i].compname.c_str(), gC2AudioDecoderComponents[i].codec);
             mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderComponents[i].compname),
-                    std::forward_as_tuple(kComponentLoadAudioDecoderLibray, gC2AudioDecoderComponents[i].codec, true));
+                    std::forward_as_tuple(kComponentLoadAudioDecoderLibrary, gC2AudioDecoderComponents[i].codec, true));
         }
     }
     ALOGI("C2VendorComponentStore::C2VendorComponentStore\n");
