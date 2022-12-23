@@ -2031,7 +2031,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
                 ::usleep(kDequeueRetryDelayUs);
                 //reportError(err);
                 //return err;
-                break;
+                //break;
             }
         }
 
@@ -2604,7 +2604,7 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     uint32_t max_height = height;
 
     if (!mDeviceUtil->needAllocWithMaxSize()) {
-        mDeviceUtil->getMaxBufWidthAndHeight(&max_width, &max_height);
+        mDeviceUtil->getMaxBufWidthAndHeight(max_width, max_height);
     }
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,
                                                 media::Size(max_width, max_height), media::Rect(width, height));

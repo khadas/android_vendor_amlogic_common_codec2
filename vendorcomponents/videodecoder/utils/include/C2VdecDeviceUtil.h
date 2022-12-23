@@ -91,7 +91,7 @@ public:
     bool needAllocWithMaxSize();
     bool checkReallocOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
                                  bool *sizechange, bool *buffernumincrease);
-    bool getMaxBufWidthAndHeight(uint32_t *width, uint32_t *height);
+    bool getMaxBufWidthAndHeight(uint32_t &width, uint32_t &height);
     bool getUvmMetaData(int fd,unsigned char *data,int *size);
     void parseAndProcessMetaData(unsigned char *data, int size, C2Work& work);
     void updateHDR10plusToWork(unsigned char *data, int size, C2Work& work);
