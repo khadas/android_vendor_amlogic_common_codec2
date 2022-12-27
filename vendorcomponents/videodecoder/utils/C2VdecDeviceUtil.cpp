@@ -1215,14 +1215,19 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             mCredibleDuration = true;
 
             float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
-            if (mDurationUsFromApp > 0 && dur > 0 && (durStep < 1.3f)) {
-                mDurationUs = dur;
+            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
+                if (mDurationUsFromApp > 0 && dur > 0 && (durStep < 1.3f)) {
+                    mDurationUs = dur;
+                } else {
+                    mDurationUs = mDurationUsFromApp;
+                }
+                if (oldDur != mDurationUs) {
+                    setDuration();
+                }
+                C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
             } else {
-                mDurationUs = mDurationUsFromApp;
+                C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Not update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
             }
-            if (oldDur != mDurationUs)
-                setDuration();
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
         }
     }
 }
