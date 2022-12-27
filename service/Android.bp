@@ -134,7 +134,7 @@ prebuilt_etc {
     vendor: true,
     sub_dir: "seccomp_policy",
 
-    src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-extended-arm.policy",
+    src: "seccomp_policy/android.hardware.amlogic.media.c2@1.2-extended.policy",
 
 }
 
