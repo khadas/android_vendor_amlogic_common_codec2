@@ -64,8 +64,8 @@
 //decoder module name
 const char* kH264ModuleName = "ammvdec_h264_v4l";
 const char* kH265ModuleName = "ammvdec_h265_v4l";
-const char* kVP9ModuelName = "ammvdec_vp9_v4l";
-const char* kAV1ModuelName = "ammvdec_av1_v4l";
+const char* kVP9ModuleName = "ammvdec_vp9_v4l";
+const char* kAV1ModuleName = "ammvdec_av1_v4l";
 const char* kDVHEModuleName = "ammvdec_h265_v4l";
 const char* kDVAVModuleName = "ammvdec_h264_v4l";
 const char* kDVAV1ModuleName = "ammvdec_av1_v4l";
@@ -129,11 +129,11 @@ static struct {
 } gVdecCodecConfig[] = {
     {C2VendorCodec::VDEC_H264, kH264DecoderName, kH264ModuleName},
     {C2VendorCodec::VDEC_H265, kH265DecoderName, kH265ModuleName},
-    {C2VendorCodec::VDEC_VP9, kVP9DecoderName, kVP9ModuelName},
-    {C2VendorCodec::VDEC_AV1, kAV1DecoderName, kAV1ModuelName},
+    {C2VendorCodec::VDEC_VP9, kVP9DecoderName, kVP9ModuleName},
+    {C2VendorCodec::VDEC_AV1, kAV1DecoderName, kAV1ModuleName},
     {C2VendorCodec::VDEC_DVHE, kDVHEDecoderName, kH265ModuleName},
     {C2VendorCodec::VDEC_DVAV, kDVAVDecoderName, kH264ModuleName},
-    {C2VendorCodec::VDEC_DVAV1, kDVAV1DecoderName, kAV1ModuelName},
+    {C2VendorCodec::VDEC_DVAV1, kDVAV1DecoderName, kAV1ModuleName},
     {C2VendorCodec::VDEC_MP2V, kMP2VDecoderName, kMP2ModuleName},
     {C2VendorCodec::VDEC_MP4V, kMP4VDecoderName, kMP4ModuleName},
     {C2VendorCodec::VDEC_MJPG, kMJPGDecoderName, kMJPGModuleName},
@@ -152,8 +152,8 @@ static struct {
 } gSecureVdecCodecConfig[] = {
     {C2VendorCodec::VDEC_H264, kH264SecureDecoderName, kH264ModuleName},
     {C2VendorCodec::VDEC_H265, kH265SecureDecoderName, kH265ModuleName},
-    {C2VendorCodec::VDEC_VP9, kVP9SecureDecoderName, kVP9ModuelName},
-    {C2VendorCodec::VDEC_AV1, kAV1SecureDecoderName, kAV1ModuelName},
+    {C2VendorCodec::VDEC_VP9, kVP9SecureDecoderName, kVP9ModuleName},
+    {C2VendorCodec::VDEC_AV1, kAV1SecureDecoderName, kAV1ModuleName},
     {C2VendorCodec::VDEC_DVHE, kDVHESecureDecoderName, kH265ModuleName},
     {C2VendorCodec::VDEC_DVAV, kDVAVSecureDecoderName, kH264ModuleName},
     {C2VendorCodec::VDEC_DVAV1, kDVAV1SecureDecoderName, kDVAV1ModuleName},
