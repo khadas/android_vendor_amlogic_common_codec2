@@ -440,7 +440,7 @@ private:
 
     // The record of bitstream and block ID of pending output buffers returned from accelerator.
     std::deque<OutputBufferInfo> mPendingBuffersToWork;
-    // A FIFO queue to record the block IDs which are currently undequequed for display. The size
+    // A FIFO queue to record the block IDs which are currently undequeued for display. The size
     // of this queue will be equal to the minimum number of undequeued buffers.
     std::deque<int32_t> mUndequeuedBlockIds;
     // The error state indicator which sets to true when an error is occurred.

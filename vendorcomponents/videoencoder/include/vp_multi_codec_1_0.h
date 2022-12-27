@@ -103,7 +103,7 @@ typedef enum {
 
 /* encoder features configure flags bit masks for enc_feature_opts */
 /* Enable RIO feature.
-        bit field value 1: enable, 0: diablae (default) */
+        bit field value 1: enable, 0: disable (default) */
 #define ENABLE_ROI_FEATURE      0x1
 /* Encode parameter update on the fly.
         bit field value: 1: enable, 0: disable (default) */
@@ -158,12 +158,12 @@ typedef struct vl_encode_info {
                         /*  0: only one slice per frame (default)
                             1. multiple slice by MB(H.264)/CTU (H.265)
                             2: by encoded size(dependant Slice) and
-                              CTU (independant Slice) combination (H.265 only)*/
+                              CTU (independent Slice) combination (H.265 only)*/
   int multi_slice_arg;  /*  when multi_slice_mode ==1:
                                 numbers of MB(16x16 blocks)/ CTU (64x64 blocks)
                            when: multi_slice_mode ==2
                            bit 0-15: CTUs per independent Slices
-                           bit 16-31: size of dependeant slices in bytes */
+                           bit 16-31: size of dependent slices in bytes */
   int cust_gop_qp_delta;   /* an qp delta for P  frames
                             apply to cust GOP mode (>=IP_SVC1)           */
   int strict_rc_window;     /* strict bitrate control window (frames count)
@@ -324,7 +324,7 @@ encoding_metadata_t vl_multi_encoder_generate_header(vl_codec_handle_t codec_han
  *         buf_type:
  *              VMALLOC_TYPE: need memcpy from input buf to encoder internal dma buffer.
  *              DMA_TYPE: input buf is dma buffer, encoder use input buf without memcopy.
- *              due to references and reordering, the DMA buffer may not return immedialtly.
+ *              due to references and reordering, the DMA buffer may not return immediately.
  *         buf_info.dma_info: returned buf dma info if any.
  *              num_planes:For nv12/nv21, num_planes can be 1 or 2.
  *                         For YV12, num_planes can be 1 or 3.
@@ -405,13 +405,13 @@ int vl_video_encoder_change_gop(vl_codec_handle_t handle,
  *                          0: one-slices per frame
  *                          1: slice by MB(16x16 H.264)/CTU (64x64 H.265)
  *                          2: by encoded size(dependant Slice) and
- *                             CTU (independant Slice) combination (H.265 only)
+ *                             CTU (independent Slice) combination (H.265 only)
  *@param : multi_slice_para:
  *                          when multi_slice_mode ==1:
  *                               numbers of MB(16x16 blocks)/ CTU (64x64 blocks)
  *                          when: multi_slice_mode ==2
  *                          bit 0-15: CTUs per independent Slices
- *                          bit 16-31: size of dependeant slices in bytes
+ *                          bit 16-31: size of dependent slices in bytes
  *
  *@return : if success return 0 ,else return <= 0
  */
@@ -457,7 +457,7 @@ int vl_video_encoder_skip_frame(vl_codec_handle_t handle);
  *                                  value larger than that will be clipped
  *
  *@param : skip_threshold:  percentage of the current bitrate in compare with
- *                           the origianl bitrates settings to trigger skip
+ *                           the original bitrates settings to trigger skip
  *                           encoding of next frame
  *
  *@return : if success return 0 ,else return <= 0

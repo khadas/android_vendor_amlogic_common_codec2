@@ -933,7 +933,7 @@ bool C2VencMulti::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCod
             break;
         }
         default: {
-            ALOGE("cannot suppoort colorformat:0x%x,set default:NV21",inputCodec);
+            ALOGE("cannot support colorformat:0x%x,set default:NV21",inputCodec);
             *pOutputCodec = IMG_FMT_NV21;
             ret = true;
             break;
@@ -971,7 +971,7 @@ bool C2VencMulti::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCode
             break;
         }
         default: {
-            ALOGE("cannot suppoort colorformat:%x",inputFmt);
+            ALOGE("cannot support colorformat:%x",inputFmt);
             ret = false;
             break;
         }

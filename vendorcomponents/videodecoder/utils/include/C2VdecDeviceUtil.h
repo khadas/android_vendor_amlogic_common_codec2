@@ -88,7 +88,7 @@ private:
     static const uint32_t kOutPutPtsValidNum = 5;
 
     int32_t getPropertyDoubleWrite();
-    uint64_t getUsageFromDouleWrite(uint32_t doublewrite);
+    uint64_t getUsageFromDoubleWrite(uint32_t doublewrite);
     bool checkDvProfileAndLayer();
     bool isYcrcb420Stream() const; /* 8bit */
     bool isYcbcRP010Stream() const; /* 10bit */

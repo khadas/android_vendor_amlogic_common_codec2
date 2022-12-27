@@ -117,7 +117,7 @@ BaseCommitId=c429d4dded218bd27bc43aff54079785bc8952f3
 #CommitId:effa66df5f028c78b7804965cb9cbda7099df6ae
 #Feature develop detail information:
 #   modify seccomp policy to can dump tombstoned.
-#   create tunnel mode buffer in a seperated func.
+#   create tunnel mode buffer in a separated func.
 #   implement hdr10plus support.
 #   add codec2 encoder components.
 #   Clean code for adding encoder and audio.
@@ -127,7 +127,7 @@ BaseCommitId=c429d4dded218bd27bc43aff54079785bc8952f3
 #   optimization codec2 code print log.
 #   support mjeg stream playback.
 #   support a packet of multi frame streams playback.
-#   avc add tunnel mode resoluion change.
+#   avc add tunnel mode resolution change.
 #   extend support streammode setting.
 #Fixed BUG detail information:
 #   fixed have more uvm msg.

@@ -101,8 +101,8 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     }
     gitCommitMsg = strings.Replace(string(ret), "\n", "", -1)
     gitCommitMsg = strings.TrimSpace(string(gitCommitMsg))
-    GIT_COMMMITMSG := "-DGIT_COMMITMSG=" +  "\"" + gitCommitMsg +  "\""
-    cppflags = append(cppflags, GIT_COMMMITMSG)
+    GIT_COMMITMSG := "-DGIT_COMMITMSG=" +  "\"" + gitCommitMsg +  "\""
+    cppflags = append(cppflags, GIT_COMMITMSG)
 
     execCmd = "cd " + currentdir + "&& git log -1 | grep 'PD#'"
     ret, err = exec.Command("/bin/bash", "-c", execCmd).CombinedOutput()

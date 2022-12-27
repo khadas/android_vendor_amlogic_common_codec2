@@ -155,7 +155,7 @@ private:
     // Store all pending works. The dequeued works are placed here until they are finished and then
     // sent out by onWorkDone call to listener.
     // TODO: maybe use priority_queue instead.
-    std::list<uint64_t> mPendingWorkFrameIndexs;
+    std::list<uint64_t> mPendingWorkFrameIndexes;
 
     C2String mDecoderName;
     uint32_t mWidth;

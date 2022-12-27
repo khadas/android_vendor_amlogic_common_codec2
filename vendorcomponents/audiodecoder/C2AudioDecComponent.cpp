@@ -607,7 +607,7 @@ int C2AudioDecComponent::getHalPixelFormatForBitDepth10(bool allowRGBA1010102) {
         std::vector<int> halPixelFormats;
         halPixelFormats.push_back(HAL_PIXEL_FORMAT_YCBCR_P010);
 
-        // since allowRGBA1010102 can chance in each call, but mBitDepth10HalPixelFormats
+        // since allowRGBA1010102 can change in each call, but mBitDepth10HalPixelFormats
         // is populated only once, allowRGBA1010102 is not considered at this stage.
         halPixelFormats.push_back(HAL_PIXEL_FORMAT_RGBA_1010102);
 

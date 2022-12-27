@@ -230,7 +230,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     mEnableDILocalBuf = property_get_bool(C2_PROPERTY_VDEC_DISP_DI_LOCALBUF_ENABLE, false);
     mEnable8kNR = property_get_bool(C2_PROPERTY_VDEC_DISP_NR_8K_ENABLE, false);
     mDisableErrPolicy = property_get_bool(C2_PROPERTY_VDEC_ERRPOLICY_DISABLE, true);
-    mForceDIPermission = property_get_bool(C2_PROPERTY_VDEC_FORCE_DI_PERMISSON, false);
+    mForceDIPermission = property_get_bool(C2_PROPERTY_VDEC_FORCE_DI_PERMISSION, false);
 
     mConfigParam = configParam;
     memset(mConfigParam, 0, sizeof(mediahal_cfg_parms));
@@ -601,7 +601,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
                                     | (transfer << 8)
                                     | matrixCoeffs;
 
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicave:%d signaltype:%x, %f %f %f %f %f %f %f %f %f %f %f %f",
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicAVG:%d signaltype:%x, %f %f %f %f %f %f %f %f %f %f %f %f",
             pAmlDecParam->hdr.color_parms.primaries[0][0],
             pAmlDecParam->hdr.color_parms.primaries[0][1],
             pAmlDecParam->hdr.color_parms.primaries[1][0],
@@ -907,7 +907,7 @@ int32_t C2VdecComponent::DeviceUtil::getPropertyDoubleWrite() {
     return doubleWrite;
 }
 
-uint64_t C2VdecComponent::DeviceUtil::getUsageFromDouleWrite(uint32_t doublewrite) {
+uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(uint32_t doublewrite) {
     uint64_t usage = 0;
     switch (doublewrite) {
         case 1:
@@ -1006,7 +1006,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
             usage = am_gralloc_get_video_decoder_full_buffer_usage();
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
         } else {
-            usage = getUsageFromDouleWrite(doubleWrite);
+            usage = getUsageFromDoubleWrite(doubleWrite);
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite);
         }
     }

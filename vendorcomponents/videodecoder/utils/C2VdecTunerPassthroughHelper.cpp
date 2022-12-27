@@ -44,7 +44,7 @@ enum TRICK_MODE {
 enum {
     TRICK_MODE_NONE = 0,          // Disable trick mode
     TRICK_MODE_PAUSE = 1,         // Pause the video decoder
-    TRICK_MODE_PAUSE_NEXT = 2,    // Pause the video decoder when a new frame dispalyed
+    TRICK_MODE_PAUSE_NEXT = 2,    // Pause the video decoder when a new frame displayed
     TRICK_MODE_IONLY = 3          // Decoding and Out I frame only
 };
 
@@ -100,7 +100,7 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::start() {
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::stop() {
     mTunerPassthrough->stop();
-    //as passthrouh stop is synchronous invoke, here need invoke done
+    //as passthrough stop is synchronous invoke, here need invoke done
     mComp->NotifyFlushOrStopDone();
 
     return C2_OK;
@@ -108,7 +108,7 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::stop() {
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::flush() {
     mTunerPassthrough->flush();
-    //as passthrouh stop is synchronous invoke, here need invoke done
+    //as passthrough stop is synchronous invoke, here need invoke done
     mComp->NotifyFlushOrStopDone();
 
     return C2_OK;

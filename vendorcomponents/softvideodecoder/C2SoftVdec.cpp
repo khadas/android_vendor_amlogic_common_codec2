@@ -96,7 +96,7 @@ C2SoftVdec::C2SoftVdec(C2String name, c2_node_id_t id,
 
 C2SoftVdec::~C2SoftVdec() {
     CODEC2_LOG(CODEC2_LOG_INFO, "%s", __func__);
-    mPendingWorkFrameIndexs.clear();
+    mPendingWorkFrameIndexes.clear();
     onRelease();
     if (mExtraData) {
         free(mExtraData);
@@ -157,7 +157,7 @@ c2_status_t C2SoftVdec::onFlush_sm() {
     resetPlugin();
     mSignalledOutputEos = false;
     mFirstPictureReviced = false;
-    mPendingWorkFrameIndexs.clear();
+    mPendingWorkFrameIndexes.clear();
     return C2_OK;
 }
 
@@ -384,11 +384,11 @@ void C2SoftVdec::process(
         }
     }
 
-    uint8_t *inBuffuer = const_cast<uint8_t *>(rView.data());
+    uint8_t *inBuffer = const_cast<uint8_t *>(rView.data());
     bool codecConfig = ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) !=0);
     bool eos = ((work->input.flags & C2FrameData::FLAG_END_OF_STREAM) != 0);
     bool frameHasData = (inSize > 0);
-    bool flushPendingWork = (eos && !mPendingWorkFrameIndexs.empty());
+    bool flushPendingWork = (eos && !mPendingWorkFrameIndexes.empty());
     bool hasPicture = false;
 
     // Config csd data
@@ -403,7 +403,7 @@ void C2SoftVdec::process(
                 work->result = C2_NO_MEMORY;
                 return;
             }
-            memcpy(mExtraData, inBuffuer, inSize);
+            memcpy(mExtraData, inBuffer, inSize);
             mVideoInfo.extra_data = mExtraData;
             mVideoInfo.extra_data_size = inSize;
         }
@@ -430,7 +430,7 @@ void C2SoftVdec::process(
 
         // Decode new picture.
         if (mPic == NULL) {
-            // Init FFmpeg decoer.
+            // Init FFmpeg decoder.
             if (mDecInit == false)
             {
                 if (mVideoInfo.width == 0 && mVideoInfo.height == 0 &&
@@ -461,7 +461,7 @@ void C2SoftVdec::process(
 
             mTimeStart = systemTime();
             nsecs_t delay = mTimeStart - mTimeEnd;
-            int size = mFFmpegVideoDecoderProcessFunc(inBuffuer, inSize, mPic, mCodec);
+            int size = mFFmpegVideoDecoderProcessFunc(inBuffer, inSize, mPic, mCodec);
             mTimeEnd = systemTime();
             nsecs_t decodeTime = mTimeEnd - mTimeStart;
             mTimeTotal += decodeTime;
@@ -547,18 +547,18 @@ void C2SoftVdec::process(
             free(mPic);
             mPic = NULL;
 
-            if (!mPendingWorkFrameIndexs.empty()) {
+            if (!mPendingWorkFrameIndexes.empty()) {
                 if (!flushPendingWork) {
-                    mPendingWorkFrameIndexs.push_back(work->input.ordinal.frameIndex.peeku());
+                    mPendingWorkFrameIndexes.push_back(work->input.ordinal.frameIndex.peeku());
                 }
-                finishWork(mPendingWorkFrameIndexs.front(), work);
-                mPendingWorkFrameIndexs.pop_front();
+                finishWork(mPendingWorkFrameIndexes.front(), work);
+                mPendingWorkFrameIndexes.pop_front();
             } else {
                 finishWork(workIndex, work);
             }
         }
         // Exit directly if no need flushPendingWork or flush done.
-        if (!flushPendingWork || mPendingWorkFrameIndexs.empty()) {
+        if (!flushPendingWork || mPendingWorkFrameIndexes.empty()) {
             break;
         }
     }
@@ -567,10 +567,10 @@ void C2SoftVdec::process(
         drainInternal(DRAIN_COMPONENT_WITH_EOS, pool, work);
         mSignalledOutputEos = true;
     } else if (!hasPicture) {
-        // Pending or drop frame when decode faild.
+        // Pending or drop frame when decode failed.
         // For VP8 first 3(ffmpeg_decode_thread_num - 1) frames decode failed case.
-        if (!mFirstPictureReviced && mPendingWorkFrameIndexs.size() < MAX_WORK_PENDING_COUNT) {
-            mPendingWorkFrameIndexs.push_back(work->input.ordinal.frameIndex.peeku());
+        if (!mFirstPictureReviced && mPendingWorkFrameIndexes.size() < MAX_WORK_PENDING_COUNT) {
+            mPendingWorkFrameIndexes.push_back(work->input.ordinal.frameIndex.peeku());
         } else {
             mTotalDropedOutputFrameNum++;
             CODEC2_LOG(CODEC2_LOG_ERR, "Drop frame Index %" PRId64", In_Pts %" PRId64", total droped %" PRId64"",

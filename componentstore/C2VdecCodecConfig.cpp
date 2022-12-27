@@ -26,7 +26,7 @@
     do {\
         for (int i = 0; i < ARRAY_SIZE(gCodecFeatures); i++) {\
             if (gCodecFeatures[i].index == t)\
-                o = gCodecFeatures[i].featueType;\
+                o = gCodecFeatures[i].featureType;\
         }\
     } while (0)
 
@@ -98,11 +98,11 @@ const char* kFeatureDoubleWrite = "DoubleWrite";
 
 namespace android {
 
-//featueList
+//featureList
 static struct {
     FeatureIndex index;
     const char* featureName;
-    C2VdecCodecConfig::ValType featueType;
+    C2VdecCodecConfig::ValType featureType;
 } gCodecFeatures [] = {
     {CC_SUBTITLE_SUPPORT, kFeatureCCSubtitle, C2VdecCodecConfig::TYPE_BOOL},
     {DECODER_INFO_REPORT, kFeatureDecoderInfoReport, C2VdecCodecConfig::TYPE_BOOL},
@@ -217,8 +217,8 @@ C2VdecCodecConfig::~C2VdecCodecConfig() {
 
 char* C2VdecCodecConfig::getCodecFeatures() {
     static void* video_dec = NULL;
-    typedef uint32_t (*getVideoDecodedrFeatureListFunc)(char** data);
-    static getVideoDecodedrFeatureListFunc getFeatureList =  NULL;
+    typedef uint32_t (*getVideoDecoderFeatureListFunc)(char** data);
+    static getVideoDecoderFeatureListFunc getFeatureList =  NULL;
     char * data = NULL;
 
     if (video_dec == NULL) {
@@ -227,7 +227,7 @@ char* C2VdecCodecConfig::getCodecFeatures() {
             ALOGE("Unable to dlopen libmediahal_videodec: %s", dlerror());
             return NULL;
         }
-        getFeatureList = (getVideoDecodedrFeatureListFunc)dlsym(video_dec, "AmVideoDec_getVideoDecodedrFeatureList");
+        getFeatureList = (getVideoDecoderFeatureListFunc)dlsym(video_dec, "AmVideoDec_getVideoDecoderFeatureList");
     }
 
     if (getFeatureList != NULL) {
@@ -343,7 +343,7 @@ bool C2VdecCodecConfig::codecsMapToString() {
     return true;
 }
 
-bool C2VdecCodecConfig::codecSupportFromFeatueList(C2VendorCodec type) {
+bool C2VdecCodecConfig::codecSupportFromFeatureList(C2VendorCodec type) {
     /* check from decoder featurelist */
     const char* decName = NULL;
     GetDecName(type, decName);
@@ -382,11 +382,11 @@ bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool s
 
 bool C2VdecCodecConfig::codecSupport(C2VendorCodec type, bool secure, bool fromFeatureList, bool fromMediaCodecXml) {
     if (fromFeatureList && !fromMediaCodecXml)
-        return codecSupportFromFeatueList(type);
+        return codecSupportFromFeatureList(type);
     else if (fromMediaCodecXml && !fromFeatureList)
         return codecSupportFromMediaCodecXml(type, secure);
     else if (fromFeatureList && fromMediaCodecXml)
-        return codecSupportFromFeatueList(type) & codecSupportFromMediaCodecXml(type, secure);
+        return codecSupportFromFeatureList(type) & codecSupportFromMediaCodecXml(type, secure);
     else
         return true;
 }

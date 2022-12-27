@@ -58,7 +58,7 @@ bool ThreadWorker::start(void *(*start_routine)(void *), void *arg) {
     }
 
     if (mRunning) {
-        ALOGE("Worker is already running igonore start.");
+        ALOGE("Worker is already running ignore start.");
         return false;
     }
 

@@ -706,7 +706,7 @@ bool C2VencW420::LoadModule() {
         }
 
         mDestroyFunc = NULL;
-        mDestroyFunc = (fn_hevc_video_encoder_destory)dlsym(handle,"vl_video_encoder_destory");
+        mDestroyFunc = (fn_hevc_video_encoder_destroy)dlsym(handle,"vl_video_encoder_destroy");
         if (mDestroyFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_destroy failed");
             return false;
@@ -737,7 +737,7 @@ bool C2VencW420::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCode
             break;
         }
         default: {
-            C2W420_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputCodec);
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"cannot support colorformat:%x",inputCodec);
             ret = false;
             break;
         }
@@ -774,7 +774,7 @@ bool C2VencW420::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCodec
             break;
         }
         default: {
-            C2W420_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputFmt);
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"cannot support colorformat:%x",inputFmt);
             ret = false;
             break;
         }

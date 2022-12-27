@@ -69,7 +69,7 @@ TunerPassthroughWrapper::TunerPassthroughWrapper() {
 }
 
 TunerPassthroughWrapper::~TunerPassthroughWrapper() {
-    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"Destory");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"Destroy");
     if (mTunerPassthrough) {
         delete mTunerPassthrough;
         mTunerPassthrough = NULL;

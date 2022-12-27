@@ -16,7 +16,7 @@ namespace android {
 typedef vl_codec_handle_t (*fn_vl_video_encoder_init)(vl_codec_id_t codec_id, vl_init_params_t initParam);
 typedef int (*fn_vl_video_encode_header)(vl_codec_handle_t codec_handle, vl_vui_params_t vui, int in_size, unsigned char *out);
 typedef vl_enc_result_e (*fn_vl_video_encoder_encode_frame)(vl_codec_handle_t codec_handle, vl_frame_info_t frame_info, unsigned char *out,int *out_size,vl_frame_type_t *frame_type);
-typedef int (*fn_vl_video_encoder_destory)(vl_codec_handle_t handle);
+typedef int (*fn_vl_video_encoder_destroy)(vl_codec_handle_t handle);
 
 class C2VencHCodec:public C2VencComponent {
 public:
@@ -71,7 +71,7 @@ private:
     fn_vl_video_encoder_init mInitFunc;
     fn_vl_video_encode_header mEncHeaderFunc;
     fn_vl_video_encoder_encode_frame mEncFrameFunc;
-    fn_vl_video_encoder_destory mDestroyFunc;
+    fn_vl_video_encoder_destroy mDestroyFunc;
 
     vl_codec_handle_t mCodecHandle;
     uint32_t mIDRInterval;

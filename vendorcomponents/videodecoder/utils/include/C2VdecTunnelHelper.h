@@ -55,7 +55,7 @@ private:
     void onNotifyTunnelEvent(struct tunnelEventParam param);
 
     c2_status_t sendOutputBufferToWorkTunnel(struct renderTime* rendertime);
-    bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new, bool *sizeChanged, bool *bufferNumLarged);
+    bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new, bool *sizeChanged, bool *bufferNumEnlarged);
     void appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId);
     uint64_t getPlatformUsage();
     c2_status_t allocTunnelBuffer(const media::Size& size, uint32_t pixelFormat, int* pFd);

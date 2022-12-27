@@ -213,7 +213,7 @@ vl_enc_result_e vl_video_encoder_encode_frame(vl_codec_handle_t codec_handle, vl
  *@param ：handle: encoder handle
  *@return ：if success return 1,else return 0
  */
-int vl_video_encoder_destory(vl_codec_handle_t handle);
+int vl_video_encoder_destroy(vl_codec_handle_t handle);
 
 /**
  * init decoder
@@ -239,7 +239,7 @@ int vl_video_encoder_destory(vl_codec_handle_t handle);
  *@param : handle: decoderhandle
  *@return ：if success return 1, else return 0
  */
-//    int vl_video_decoder_destory(vl_codec_handle_t handle);
+//    int vl_video_decoder_destroy(vl_codec_handle_t handle);
 
 #ifdef __cplusplus
 }

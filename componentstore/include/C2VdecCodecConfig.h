@@ -82,7 +82,7 @@ private:
     char* getCodecFeatures();
     bool codecsMapToString();
     bool codecSupportFromMediaCodecXml(C2VendorCodec type, bool secure);
-    bool codecSupportFromFeatueList(C2VendorCodec type);
+    bool codecSupportFromFeatureList(C2VendorCodec type);
 
     MediaCodecsXmlParser mParser;
     std::map<const char*, std::vector<Feature>> mCodecsMap;

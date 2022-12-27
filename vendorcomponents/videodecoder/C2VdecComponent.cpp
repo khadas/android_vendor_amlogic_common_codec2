@@ -314,7 +314,7 @@ C2VdecComponent::~C2VdecComponent() {
         mThread.Stop();
     }
     //mDebugUtil used thread task to loop show debug info,
-    //so we need destory "mDebugUtil" after thread is stopped
+    //so we need destroy "mDebugUtil" after thread is stopped
     if (mDebugUtil) {
         mDebugUtil->showGraphicBlockInfo();
         mDebugUtil.reset();
@@ -756,7 +756,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
     if (block == nullptr) {
-        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] got null block, donot use it", __func__);
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "[%s] got null block, do not use it", __func__);
         return;
     }
 
@@ -1102,7 +1102,7 @@ void C2VdecComponent::onAndroidVideoPeek() {
 }
 
 void C2VdecComponent::updateUndequeuedBlockIds(int32_t blockId) {
-    // The size of |mUndequedBlockIds| will always be the minimum buffer count for display.
+    // The size of |mUndequeuedBlockIds| will always be the minimum buffer count for display.
     mUndequeuedBlockIds.push_back(blockId);
     mUndequeuedBlockIds.pop_front();
 }
@@ -1313,7 +1313,7 @@ void C2VdecComponent::onFlushDone() {
                 work->input.buffers.front().reset();
             }
 
-            CODEC2_LOG(CODEC2_LOG_INFO, "[%s] %s mode abandon bitsreamid:%d mediatimeus:%llu", __func__,
+            CODEC2_LOG(CODEC2_LOG_INFO, "[%s] %s mode abandon bitstreamid:%d mediatimeus:%llu", __func__,
                 (isTunnelMode() ? "tunnel" : "no-tunnel"),
                 frameIndexToBitstreamId(work->input.ordinal.frameIndex),
                 work->input.ordinal.timestamp.peekull());
@@ -3273,7 +3273,7 @@ void C2VdecComponent::reportAbandonedWorks() {
             mTunnelHelper->storeAbandonedFrame(work->input.ordinal.timestamp.peekull());
         }
 
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %s mode abandon bitsreamid:%d mediatimeus:%llu", __func__,
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %s mode abandon bitstreamid:%d mediatimeus:%llu", __func__,
             (isTunnelMode() ? "tunnel" : "no-tunnel"),
             frameIndexToBitstreamId(work->input.ordinal.frameIndex),
             work->input.ordinal.timestamp.peekull());

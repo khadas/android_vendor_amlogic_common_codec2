@@ -161,8 +161,6 @@ bool C2VencComponent::IsI420(const C2GraphicView &view) {
             && layout.planes[layout.PLANE_V].offset == 0);
 }
 
-
-
 C2VencComponent::C2VencComponent(const std::shared_ptr<C2ComponentInterface> &intf)
                 : mComponentState(ComponentState::UNINITIALIZED),
                   mIntf(intf),
@@ -380,7 +378,7 @@ bool C2VencComponent::codecFmtTrans(uint32_t inputCodec,ColorFmt *pOutputCodec) 
             break;
         }
         default: {
-            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot suppoort colorformat:%x",inputCodec);
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot support colorformat:%x",inputCodec);
             ret = false;
             break;
         }

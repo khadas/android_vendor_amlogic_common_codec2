@@ -395,7 +395,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct r
                 return C2_OK;
             }
         }
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not found corresponed work with mediaTime:%lld", (long long)rendertime->mediaUs);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "not found corresponded work with mediaTime:%lld", (long long)rendertime->mediaUs);
         mComp->erasePendingBuffersToWorkByTime(rendertime->mediaUs);
         return C2_OK;
     }
@@ -509,7 +509,7 @@ void C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder(const medi
 
 c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
     bool sizeChanged = false;
-    bool bufferNumLarged = false;
+    bool bufferNumEnlarged = false;
     bool bufferNumSet = false;
     uint64_t platformUsage = getPlatformUsage();
     C2MemoryUsage usage = {
@@ -525,7 +525,7 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
     }
 
     C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s:%d] in resolution changing:%d", __func__, __LINE__, isInResolutionChanging());
-    if (checkReallocOutputBuffer(mComp->mLastOutputFormat, mComp->mOutputFormat, &sizeChanged, &bufferNumLarged)) {
+    if (checkReallocOutputBuffer(mComp->mLastOutputFormat, mComp->mOutputFormat, &sizeChanged, &bufferNumEnlarged)) {
         if (mReallocWhenResChange && sizeChanged) {
             //all realloc buffer
             int alloc_first = 0;
@@ -549,7 +549,7 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
             }
             mComp->mGraphicBlocks.clear();
             resetBlockPoolBuffers();
-            if (bufferNumLarged) {
+            if (bufferNumEnlarged) {
                 alloc_first += mComp->mOutputFormat.mMinNumBuffers - mComp->mLastOutputFormat.mMinNumBuffers;
                 mOutBufferCount = mComp->mOutputFormat.mMinNumBuffers;
             }
@@ -563,7 +563,7 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
                     BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel new allocate fd=%d, index=%d", info->mFd, info->mBlockId);
                 }
             }
-        } else if (bufferNumLarged) {
+        } else if (bufferNumEnlarged) {
             //add new allocate buffer
             for (auto& info : mComp->mGraphicBlocks) {
                 info.mFdHaveSet = false;
@@ -615,8 +615,8 @@ c2_status_t C2VdecComponent::TunnelHelper::resetBlockPoolBuffers() {
 
 bool C2VdecComponent::TunnelHelper::checkReallocOutputBuffer(VideoFormat video_format_old,
                 VideoFormat video_format_new,
-                bool *sizeChanged, bool *bufferNumLarged) {
-    bool bufferNumEnlarged = false;
+                bool *sizeChanged, bool *bufferNumEnlarged) {
+    bool bufferNumIncrease = false;
     bool frameSizeChanged = false;
 
     C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s] %dx%d(%d)->%dx%d(%d)", __func__,
@@ -627,8 +627,8 @@ bool C2VdecComponent::TunnelHelper::checkReallocOutputBuffer(VideoFormat video_f
                  video_format_new.mCodedSize.height(),
                  video_format_new.mMinNumBuffers);
     if (video_format_new.mMinNumBuffers > video_format_old.mMinNumBuffers) {
-        bufferNumEnlarged = true;
-        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Buffer num larged");
+        bufferNumIncrease = true;
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Buffer num enlarged");
     }
     if (video_format_new.mCodedSize.width() != video_format_old.mCodedSize.width() ||
         video_format_new.mCodedSize.height() !=  video_format_old.mCodedSize.height()) {
@@ -637,9 +637,9 @@ bool C2VdecComponent::TunnelHelper::checkReallocOutputBuffer(VideoFormat video_f
     }
 
     *sizeChanged = frameSizeChanged;
-    *bufferNumLarged = bufferNumEnlarged;
+    *bufferNumEnlarged = bufferNumIncrease;
 
-    if (bufferNumEnlarged || frameSizeChanged) {
+    if (bufferNumIncrease || frameSizeChanged) {
         return true;
     }
 
