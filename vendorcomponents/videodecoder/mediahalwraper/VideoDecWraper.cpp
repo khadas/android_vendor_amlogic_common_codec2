@@ -164,7 +164,13 @@ int VideoDecWraper::initialize(
     if (ret != 0)
         return -1;
     setInstanceId2Hal();
-    mAmVideoDec->setQueueCount(64);
+
+    bool stream_mode = ((flags & AM_VIDEO_DEC_INIT_FLAG_STREAMMODE) ? true : false);
+    if (stream_mode)
+        mAmVideoDec->setQueueCount(1023);
+    else
+        mAmVideoDec->setQueueCount(64);
+
     if (client)
         mDecoderCallback = client;
     return 0;
