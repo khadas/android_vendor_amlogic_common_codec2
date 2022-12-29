@@ -115,6 +115,7 @@ enum {
     VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE = (1<<14),
     VDEC_CFG_FLAG_NR_ENABLE    = (1<<15),
     VDEC_CFG_FLAG_PROG_ONLY    = (1<<16),
+    VDEC_CFG_FLAG_FORCE_DI     = (1<<17),
 };
 
 enum {

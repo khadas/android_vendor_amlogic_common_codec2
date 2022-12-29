@@ -153,6 +153,7 @@ private:
     bool mColorAspectsChanged;
     bool mSecure;
     bool mEnableNR;
+    bool mForceDIPermission;
     bool mEnableDILocalBuf;
     bool mIs8k;
     bool mEnable8kNR;

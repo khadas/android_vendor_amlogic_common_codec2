@@ -202,6 +202,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     mEnableDILocalBuf = property_get_bool(C2_PROPERTY_VDEC_DISP_DI_LOCALBUF_ENABLE, false);
     mEnable8kNR = property_get_bool(C2_PROPERTY_VDEC_DISP_NR_8K_ENABLE, false);
     mDisableErrPolicy = property_get_bool(C2_PROPERTY_VDEC_ERRPOLICY_DISABLE, true);
+    mForceDIPermission = property_get_bool(C2_PROPERTY_VDEC_FORCE_DI_PERMISSON, false);
 
     mConfigParam = configParam;
     memset(mConfigParam, 0, sizeof(mediahal_cfg_parms));
@@ -328,6 +329,11 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     if (mDisableErrPolicy) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "C2 need disable error policy");
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DIS_ERR_POLICY;
+    }
+
+    if (mForceDIPermission) {
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "force enable di on special streams");
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_FORCE_DI;
     }
 
     pAmlDecParam->cfg.uvm_hook_type = 2;
