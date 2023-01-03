@@ -897,8 +897,17 @@ void C2VencMulti::codec2ProfileTrans(int *profile) {
 void C2VencMulti::codec2InitQpTbl(qp_param_t *qp_tbl) {
     memset(qp_tbl, 0, sizeof(qp_param_t));
 
-    qp_tbl->qp_min = 0;
-    qp_tbl->qp_max = 51;
+    qp_tbl->qp_min = DEFAULT_QP_MIN;
+    qp_tbl->qp_max = DEFAULT_QP_MAX;
+
+    qp_tbl->qp_I_min = DEFAULT_I_QP_MIN;
+    qp_tbl->qp_I_max = DEFAULT_I_QP_MAX;
+
+    qp_tbl->qp_P_min = DEFAULT_P_QP_MIN;
+    qp_tbl->qp_P_max = DEFAULT_P_QP_MAX;
+
+    qp_tbl->qp_B_min = DEFAULT_B_QP_MIN;
+    qp_tbl->qp_B_max = DEFAULT_B_QP_MAX;
 
     qp_tbl->qp_I_base = 30;
     qp_tbl->qp_P_base = 30;
