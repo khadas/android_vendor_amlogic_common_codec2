@@ -2840,6 +2840,7 @@ void C2VdecComponent::reportEmptyWork(int32_t bitstreamId, int32_t flags) {
 
 void C2VdecComponent::reportWork(std::unique_ptr<C2Work> work) {
     std::list<std::unique_ptr<C2Work>> finishedWorks;
+    work->result = C2_OK;
     finishedWorks.emplace_back(std::move(work));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
 }
