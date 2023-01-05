@@ -1309,6 +1309,7 @@ void C2VdecComponent::onFlushDone() {
 
         if (mDeviceUtil != nullptr) {
             mDeviceUtil->flush();
+            mDeviceUtil->setUnstable();
             mDeviceUtil->setDuration();
         }
     }
