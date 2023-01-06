@@ -63,8 +63,8 @@ constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;
 
 #define DEFAULT_MAX_REF_FRM         2
 #define DEFAULT_MAX_REORDER_FRM     0
-#define DEFAULT_QP_MIN              0
-#define DEFAULT_QP_MAX              51
+#define DEFAULT_QP_MIN              10
+#define DEFAULT_QP_MAX              40
 #define DEFAULT_MAX_BITRATE         240000000
 #define DEFAULT_MAX_SRCH_RANGE_X    256
 #define DEFAULT_MAX_SRCH_RANGE_Y    256
@@ -229,10 +229,10 @@ public:
 
     addParameter(
             DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
-            .withDefault(new C2StreamPictureSizeInfo::input(0u, 16, 16))
+            .withDefault(new C2StreamPictureSizeInfo::input(0u, 256, 144))
             .withFields({
-                C2F(mSize, width).inRange(2, 3840, 2),
-                C2F(mSize, height).inRange(2, 2160, 2),
+                C2F(mSize, width).inRange(256, 3840, 2),
+                C2F(mSize, height).inRange(144, 2160, 2),
             })
             .withSetter(SizeSetter)
             .build());
@@ -819,7 +819,7 @@ bool C2VencMulti::codecTypeTrans(uint32_t inputCodec,vl_img_format_t *pOutputCod
     }
     switch (inputCodec) {
         case HAL_PIXEL_FORMAT_YCBCR_420_888: {
-            *pOutputCodec = IMG_FMT_NV12;
+            *pOutputCodec = IMG_FMT_NV21;
             ret = true;
             break;
         }
