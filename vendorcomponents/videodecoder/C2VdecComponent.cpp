@@ -2728,13 +2728,13 @@ void C2VdecComponent::onReportNoOutFrameFinished() {
         int64_t bitstreamId = mNoOutFrameWorkQueue.front();
         auto workIter = findPendingWorkByBitstreamId(bitstreamId);
         if (workIter == mPendingWorks.end()) {
-            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%lld", __func__, __LINE__, bitstreamId);
+            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%lld", __func__, __LINE__, (long long)bitstreamId);
             reportError(C2_CORRUPTED);
         }
 
         auto work = workIter->get();
         if (!isNoOutFrameDone(bitstreamId, work)) {
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] no outframe work with bistreamId %lld not finished, will retry", __func__, __LINE__, bitstreamId);
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] no outframe work with bistreamId %lld not finished, will retry", __func__, __LINE__, (long long)bitstreamId);
             return;
         }
         work->result = C2_OK;

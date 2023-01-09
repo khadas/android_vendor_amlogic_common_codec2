@@ -896,7 +896,7 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
                 size_t paddingSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_PADDINGSIZE, 262144);
                 size_t defaultSize = me.get().value;
                 if (defaultSize > kMaxInputBufferSize) {
-                   CODEC2_LOG(CODEC2_LOG_INFO,"The current input buffer size %zu is too large, limit its number", me.set().value);
+                   CODEC2_LOG(CODEC2_LOG_INFO,"The current input buffer size %zu is too large, limit its number", (size_t)me.set().value);
                    return C2R::Ok();
                 }
 
