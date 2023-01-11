@@ -54,6 +54,7 @@
 #define BYTE_REV(a) ((((uint16_t)a) & 0xff) << 8 | ((uint16_t)a) >> 8)
 
 
+#define DOLBY_MS12_V24_LIB_PATH   "/dev/audio_utils"
 #define DOLBY_MS12_V24_LIB_PATH_A "/odm/lib/ms12/libdolbyms12.so" //MS12 v2.4
 #define DOLBY_MS12_V24_LIB_PATH_B "/vendor/lib/ms12/libdolbyms12.so" //MS12 v2.4
 #define DOLBY_MS12_V1_LIB_PATH_A "/odm/lib/libdolbyms12.so" //MS12 v1
@@ -496,7 +497,10 @@ Error:
 bool C2AudioEAC3Decoder::load_ddp_decoder_lib(){
     bool ret = false;
 
-    if (load_license_decoder_lib(DOLBY_MS12_V24_LIB_PATH_A)) {
+    if (load_license_decoder_lib(DOLBY_MS12_V24_LIB_PATH)) {
+        ret = true;
+    }
+    if (!ret && load_license_decoder_lib(DOLBY_MS12_V24_LIB_PATH_A)) {
         ret = true;
     }
     if (!ret && load_license_decoder_lib(DOLBY_MS12_V24_LIB_PATH_B)) {
