@@ -450,6 +450,23 @@ bool C2VdecComponent::DeviceUtil::setUnstable()
         delete msg;
     return ret;
 }
+//this only called when exit playback
+bool C2VdecComponent::DeviceUtil::clearDecoderDuration()
+{
+    bool ret = false;
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "into clearDecoderDuration");
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    if (msg != NULL ) {
+        msg->setInt32("duration", 0);
+        msg->setInt32("type", 2);
+        mVideoDecWraper->postAndReplyMsg(msg);
+        ret = true;
+    }
+    if (msg != NULL) {
+        delete msg;
+    }
+    return ret;
+}
 
 bool C2VdecComponent::DeviceUtil::setDuration()
 {

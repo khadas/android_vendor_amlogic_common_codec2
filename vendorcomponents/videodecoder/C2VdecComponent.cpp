@@ -310,6 +310,10 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
     mPendingBuffersToWork.clear();
     mNoOutFrameWorkQueue.clear();
 
+    if (mDeviceUtil) {
+        C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] clear decoder duration", __func__);
+        mDeviceUtil->clearDecoderDuration();
+    }
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
         mVideoDecWraper.reset();
