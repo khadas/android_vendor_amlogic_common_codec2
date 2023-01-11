@@ -178,14 +178,14 @@ void C2VencMulti::ParseGop(
 
 class C2VencMulti::IntfImpl : /*public C2InterfaceHelper*/public SimpleInterface<void>::BaseParams{
 public:
-    explicit IntfImpl(const std::shared_ptr<C2ReflectorHelper> &helper)
+    explicit IntfImpl(C2String name,C2String mimetype,const std::shared_ptr<C2ReflectorHelper> &helper)
         //: C2InterfaceHelper(helper) {
         : SimpleInterface<void>::BaseParams(
                 helper,
-                COMPONENT_NAME,
+                name,
                 C2Component::KIND_ENCODER,
                 C2Component::DOMAIN_VIDEO,
-                MEDIA_MIMETYPE_VIDEO_AVC) {
+                mimetype) {
     ALOGD("C2VencMulti::IntfImpl constructor!");
     setDerivedInstance(this);
     /*addParameter(
@@ -1213,7 +1213,7 @@ public:
             std::function<void(C2Component*)> deleter) override {
         UNUSED(deleter);
         ALOGV("in %s", __func__);
-        *component = C2VencMulti::create((char *)COMPONENT_NAME, id, std::make_shared<C2VencMulti::IntfImpl>(mHelper));
+        *component = C2VencMulti::create((char *)COMPONENT_NAME, id, std::make_shared<C2VencMulti::IntfImpl>(COMPONENT_NAME,MEDIA_MIMETYPE_VIDEO_AVC,mHelper));
         return *component ? C2_OK : C2_NO_MEMORY;
     }
 
@@ -1225,7 +1225,7 @@ public:
         UNUSED(deleter);
         *interface = std::shared_ptr<C2ComponentInterface>(
                 new SimpleInterface<C2VencMulti::IntfImpl>(
-                        COMPONENT_NAME, id, std::make_shared<C2VencMulti::IntfImpl>(mHelper)));
+                        COMPONENT_NAME, id, std::make_shared<C2VencMulti::IntfImpl>(COMPONENT_NAME,MEDIA_MIMETYPE_VIDEO_AVC,mHelper)));
         return C2_OK;
     }
 
@@ -1247,7 +1247,7 @@ public:
             std::function<void(C2Component*)> deleter) override {
         UNUSED(deleter);
         ALOGV("in %s", __func__);
-        *component = C2VencMulti::create((char *)COMPONENT_NAME_HEVC, id, std::make_shared<C2VencMulti::IntfImpl>(mHelper));
+        *component = C2VencMulti::create((char *)COMPONENT_NAME_HEVC, id, std::make_shared<C2VencMulti::IntfImpl>(COMPONENT_NAME_HEVC,MEDIA_MIMETYPE_VIDEO_HEVC,mHelper));
         return *component ? C2_OK : C2_NO_MEMORY;
     }
 
@@ -1259,7 +1259,7 @@ public:
         UNUSED(deleter);
         *interface = std::shared_ptr<C2ComponentInterface>(
                 new SimpleInterface<C2VencMulti::IntfImpl>(
-                        COMPONENT_NAME_HEVC, id, std::make_shared<C2VencMulti::IntfImpl>(mHelper)));
+                        COMPONENT_NAME_HEVC, id, std::make_shared<C2VencMulti::IntfImpl>(COMPONENT_NAME_HEVC,MEDIA_MIMETYPE_VIDEO_HEVC,mHelper)));
         return C2_OK;
     }
 
