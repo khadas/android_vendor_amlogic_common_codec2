@@ -163,7 +163,7 @@ int C2VdecComponent::TunerPassthroughHelper::postNotifyRenderTimeTunerPassthroug
     };
     mTaskRunner->PostTask(FROM_HERE,
         ::base::Bind(&C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough, ::base::Unretained(this),
-            base::Passed(&renderTime)));
+            ::base::Passed(&renderTime)));
     return 0;
 }
 

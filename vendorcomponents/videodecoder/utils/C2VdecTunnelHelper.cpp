@@ -241,7 +241,7 @@ int C2VdecComponent::TunnelHelper::postNotifyRenderTimeTunnel(struct renderTime*
     };
     mTaskRunner->PostTask(FROM_HERE,
         ::base::Bind(&C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel, ::base::Unretained(this),
-            base::Passed(&renderTime)));
+            ::base::Passed(&renderTime)));
     return 0;
 }
 
