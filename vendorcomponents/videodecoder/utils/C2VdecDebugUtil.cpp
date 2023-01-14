@@ -70,7 +70,7 @@ void C2VdecComponent::DebugUtil::startShowPipeLineBuffer() {
 #endif
     mTaskRunner->PostDelayedTask(FROM_HERE,
         ::base::Bind(&C2VdecComponent::DebugUtil::startShowPipeLineBuffer, ::base::Unretained(this)),
-        base::TimeDelta::FromMilliseconds(5000));
+        ::base::TimeDelta::FromMilliseconds(5000));
 }
 
 void C2VdecComponent::DebugUtil::showCurrentProcessFdInfo() {
