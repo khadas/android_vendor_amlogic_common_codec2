@@ -475,6 +475,10 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
             }
             mComp->mGraphicBlocks.clear();
             resetBlockPoolBuffers();
+            if (bufferNumLarged) {
+                alloc_first += mComp->mOutputFormat.mMinNumBuffers - mComp->mLastOutputFormat.mMinNumBuffers;
+                mOutBufferCount = mComp->mOutputFormat.mMinNumBuffers;
+            }
             mBlockPoolUtil->requestNewBufferSet(mOutBufferCount);
             bufferNumSet = true;
             for (int i = 0; i < alloc_first; i++) {
