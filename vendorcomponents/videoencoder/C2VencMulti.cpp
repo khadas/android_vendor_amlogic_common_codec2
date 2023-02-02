@@ -231,7 +231,7 @@ public:
             DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
             .withDefault(new C2StreamPictureSizeInfo::input(0u, 256, 144))
             .withFields({
-                C2F(mSize, width).inRange(256, 3840, 2),
+                C2F(mSize, width).inRange(256, 3840, /*8*/(mimetype == MEDIA_MIMETYPE_VIDEO_AVC) ? 2 : 8),
                 C2F(mSize, height).inRange(144, 2160, 2),
             })
             .withSetter(SizeSetter)
