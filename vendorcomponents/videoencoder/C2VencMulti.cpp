@@ -229,9 +229,9 @@ public:
 
     addParameter(
             DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
-            .withDefault(new C2StreamPictureSizeInfo::input(0u, 256, 144))
+            .withDefault(new C2StreamPictureSizeInfo::input(0u, 176, 144))
             .withFields({
-                C2F(mSize, width).inRange(256, 3840, /*8*/(mimetype == MEDIA_MIMETYPE_VIDEO_AVC) ? 2 : 8),
+                C2F(mSize, width).inRange(176, 3840, (mimetype == MEDIA_MIMETYPE_VIDEO_AVC) ? 2 : 8),
                 C2F(mSize, height).inRange(144, 2160, 2),
             })
             .withSetter(SizeSetter)
@@ -946,18 +946,26 @@ c2_status_t C2VencMulti::Init() {
     codec2InitQpTbl(&qp_tbl);
     codecTypeTrans(mPixelFormat->value,&colorformat);
     ALOGD("upper set pixelformat:0x%x,colorformat:%d,colorAspect:%d",mPixelFormat->value,colorformat,mCodedColorAspects->matrix);
-#if 0
+#if 1
     if (MATRIX_BT709 == mCodedColorAspects->matrix) {
-        initParam.csc = ENC_CSC_BT709;
+        //initParam.csc = ENC_CSC_BT709;
         ALOGI("color space BT709");
     }
     else {
-        initParam.csc = ENC_CSC_BT601;
+        //initParam.csc = ENC_CSC_BT601;
         ALOGI("color space BT601");
     }
 #endif
 
     encode_info.width = mSize->width;
+    if (mSize->width < 256) {
+        encode_info.width = 256; //cause wave420 not support for width < 256
+        ALOGD("actual width:%d is not support,setting width to 256",mSize->width);
+        C2StreamPictureSizeInfo::output Size(0u, 256, mSize->height);
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+        mIntfImpl->config({ &Size }, C2_MAY_BLOCK, &failures);
+    }
+
     encode_info.height = mSize->height;
     encode_info.frame_rate = mFrameRate->value;
     encode_info.bit_rate = mBitrate->value;
