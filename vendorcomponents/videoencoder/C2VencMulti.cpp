@@ -1097,6 +1097,10 @@ c2_status_t C2VencMulti::Init() {
         encode_info.enc_feature_opts |= (a << 2) & 0x7c;
     }
 
+    if (C2_OK == genVuiParam((int32_t *)&encode_info.colour_primaries,(int32_t *)&encode_info.transfer_characteristics,(int32_t *)&encode_info.matrix_coefficients,(bool *)&encode_info.video_full_range_flag)) {
+        encode_info.vui_parameters_present_flag = true;
+        ALOGD("enable vui info");
+    }
     ALOGD("codecid:%d,width:%d,height:%d,framerate:%f,img_format:%d,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d",
                                                               mCodecID,
                                                               mSize->width,
