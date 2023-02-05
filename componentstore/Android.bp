@@ -2,6 +2,7 @@
 //     CONSULT THE OWNERS AND opensource-licensing@google.com BEFORE
 //     DEPENDING ON IT IN YOUR PROJECT. ***
 package {
+    //   legacy_proprietary
     default_applicable_licenses: ["vendor_amlogic_common_license"],
 }
 
