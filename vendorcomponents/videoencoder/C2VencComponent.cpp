@@ -35,6 +35,7 @@ namespace android {
 #define ENCODER_PROP_DUMP_DATA        "debug.vendor.media.c2.venc.dump_data"
 
 #define USE_CONTINUES_PHYBUFF(h) ((h->consumer_usage | h->producer_usage) & GRALLOC_USAGE_HW_VIDEO_ENCODER)
+#define align_32(x)  ((((x)+31)>>5)<<5)
 
 #define C2Venc_LOG(level, fmt, str...) CODEC2_LOG(level, fmt, ##str)
 
@@ -576,6 +577,24 @@ c2_status_t C2VencComponent::DMAProc(const private_handle_t *priv_handle,InputFr
     return C2_OK;
 }
 
+c2_status_t C2VencComponent::CheckPicSize(std::shared_ptr<const C2GraphicView> view) {
+    C2StreamPictureSizeInfo::input PicSize(0u, 16, 16);
+    c2_status_t err = intf()->query_vb({&PicSize},{},C2_DONT_BLOCK,nullptr);
+    if (err == C2_BAD_INDEX) {
+        if (!PicSize) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get PicSize or InputFmt failed!!");
+            return C2_BAD_VALUE;
+        }
+    } else if (err != C2_OK) {
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get subclass param failed!!");
+        return C2_BAD_VALUE;
+    }
+    if (PicSize.width != view->width() || PicSize.height != view->height()) {
+        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"buffer is not valid,pic size :%d x %d,but this buffer is:%d x %d",PicSize.width,PicSize.height,view->width(),view->height());
+        return C2_BAD_VALUE;
+    }
+    return C2_OK;
+}
 
 c2_status_t C2VencComponent::ViewDataProc(std::shared_ptr<const C2GraphicView> view,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize) {
     if (NULL == view || NULL == pFrameInfo || NULL == dumpFileSize) {
@@ -590,6 +609,11 @@ c2_status_t C2VencComponent::ViewDataProc(std::shared_ptr<const C2GraphicView> v
     pFrameInfo->uStride = layout.planes[C2PlanarLayout::PLANE_U].rowInc;
     pFrameInfo->vStride = layout.planes[C2PlanarLayout::PLANE_V].rowInc;
     (*dumpFileSize) = view->width() * view->height() * 3 / 2;
+
+    if (C2_OK != CheckPicSize(view)) {
+        return C2_BAD_VALUE;
+    }
+
     C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,root plane num:%d,component plan num:%d",
         pFrameInfo->yStride,pFrameInfo->uStride,pFrameInfo->vStride,view->width(),view->height(),layout.rootPlanes,layout.numPlanes);
     switch (layout.type) {

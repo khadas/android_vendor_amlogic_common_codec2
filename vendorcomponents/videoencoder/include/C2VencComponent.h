@@ -155,6 +155,7 @@ private:
     c2_status_t ViewDataProc(std::shared_ptr<const C2GraphicView> view,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);
     c2_status_t LinearDataProc(std::shared_ptr<const C2ReadView> view,InputFrameInfo *pFrameInfo);
     c2_status_t GraphicDataProc(std::shared_ptr<C2Buffer> inputBuffer,InputFrameInfo *pFrameInfo);
+    c2_status_t CheckPicSize(std::shared_ptr<const C2GraphicView> view);
     bool codecFmtTrans(uint32_t inputCodec,ColorFmt *pOutputCodec);
     void finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &work,OutputFrameInfo_t OutFrameInfo);
     void finish(uint64_t frameIndex, std::function<void(std::unique_ptr<C2Work> &)> fillWork);
