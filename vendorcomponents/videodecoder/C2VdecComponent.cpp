@@ -247,6 +247,7 @@ void C2VdecComponent::Init(C2String compName) {
 
     mReportEosWork = false;
     mUseBufferQueue = false;
+    mHasQueuedWork = false;
     mIsReportEosWork = false;
     mPendingOutputEOS = false;
     mCanQueueOutBuffer = false;
@@ -274,6 +275,8 @@ void C2VdecComponent::Init(C2String compName) {
     mInstanceNum ++;
     mInstanceID ++;
     mCurInstanceID = mInstanceID;
+
+    memset(mGraphicBlockStateCount, 0, sizeof(mGraphicBlockStateCount));
 
     mSecureMode = compName.find(".secure") != std::string::npos;
     if (mSecureMode)
@@ -1685,6 +1688,8 @@ void C2VdecComponent::tryChangeOutputFormat() {
             std::unique_ptr<C2Work> work(new C2Work);
             work->worklets.clear();
             work->worklets.emplace_back(new C2Worklet);
+            work->worklets.front()->output.flags = static_cast<C2FrameData::flags_t>(0);
+            work->worklets.front()->output.buffers.clear();
             work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mOutputDelay)));
             reportWork(std::move(work));
             mOutputDelay = nullptr;
