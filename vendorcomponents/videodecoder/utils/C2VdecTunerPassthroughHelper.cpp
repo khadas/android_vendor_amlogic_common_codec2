@@ -66,7 +66,7 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(C2VdecComponent*
     }
 
     int32_t filterid = mIntfImpl->mVendorTunerHalParam->videoFilterId;
-    mTunerPassthroughParams.dmx_id = (filterid >> 16);
+    mTunerPassthroughParams.dmx_id = ((filterid >> 16) & 0x0000000F);
     mTunerPassthroughParams.video_pid = (filterid & 0x0000FFFF);
     mTunerPassthroughParams.secure_mode = secure;
     mTunerPassthroughParams.mime = mime;
@@ -76,8 +76,9 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(C2VdecComponent*
     mTunerPassthrough->initialize(&mTunerPassthroughParams);
     mTunerPassthrough->regNotifyTunnelRenderTimeCallBack(notifyTunerPassthroughRenderTimeCallback, this);
 
-    C2VdecTPH_LOG(CODEC2_LOG_INFO, "[%s] passthrough dmxid:%d,vpid:%d,syncid:%0xx",
+    C2VdecTPH_LOG(CODEC2_LOG_INFO, "[%s] passthrough mVideoFilterId:%x,dmxid:%d,vpid:%d,syncid:%0xx",
         __func__,
+        filterid,
         mTunerPassthroughParams.dmx_id,
         mTunerPassthroughParams.video_pid,
         mTunerPassthroughParams.hw_sync_id);
