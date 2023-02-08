@@ -956,7 +956,11 @@ c2_status_t C2VencHCodec::Init() {
     initParam.height = mSize->height;
     initParam.frame_rate = mFrameRate->value;
     initParam.bit_rate = mBitrate->value;
-    initParam.gop = mIDRInterval;
+    if (mIDRInterval < 0)
+        initParam.gop = mIDRInterval;
+    else
+        initParam.gop = mIDRInterval + 1;
+
     codec2ProfileLevelTrans(&initParam.profile,&initParam.level);
 
     C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"width:%d,height:%d,framerate:%f,bitrate:%d,gop:%d,i_qp_max:%d,i_qp_min:%d,p_qp_max:%d,p_qp_min:%d,profile:%d,level:%d",
