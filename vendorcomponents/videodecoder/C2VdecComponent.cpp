@@ -1036,11 +1036,11 @@ void C2VdecComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
         work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mCurrentSize));
         ALOGI("video size changed");
     }
-
-    if (mOutputDelay != nullptr) {
-        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mOutputDelay));
-        mOutputDelay = nullptr;
-    }
+    /*mOutputDelay update at tryChangeOutputFormat, this is no used*/
+    //if (mOutputDelay != nullptr) {
+    //    work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mOutputDelay));
+    //    mOutputDelay = nullptr;
+    //}
     if (buffer == nullptr)
         C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] buffer is null", __func__);
     work->worklets.front()->output.buffers.emplace_back(std::move(buffer));
@@ -1683,12 +1683,12 @@ void C2VdecComponent::tryChangeOutputFormat() {
         if (outputDelayErr == OK) {
             mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
         }
-
-        if (mOutputDelay != nullptr && mUseBufferQueue) {
+        //update mOutputDelay
+        if (mOutputDelay != nullptr) {
             std::unique_ptr<C2Work> work(new C2Work);
             work->worklets.clear();
             work->worklets.emplace_back(new C2Worklet);
-            work->worklets.front()->output.flags = static_cast<C2FrameData::flags_t>(0);
+            work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
             work->worklets.front()->output.buffers.clear();
             work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mOutputDelay)));
             reportWork(std::move(work));
