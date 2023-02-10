@@ -131,6 +131,12 @@ int VideoTunnelRendererWraper::regNotifyTunnelRenderTimeCallBack(callbackFunc fu
     return mVideoTunnelRenderer->regCallBack(VideoTunnelRendererBase::CB_NODIFYRENDERTIME, funs, obj);
 }
 
+int VideoTunnelRendererWraper::regNotifyEventCallBack(callbackFunc funs, void* obj) {
+    if (!mVideoTunnelRenderer)
+        return false;
+    return mVideoTunnelRenderer->regCallBack(VideoTunnelRendererBase::CB_EVENT, funs, obj);
+}
+
 bool VideoTunnelRendererWraper::setFrameRate(int32_t framerate) {
     if (!mVideoTunnelRenderer)
         return false;

@@ -1295,16 +1295,23 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
            configChanged = true;
         }
     } else if (type & DOUBLE_WRITE) {
-        if (mComp->isSecureMode() || mComp->isTunnelMode() || mComp->isAmDolbyVision()) {
-            params->cfg.double_write_mode = 3;
-            configChanged = true;
-        }
-
         if (isYcbcRP010Stream()) {
-            if (mComp->isNonTunnelMode() & (mUseSurfaceTexture || mNoSurface)) {
+            if (mComp->isNonTunnelMode()
+                &&(mUseSurfaceTexture || mNoSurface)
+                && (params->cfg.double_write_mode != 3)) {
                 params->cfg.double_write_mode = 3;
                 configChanged = true;
             }
+        }
+    } else if (type & TUNNEL_UNDERFLOW) {
+        if (!(params->cfg.metadata_config_flag & VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI) &&
+            mComp->mTunnelUnderflow) {
+            params->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI;
+            configChanged = true;
+        } else if ((params->cfg.metadata_config_flag & VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI) &&
+                !mComp->mTunnelUnderflow) {
+            params->cfg.metadata_config_flag &= (~VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI);
+            configChanged = true;
         }
     }
 
@@ -1312,7 +1319,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
         AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
         VideoDecWraper *videoWraper = mComp->getCompVideoDecWraper();
         if (msg != NULL && videoWraper != NULL) {
-            msg->setPointer("reconfig", (void*)&mConfigParam);
+            msg->setPointer("reconfig", (void*)mConfigParam);
             if (!videoWraper->postAndReplyMsg(msg)) {
                 C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] set config to decoder failed!, please check", __func__, __LINE__);
             }

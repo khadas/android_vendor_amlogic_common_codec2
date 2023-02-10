@@ -149,11 +149,11 @@ public:
     }
 
     //for multi-instance trace
-    std::ostringstream TACE_NAME_IN_PTS;
-    std::ostringstream TACE_NAME_BITSTREAM_ID;
-    std::ostringstream TACE_NAME_FETCH_OUT_BLOCK_ID;
-    std::ostringstream TACE_NAME_OUT_PTS;
-    std::ostringstream TACE_NAME_FINISHED_WORK_PTS;
+    std::ostringstream TRACE_NAME_IN_PTS;
+    std::ostringstream TRACE_NAME_BITSTREAM_ID;
+    std::ostringstream TRACE_NAME_FETCH_OUT_BLOCK_ID;
+    std::ostringstream TRACE_NAME_OUT_PTS;
+    std::ostringstream TRACE_NAME_FINISHED_WORK_PTS;
 
     static uint32_t mInstanceNum;
     static uint32_t mInstanceID;
@@ -530,7 +530,7 @@ private:
     bool mBufferFirstAllocated;
     bool mPictureSizeChanged;
     c2_resch_stat mResChStat;
-    bool mSurfaceUsageGeted;
+    bool mSurfaceUsageGot;
     bool mVdecComponentStopDone;
     bool mCanQueueOutBuffer;
     int32_t mOutBufferCount;
@@ -544,6 +544,7 @@ private:
     int64_t mOutputFinishedWorkCount;
     int32_t mSyncId;
     int64_t mSyncType;
+    bool mTunnelUnderflow;
 
     C2ReadView mDefaultDummyReadView;
     std::shared_ptr<C2GraphicBlock> mPendingGraphicBlockBuffer;

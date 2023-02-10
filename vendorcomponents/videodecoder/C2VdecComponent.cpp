@@ -229,6 +229,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
 
 void C2VdecComponent::Init(C2String compName) {
     mSyncType = C2_SYNC_TYPE_NON_TUNNEL;
+    mTunnelUnderflow = false;
     mResChStat = C2_RESOLUTION_CHANGE_NONE;
     mInterlacedType = C2_INTERLACED_TYPE_NONE;
 
@@ -251,7 +252,7 @@ void C2VdecComponent::Init(C2String compName) {
     mIsReportEosWork = false;
     mPendingOutputEOS = false;
     mCanQueueOutBuffer = false;
-    mSurfaceUsageGeted = false;
+    mSurfaceUsageGot = false;
     mResolutionChanging = false;
     mPictureSizeChanged = false;
     mBufferFirstAllocated = false;
@@ -427,11 +428,11 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         mDeviceUtil->setUnstable();
         mDeviceUtil->setDuration();
         mPlayerId = mDeviceUtil->getPlayerId();
-        TACE_NAME_IN_PTS << mCurInstanceID << "-" << mPlayerId << "-c2InPTS";
-        TACE_NAME_BITSTREAM_ID << mCurInstanceID << "-" << mPlayerId << "-c2InBitStreamID";
-        TACE_NAME_OUT_PTS << mCurInstanceID << "-" << mPlayerId << "-c2OutPts";
-        TACE_NAME_FETCH_OUT_BLOCK_ID << mCurInstanceID << "-" << mPlayerId << "-c2FetchOutBlockId";
-        TACE_NAME_FINISHED_WORK_PTS << mCurInstanceID << "-" << mPlayerId << "-c2FinishedWorkPTS";
+        TRACE_NAME_IN_PTS << mCurInstanceID << "-" << mPlayerId << "-c2InPTS";
+        TRACE_NAME_BITSTREAM_ID << mCurInstanceID << "-" << mPlayerId << "-c2InBitStreamID";
+        TRACE_NAME_OUT_PTS << mCurInstanceID << "-" << mPlayerId << "-c2OutPts";
+        TRACE_NAME_FETCH_OUT_BLOCK_ID << mCurInstanceID << "-" << mPlayerId << "-c2FetchOutBlockId";
+        TRACE_NAME_FINISHED_WORK_PTS << mCurInstanceID << "-" << mPlayerId << "-c2FinishedWorkPTS";
 
     } else {
         mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
@@ -475,10 +476,10 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
         mFirstInputTimestamp = work->input.ordinal.timestamp.peekull();
     }
 
-    CODEC2_VDEC_ATRACE(TACE_NAME_IN_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
-    CODEC2_VDEC_ATRACE(TACE_NAME_BITSTREAM_ID.str().c_str(), work->input.ordinal.frameIndex.peekull());
-    CODEC2_VDEC_ATRACE(TACE_NAME_IN_PTS.str().c_str(), 0);
-    CODEC2_VDEC_ATRACE(TACE_NAME_BITSTREAM_ID.str().c_str(), 0);
+    CODEC2_VDEC_ATRACE(TRACE_NAME_IN_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
+    CODEC2_VDEC_ATRACE(TRACE_NAME_BITSTREAM_ID.str().c_str(), work->input.ordinal.frameIndex.peekull());
+    CODEC2_VDEC_ATRACE(TRACE_NAME_IN_PTS.str().c_str(), 0);
+    CODEC2_VDEC_ATRACE(TRACE_NAME_BITSTREAM_ID.str().c_str(), 0);
 
     mInputWorkCount ++;
     mInputQueueNum ++;
@@ -813,10 +814,10 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
 
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
     mOutputWorkCount ++;
-    CODEC2_VDEC_ATRACE(TACE_NAME_OUT_PTS.str().c_str(), timestamp);
+    CODEC2_VDEC_ATRACE(TRACE_NAME_OUT_PTS.str().c_str(), timestamp);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
             bitstreamId, pictureBufferId, flags, mPendingBuffersToWork.size());
-    CODEC2_VDEC_ATRACE(TACE_NAME_OUT_PTS.str().c_str(), 0);
+    CODEC2_VDEC_ATRACE(TRACE_NAME_OUT_PTS.str().c_str(), 0);
 
     mLastOutputBitstreamId = bitstreamId;
     if (isNonTunnelMode()) {
@@ -1385,7 +1386,7 @@ void C2VdecComponent::onStopDone() {
     }
 
     mBufferFirstAllocated = false;
-    mSurfaceUsageGeted = false;
+    mSurfaceUsageGot = false;
     for (auto& info : mGraphicBlocks) {
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "GraphicBlock reset, block Info Id:%d Fd:%d poolId:%d State:%s block use count:%ld",
             info.mBlockId, info.mFd, info.mPoolId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
@@ -2415,7 +2416,7 @@ void C2VdecComponent::setOutputFormatCrop(const media::Rect& cropRect) {
 
 void C2VdecComponent::onCheckVideoDecReconfig() {
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%s]",__func__);
-    if (mSurfaceUsageGeted)
+    if (mSurfaceUsageGot)
         return;
 
     if (mBlockPoolUtil == nullptr) {
@@ -2498,7 +2499,7 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
         mDeviceUtil->setDuration();
     }
 
-    mSurfaceUsageGeted = true;
+    mSurfaceUsageGot = true;
 }
 
 c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
@@ -2507,7 +2508,7 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
         return C2_BAD_STATE;
     }
 
-    if (!mSurfaceUsageGeted) {
+    if (!mSurfaceUsageGot) {
         if (!isTunnerPassthroughMode())
             mTaskRunner->PostTask(FROM_HERE,
                         ::base::Bind(&C2VdecComponent::onCheckVideoDecReconfig, ::base::Unretained(this)));
@@ -2567,6 +2568,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
                 flushedWork->size(), mQueue.size());
 
     // Work dequeueing was stopped while component flushing. Restart it.
+
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
 
@@ -2836,9 +2838,9 @@ void C2VdecComponent::onReportNoOutFrameFinished() {
         finishedWorks.emplace_back(std::move(*workIter));
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Reported finished work index=%llu",__func__,__LINE__, work->input.ordinal.frameIndex.peekull());
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
+        CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
         mPendingWorks.erase(workIter);
-        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
+        CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
         mOutputFinishedWorkCount++;
         mNoOutFrameWorkQueue.pop_front();
     }
@@ -3028,9 +3030,9 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
         mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
+        CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
         mPendingWorks.erase(workIter);
-        CODEC2_VDEC_ATRACE(TACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
+        CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
         mOutputFinishedWorkCount++;
         return C2_OK;
     }

@@ -49,6 +49,10 @@ private:
     int postNotifyRenderTimeTunnel(struct renderTime* rendertime);
     void onNotifyRenderTimeTunnel(struct renderTime rendertime);
 
+    static int notifyTunnelEventCallback(void* obj, void* args);
+    int postNotifyTunnelEvent(struct tunnelEventParam* param);
+    void onNotifyTunnelEvent(struct tunnelEventParam param);
+
     c2_status_t sendOutputBufferToWorkTunnel(struct renderTime* rendertime);
     bool checkReallocOutputBuffer(VideoFormat video_format_old,VideoFormat video_format_new, bool *sizeChanged, bool *bufferNumLarged);
     void appendTunnelOutputBuffer(std::shared_ptr<C2GraphicBlock> block, int fd, uint32_t blockId, uint32_t poolId);
@@ -64,6 +68,7 @@ private:
     scoped_refptr<::base::SingleThreadTaskRunner> mTaskRunner;
     VideoTunnelRendererWraper* mVideoTunnelRenderer;
     C2VdecBlockPoolUtil* mBlockPoolUtil;
+    C2VdecComponent::DeviceUtil *mDeviceUtil;
 
     bool mSecure;
     int32_t mTunnelId;

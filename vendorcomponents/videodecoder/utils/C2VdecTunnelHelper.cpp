@@ -22,6 +22,7 @@
 #include <C2VdecTunnelHelper.h>
 #include <C2VdecInterfaceImpl.h>
 #include <C2VdecDebugUtil.h>
+#include <C2VdecDeviceUtil.h>
 #include <inttypes.h>
 
 #define C2VdecTMH_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
@@ -82,8 +83,13 @@ bool C2VdecComponent::TunnelHelper::start() {
         if (mVideoTunnelRenderer->init(mSyncId) == false) {
            C2VdecTMH_LOG(CODEC2_LOG_ERR, "Tunnel render init failed");
         }
+
+        mDeviceUtil = mComp->mDeviceUtil.get();
+        DCHECK(mDeviceUtil != NULL);
+
         mVideoTunnelRenderer->regFillVideoFrameCallBack(fillVideoFrameCallback2, this);
         mVideoTunnelRenderer->regNotifyTunnelRenderTimeCallBack(notifyTunnelRenderTimeCallback, this);
+        mVideoTunnelRenderer->regNotifyEventCallBack(notifyTunnelEventCallback, this);
         mVideoTunnelRenderer->start();
     }
 
@@ -104,6 +110,7 @@ bool C2VdecComponent::TunnelHelper::stop() {
     if (mVideoTunnelRenderer) {
         mVideoTunnelRenderer->regFillVideoFrameCallBack(NULL, NULL);
         mVideoTunnelRenderer->regNotifyTunnelRenderTimeCallBack(NULL, NULL);
+        mVideoTunnelRenderer->regNotifyEventCallBack(NULL, NULL);
 
         mVideoTunnelRenderer->stop();
         delete mVideoTunnelRenderer;
@@ -199,6 +206,13 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
     mFillVideoFrameQueue.clear();
 }
 
+int C2VdecComponent::TunnelHelper::postFillVideoFrameTunnel2(int dmafd, bool rendered) {
+    mTaskRunner->PostTask(FROM_HERE,
+        ::base::Bind(&C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2, ::base::Unretained(this),
+            dmafd, rendered));
+    return 0;
+}
+
 int C2VdecComponent::TunnelHelper::fillVideoFrameCallback2(void* obj, void* args) {
     C2VdecComponent::TunnelHelper* pTunnelHelper = (C2VdecComponent::TunnelHelper*)obj;
     struct fillVideoFrame2* pfillVideoFrame = (struct fillVideoFrame2*)args;
@@ -220,20 +234,6 @@ void C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel(struct renderTime r
     sendOutputBufferToWorkTunnel(&renderTime);
 }
 
-int C2VdecComponent::TunnelHelper::notifyTunnelRenderTimeCallback(void* obj, void* args) {
-    C2VdecComponent::TunnelHelper* pTunnelHelper = (C2VdecComponent::TunnelHelper*)obj;
-    struct renderTime* rendertime = (struct renderTime*)args;
-    pTunnelHelper->postNotifyRenderTimeTunnel(rendertime);
-    return 0;
-}
-
-int C2VdecComponent::TunnelHelper::postFillVideoFrameTunnel2(int dmafd, bool rendered) {
-    mTaskRunner->PostTask(FROM_HERE,
-        ::base::Bind(&C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2, ::base::Unretained(this),
-            dmafd, rendered));
-    return 0;
-}
-
 int C2VdecComponent::TunnelHelper::postNotifyRenderTimeTunnel(struct renderTime* rendertime) {
     struct renderTime renderTime = {
         .mediaUs = rendertime->mediaUs,
@@ -245,6 +245,49 @@ int C2VdecComponent::TunnelHelper::postNotifyRenderTimeTunnel(struct renderTime*
     return 0;
 }
 
+int C2VdecComponent::TunnelHelper::notifyTunnelRenderTimeCallback(void* obj, void* args) {
+    C2VdecComponent::TunnelHelper* pTunnelHelper = (C2VdecComponent::TunnelHelper*)obj;
+    struct renderTime* rendertime = (struct renderTime*)args;
+    pTunnelHelper->postNotifyRenderTimeTunnel(rendertime);
+    return 0;
+}
+
+void C2VdecComponent::TunnelHelper::onNotifyTunnelEvent(struct tunnelEventParam param) {
+    switch (param.type) {
+        case android::VideoTunnelRendererWraper::CB_EVENT_UNDERFLOW: {
+            uint32_t* data = (uint32_t*)param.data;
+            mComp->mTunnelUnderflow = data[0];
+            free(data);
+            data = NULL;
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "tunnel underflow %d!", mComp->mTunnelUnderflow);
+            mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(TUNNEL_UNDERFLOW);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+int C2VdecComponent::TunnelHelper::postNotifyTunnelEvent(struct tunnelEventParam* param) {
+    struct tunnelEventParam eventParam = {
+        .type = param->type,
+        .paramSize = param->paramSize,
+    };
+    eventParam.data = malloc(eventParam.paramSize);
+    memcpy(eventParam.data, param->data, eventParam.paramSize);
+    mTaskRunner->PostTask(FROM_HERE,
+        ::base::Bind(&C2VdecComponent::TunnelHelper::onNotifyTunnelEvent, ::base::Unretained(this),
+        ::base::Passed(&eventParam)));
+
+    return 0;
+}
+
+int C2VdecComponent::TunnelHelper::notifyTunnelEventCallback(void* obj, void* args) {
+    C2VdecComponent::TunnelHelper* pTunnelHelper = (C2VdecComponent::TunnelHelper*)obj;
+    struct tunnelEventParam* eventParam = (struct tunnelEventParam*)args;
+    pTunnelHelper->postNotifyTunnelEvent(eventParam);
+    return 0;
+}
 
 c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId) {
     DCHECK(mComp != NULL);

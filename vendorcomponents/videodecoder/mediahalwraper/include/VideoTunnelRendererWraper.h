@@ -17,6 +17,11 @@ namespace android {
 
 class VideoTunnelRendererWraper
 {
+public:
+    /* event type*/
+    enum {
+        CB_EVENT_UNDERFLOW = 1,
+    };
 
 public:
     VideoTunnelRendererWraper(bool secure = false);
@@ -31,6 +36,7 @@ public:
     bool peekFirstFrame();
     int regFillVideoFrameCallBack(callbackFunc funs, void* obj);
     int regNotifyTunnelRenderTimeCallBack(callbackFunc funs, void* obj);
+    int regNotifyEventCallBack(callbackFunc funs, void* obj);
     bool setFrameRate(int32_t framerate);
     VideoTunnelRendererBase* getTunnelRenderer() { return mVideoTunnelRenderer;  };
 
