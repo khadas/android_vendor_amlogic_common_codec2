@@ -286,36 +286,12 @@ public:
             .withSetter(IntraRefreshSetter)
             .build());
 
-    addParameter(
-            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-            .withDefault(new C2StreamProfileLevelInfo::output(
-                    0u, PROFILE_AVC_CONSTRAINED_BASELINE, LEVEL_AVC_4_1))
-            .withFields({
-                C2F(mProfileLevel, profile).oneOf({
-                    PROFILE_AVC_BASELINE,
-                    PROFILE_AVC_CONSTRAINED_BASELINE,
-                    PROFILE_AVC_MAIN,
-                }),
-                C2F(mProfileLevel, level).oneOf({
-                    LEVEL_AVC_1,
-                    LEVEL_AVC_1B,
-                    LEVEL_AVC_1_1,
-                    LEVEL_AVC_1_2,
-                    LEVEL_AVC_1_3,
-                    LEVEL_AVC_2,
-                    LEVEL_AVC_2_1,
-                    LEVEL_AVC_2_2,
-                    LEVEL_AVC_3,
-                    LEVEL_AVC_3_1,
-                    LEVEL_AVC_3_2,
-                    LEVEL_AVC_4,
-                    LEVEL_AVC_4_1,
-                    LEVEL_AVC_4_2,
-                    LEVEL_AVC_5,
-                }),
-            })
-            .withSetter(ProfileLevelSetter, mSize, mFrameRate, mBitrate)
-            .build());
+    if (mimetype == MEDIA_MIMETYPE_VIDEO_AVC) {
+        onAvcProfileLevelParam();
+    }
+    else {
+        onHevcProfileLevelParam();
+    }
 
     addParameter(
             DefineParam(mRequestSync, C2_PARAMKEY_REQUEST_SYNC_FRAME)
@@ -411,6 +387,63 @@ public:
             .build());
 
 }
+
+    void onAvcProfileLevelParam() {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::output(
+                    0u, PROFILE_AVC_CONSTRAINED_BASELINE,LEVEL_AVC_4_1))
+            .withFields({
+                C2F(mProfileLevel, profile).oneOf({
+                    PROFILE_AVC_BASELINE,
+                    PROFILE_AVC_CONSTRAINED_BASELINE,
+                    PROFILE_AVC_MAIN,
+                }),
+                C2F(mProfileLevel, level).oneOf({
+                    LEVEL_AVC_1,
+                    LEVEL_AVC_1B,
+                    LEVEL_AVC_1_1,
+                    LEVEL_AVC_1_2,
+                    LEVEL_AVC_1_3,
+                    LEVEL_AVC_2,
+                    LEVEL_AVC_2_1,
+                    LEVEL_AVC_2_2,
+                    LEVEL_AVC_3,
+                    LEVEL_AVC_3_1,
+                    LEVEL_AVC_3_2,
+                    LEVEL_AVC_4,
+                    LEVEL_AVC_4_1,
+                    LEVEL_AVC_4_2,
+                    LEVEL_AVC_5,
+                }),
+            })
+            .withSetter(AvcProfileLevelSetter, mSize, mFrameRate, mBitrate)
+            .build());
+    }
+
+    void onHevcProfileLevelParam() {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::output(
+                    0u, PROFILE_HEVC_MAIN, LEVEL_HEVC_HIGH_5_1))
+            .withFields({
+                C2F(mProfileLevel, profile).oneOf({
+                    PROFILE_HEVC_MAIN,
+                }),
+                C2F(mProfileLevel, level).oneOf({
+                        LEVEL_HEVC_HIGH_4,  ///< HEVC (H.265) High Tier Level 4
+                        LEVEL_HEVC_HIGH_4_1,                        ///< HEVC (H.265) High Tier Level 4.1
+                        LEVEL_HEVC_HIGH_5,                          ///< HEVC (H.265) High Tier Level 5
+                        LEVEL_HEVC_HIGH_5_1,                        ///< HEVC (H.265) High Tier Level 5.1
+                        LEVEL_HEVC_HIGH_5_2,                        ///< HEVC (H.265) High Tier Level 5.2
+                        LEVEL_HEVC_HIGH_6,                          ///< HEVC (H.265) High Tier Level 6
+                        LEVEL_HEVC_HIGH_6_1,                        ///< HEVC (H.265) High Tier Level 6.1
+                        LEVEL_HEVC_HIGH_6_2,                        ///< HEVC (H.265) High Tier Level 6.2
+                }),
+            })
+            .withSetter(HevcProfileLevelSetter, mSize, mFrameRate, mBitrate)
+            .build());
+    }
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
         C2P<C2StreamPictureSizeInfo::input> &me) {
         (void)mayBlock;
@@ -470,7 +503,7 @@ public:
         return res;
     }
 
-    static C2R ProfileLevelSetter(
+    static C2R AvcProfileLevelSetter(
             bool mayBlock,
             C2P<C2StreamProfileLevelInfo::output> &me,
             const C2P<C2StreamPictureSizeInfo::input> &size,
@@ -543,6 +576,77 @@ public:
             me.set().level = LEVEL_AVC_5;
         }
 
+        return C2R::Ok();
+    }
+
+    static C2R HevcProfileLevelSetter(
+            bool mayBlock,
+            C2P<C2StreamProfileLevelInfo::output> &me,
+            const C2P<C2StreamPictureSizeInfo::input> &size,
+            const C2P<C2StreamFrameRateInfo::output> &frameRate,
+            const C2P<C2StreamBitrateInfo::output> &bitrate) {
+        (void)mayBlock;
+        if (!me.F(me.v.profile).supportsAtAll(me.v.profile)) {
+            me.set().profile = PROFILE_HEVC_MAIN;
+        }
+
+        struct LevelLimits {
+            C2Config::level_t level;
+            uint64_t samplesPerSec;
+            uint64_t samples;
+            uint32_t bitrate;
+        };
+        constexpr LevelLimits kLimits[] = {
+            { LEVEL_HEVC_MAIN_1,       552960,    36864,    128000 },
+            { LEVEL_HEVC_MAIN_2,      3686400,   122880,   1500000 },
+            { LEVEL_HEVC_MAIN_2_1,    7372800,   245760,   3000000 },
+            { LEVEL_HEVC_MAIN_3,     16588800,   552960,   6000000 },
+            { LEVEL_HEVC_MAIN_3_1,   33177600,   983040,  10000000 },
+            { LEVEL_HEVC_MAIN_4,     66846720,  2228224,  12000000 },
+            { LEVEL_HEVC_MAIN_4_1,  133693440,  2228224,  20000000 },
+            { LEVEL_HEVC_MAIN_5,    267386880,  8912896,  25000000 },
+            { LEVEL_HEVC_MAIN_5_1,  534773760,  8912896,  40000000 },
+            { LEVEL_HEVC_MAIN_5_2, 1069547520,  8912896,  60000000 },
+            { LEVEL_HEVC_MAIN_6,   1069547520, 35651584,  60000000 },
+            { LEVEL_HEVC_MAIN_6_1, 2139095040, 35651584, 120000000 },
+            { LEVEL_HEVC_MAIN_6_2, 4278190080, 35651584, 240000000 },
+        };
+
+        uint64_t samples = size.v.width * size.v.height;
+        uint64_t samplesPerSec = samples * frameRate.v.value;
+
+        // Check if the supplied level meets the MB / bitrate requirements. If
+        // not, update the level with the lowest level meeting the requirements.
+
+        bool found = false;
+        // By default needsUpdate = false in case the supplied level does meet
+        // the requirements.
+        bool needsUpdate = false;
+        for (const LevelLimits &limit : kLimits) {
+            if (samples <= limit.samples && samplesPerSec <= limit.samplesPerSec &&
+                    bitrate.v.value <= limit.bitrate) {
+                // This is the lowest level that meets the requirements, and if
+                // we haven't seen the supplied level yet, that means we don't
+                // need the update.
+                if (needsUpdate) {
+                    ALOGD("Given level %x does not cover current configuration: "
+                          "adjusting to %x", me.v.level, limit.level);
+                    me.set().level = limit.level;
+                }
+                found = true;
+                break;
+            }
+            if (me.v.level == limit.level) {
+                // We break out of the loop when the lowest feasible level is
+                // found. The fact that we're here means that our level doesn't
+                // meet the requirement and needs to be updated.
+                needsUpdate = true;
+            }
+        }
+        if (!found) {
+            // We set to the highest supported level.
+            me.set().level = LEVEL_HEVC_MAIN_5_2;
+        }
         return C2R::Ok();
     }
 
@@ -969,7 +1073,12 @@ c2_status_t C2VencMulti::Init() {
     encode_info.height = mSize->height;
     encode_info.frame_rate = mFrameRate->value;
     encode_info.bit_rate = mBitrate->value;
-    encode_info.gop = mIDRInterval;
+    if (mIDRInterval < 0) {
+        encode_info.gop = mIDRInterval;
+    }
+    else {
+        encode_info.gop = mIDRInterval + 1;
+    }
     encode_info.img_format = colorformat;
     mBitrateBak = mBitrate->value;
     encode_info.bitstream_buf_sz_kb = kLinearBufferSize / 1024;
