@@ -344,11 +344,11 @@ void VideoDecWraper::onInputBufferDone(int32_t bitstream_buffer_id) {
 }
 
 void VideoDecWraper::onUserdataReady(const uint8_t* userdata, uint32_t usize) {
-    C2VdecWraper_LOG(CODEC2_LOG_INFO, "onUserdataReady %p, size %d\n", userdata, usize);
+    C2VdecWraper_LOG(CODEC2_LOG_TAG_BUFFER, "onUserdataReady %p, size %d\n", userdata, usize);
 }
 
 void VideoDecWraper::onUpdateDecInfo(const uint8_t* info, uint32_t isize) {
-    C2VdecWraper_LOG(CODEC2_LOG_INFO, "onUpdateDecInfo info %p, size %d\n", info, isize);
+    C2VdecWraper_LOG(CODEC2_LOG_TAG_BUFFER, "onUpdateDecInfo info %p, size %d\n", info, isize);
     if (mDecoderCallback)
         mDecoderCallback->UpdateDecInfo(info, isize);
 }

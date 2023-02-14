@@ -46,9 +46,12 @@ private:
     std::atomic<bool> mAllocBufferLoop;
     scoped_refptr<::base::SingleThreadTaskRunner> mDequeueTaskRunner;
 
+    uint32_t mFetchBlockCount;
     uint32_t mStreamDurationUs;
     uint32_t mCurrentPixelFormat;
+    int32_t mMinFetchBlockInterval;
     int64_t mLastAllocBufferRetryTimeUs;
+    int64_t mLastAllocBufferSuccessTimeUs;
     media::Size mCurrentBlockSize;
 };
 

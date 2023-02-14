@@ -1288,6 +1288,8 @@ void C2VdecComponent::onFlushDone() {
     RETURN_ON_UNINITIALIZED_OR_ERROR();
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
 
+    mDequeueThreadUtil->StopRunDequeueTask();
+
     {
         AutoMutex l(mFlushDoneWorkLock);
         mFlushPendingWorkList.clear();
@@ -1590,7 +1592,7 @@ bool C2VdecComponent::IsCheckStopDequeueTask() {
         ret = true;
     }
 
-    if (mReportEosWork == true) {
+    if (mReportEosWork == true && (mComponentState == ComponentState::STOPPING || mComponentState == ComponentState::DESTROYING || mComponentState == ComponentState::DESTROYED)) {
         C2Vdec_LOG(CODEC2_LOG_INFO, "[%s:%d] component report eos work,exit thread", __func__, __LINE__);
         ret = true;
     }

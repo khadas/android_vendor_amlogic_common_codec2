@@ -37,6 +37,7 @@ namespace android {
 #define C2VdecDQ_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
 
 #define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
+#define DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN (100)
 
 C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil(C2VdecComponent* comp) {
     mComp = comp;
@@ -66,11 +67,11 @@ C2VdecComponent::DequeueThreadUtil::~DequeueThreadUtil() {
 bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, uint32_t pixelFormat) {
 
     if (mRunTaskLoop.load() == true) {
-        C2VdecDQ_LOG(CODEC2_LOG_ERR,"dequeue thread is running, this is error!! return.");
+        C2VdecDQ_LOG(CODEC2_LOG_ERR,"[%s]dequeue thread is running, this is error!! return.", __func__);
         return false;
     }
     if (!mDequeueThread->Start()) {
-        C2VdecDQ_LOG(CODEC2_LOG_ERR, "Failed to start dequeue thread!!");
+        C2VdecDQ_LOG(CODEC2_LOG_ERR, "[%s] Failed to start dequeue thread!!", __func__);
         return false;
     }
     mDequeueTaskRunner = mDequeueThread->task_runner();
@@ -85,7 +86,8 @@ bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, u
     mStreamDurationUs = deviceUtil->getVideoDurationUs();
     mCurrentBlockSize = size;
     mCurrentPixelFormat = pixelFormat;
-    C2VdecDQ_LOG(CODEC2_LOG_TAG_BUFFER,"%s run task loop:%d alloc buffer loop:%d", __func__, mRunTaskLoop.load(), mAllocBufferLoop.load());
+    mMinFetchBlockInterval = mStreamDurationUs / 4;
+    C2VdecDQ_LOG(CODEC2_LOG_INFO,"%s task loop:%d alloc loop:%d duration:%d minfetchinterval:%d", __func__, mRunTaskLoop.load(), mAllocBufferLoop.load(), mStreamDurationUs, mMinFetchBlockInterval);
     return true;
 }
 
@@ -121,9 +123,9 @@ void C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask(media::Size size, 
         return;
     }
 
-    mDequeueTaskRunner->PostDelayedTask(
+    mDequeueTaskRunner->PostTask(
                     FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
-                    size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTimeUs));
+                    size, pixelFormat));
 }
 
 void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uint32_t pixelFormat) {
@@ -135,13 +137,26 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         return;
     }
 
-    int64_t allocRetryDurationUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000 - mLastAllocBufferRetryTimeUs;
+    int64_t nowTimeUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
+    int64_t allocRetryDurationUs = nowTimeUs - mLastAllocBufferRetryTimeUs;
+    int64_t allocSuccessDuraionUs = nowTimeUs - mLastAllocBufferSuccessTimeUs;
+
     if ((allocRetryDurationUs <=  mStreamDurationUs) && mAllocBufferLoop.load()) {
         int64_t delayTimeUs = (mStreamDurationUs >= allocRetryDurationUs) ? (mStreamDurationUs - allocRetryDurationUs) : mStreamDurationUs;
         mDequeueTaskRunner->PostDelayedTask(
                     FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
                     size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTimeUs));
         return;
+    }
+
+    if (mFetchBlockCount >= DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN) {
+        if (allocSuccessDuraionUs <= mMinFetchBlockInterval && mAllocBufferLoop.load()) {
+            int64_t delayTimeUs = mMinFetchBlockInterval - allocSuccessDuraionUs;
+            mDequeueTaskRunner->PostDelayedTask(
+                FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
+                size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTimeUs));
+            return;
+        }
     }
 
     if ((size.width() == 0 || size.height() == 0) || pixelFormat == 0) {
@@ -190,6 +205,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
                                         format, usage, &block);
     }
     if (err == C2_OK) {
+        mLastAllocBufferSuccessTimeUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
         if (videoSize.width() <= block->width() &&
                         videoSize.height() <= block->height()) {
             err = blockPoolUtil->getBlockIdByGraphicBlock(block, &blockId);
@@ -222,6 +238,8 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
                     FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
                     size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTime));
     }
+
+    mFetchBlockCount++;
 }
 
 int32_t C2VdecComponent::DequeueThreadUtil::getFetchGraphicBlockDelayTimeUs(c2_status_t err) {
