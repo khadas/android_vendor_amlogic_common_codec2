@@ -159,11 +159,11 @@ enum class C2VendorCodec {
 #endif
     VENC_H264,
     VENC_H265,
-    ADEC_MP2,
+    ADEC_MP2 = 50,
     ADEC_AAC,
     ADEC_AC3,
     ADEC_EAC3,
-    ADEC_FFMPEG,
+    ADEC_FFMPEG, //54
     ADEC_DTS,
     ADEC_DTSHD,
     ADEC_DTSE,

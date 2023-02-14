@@ -65,11 +65,29 @@
 #define WMA_SKIP_TIME_THRESHOLD 3
 
 const char *MEDIA_MIMETYPE_AUDIO_FFMPEG = "audio/ffmpeg";
-constexpr char COMPONENT_NAME[] = "c2.amlogic.audio.decoder.ffmpeg";
+constexpr char COMPONENT_NAME_FFMPEG[] = "c2.amlogic.audio.decoder.ffmpeg";
+constexpr char COMPONENT_NAME_MP2[]    = "c2.amlogic.audio.decoder.mp2";
+
 static int prevSampleRate = 0;
 static int prevNumChannels = 0;
 
 namespace android {
+
+static const char *ConvertComponentRoleToMimeType(const char *componentRole) {
+    if (componentRole == NULL) {
+        ALOGE("ConvertComponentRoleToMime componentRole is NULL!");
+        return "NA";
+    }
+
+    if (strstr(componentRole, "ffmpeg")) {
+        return const_cast<char *>(MEDIA_MIMETYPE_AUDIO_FFMPEG);
+    } else if (strstr(componentRole, "mp2")) {
+        return const_cast<char *>(MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_II);
+    } else {
+        ALOGE("Not support %s yet, need to add!", componentRole);
+        return "NA";
+    }
+}
 
 
 class C2AudioFFMPEGDecoder::IntfImpl : public AudioDecInterface<void>::BaseParams {
@@ -80,13 +98,14 @@ public:
         return C2R::Ok();
     }
 
-    explicit IntfImpl(const std::shared_ptr<C2ReflectorHelper> &helper)
+    explicit IntfImpl(const char *name, const std::shared_ptr<C2ReflectorHelper> &helper)
         : AudioDecInterface<void>::BaseParams(
                 helper,
-                COMPONENT_NAME,
+                name,
                 C2Component::KIND_DECODER,
                 C2Component::DOMAIN_AUDIO,
-                MEDIA_MIMETYPE_AUDIO_FFMPEG) {
+                ConvertComponentRoleToMimeType(name)) {
+                ALOGI("in %s  %s", __func__, name);
 
         addParameter(
                 DefineParam(mSampleRate, C2_PARAMKEY_SAMPLE_RATE)
@@ -796,7 +815,8 @@ uint32_t C2AudioFFMPEGDecoder::maskFromCount(uint32_t channelCount) {
 
 class C2AudioFFMPEGDecFactory : public C2ComponentFactory {
 public:
-    C2AudioFFMPEGDecFactory() : mHelper(std::static_pointer_cast<C2ReflectorHelper>(
+    C2AudioFFMPEGDecFactory(C2String decoderName) : mDecoderName(decoderName),
+         mHelper(std::static_pointer_cast<C2ReflectorHelper>(
             GetCodec2VendorComponentStore()->getParamReflector())) {
             ALOGI("in %s ", __func__);
     }
@@ -808,9 +828,9 @@ public:
             UNUSED(deleter);
             ALOGI("in %s ", __func__);
         *component = std::shared_ptr<C2Component>(
-                new C2AudioFFMPEGDecoder(COMPONENT_NAME,
+                new C2AudioFFMPEGDecoder(mDecoderName.c_str(),
                               id,
-                              std::make_shared<C2AudioFFMPEGDecoder::IntfImpl>(mHelper)));
+                              std::make_shared<C2AudioFFMPEGDecoder::IntfImpl>(mDecoderName.c_str(), mHelper)));
         return C2_OK;
     }
 
@@ -821,19 +841,48 @@ public:
             ALOGI("in %s ", __func__);
         *interface = std::shared_ptr<C2ComponentInterface>(
                 new AudioDecInterface<C2AudioFFMPEGDecoder::IntfImpl>(
-                        COMPONENT_NAME, id, std::make_shared<C2AudioFFMPEGDecoder::IntfImpl>(mHelper)));
+                        mDecoderName.c_str(), id, std::make_shared<C2AudioFFMPEGDecoder::IntfImpl>(mDecoderName.c_str(), mHelper)));
         return C2_OK;
     }
 
     virtual ~C2AudioFFMPEGDecFactory() override = default;
 
 private:
+    const C2String mDecoderName;
     std::shared_ptr<C2ReflectorHelper> mHelper;
 };
 
 
 }  // namespace android
 
+
+#define CreateC2AudioDecFactory(type) \
+    extern "C" ::C2ComponentFactory* CreateC2AudioDecoder##type##Factory() {\
+         ALOGV("create component %s ", #type);\
+         std::string type_ffmeg = "FFMPEG";\
+         std::string type_mp2 = "MP2";\
+         if (!type_ffmeg.compare(#type)) {\
+             return new ::android::C2AudioFFMPEGDecFactory(COMPONENT_NAME_FFMPEG);\
+         } else if (!type_mp2.compare(#type)) {\
+            return new ::android::C2AudioFFMPEGDecFactory(COMPONENT_NAME_MP2);\
+         } else {\
+            ALOGW("create component %s, not valid and please check the type", #type);\
+            return nullptr;\
+         }\
+    }
+
+#define DestroyC2AudioDecFactory(type) \
+    extern "C" void DestroyC2AudioDecoder##type##Factory(::C2ComponentFactory* factory) {\
+        delete factory;\
+    }
+
+
+CreateC2AudioDecFactory(FFMPEG)
+DestroyC2AudioDecFactory(FFMPEG)
+CreateC2AudioDecFactory(MP2)
+DestroyC2AudioDecFactory(MP2)
+
+#if 0//remove this code
 __attribute__((cfi_canonical_jump_table))
 extern "C" ::C2ComponentFactory* CreateC2AudioDecoderFFMPEGFactory() {
     ALOGV("in %s", __func__);
@@ -845,5 +894,5 @@ extern "C" void DestroyC2AudioDecoderFFMPEGFactory(::C2ComponentFactory* factory
     ALOGV("in %s", __func__);
     delete factory;
 }
-
+#endif
 
