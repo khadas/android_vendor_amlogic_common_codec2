@@ -18,19 +18,6 @@
 #include <queue>
 
 namespace android {
-struct aml_stream_info {
-    uint32_t width;
-    uint32_t height;
-    uint32_t max_width;
-    uint32_t max_height;
-    uint64_t pts_0;
-    uint64_t pts_1;
-    uint64_t pts_2;
-    int len_0;
-    int len_1;
-    int len_2;
-    int delay_time;
-};
 
 class C2VdecComponent::DeviceUtil {
 public:
@@ -49,44 +36,13 @@ public:
     void setForceFullUsage(bool isFullUsage) { mForceFullUsage = isFullUsage;}
     void setUseSurfaceTexture(bool userSurfaceTexture) { mUseSurfaceTexture = userSurfaceTexture;}
 
-    bool isHDRStaticInfoUpdated() {
-        if (mHDRStaticInfoChanged) {
-            std::lock_guard<std::mutex> lock(mMutex);
-            mHDRStaticInfoChanged = false;
-            return true;
-        }
+    int32_t getPlayerId() {return mPlayerId;}
+    uint32_t getVideoDurationUs() {return mDurationUs;}
+    int32_t getMarginBufferNum() {return mMarginBufferNum;}
 
-        return false;
-    }
-    bool isHDR10PlusStaticInfoUpdated() {
-        if (mHDR10PLusInfoChanged) {
-            std::lock_guard<std::mutex> lock(mMutex);
-            mHDR10PLusInfoChanged = false;
-            return true;
-        }
-        return false;
-    }
-
-    bool isColorAspectsChanged() {
-        if (mColorAspectsChanged) {
-            std::lock_guard<std::mutex> lock(mMutex);
-            mColorAspectsChanged = false;
-            return true;
-        }
-
-        return false;
-    }
-
-    int32_t getMarginBufferNum() {
-        return mMarginBufferNum;
-    }
-
-    int32_t getPlayerId() {
-        return mPlayerId;
-    }
-    uint32_t getVideoDurationUs() {
-        return mDurationUs;
-    }
+    bool isHDRStaticInfoUpdated();
+    bool isHDR10PlusStaticInfoUpdated();
+    bool isColorAspectsChanged();
 
     //int check_color_aspects();
     uint64_t getPlatformUsage();
@@ -100,12 +56,8 @@ public:
     void updateHDR10plusToWork(unsigned char *data, int size, C2Work& work);
     void updateDurationUs(unsigned char *data, int size);
     bool getHDR10PlusData(std::string &data);
-    void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
-        mHDRStaticInfoColorAspects = coloraspect;
-    }
-
+    void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect);
     uint32_t getDoubleWriteModeValue();
-
 
     // bit depth
     void queryStreamBitDepth();
@@ -117,13 +69,8 @@ public:
     bool setDuration();
     bool shouldEnableMMU();
     bool clearDecoderDuration();
-
-    void save_stream_info(uint64_t timestamp, int filledlen);
-    void check_stream_info();
     bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
     int setVideoDecWraper(VideoDecWraper* videoDecWraper);
-
-    aml_stream_info mAmlStreamInfo;
 
     bool checkConfigInfoFromDecoderAndReconfig(int type);
 
@@ -144,6 +91,8 @@ private:
     bool checkDvProfileAndLayer();
     bool isYcrcb420Stream() const; /* 8bit */
     bool isYcbcRP010Stream() const; /* 10bit */
+
+    int HDRInfoDataBLEndianInt(int value);
 
     int mUvmFd;
     C2VdecComponent::IntfImpl* mIntfImpl;
@@ -166,9 +115,6 @@ private:
 
     /* for check pts */
     bool mIsInterlaced;
-    bool mInPtsInvalid;
-    bool mFirstOutputWork;
-    bool mOutputPtsValid;
     bool mEnableAvc4kMMU;
 
     uint32_t mDurationUs;
@@ -177,9 +123,7 @@ private:
     int32_t  mUnstablePts;
     int32_t  mPlayerId;
     uint64_t mLastOutPts;
-    uint64_t mInPutWorkCount;
     uint64_t mOutputWorkCount;
-    int32_t  mOutputPtsValidCount;
 
     int32_t mMarginBufferNum;
     int32_t mStreamBitDepth;

@@ -218,7 +218,7 @@ private:
 };
 
 C2VendorComponentStore::ComponentModule::~ComponentModule() {
-    ALOGV("In %s", __func__);
+    ALOGV("In ~ComponentModule");
     if (destroyFactory && mComponentFactory) {
         destroyFactory(mComponentFactory);
     }

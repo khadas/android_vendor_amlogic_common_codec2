@@ -61,9 +61,6 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mEnable8kNR(false),
     mForceFullUsage(false),
     mIsInterlaced(false),
-    mInPtsInvalid(false),
-    mFirstOutputWork(false),
-    mOutputPtsValid(false),
     mEnableAvc4kMMU(false),
     mDurationUs(0),
     mDurationUsFromApp(0),
@@ -71,15 +68,14 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
     mUnstablePts(0),
     mPlayerId(0),
     mLastOutPts(0),
-    mInPutWorkCount(0),
     mOutputWorkCount(0),
-    mOutputPtsValidCount(0),
     mMarginBufferNum(0),
     mStreamBitDepth(-1),
     mBufferWidth(0),
     mBufferHeight(0),
     mSignalType(0),
     mEnableAdaptivePlayback(false) {
+    mConfigParam = NULL;
     mVideoDecWraper = NULL;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
     mIntfImpl = mComp->GetIntfImpl();
@@ -90,6 +86,9 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "Open uvm device fail.");
         mUvmFd = -1;
     }
+
+    mForceDIPermission = false;
+    mDisableErrPolicy = true;
 }
 
 C2VdecComponent::DeviceUtil::~DeviceUtil() {
@@ -202,11 +201,15 @@ int C2VdecComponent::DeviceUtil::setVideoDecWraper(VideoDecWraper* videoDecWrape
 void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     uint32_t doubleWriteMode = 3;
     int default_margin = 6;
-    uint32_t bufwidth = 4096;
-    uint32_t bufheight = 2304;
+    uint32_t bufwidth = 0;
+    uint32_t bufheight = 0;
     uint32_t margin = default_margin;
     bool dvUseTwoLayer = false;
-    char value[PROPERTY_VALUE_MAX];
+
+    if (configParam == NULL) {
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] codec config param error, please check.", __func__, __LINE__);
+        return;
+    }
 
     mEnableNR = property_get_bool(C2_PROPERTY_VDEC_DISP_NR_ENABLE, false);
     mEnableDILocalBuf = property_get_bool(C2_PROPERTY_VDEC_DISP_DI_LOCALBUF_ENABLE, false);
@@ -219,21 +222,20 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     struct v4l2_parms * pAmlV4l2Param    = &mConfigParam->v4l2_cfg;
     struct aml_dec_params * pAmlDecParam = &mConfigParam->aml_dec_cfg;
 
-
-    std::vector<std::unique_ptr<C2Param>> params;
-    C2StreamPictureSizeInfo::output output;
-    c2_status_t err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
+    C2StreamPictureSizeInfo::output output = {0};
+    c2_status_t err = C2_OK;
+    err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamPictureSizeInfo size error", __func__, __LINE__);
     }
 
-    C2StreamFrameRateInfo::input inputFrameRateInfo;
+    C2StreamFrameRateInfo::input inputFrameRateInfo = {0};
     err = mIntfImpl->query({&inputFrameRateInfo}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamFrameRateInfo message error", __func__, __LINE__);
     }
 
-    C2StreamUnstablePts::input unstablePts;
+    C2StreamUnstablePts::input unstablePts = {0};
     err = mIntfImpl->query({&unstablePts}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamUnstablePts message error", __func__, __LINE__);
@@ -241,7 +243,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         mUnstablePts = unstablePts.enable;
     }
 
-    C2VendorPlayerId::input playerId;
+    C2VendorPlayerId::input playerId = {0};
     err = mIntfImpl->query({&playerId}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2VendorPlayerId message error", __func__, __LINE__);
@@ -250,13 +252,13 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     }
 
     if (inputFrameRateInfo.value != 0) {
-       mDurationUs = 1000 * 1000 / inputFrameRateInfo.value;
-       mCredibleDuration = true;
+        mDurationUs = 1000 * 1000 / inputFrameRateInfo.value;
+        mCredibleDuration = true;
     }
 
     mDurationUsFromApp = mDurationUs;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] query frame rate:%f updata mDurationUs = %d, unstablePts :%d",__func__, __LINE__, inputFrameRateInfo.value, mDurationUs, mUnstablePts);
-    C2GlobalLowLatencyModeTuning lowLatency;
+    C2GlobalLowLatencyModeTuning lowLatency = {0};
     err = mIntfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamPictureSizeInfo size error", __func__, __LINE__);
@@ -296,6 +298,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     mBufferWidth  = bufwidth;
     mBufferHeight = bufheight;
     if (bufwidth * bufheight > 4096 * 2304) {
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] update doubleWriteMode to %d",__func__, __LINE__, doubleWriteMode);
         doubleWriteMode = 0x04;
         default_margin = 5;
         mIs8k = true;
@@ -306,17 +309,15 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     }
 
     if (mIntfImpl->getInputCodec() == InputCodec::H264) {
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] update doubleWriteMode to %d",__func__, __LINE__, doubleWriteMode);
         doubleWriteMode = 0x10;
     }
 
+    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] update doubleWriteMode to %d",__func__, __LINE__, doubleWriteMode);
     doubleWriteMode = getDoubleWriteModeValue();
-    memset(value, 0, sizeof(value));
-    if (property_get(C2_PROPERTY_VDEC_MARGIN, value, NULL) > 0) {
-        default_margin = atoi(value);
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "set margin:%d", default_margin);
-    }
-    margin = default_margin;
 
+    default_margin = property_get_int32(C2_PROPERTY_VDEC_MARGIN, default_margin);
+    margin = default_margin;
     pAmlDecParam->cfg.canvas_mem_mode = 0;
     mMarginBufferNum = margin;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "DoubleWriteMode %d, margin:%d \n", doubleWriteMode, margin);
@@ -508,15 +509,27 @@ uint64_t C2VdecComponent::DeviceUtil::getLastOutputPts() {
     return mLastOutPts;
 }
 
-int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
-        std::vector<std::unique_ptr<C2Param>> params;
-    C2StreamHdrStaticInfo::output hdr;
-    bool isPresent = true;
-    int32_t matrixCoeffs;
-    int32_t transfer;
-    int32_t primaries;
-    bool    range;
+int C2VdecComponent::DeviceUtil::HDRInfoDataBLEndianInt(int value) {
+    bool enable = property_get_bool(C2_PROPERTY_VDEC_HDR_LITTLE_ENDIAN_ENABLE, false);
+    if (enable)
+        return value;
+    else
+        return ((value & 0x00FF) << 8 ) | ((value & 0xFF00) >> 8);
+}
 
+int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
+    std::vector<std::unique_ptr<C2Param>> params;
+    C2StreamHdrStaticInfo::output hdr = {0};
+    bool isPresent = true;
+    int32_t matrixCoeffs = 0;
+    int32_t transfer = 0;
+    int32_t primaries = 0;
+    bool    range = false;
+
+    if (mIntfImpl == NULL) {
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "set HDR satic info error");
+        return -1;
+    }
     c2_status_t err = mIntfImpl->query({&hdr}, {}, C2_DONT_BLOCK, &params);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "Query hdr info error");
@@ -539,32 +552,22 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
         return 0;
     }
 
-    bool enable = property_get_bool(C2_PROPERTY_VDEC_HDR_LITTLE_ENDIAN_ENABLE, false);
-
-    std::function<int(int)> BLEndianInt = [=] (int value) -> int {
-        if (enable)
-            return value;
-        else
-            return ((value & 0x00FF) << 8 ) | ((value & 0xFF00) >> 8);
-    };
-
     struct aml_dec_params *pAmlDecParam = &mConfigParam->aml_dec_cfg;
-
     pAmlDecParam->hdr.color_parms.present_flag = 1;
 
     if ((mIntfImpl->getInputCodec() == InputCodec::VP9)) {
-        pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
-        pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
-        pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
-        pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
-        pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
-        pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
-        pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
-        pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
-        pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-        pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+        pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+        pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+        pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+        pAmlDecParam->hdr.color_parms.primaries[1][1] = HDRInfoDataBLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+        pAmlDecParam->hdr.color_parms.primaries[2][0] = HDRInfoDataBLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+        pAmlDecParam->hdr.color_parms.primaries[2][1] = HDRInfoDataBLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+        pAmlDecParam->hdr.color_parms.white_point[0]  = HDRInfoDataBLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+        pAmlDecParam->hdr.color_parms.white_point[1]  = HDRInfoDataBLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+        pAmlDecParam->hdr.color_parms.luminance[0]    = HDRInfoDataBLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
+        pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
     } else if ((mIntfImpl->getInputCodec() == InputCodec::AV1)) {
         //see 6.7.4. Metadata high dynamic range mastering display color volume
         //semantics
@@ -590,37 +593,37 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
         pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  (int32_t)(hdr.maxCll);//info.sType1.mMaxContentLightLevel;
         pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  (int32_t)(hdr.maxFall);//info.sType1.mMaxFrameAverageLightLevel;
     } else if ((mIntfImpl->getInputCodec() == InputCodec::H265)) {
-        pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
-        pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
-        pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
-        pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
-        pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
-        pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
-        pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
-        pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
-        pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-        pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+        pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+        pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+        pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+        pAmlDecParam->hdr.color_parms.primaries[1][1] = HDRInfoDataBLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+        pAmlDecParam->hdr.color_parms.primaries[2][0] = HDRInfoDataBLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+        pAmlDecParam->hdr.color_parms.primaries[2][1] = HDRInfoDataBLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+        pAmlDecParam->hdr.color_parms.white_point[0]  = HDRInfoDataBLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+        pAmlDecParam->hdr.color_parms.white_point[1]  = HDRInfoDataBLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+        pAmlDecParam->hdr.color_parms.luminance[0]    = HDRInfoDataBLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
+        pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
     } else {
-        pAmlDecParam->hdr.color_parms.primaries[0][0] = BLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
-        pAmlDecParam->hdr.color_parms.primaries[0][1] = BLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
-        pAmlDecParam->hdr.color_parms.primaries[1][0] = BLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
-        pAmlDecParam->hdr.color_parms.primaries[1][1] = BLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
-        pAmlDecParam->hdr.color_parms.primaries[2][0] = BLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
-        pAmlDecParam->hdr.color_parms.primaries[2][1] = BLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
-        pAmlDecParam->hdr.color_parms.white_point[0]  = BLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
-        pAmlDecParam->hdr.color_parms.white_point[1]  = BLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
-        pAmlDecParam->hdr.color_parms.luminance[0]    = BLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-        pAmlDecParam->hdr.color_parms.luminance[1]    = BLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  BLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  BLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+        pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+        pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+        pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+        pAmlDecParam->hdr.color_parms.primaries[1][1] = HDRInfoDataBLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+        pAmlDecParam->hdr.color_parms.primaries[2][0] = HDRInfoDataBLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+        pAmlDecParam->hdr.color_parms.primaries[2][1] = HDRInfoDataBLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+        pAmlDecParam->hdr.color_parms.white_point[0]  = HDRInfoDataBLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+        pAmlDecParam->hdr.color_parms.white_point[1]  = HDRInfoDataBLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+        pAmlDecParam->hdr.color_parms.luminance[0]    = HDRInfoDataBLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
+        pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
     }
-
 
     pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_HDRINFO;
 
     ColorAspects sfAspects;
+    memset(&sfAspects, 0, sizeof(sfAspects));
     if (!C2Mapper::map(mHDRStaticInfoColorAspects->primaries, &sfAspects.mPrimaries)) {
         sfAspects.mPrimaries = android::ColorAspects::PrimariesUnspecified;
     }
@@ -675,9 +678,11 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
 }
 
 void C2VdecComponent::DeviceUtil::updateDecParmInfo(aml_dec_params* pInfo) {
-    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Parms status %x\n", pInfo->parms_status);
-    if (pInfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
-        checkHDRMetadataAndColorAspects(&pInfo->hdr);
+    if (pInfo != NULL) {
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Parms status %x\n", pInfo->parms_status);
+        if (pInfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
+            checkHDRMetadataAndColorAspects(&pInfo->hdr);
+        }
     }
 }
 
@@ -688,16 +693,13 @@ void C2VdecComponent::DeviceUtil::updateInterlacedInfo(bool isInterlaced) {
 
 void C2VdecComponent::DeviceUtil::flush() {
     mLastOutPts = 0;
-    mOutputPtsValid  = false;
-    mFirstOutputWork = false;
     mOutputWorkCount = 0;
-    mOutputPtsValidCount = 0;
 }
 
 int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec_hdr_infos* phdr) {
     bool isHdrChanged = false;
     bool isColorAspectsChanged = false;
-    C2StreamHdrStaticInfo::output hdr;
+    C2StreamHdrStaticInfo::output hdr = {0};
 
     //setup hdr metadata, only present_flag is 1 there has a hdr metadata
     if (phdr->color_parms.present_flag == 1) {
@@ -804,6 +806,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
 
         if (isPresent) {
             ColorAspects aspects;
+            memset(&aspects, 0, sizeof(aspects));
             C2StreamColorAspectsInfo::input codedAspects = { 0u };
             ColorUtils::convertIsoColorAspectsToCodecAspects(
                 primaries, transfer, matrixCoeffs, range, aspects);
@@ -914,16 +917,44 @@ int C2VdecComponent::DeviceUtil::getVideoType() {
     return videotype;
 }
 
+bool C2VdecComponent::DeviceUtil::isHDRStaticInfoUpdated() {
+    if (mHDRStaticInfoChanged) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mHDRStaticInfoChanged = false;
+        return true;
+    }
+
+    return false;
+}
+
+bool C2VdecComponent::DeviceUtil::isHDR10PlusStaticInfoUpdated() {
+    if (mHDR10PLusInfoChanged) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mHDR10PLusInfoChanged = false;
+        return true;
+    }
+
+    return false;
+}
+
+bool C2VdecComponent::DeviceUtil::isColorAspectsChanged() {
+    if (mColorAspectsChanged) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mColorAspectsChanged = false;
+        return true;
+    }
+
+    return false;
+}
+
 int32_t C2VdecComponent::DeviceUtil::getPropertyDoubleWrite() {
-    char value[PROPERTY_VALUE_MAX];
-    property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, "-1");
-    int32_t doubleWrite = atoi(value);
-    CODEC2_LOG(CODEC2_LOG_INFO, "get property double write:%d", doubleWrite);
+    int32_t doubleWrite = property_get_int32(C2_PROPERTY_VDEC_DOUBLEWRITE, -1);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "get property double write:%d", doubleWrite);
     return doubleWrite;
 }
 
 uint64_t C2VdecComponent::DeviceUtil::getUsageFromDouleWrite(uint32_t doublewrite) {
-    uint64_t usage = am_gralloc_get_video_decoder_full_buffer_usage();
+    uint64_t usage = 0;
     switch (doublewrite) {
         case 1:
         case 0x10:
@@ -949,38 +980,40 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDouleWrite(uint32_t doublewrit
 
 bool C2VdecComponent::DeviceUtil::checkDvProfileAndLayer() {
     bool uselayer = false;
-    C2StreamProfileLevelInfo::input inputProfile;
-    mIntfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
-    if (inputProfile) {
-        InputCodec codecType;
-        switch (inputProfile.profile)
-        {
-            case C2Config::PROFILE_DV_AV_PER:
-            case C2Config::PROFILE_DV_AV_PEN:
-            case C2Config::PROFILE_DV_AV_09:
-                codecType = InputCodec::DVAV;
-                break;
-            case C2Config::PROFILE_DV_HE_DER:
-            case C2Config::PROFILE_DV_HE_DEN:
-            case C2Config::PROFILE_DV_HE_04:
-            case C2Config::PROFILE_DV_HE_05:
-            case C2Config::PROFILE_DV_HE_DTH:
-            case C2Config::PROFILE_DV_HE_07:
-            case C2Config::PROFILE_DV_HE_08:
-                codecType = InputCodec::DVHE;
-                break;
-            case C2Config::PROFILE_DV_AV1_10:
-                codecType = InputCodec::DVAV1;
-                break;
-            default:
-                codecType = InputCodec::UNKNOWN;
-                break;
+    C2StreamProfileLevelInfo::input inputProfile = {0};
+    c2_status_t err = mIntfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
+    if (err == C2_OK) {
+        if (inputProfile) {
+            InputCodec codecType;
+            switch (inputProfile.profile)
+            {
+                case C2Config::PROFILE_DV_AV_PER:
+                case C2Config::PROFILE_DV_AV_PEN:
+                case C2Config::PROFILE_DV_AV_09:
+                    codecType = InputCodec::DVAV;
+                    break;
+                case C2Config::PROFILE_DV_HE_DER:
+                case C2Config::PROFILE_DV_HE_DEN:
+                case C2Config::PROFILE_DV_HE_04:
+                case C2Config::PROFILE_DV_HE_05:
+                case C2Config::PROFILE_DV_HE_DTH:
+                case C2Config::PROFILE_DV_HE_07:
+                case C2Config::PROFILE_DV_HE_08:
+                    codecType = InputCodec::DVHE;
+                    break;
+                case C2Config::PROFILE_DV_AV1_10:
+                    codecType = InputCodec::DVAV1;
+                    break;
+                default:
+                    codecType = InputCodec::UNKNOWN;
+                    break;
+            }
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"update input Codec profile to %d",codecType);
+            if (inputProfile.profile == C2Config::PROFILE_DV_HE_04) {
+                uselayer = true;
+            }
+            mIntfImpl->updateInputCodec(codecType);
         }
-        C2VdecMDU_LOG(CODEC2_LOG_INFO,"update input Codec profile to %d",codecType);
-        if (inputProfile.profile == C2Config::PROFILE_DV_HE_04) {
-            uselayer = true;
-        }
-        mIntfImpl->updateInputCodec(codecType);
     }
     return uselayer;
 }
@@ -1000,7 +1033,7 @@ bool C2VdecComponent::DeviceUtil::isYcbcRP010Stream() const {
 }
 
 uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
-    uint64_t usage = am_gralloc_get_video_decoder_full_buffer_usage();
+    uint64_t usage = 0;
 
     if (mUseSurfaceTexture || mNoSurface) {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
@@ -1008,7 +1041,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
         if (isYcbcRP010Stream()) {
             usage = rawUsage | GRALLOC1_PRODUCER_USAGE_PRIVATE_3;
         }
-        CODEC2_LOG(CODEC2_LOG_INFO,"[%s:%d] usage:%llx raw usage:%llx",__func__, __LINE__,
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] usage:%llx raw usage:%llx",__func__, __LINE__,
                     (unsigned long long)usage, (unsigned long long)rawUsage);
     } else {
         uint32_t doubleWrite = getDoubleWriteModeValue();
@@ -1205,30 +1238,8 @@ bool C2VdecComponent::DeviceUtil::getHDR10PlusData(std::string &data)
     return false;
 }
 
-void C2VdecComponent::DeviceUtil::save_stream_info(uint64_t timestamp, int filledlen) {
-    if (mInPutWorkCount == 0) {
-        mAmlStreamInfo.pts_0 = timestamp;
-        mAmlStreamInfo.len_0 = filledlen;
-    } else if (mInPutWorkCount == 1) {
-        mAmlStreamInfo.pts_1 = timestamp;
-        mAmlStreamInfo.len_1 = filledlen;
-    } else if (mInPutWorkCount == 2) {
-        mAmlStreamInfo.pts_2 = timestamp;
-        mAmlStreamInfo.len_2 = filledlen;
-    } else if (mInPutWorkCount == 3) {
-        check_stream_info();
-    }
-    mInPutWorkCount++;
-}
-
-void C2VdecComponent::DeviceUtil::check_stream_info() {
-    if (mInPutWorkCount == 3 && mAmlStreamInfo.pts_0 == 0
-            && mAmlStreamInfo.pts_1 == 0
-            && mAmlStreamInfo.pts_2 == 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO,"First 3 pts all 0, pts invalid, use default framerate");
-        mInPtsInvalid = true;
-        return;
-    }
+void C2VdecComponent::DeviceUtil::setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
+    mHDRStaticInfoColorAspects = coloraspect;
 }
 
 void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size) {
@@ -1342,7 +1353,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
 
 bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
     if ((mIntfImpl->getInputCodec() == InputCodec::H264) && mEnableAvc4kMMU) {
-        C2StreamPictureSizeInfo::output output;
+        C2StreamPictureSizeInfo::output output = {0};
         c2_status_t err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
         if (err != C2_OK)
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query PictureSize error for avc 4k mmu", __func__, __LINE__);
@@ -1350,7 +1361,7 @@ bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
             C2VdecMDU_LOG(CODEC2_LOG_INFO, "mUseSurfaceTexture = %d, DO NOT Enable MMU", mUseSurfaceTexture);
         else if (output.width * output.height >= 3840 * 2160) {
             C2VdecMDU_LOG(CODEC2_LOG_INFO, "4k H264 Stream use MMU, width:%d height:%d",
-                      output.width, output.height);
+                    output.width, output.height);
             return true;
         }
     }

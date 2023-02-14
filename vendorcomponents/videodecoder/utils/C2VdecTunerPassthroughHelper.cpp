@@ -154,12 +154,20 @@ void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough
 }
 
 int C2VdecComponent::TunerPassthroughHelper::notifyTunerPassthroughRenderTimeCallback(void* obj, void* args) {
+    if (obj == NULL || args == NULL) {
+        CODEC2_LOG(CODEC2_LOG_ERR,"%s args error, please check it.", __func__);
+        return -1;
+    }
     C2VdecComponent::TunerPassthroughHelper* pPassthroughHelper = (C2VdecComponent::TunerPassthroughHelper*)obj;
     struct renderTime* rendertime = (struct renderTime*)args;
     pPassthroughHelper->postNotifyRenderTimeTunerPassthrough(rendertime);
     return 0;
 }
 int C2VdecComponent::TunerPassthroughHelper::postNotifyRenderTimeTunerPassthrough(struct renderTime* rendertime) {
+    if (rendertime == NULL) {
+        CODEC2_LOG(CODEC2_LOG_ERR,"%s args error, please check it.", __func__);
+        return -1;
+    }
     struct renderTime renderTime = {
         .mediaUs = rendertime->mediaUs,
         .renderUs = rendertime->renderUs,
@@ -173,13 +181,14 @@ int C2VdecComponent::TunerPassthroughHelper::postNotifyRenderTimeTunerPassthroug
 int C2VdecComponent::TunerPassthroughHelper::sendOutputBufferToWorkTunerPassthrough(struct renderTime* rendertime) {
     std::unique_ptr<C2Work> work(new C2Work);
 
-    work->worklets.clear();
-    work->worklets.emplace_back(new C2Worklet);
-    work->worklets.front()->output.ordinal.timestamp = rendertime->mediaUs;
-    mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs * 1000;
-    work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
-    mComp->reportWork(std::move(work));
-
+    if (work != NULL && mComp != NULL) {
+        work->worklets.clear();
+        work->worklets.emplace_back(new C2Worklet);
+        work->worklets.front()->output.ordinal.timestamp = rendertime->mediaUs;
+        mIntfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs * 1000;
+        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mIntfImpl->mTunnelSystemTimeOut)));
+        mComp->reportWork(std::move(work));
+    }
     return true;
 }
 

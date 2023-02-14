@@ -243,6 +243,11 @@ bool C2VdecCodecConfig::JsonValueToCodecsMap(Json::Value& json) {
         C2VendorCodec codec_type = (C2VendorCodec)i;
         const char* codec_name = NULL;
         GetDecName(codec_type, codec_name);
+        if (codec_name == NULL) {
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"codecname is null and return.");
+            return false;
+        }
+
         if (json.isMember(codec_name)) {
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"codecname:%s", codec_name);
             Json::Value& subVal = json[codec_name];
@@ -294,7 +299,7 @@ bool C2VdecCodecConfig::JsonValueToCodecsMap(Json::Value& json) {
                     }
                 }
             }
-            if (codec_name)
+            if (codec_name != NULL)
                 mCodecsMap.insert(std::pair<const char*, std::vector<Feature>>(codec_name, vec));
         }
     }

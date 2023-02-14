@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <iostream>
 #include <algorithm>
+#include <exception>
 
 #include <bufferpool/BufferPoolTypes.h>
 
@@ -59,9 +60,15 @@ class C2VdecBlockPoolUtil::BlockingBlockPool
 {
 public:
     BlockingBlockPool(const std::shared_ptr<C2BlockPool> &base) {
-        bool useSurface = C2PlatformAllocatorStore::BUFFERQUEUE == base->getAllocatorId();
+        C2Allocator::id_t id = base->getAllocatorId();
+        if (id == C2Allocator::BAD_ID) {
+            CODEC2_LOG(CODEC2_LOG_ERR, "[%s] got allocator id failed.", __func__);
+            return;
+        }
+
+        bool useSurface = C2PlatformAllocatorStore::BUFFERQUEUE == id;
         std::shared_ptr<C2AllocatorStore> allocatorStore = GetCodec2PlatformAllocatorStore();
-        c2_status_t status = allocatorStore->fetchAllocator(base->getAllocatorId(), &mAllocatorBase);
+        c2_status_t status = allocatorStore->fetchAllocator(id, &mAllocatorBase);
         propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
 
         if (status != C2_OK) {
@@ -129,22 +136,27 @@ private:
     std::shared_ptr<C2Allocator> mAllocatorBase;
 };
 
-C2VdecBlockPoolUtil::C2VdecBlockPoolUtil(std::shared_ptr<C2BlockPool> blockPool)
-    : mBlockingPool(std::make_shared<BlockingBlockPool>(blockPool)),
-      mGraphicBufferId(0),
-      mMaxDequeuedBufferNum(0),
-      mFetchBlockCount(0),
-      mFetchBlockSuccessCount(0) {
-    mUseSurface = blockPool->getAllocatorId() == C2PlatformAllocatorStore::BUFFERQUEUE;
+C2VdecBlockPoolUtil::C2VdecBlockPoolUtil(std::shared_ptr<C2BlockPool> blockPool) {
+    mBlockingPool = std::make_shared<BlockingBlockPool> (blockPool);
+    mGraphicBufferId = 0;
+    mMaxDequeuedBufferNum = 0;
+    mFetchBlockCount = 0;
+    mFetchBlockSuccessCount = 0;
+    C2Allocator::id_t id = blockPool->getAllocatorId();
+    if (C2Allocator::BAD_ID == id) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s] got allocator id failed.", __func__);
+        return;
+    }
+    mUseSurface = (id == C2PlatformAllocatorStore::BUFFERQUEUE);
     CODEC2_LOG(CODEC2_LOG_INFO,"pool id:%" PRId64 " use surface:%d", blockPool->getLocalId(), mUseSurface);
 }
 
 C2VdecBlockPoolUtil::~C2VdecBlockPoolUtil() {
     mGraphicBufferId = 0;
-
     auto iter = mRawGraphicBlockInfo.begin();
+    float fetchBlockLevel =  (float)mFetchBlockSuccessCount/(float)mFetchBlockCount;
     for (;iter != mRawGraphicBlockInfo.end(); iter++) {
-        CODEC2_LOG(CODEC2_LOG_INFO, "[%s] block id:%d fd:%d dupFd:%d use count:%ld", __func__,
+        CODEC2_LOG(CODEC2_LOG_INFO, "~C2VdecBlockPoolUtil block id:%d fd:%d dupFd:%d use count:%ld",
             iter->second.mBlockId, iter->second.mFd, iter->second.mDupFd,
             iter->second.mGraphicBlock.use_count());
 
@@ -159,13 +171,13 @@ C2VdecBlockPoolUtil::~C2VdecBlockPoolUtil() {
         }
         iter->second.mGraphicBlock.reset();
     }
-    CODEC2_LOG(CODEC2_LOG_INFO, "%s success:%" PRId64 " count:%" PRId64 " fetch level:%f ", __func__, mFetchBlockSuccessCount, mFetchBlockCount,
-         (float)mFetchBlockSuccessCount/(float)mFetchBlockCount);
     mRawGraphicBlockInfo.clear();
     if (mBlockingPool != nullptr) {
         mBlockingPool.reset();
         mBlockingPool = nullptr;
     }
+
+    CODEC2_LOG(CODEC2_LOG_INFO, "~C2VdecBlockPoolUtil success:%" PRId64 " count:%" PRId64 " fetch level:%f ", mFetchBlockSuccessCount, mFetchBlockCount, fetchBlockLevel);
 }
 
 c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t height, uint32_t format,
@@ -175,24 +187,16 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
     ALOG_ASSERT(mBlockingPool != nullptr);
     std::lock_guard<std::mutex> lock(mMutex);
     std::shared_ptr<C2GraphicBlock> fetchBlock;
-    c2_status_t err = C2_TIMED_OUT;
-    if (mNextFetchTimeUs != 0) {
-        int delayUs = GetNowUs() - mNextFetchTimeUs;
-        if (delayUs > 0) {
-            ::usleep(delayUs);
-        }
-        mNextFetchTimeUs = 0;
-    }
 
     if (mUseSurface && (mRawGraphicBlockInfo.size() >= kDefaultDequeueBlockCountMax)) {
         CODEC2_LOG(CODEC2_LOG_ERR, "cancel fetch block. please check the number of block.");
         return C2_BLOCKING;
     }
     mFetchBlockCount ++;
-    err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock);
+    c2_status_t err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock);
     if (err == C2_OK) {
         ALOG_ASSERT(fetchBlock != nullptr);
-        uint64_t inode;
+        uint64_t inode = 0;
         int fd = fetchBlock->handle()->data[0];
         mFetchBlockSuccessCount++;
         getINodeFromFd(fd, &inode);
@@ -201,9 +205,10 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
             std::lock_guard<std::mutex> lock(mBlockBufferMutex);
             auto iter = mRawGraphicBlockInfo.find(inode);
             if (iter != mRawGraphicBlockInfo.end()) {
-                struct BlockBufferInfo info = mRawGraphicBlockInfo[inode];
+                struct BlockBufferInfo info = iter->second;
+                int32_t blockInfoSize = mRawGraphicBlockInfo.size();
                 CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block success, current block inode:%" PRId64" fd:%d -> %d id:%d BlockInfoSize:%d Max:%d",
-                    inode, info.mFd, fd, info.mBlockId, (int)mRawGraphicBlockInfo.size(), (int)mMaxDequeuedBufferNum);
+                    inode, info.mFd, fd, info.mBlockId, blockInfoSize, mMaxDequeuedBufferNum);
             } else {
                 if (mUseSurface) {
                     c2_status_t ret = appendOutputGraphicBlock(fetchBlock, inode, fd);
@@ -220,7 +225,6 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
                     else if (mRawGraphicBlockInfo.size() >= mMaxDequeuedBufferNum) {
                         CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Current block info size:%d",(int)mRawGraphicBlockInfo.size());
                         fetchBlock.reset();
-                        mNextFetchTimeUs = GetNowUs();
                         return C2_BLOCKING;
                     }
                 }
@@ -229,16 +233,13 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
     }
     else if (err == C2_TIMED_OUT) {
         CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch block time out and try again now.");
-        mNextFetchTimeUs = GetNowUs();
         return err;
     }
     else {
         CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "No buffer could be recycled now, state:%d", err);
-        mNextFetchTimeUs = GetNowUs();
         return err;
     }
 
-    mNextFetchTimeUs = 0;
     ALOG_ASSERT(fetchBlock != nullptr);
     *block = std::move(fetchBlock);
     return C2_OK;
@@ -337,7 +338,7 @@ c2_status_t C2VdecBlockPoolUtil::getBlockIdByGraphicBlock(std::shared_ptr<C2Grap
     }
     std::lock_guard<std::mutex> lock(mBlockBufferMutex);
     int fd = block->handle()->data[0];
-    uint64_t inode;
+    uint64_t inode = 0;
     getINodeFromFd(fd, &inode);
     auto info = mRawGraphicBlockInfo.find(inode);
     if (info == mRawGraphicBlockInfo.end()) {
@@ -367,7 +368,7 @@ c2_status_t C2VdecBlockPoolUtil::getBlockFd(std::shared_ptr<C2GraphicBlock> bloc
         return C2_BAD_VALUE;
     }
     std::lock_guard<std::mutex> lock(mBlockBufferMutex);
-    uint64_t inode;
+    uint64_t inode = 0;
     getINodeFromFd(block->handle()->data[0], &inode);
     auto info = mRawGraphicBlockInfo.find(inode);
     if (info == mRawGraphicBlockInfo.end()) {
@@ -385,8 +386,8 @@ c2_status_t C2VdecBlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Grap
         return C2_BAD_VALUE;
     }
 
-    struct BlockBufferInfo info;
-    //std::lock_guard<std::mutex> lock(mBlockBufferMutex);
+    struct BlockBufferInfo info = {-1, -1, 0, NULL};
+        //std::lock_guard<std::mutex> lock(mBlockBufferMutex);
     if (mUseSurface) {
         info.mFd = fd;
         info.mDupFd = dup(block->handle()->data[0]);
@@ -403,6 +404,7 @@ c2_status_t C2VdecBlockPoolUtil::appendOutputGraphicBlock(std::shared_ptr<C2Grap
         mRawGraphicBlockInfo.insert(std::pair<uint64_t, BlockBufferInfo>(inode, info));
         mGraphicBufferId++;
     }
+
     CODEC2_LOG(CODEC2_LOG_INFO, "Fetch the new block(ino:%" PRId64 " fd:%d dup fd:%d id:%d) and append.", inode, info.mFd, info.mDupFd, info.mBlockId);
     return C2_OK;
 }
@@ -478,6 +480,13 @@ uint64_t C2VdecBlockPoolUtil::getBlockInodeByBlockId(uint32_t blockId) {
     }
 
     return 0;
+}
+
+void C2VdecBlockPoolUtil::resetBlockPool(std::shared_ptr<C2BlockPool> blockPool) {
+    if (blockPool == NULL) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "reset block pool failed");
+    }
+    mBlockingPool->resetPool(blockPool);
 }
 
 }

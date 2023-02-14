@@ -23,12 +23,20 @@ const int kSmoothnessFactor = 4;
 
 #define GraphicBlockStateChange(comp, info, to) \
     do {\
+        if (comp == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "component is null, please check it."); \
+            break; \
+        }\
+        if (info == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "info is null, please check it."); \
+            break; \
+        }\
         bool stateChanged = false;\
         if (info->mState != to) {\
             stateChanged = true;\
             comp->mGraphicBlockStateCount[(int)info->mState] --;\
         }\
-        if (stateChanged) {\
+        if (stateChanged  && to < GraphicBlockInfo::State::GRAPHIC_BLOCK_OWNER_MAX) {\
             info->mState = to;\
             comp->mGraphicBlockStateCount[(int)info->mState] ++;\
         }\
@@ -36,28 +44,61 @@ const int kSmoothnessFactor = 4;
 
 #define GraphicBlockStateInit(comp, info, state) \
     do {\
-        info->mState = state;\
-        comp->mGraphicBlockStateCount[(int)info->mState] ++;\
+        if (comp == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "component is null, please check it."); \
+            break; \
+        }\
+        if (info == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "info is null, please check it."); \
+            break; \
+        }\
+        if (state < GraphicBlockInfo::State::GRAPHIC_BLOCK_OWNER_MAX) { \
+            info->mState = state;\
+            comp->mGraphicBlockStateCount[(int)info->mState] ++;\
+        }\
     } while (0)
 
 #define GraphicBlockStateReset(comp, info) \
     do {\
-        comp->mGraphicBlockStateCount[(int)info->mState] --;\
+        if (comp == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "component is null, please check it."); \
+            break; \
+        }\
+        if (info == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "info is null, please check it."); \
+            break; \
+        }\
+        if (info->mState < GraphicBlockInfo::State::GRAPHIC_BLOCK_OWNER_MAX)\
+            comp->mGraphicBlockStateCount[(int)info->mState] --;\
     } while (0)
 
 #define GraphicBlockStateInc(comp, state) \
     do {\
-        comp->mGraphicBlockStateCount[(int)state] ++;\
+        if (comp == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "component is null, please check it."); \
+            break; \
+        }\
+        if (state < GraphicBlockInfo::State::GRAPHIC_BLOCK_OWNER_MAX)\
+            comp->mGraphicBlockStateCount[(int)state] ++;\
     } while (0)
 
 #define GraphicBlockStateDec(comp, state) \
     do {\
-        comp->mGraphicBlockStateCount[(int)state] --;\
+        if (comp == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR,"component is null, please check it."); \
+            break; \
+        } \
+        if (state < GraphicBlockInfo::State::GRAPHIC_BLOCK_OWNER_MAX)\
+            comp->mGraphicBlockStateCount[(int)state] --;\
     } while (0)
 
 #define BufferStatus(comp, level, fmt, str...) \
     do {\
-        if (comp->isNonTunnelMode() && comp->mGraphicBlocks.size()) \
+        if (comp == NULL) { \
+            CODEC2_LOG(CODEC2_LOG_ERR, "component is null, please check it."); \
+            break; \
+        } \
+        if (comp->isNonTunnelMode() && comp->mGraphicBlocks.empty() == false) \
             CODEC2_LOG(level, "[%d##%d]" fmt " {IN=%d/%d, OUT=%d/%zu[%s(%d) %s(%d) %s(%d)]}",\
                     comp->mCurInstanceID, \
                     mInstanceNum, \
@@ -72,7 +113,7 @@ const int kSmoothnessFactor = 4;
                     comp->mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_ACCELERATOR],\
                     comp->GraphicBlockState(GraphicBlockInfo::State::OWNED_BY_CLIENT),\
                     comp->mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT]);\
-        else if (comp->isTunnelMode() && comp->mGraphicBlocks.size())\
+        else if (comp->isTunnelMode() && comp->mGraphicBlocks.empty() == false)\
             CODEC2_LOG(level, "[%d##%d]" fmt " {IN=%d/%d, OUT=%d/%zu[%s(%d) %s(%d) %s(%d)]}",\
                     comp->mCurInstanceID, \
                     mInstanceNum, \

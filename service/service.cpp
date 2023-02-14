@@ -70,7 +70,7 @@ extern "C"  void printBuildInfo() {
 
 int main(int /* argc */, char** /* argv */) {
     using namespace ::android;
-    LOG(DEBUG) << "android.hardware.media.c2@1.2-service starting...";
+    ALOGI("android.hardware.media.c2@1.2-service starting...");
 
     // Set up minijail to limit system calls.
     signal(SIGPIPE, SIG_IGN);

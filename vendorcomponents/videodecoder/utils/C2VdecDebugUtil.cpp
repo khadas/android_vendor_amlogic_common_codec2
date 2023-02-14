@@ -30,6 +30,8 @@
 #include <C2VdecDebugUtil.h>
 #include <C2VdecInterfaceImpl.h>
 
+#define DUMP_PROCESS_FDINFO_ENABLE (0)
+
 namespace android {
 #define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
     do {                                                                   \
@@ -67,10 +69,12 @@ void C2VdecComponent::DebugUtil::showGraphicBlockInfo() {
 }
 
 void C2VdecComponent::DebugUtil::startShowPipeLineBuffer() {
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
-    BufferStatus(mComp, CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64 "(%d)/%" PRId64 "(%zu)}, pipeline status",
+    if (mComp != NULL) {
+        RETURN_ON_UNINITIALIZED_OR_ERROR();
+        BufferStatus(mComp, CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64 "(%d)/%" PRId64 "(%zu)}, pipeline status",
             mComp->mInputWorkCount, mComp->mInputCSDWorkCount,
             mComp->mOutputWorkCount, mComp->mPendingBuffersToWork.size());
+    }
 #if 0
     BufferStatus(mComp, CODEC2_LOG_INFO, "pipeline status");
     C2Vdec_LOG(CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64"(%d)/%" PRId64"(%zu)}",
@@ -83,32 +87,41 @@ void C2VdecComponent::DebugUtil::startShowPipeLineBuffer() {
 }
 
 void C2VdecComponent::DebugUtil::showCurrentProcessFdInfo() {
+#if DUMP_PROCESS_FDINFO_ENABLE
     int iPid = (int)getpid();
     std::string path;
-    struct dirent *dir_info;
     path.append("/proc/" + std::to_string(iPid) + "/fdinfo/");
     DIR *dir= opendir(path.c_str());
-    dir_info = readdir(dir);
-    while (dir_info != NULL) {
-        if (strcmp(dir_info->d_name, ".") != 0 && strcmp(dir_info->d_name, "..") != 0) {
-            std::string p = path;
-            p.append(dir_info->d_name);
-
-            std::ifstream  srcFile(p.c_str(), std::ios::in | std::ios::binary);
-            std::string data;
-            if (!srcFile.fail()) {
-                std::string tmp;
-                while (srcFile.peek() != EOF) {
-                    srcFile >> tmp;
-                    data.append(" " + tmp);
-                    tmp.clear();
+    if (dir != NULL) {
+        struct dirent * dir_info = readdir(dir);
+        while (dir_info != NULL) {
+            if (strcmp(dir_info->d_name, ".") != 0 && strcmp(dir_info->d_name, "..") != 0) {
+                std::string dirPath;
+                dirPath.append(path.append(dir_info->d_name).c_str());
+                std::ifstream srcFile(dirPath.c_str(), std::ios::in);
+                if (!srcFile.is_open()) {
+                    C2VdecDU_LOG(CODEC2_LOG_ERR, "[%s] open file failed.", __func__);
+                    closedir(dir);
+                    return;
                 }
+
+                std::string fdInfo;
+                if (!srcFile.fail()) {
+                    while (srcFile.peek() != EOF) {
+                        char temp[32] = {0};
+                        srcFile.getline(temp, 32);
+                        fdInfo.append(temp);
+                    }
+                }
+
+                srcFile.close();
+                C2VdecDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] info: fd(%s) %s", __func__ ,dir_info->d_name, fdInfo.c_str());
             }
-            srcFile.close();
-            C2VdecDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] info: fd(%s) %s", __func__ ,dir_info->d_name, data.c_str());
+            dir_info = readdir(dir);
         }
-        dir_info = readdir(dir);
     }
+    closedir(dir);
+#endif
 }
 
 }

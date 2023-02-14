@@ -182,79 +182,52 @@ c2_status_t C2VdecComponent::IntfImpl::config(
     std::vector<std::unique_ptr<C2SettingResult>>* const failures,
     bool updateParams,
     std::vector<std::shared_ptr<C2Param>> *changes) {
+    DCHECK(mComponent != NULL);
+
     C2InterfaceHelper::config(params, mayBlock, failures, updateParams, changes);
 
-    size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, kMaxInputBufferSize);
-    bool isLowMemDevice = !property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    if (mComponent == NULL) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s##%d] component is null, config param error!", __func__, __LINE__);
+        return C2_BAD_STATE;
+    }
 
     for (C2Param* const param : params) {
         switch (param->coreIndex().coreIndex()) {
             case C2PortTunneledModeTuning::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config",
-                        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
-                if (mComponent) {
-                    mComponent->onConfigureTunnelMode();
-                    // change to bufferpool
-                    mOutputSurfaceAllocatorId->value = C2PlatformAllocatorStore::GRALLOC;
-                    mActualOutputDelay->value = kDefaultOutputDelayTunnel;
-                }
+                onTunneledModeTuningConfigParam();
                 break;
             case C2VendorTunerHalParam::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
-                if (mComponent) {
-                    mComponent->onConfigureTunerPassthroughMode();
-                }
+                onVendorTunerHalConfigParam();
                 break;
             case C2VendorTunerPassthroughTrickMode::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough trick mode config",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
-                if (mComponent) {
-                    mComponent->onConfigureTunerPassthroughTrickMode();
-                }
+                onTunerPassthroughTrickModeConfigParam();
                 break;
             case C2VdecWorkMode::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mVdecWorkMode->value);
+                onVdecWorkModeConfigParam();
                 break;
             case C2DataSourceType::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mDataSourceType->value);
+                onDataSourceTypeConfigParam();
                 break;
             case C2StreamModeInputDelay::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode input delay :%d",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModeInputDelay->value);
-                mActualInputDelay->value = mStreamModeInputDelay->value;
+                onStreamModeInputDelayConfigParam();
                 break;
             case C2StreamModePipeLineDelay::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode pipeline delay :%d",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModePipeLineDelay->value);
-                mActualPipelineDelay->value = mStreamModePipeLineDelay->value;
+                onStreamModePipeLineDelayConfigParam();
                 break;
             case C2StreamTunnelStartRender::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config tunnel startRender",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
-                mComponent->onAndroidVideoPeek();
+                onStreamTunnelStartRenderConfigParam();
                 break;
             case C2StreamHdr10PlusInfo::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config HDR10PlusInfo",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+                onStreamHdr10PlusInfoConfigParam();
                 break;
             case C2StreamMaxBufferSizeInfo::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config C2StreamMaxBufferSizeInfo",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
-                if (isLowMemDevice && (mMaxInputSize->value > maxInputSize)) {
-                    CODEC2_LOG(CODEC2_LOG_INFO, "set max input size to %zu", maxInputSize);
-                    mActualInputDelay->value = 0;
-                    mMaxInputSize->value = maxInputSize;
-                }
+                onStreamMaxBufferSizeInfoConfigParam();
                 break;
             case C2VendorNetflixVPeek::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config netflix vpeek:%d", C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mVendorNetflixVPeek->vpeek);
+                onNetflixVPeekConfigParam();
                 break;
             case C2ErrorPolicy::CORE_INDEX:
-                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] config error policy :%d",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mErrorPolicy->value);
+                onErrorPolicyConfigParam();
                 break;
             case C2StreamPictureSizeInfo::CORE_INDEX: {
                     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config picture w:%d h:%d",
@@ -293,69 +266,78 @@ void C2VdecComponent::IntfImpl::updateHdr10PlusInfoToWork(C2Work& work) {
     work.worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mHdrDynamicInfoOutput.get()));
 }
 
+void C2VdecComponent::IntfImpl::updateInputCodec(InputCodec videotype) {
+    if (InputCodec::DVHE <= videotype && videotype <= InputCodec::DVAV1) {
+        mInputCodec = videotype;
+    }
+}
+
 C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2ReflectorHelper>& helper)
-      : C2InterfaceHelper(helper), mInitStatus(C2_OK) {
+      : C2InterfaceHelper(helper) {
     setDerivedInstance(this);
 
+    std::string inputMime;
+    mComponent = NULL;
+    mInitStatus = C2_OK;
+    mCodecProfile = media::VIDEO_CODEC_PROFILE_UNKNOWN;
+
     // TODO: use factory function to determine whether V4L2 stream or slice API is.
-    char inputMime[128];
     mInputCodec = getInputCodecFromDecoderName(name);
     mSecureMode = name.find(".secure") != std::string::npos;
     //profile and level
-    switch (mInputCodec)
-    {
+    switch (mInputCodec) {
         case InputCodec::H264:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AVC);
+            inputMime = MEDIA_MIMETYPE_VIDEO_AVC;
             onAvcDeclareParam();
-            break;
+        break;
         case InputCodec::H265:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_HEVC);
+            inputMime = MEDIA_MIMETYPE_VIDEO_HEVC;
             onHevcDeclareParam();
-            break;
+        break;
         case InputCodec::VP9:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_VP9);
+            inputMime = MEDIA_MIMETYPE_VIDEO_VP9;
             onVp9DeclareParam();
-            break;
+        break;
         case InputCodec::AV1:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AV1);
+            inputMime = MEDIA_MIMETYPE_VIDEO_AV1;
             onAv1DeclareParam();
-            break;
+        break;
         case InputCodec::DVHE:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
+            inputMime = MEDIA_MIMETYPE_VIDEO_DOLBY_VISION;
             onDvheDeclareParam();
-            break;
+        break;
         case InputCodec::DVAV:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
+            inputMime = MEDIA_MIMETYPE_VIDEO_DOLBY_VISION;
             onDvavDeclareParam();
-            break;
+        break;
         case InputCodec::DVAV1:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
+            inputMime = MEDIA_MIMETYPE_VIDEO_DOLBY_VISION;
             onDvav1DeclareParam();
-            break;
+        break;
         case InputCodec::MP2V:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_MPEG2);
+            inputMime = MEDIA_MIMETYPE_VIDEO_MPEG2;
             onMp2vDeclareParam();
-            break;
+        break;
         case InputCodec::MP4V:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_MPEG4);
+            inputMime = MEDIA_MIMETYPE_VIDEO_MPEG4;
             onMp4vDeclareParam();
-            break;
+        break;
         case InputCodec::MJPG:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_MJPEG);
+            inputMime = MEDIA_MIMETYPE_VIDEO_MJPEG;
             onMjpgDeclareParam();
-            break;
+        break;
         case InputCodec::AVS2:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AVS2);
+            inputMime = MEDIA_MIMETYPE_VIDEO_AVS2;
             onAvs2DeclareParam();
-            break;
+        break;
         case InputCodec::AVS:
-            strcpy(inputMime, MEDIA_MIMETYPE_VIDEO_AVS);
+            inputMime = MEDIA_MIMETYPE_VIDEO_AVS;
             onAvsDeclareParam();
-            break;
+        break;
         default:
             CODEC2_LOG(CODEC2_LOG_ERR, "Invalid component name: %s", name.c_str());
             mInitStatus = C2_BAD_VALUE;
-            return;
+        return;
     }
 
     //HDR
@@ -389,7 +371,7 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
     onTunerPassthroughDeclareParam();
 
     //buffer size
-    onBufferSizeDeclareParam(inputMime);
+    onBufferSizeDeclareParam(inputMime.c_str());
 
     //buffer pool
     onBufferPoolDeclareParam();
@@ -408,6 +390,7 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
 
     //enable avc 4k mmu
     onAvc4kMMUEnable();
+
 }
 
 void C2VdecComponent::IntfImpl::onAvcDeclareParam() {
@@ -1147,6 +1130,86 @@ void C2VdecComponent::IntfImpl::onAvc4kMMUEnable() {
                 .withFields({C2F(mAvc4kMMUMode, value).any()})
                 .withSetter(Setter<decltype(*mAvc4kMMUMode)>::StrictValueWithNoDeps)
         .build());
+}
+
+// config param
+void C2VdecComponent::IntfImpl::onTunneledModeTuningConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config",
+            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+    mComponent->onConfigureTunnelMode();
+    // change to bufferpool
+    mOutputSurfaceAllocatorId->value = C2PlatformAllocatorStore::GRALLOC;
+    mActualOutputDelay->value = kDefaultOutputDelayTunnel;
+}
+
+
+void C2VdecComponent::IntfImpl::onVendorTunerHalConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
+            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+    mComponent->onConfigureTunerPassthroughMode();
+}
+
+
+void C2VdecComponent::IntfImpl::onTunerPassthroughTrickModeConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough trick mode config",
+            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+    mComponent->onConfigureTunerPassthroughTrickMode();
+}
+
+void C2VdecComponent::IntfImpl::onVdecWorkModeConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
+            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mVdecWorkMode->value);
+}
+
+void C2VdecComponent::IntfImpl::onDataSourceTypeConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d", mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mDataSourceType->value);
+}
+
+void C2VdecComponent::IntfImpl::onStreamModeInputDelayConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode input delay :%d",
+        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModeInputDelay->value);
+    mActualInputDelay->value = mStreamModeInputDelay->value;
+}
+
+void C2VdecComponent::IntfImpl::onStreamModePipeLineDelayConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode pipeline delay :%d",
+        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModePipeLineDelay->value);
+    mActualPipelineDelay->value = mStreamModePipeLineDelay->value;
+}
+
+void C2VdecComponent::IntfImpl::onStreamTunnelStartRenderConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config tunnel startRender",
+        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+    mComponent->onAndroidVideoPeek();
+}
+
+void C2VdecComponent::IntfImpl::onStreamHdr10PlusInfoConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config HDR10PlusInfo",
+        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+}
+
+void C2VdecComponent::IntfImpl::onStreamMaxBufferSizeInfoConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config C2StreamMaxBufferSizeInfo",
+            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+
+    bool isLowMemDevice = !property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, kMaxInputBufferSize);
+
+    if (isLowMemDevice && (mMaxInputSize->value > maxInputSize)) {
+        CODEC2_LOG(CODEC2_LOG_INFO, "set max input size to %zu", maxInputSize);
+        mActualInputDelay->value = 0;
+        mMaxInputSize->value = maxInputSize;
+    }
+}
+
+void C2VdecComponent::IntfImpl::onNetflixVPeekConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config netflix vpeek:%d",
+        C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mVendorNetflixVPeek->vpeek);
+}
+
+void C2VdecComponent::IntfImpl::onErrorPolicyConfigParam() {
+   CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] config error policy :%d",
+                        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mErrorPolicy->value);
 }
 
 }

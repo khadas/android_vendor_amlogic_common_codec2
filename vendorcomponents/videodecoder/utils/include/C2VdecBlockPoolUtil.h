@@ -125,6 +125,7 @@ public:
      */
     uint64_t getBlockInodeByBlockId(uint32_t blockId);
 
+    void resetBlockPool(std::shared_ptr<C2BlockPool> blockPool);
 private:
     /**
      * @brief Add fetch new block to mRawGraphicBlockInfo.
@@ -150,28 +151,22 @@ private:
     int32_t mGraphicBufferId;
     std::mutex mMutex;
 
-    // The Maximum number of buffers requested.
-    size_t mMaxDequeuedBufferNum;
+    int32_t mMaxDequeuedBufferNum;
 
     // The indicator of whether buffer pool is used surface.
-    bool mUseSurface;
+    bool mUseSurface = false;
 
     // Internal struct to keep the information of a specific buffer.
     struct BlockBufferInfo
     {
-        int mFd = -1;
-        int mDupFd = -1;
+        int mFd;
+        int mDupFd;
         uint32_t mBlockId;
         std::shared_ptr<C2GraphicBlock> mGraphicBlock;
     };
     std::mutex mBlockBufferMutex;
-
     // The map of storing fetch output buffer information.
     std::map<uint64_t, BlockBufferInfo> mRawGraphicBlockInfo;
-
-    // The timestamp for the next fetchGraphicBlock() call.
-    // Set when the previous fetchGraphicBlock() call timed out.
-    int64_t mNextFetchTimeUs GUARDED_BY(mMutex){0};
     // This count is used to count the number of fetchblock.
     int64_t mFetchBlockCount;
     // This count is used to count the number of successful fetchblock.

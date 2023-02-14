@@ -109,44 +109,16 @@ public:
     void onConfigureTunerPassthroughTrickMode();
 
     //for out use
-    IntfImpl* GetIntfImpl() {
-       return mIntfImpl.get();
-    }
+    bool isAmDolbyVision() {return mIsDolbyVision;}
+    bool isSecureMode() {return mSecureMode;}
+    bool isResolutionChanging ();
 
-    std::shared_ptr<C2VdecBlockPoolUtil> GetBlockPoolUtil() {
-        return mBlockPoolUtil;
-    }
-
-    std::shared_ptr<DeviceUtil> GetDeviceUtil() {
-        return mDeviceUtil;
-    }
-
-    scoped_refptr<::base::SingleThreadTaskRunner> GetTaskRunner() {
-        return mTaskRunner;
-    }
-
-    media::Size GetCurrentVideoSize() {
-        return mOutputFormat.mCodedSize;
-    }
-
-    bool isAmDolbyVision() {
-        return mIsDolbyVision;
-    }
-
-    bool isSecureMode() {
-        return mSecureMode;
-    }
-
-    bool isResolutionChanging () {
-        {
-            AutoMutex l(mResolutionChangingLock);
-            return mResolutionChanging;
-        }
-    }
-
-    VideoDecWraper* getCompVideoDecWraper() {
-        return  mVideoDecWraper.get();
-    }
+    IntfImpl* GetIntfImpl() {return mIntfImpl.get();}
+    std::shared_ptr<DeviceUtil> GetDeviceUtil() {return mDeviceUtil;}
+    std::shared_ptr<C2VdecBlockPoolUtil> GetBlockPoolUtil() {return mBlockPoolUtil;}
+    media::Size GetCurrentVideoSize() {return mOutputFormat.mCodedSize;}
+    scoped_refptr<::base::SingleThreadTaskRunner> GetTaskRunner() {return mTaskRunner;}
+    VideoDecWraper* getCompVideoDecWraper() {return mVideoDecWraper.get();}
 
     //for multi-instance trace
     std::ostringstream TRACE_NAME_IN_PTS;
@@ -355,7 +327,7 @@ private:
     void detectNoShowFrameWorksAndReportIfFinished(const C2WorkOrdinalStruct& currOrdinal);
     // For the frames that cannot be decoded by the decoder, the work ID is returned through the event,
     // and then directly returned to the framework for discarding.
-    void onErrorFrameWorksAndReportIfFinised(uint32_t bitstreamId);
+    void onErrorFrameWorksAndReportIfFinised(int32_t bitstreamId);
 
     void reportWorkForNoShowFrames();
     // Check if the corresponding work is finished by |bitstreamId|. If yes, make onWorkDone call to
@@ -482,8 +454,6 @@ private:
 
     // The indicator of whether component is in DolbyVision stream.
     bool mIsDolbyVision;
-
-    // The following members should be utilized on parent thread.
 
     // The input codec profile which is configured in component interface.
     media::VideoCodecProfile mCodecProfile;

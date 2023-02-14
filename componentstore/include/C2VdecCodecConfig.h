@@ -68,12 +68,12 @@ public:
             index(index_), name(name_), type(TYPE_INT_ARRAY) {svalIntArray.assign(val_.begin(), val_.end());}
         ~Feature() = default;
 
-        int32_t index;
+        int32_t index = 0;
         std::string name;
-        ValType type;
-        int32_t ival;
-        bool bval;
+        ValType type = ValType::TYPE_INVALID;
+        int32_t ival = 0;
         std::string sval;
+        bool bval = false;
         std::vector<std::string> svalStringArray;
         std::vector<int> svalIntArray;
     };

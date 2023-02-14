@@ -38,10 +38,10 @@ namespace android {
 
 #define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
 
-C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil(C2VdecComponent* comp):
-    mComp(comp),
-    mDequeueThread("C2VdecComponentDequeueThread") {
+C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil(C2VdecComponent* comp) {
+    mComp = comp;
     DCHECK(mComp != NULL);
+    mDequeueThread = new ::base::Thread("C2VdecDequeueThread");
     mIntfImpl = mComp->GetIntfImpl();
     DCHECK(mIntfImpl != NULL);
     mLastAllocBufferRetryTimeUs = -1;
@@ -49,11 +49,18 @@ C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil(C2VdecComponent* comp):
     C2VdecDQ_LOG(CODEC2_LOG_INFO, "Creat DequeueThreadUtil!!");
     mRunTaskLoop.store(false);
     mAllocBufferLoop.store(false);
+    mStreamDurationUs = 0;
+    mCurrentPixelFormat = 0;
+    memset(&mCurrentBlockSize, 0, sizeof(mCurrentBlockSize));
 }
 
 C2VdecComponent::DequeueThreadUtil::~DequeueThreadUtil() {
     C2VdecDQ_LOG(CODEC2_LOG_INFO, "~DequeueThreadUtil!!");
     StopRunDequeueTask();
+    if (mDequeueThread != NULL) {
+        delete mDequeueThread;
+        mDequeueThread = NULL;
+    }
 }
 
 bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, uint32_t pixelFormat) {
@@ -62,11 +69,11 @@ bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, u
         C2VdecDQ_LOG(CODEC2_LOG_ERR,"dequeue thread is running, this is error!! return.");
         return false;
     }
-    if (!mDequeueThread.Start()) {
+    if (!mDequeueThread->Start()) {
         C2VdecDQ_LOG(CODEC2_LOG_ERR, "Failed to start dequeue thread!!");
         return false;
     }
-    mDequeueTaskRunner = mDequeueThread.task_runner();
+    mDequeueTaskRunner = mDequeueThread->task_runner();
     mRunTaskLoop.store(true);
     DCHECK(mDequeueTaskRunner != NULL);
 
@@ -83,9 +90,9 @@ bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, u
 }
 
 void C2VdecComponent::DequeueThreadUtil::StopRunDequeueTask() {
-    if (mDequeueThread.IsRunning()) {
+    if (mDequeueThread->IsRunning()) {
         mRunTaskLoop.store(false);
-        mDequeueThread.Stop();
+        mDequeueThread->Stop();
     }
 }
 
@@ -121,13 +128,14 @@ void C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask(media::Size size, 
 
 void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uint32_t pixelFormat) {
     DCHECK(mComp != NULL);
+    DCHECK(mDequeueTaskRunner->BelongsToCurrentThread());
+
     if (!mRunTaskLoop.load()) {
         C2VdecDQ_LOG(CODEC2_LOG_ERR,"onAllocBufferTask failed. thread stopped");
         return;
     }
-    DCHECK(mDequeueTaskRunner->BelongsToCurrentThread());
-    int64_t allocRetryDurationUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000 - mLastAllocBufferRetryTimeUs;
 
+    int64_t allocRetryDurationUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000 - mLastAllocBufferRetryTimeUs;
     if ((allocRetryDurationUs <=  mStreamDurationUs) && mAllocBufferLoop.load()) {
         int64_t delayTimeUs = (mStreamDurationUs >= allocRetryDurationUs) ? (mStreamDurationUs - allocRetryDurationUs) : mStreamDurationUs;
         mDequeueTaskRunner->PostDelayedTask(

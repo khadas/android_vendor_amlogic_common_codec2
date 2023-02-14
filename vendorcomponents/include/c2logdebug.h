@@ -8,6 +8,7 @@
 #include <cutils/trace.h>
 #include <utils/Trace.h>
 #include <inttypes.h>
+#include <string.h>
 
 static unsigned int gloglevel = 1;
 
@@ -26,7 +27,7 @@ static unsigned int gloglevel = 1;
 
 #define CODEC2_LOG(level, f, s...) \
 do { \
-    if (level & gloglevel) { \
+    if (level > CODEC2_LOG_ERR) { \
         if (level == CODEC2_LOG_INFO) \
             ALOGI(f, ##s); \
         else if (level == CODEC2_LOG_DEBUG_LEVEL1 || level == CODEC2_LOG_DEBUG_LEVEL2) \
@@ -55,7 +56,7 @@ do { \
 
 #define propGetInt(str,def) \
 do { \
-    char value[PROPERTY_VALUE_MAX]; \
+    char value[PROPERTY_VALUE_MAX] = {}; \
     if (property_get(str, value, NULL) > 0) { \
         *def = atoi(value); \
         ALOGI("%s set = %d\n", str, *def); \

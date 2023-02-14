@@ -94,9 +94,14 @@ media::VideoDecodeAccelerator::SupportedProfiles VideoDecWraper::AmVideoDec_getS
     media::VideoDecodeAccelerator::SupportedProfile* pdata = NULL;
     uint arraysize = 0;
 
-    getSupportedProfiles(inputcodec, (uint32_t**)&pdata, &arraysize);
-    CODEC2_LOG(CODEC2_LOG_INFO, "AmVideoDec_getSupportedProfiles data:%p, size:%d", pdata, arraysize);
-    media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles(pdata, pdata + arraysize);
+    if (getSupportedProfiles != NULL) {
+        getSupportedProfiles(inputcodec, (uint32_t**)&pdata, &arraysize);
+        CODEC2_LOG(CODEC2_LOG_INFO, "AmVideoDec_getSupportedProfiles data:%p, size:%d", pdata, arraysize);
+        media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles(pdata, pdata + arraysize);
+        return supportedProfiles;
+    }
+
+    media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
     return supportedProfiles;
 }
 
@@ -106,8 +111,12 @@ uint32_t VideoDecWraper::AmVideoDec_getResolveBufferFormat(bool crcb, bool semip
 
     typedef uint32_t (*fGetResolveBufferFormat)(bool crcb, bool semiplanar);
     fGetResolveBufferFormat getResolveBufferFormat = (fGetResolveBufferFormat)dlsym(gMediaHal, "AmVideoDec_getResolveBufferFormat");
-    CODEC2_LOG(CODEC2_LOG_INFO, "AmVideoDec_getResolveBufferFormat");
-    return getResolveBufferFormat(crcb, semiplanar);
+    if (getResolveBufferFormat != NULL) {
+        CODEC2_LOG(CODEC2_LOG_INFO, "AmVideoDec_getResolveBufferFormat");
+        return getResolveBufferFormat(crcb, semiplanar);
+    } else {
+        return 0;
+    }
 }
 
 AmlMessageBase* VideoDecWraper::AmVideoDec_getAmlMessage() {

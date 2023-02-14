@@ -28,40 +28,28 @@ public:
             std::vector<std::shared_ptr<C2Param>> *changes = nullptr);
 
     // interfaces for C2VdecComponent
-    c2_status_t status() const { return mInitStatus; }
-    media::VideoCodecProfile getCodecProfile() { return mCodecProfile; }
-    C2BlockPool::local_id_t getBlockPoolId() const { return mOutputBlockPoolIds->m.values[0]; }
-    InputCodec getInputCodec() { return mInputCodec; }
-
-    //for DolbyVision Only
-    void updateInputCodec(InputCodec videotype) {
-        if (InputCodec::DVHE <= videotype && videotype <= InputCodec::DVAV1){
-            mInputCodec = videotype;
-        }
-    }
-    void updateCodecProfile(media::VideoCodecProfile profile) {
-        mCodecProfile = profile;
-    }
-    void setComponent(C2VdecComponent* comp) {mComponent = comp;}
-    std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects() {
-        return this->mColorAspects;
-    }
-    std::shared_ptr<C2StreamColorAspectsTuning::output> getDefaultColorAspects() {
-        return this->mDefaultColorAspects;
-    }
-    uint32_t getPixelFormatInfoValue() {
-        return mPixelFormatInfo->value;
-    }
-    float getInputFrameRate() {  return  mFrameRateInfo->value; }
-    std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> getHdr10PlusInfo() {
-        return this->mHdrDynamicInfoInput;
-    }
+    c2_status_t status() const {return mInitStatus;}
+    media::VideoCodecProfile getCodecProfile() {return mCodecProfile;}
+    C2BlockPool::local_id_t getBlockPoolId() const {return mOutputBlockPoolIds->m.values[0];}
+    InputCodec getInputCodec() {return mInputCodec;}
+    float getInputFrameRate() {return  mFrameRateInfo->value;}
+    uint32_t getPixelFormatInfoValue() {return mPixelFormatInfo->value;}
     void getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen);
+
+    // for DolbyVision Only
+    void updateInputCodec(InputCodec videotype);
+    void updateCodecProfile(media::VideoCodecProfile profile) {mCodecProfile = profile;}
+    void setComponent(C2VdecComponent* comp) {mComponent = comp;}
+
+    std::shared_ptr<C2StreamColorAspectsInfo::output> getColorAspects() {return mColorAspects;}
+    std::shared_ptr<C2StreamColorAspectsTuning::output> getDefaultColorAspects() {return mDefaultColorAspects;}
+    std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> getHdr10PlusInfo() {return mHdrDynamicInfoInput;}
+
     void updateHdr10PlusInfoToWork(C2Work& work);
+
 private:
     // Configurable parameter setters.
     static C2R ProfileLevelSetter(bool mayBlock, C2P<C2StreamProfileLevelInfo::input>& info);
-
     static C2R SizeSetter(bool mayBlock, C2P<C2StreamPictureSizeInfo::output>& videoSize);
 
     template <typename T>
@@ -176,6 +164,7 @@ private:
     bool mSecureMode;
     friend C2VdecComponent;
 
+    // Declare the format configuration parameters according to different formats.
     void onAvcDeclareParam();
     void onHevcDeclareParam();
     void onVp9DeclareParam();
@@ -189,6 +178,7 @@ private:
     void onAvsDeclareParam();
     void onAvs2DeclareParam();
 
+    // Declare the configuration parameters before playback.
     void onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper);
     void onApiFeatureDeclareParam();
     void onFrameRateDeclareParam();
@@ -206,6 +196,20 @@ private:
     void onPixelFormatDeclareParam();
     void onVendorExtendParam();
     void onAvc4kMMUEnable();
+
+    // These functions are used for component reconfiguration parameters before playback.
+    void onTunneledModeTuningConfigParam();
+    void onVendorTunerHalConfigParam();
+    void onTunerPassthroughTrickModeConfigParam();
+    void onVdecWorkModeConfigParam();
+    void onDataSourceTypeConfigParam();
+    void onStreamModeInputDelayConfigParam();
+    void onStreamModePipeLineDelayConfigParam();
+    void onStreamTunnelStartRenderConfigParam();
+    void onStreamHdr10PlusInfoConfigParam();
+    void onStreamMaxBufferSizeInfoConfigParam();
+    void onNetflixVPeekConfigParam();
+    void onErrorPolicyConfigParam();
 };
 }
 

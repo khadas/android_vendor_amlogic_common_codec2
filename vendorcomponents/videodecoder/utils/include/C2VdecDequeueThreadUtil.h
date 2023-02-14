@@ -41,7 +41,7 @@ private:
     C2VdecComponent* mComp;
     C2VdecComponent::IntfImpl *mIntfImpl;
 
-    ::base::Thread mDequeueThread;
+    ::base::Thread* mDequeueThread;
     std::atomic<bool> mRunTaskLoop;
     std::atomic<bool> mAllocBufferLoop;
     scoped_refptr<::base::SingleThreadTaskRunner> mDequeueTaskRunner;
