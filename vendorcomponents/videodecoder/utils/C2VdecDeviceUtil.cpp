@@ -336,7 +336,12 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
     }
 
-    if (mDisableErrPolicy) {
+    C2ErrorPolicy::input errorPolicy;
+    err = mIntfImpl->query({&errorPolicy}, {}, C2_MAY_BLOCK, nullptr);
+    if (err != C2_OK) {
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query error policy error", __func__, __LINE__);
+    }
+    if (mDisableErrPolicy || !errorPolicy.value) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "C2 need disable error policy");
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DIS_ERR_POLICY;
     }

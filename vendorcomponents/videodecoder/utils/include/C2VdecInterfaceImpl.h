@@ -165,6 +165,7 @@ private:
     std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
     std::shared_ptr<C2Avc4kMMU::input> mAvc4kMMUMode;
     std::shared_ptr<C2StreamPixelFormatInfo::output> mPixelFormatInfo;
+    std::shared_ptr<C2ErrorPolicy::input> mErrorPolicy;
 
     c2_status_t mInitStatus;
     media::VideoCodecProfile mCodecProfile;

@@ -246,6 +246,10 @@ c2_status_t C2VdecComponent::IntfImpl::config(
             case C2VendorNetflixVPeek::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config netflix vpeek:%d", C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mVendorNetflixVPeek->vpeek);
                 break;
+            case C2ErrorPolicy::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] config error policy :%d",
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mErrorPolicy->value);
+                break;
             default:
                 break;
         }
@@ -1097,6 +1101,12 @@ void C2VdecComponent::IntfImpl::onVendorExtendParam() {
                 .withDefault(new C2VendorPlayerId::input(0))
                 .withFields({C2F(mPlayerId,value).any()})
                 .withSetter(Setter<decltype(*mPlayerId)>::StrictValueWithNoDeps)
+        .build());
+        addParameter(
+        DefineParam(mErrorPolicy, C2_PARAMKEY_VENDOR_ERROR_POLICY)
+                .withDefault(new C2ErrorPolicy::input(1))
+                .withFields({C2F(mErrorPolicy, value).any()})
+                .withSetter(Setter<decltype(*mErrorPolicy)>::StrictValueWithNoDeps)
         .build());
 }
 
