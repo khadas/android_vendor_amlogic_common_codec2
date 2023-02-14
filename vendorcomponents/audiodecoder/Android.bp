@@ -33,7 +33,8 @@ cc_library_shared {
         "C2AudioFFMPEGDecoder.cpp",
         "C2AudioAacDecoder.cpp",
         "C2AudioEAC3Decoder.cpp",
-        "C2AudioDTSDecoder.cpp"
+        "C2AudioDTSDecoder.cpp",
+        "C2AudioAC4Decoder.cpp"
     ],
 
     local_include_dirs: [

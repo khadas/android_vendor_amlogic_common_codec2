@@ -65,6 +65,7 @@ const C2String kFFMPEGDecoderName   = "c2.amlogic.audio.decoder.ffmpeg";
 const C2String kDTSDecoderName      = "c2.amlogic.audio.decoder.dts";
 const C2String kDTSHDDecoderName    = "c2.amlogic.audio.decoder.dtshd";
 const C2String kDTSSEDecoderName    = "c2.amlogic.audio.decoder.dtse";
+const C2String kAC4DecoderName      = "c2.amlogic.audio.decoder.ac4";
 
 
 enum class InputCodec {
@@ -160,6 +161,7 @@ enum class C2VendorCodec {
     ADEC_DTS,
     ADEC_DTSHD,
     ADEC_DTSE,
+    ADEC_AC4,
 };
 
 struct C2VendorComponent {
@@ -224,6 +226,7 @@ static C2VendorComponent gC2AudioDecoderComponents [] = {
     {kDTSDecoderName, C2VendorCodec::ADEC_DTS},
     {kDTSHDDecoderName, C2VendorCodec::ADEC_DTSHD},
     {kDTSSEDecoderName, C2VendorCodec::ADEC_DTSE},
+    {kAC4DecoderName, C2VendorCodec::ADEC_AC4},
 };
 
 
