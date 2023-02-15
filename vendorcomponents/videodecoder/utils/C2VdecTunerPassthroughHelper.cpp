@@ -115,12 +115,12 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::flush() {
 }
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
-    int frameAdvance = mIntfImpl->mVendorTunerPassthroughTrickMode->frameAdvance;
+    // int frameAdvance = mIntfImpl->mVendorTunerPassthroughTrickMode->frameAdvance;
     int mode = mIntfImpl->mVendorTunerPassthroughTrickMode->trickMode;
     int trickSpeed = mIntfImpl->mVendorTunerPassthroughTrickMode->trickSpeed / 1000;
 
-    if (frameAdvance)
-        return C2_OK;
+    // if (frameAdvance)
+    //     return C2_OK;
 
     if (mode  == TRICKMODE_SMOOTH) {
         mode = TRICK_MODE_NONE;
@@ -132,6 +132,8 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
 
     if (trickSpeed == 0)
         trickSpeed = 1;
+
+    C2VdecTPH_LOG(CODEC2_LOG_INFO, "passthrough trickmode:%d, trickspeed:%d", mode, trickSpeed);
 
     mTunerPassthrough->SetTrickMode(mode);
     mTunerPassthrough->SetTrickSpeed(trickSpeed);

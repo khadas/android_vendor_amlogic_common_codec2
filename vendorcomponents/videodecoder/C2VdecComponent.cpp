@@ -2563,7 +2563,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
     if (mState.load() != State::RUNNING) {
         return C2_BAD_STATE;
     }
-    if (!mHasQueuedWork) {
+    if (!mHasQueuedWork && !mTunerPassthroughHelper) {
         return C2_OK;
     }
 
@@ -2589,21 +2589,23 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] flush work size:%zd Queue size:%zd", __func__,
                 flushedWork->size(), mQueue.size());
 
-    // Work dequeueing was stopped while component flushing. Restart it.
+    // passthrough mode has no data flow in C2
+    if (!mTunerPassthroughHelper) {
+        // Work dequeueing was stopped while component flushing. Restart it.
+        mTaskRunner->PostTask(FROM_HERE,
+                              ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
 
-    mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
-
-    if (mDequeueThreadUtil != nullptr) {
-        int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task", __func__, bufferInClient);
-        uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
-        if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
-                C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
-        }
-        mDequeueThreadUtil->StartAllocBuffer();
-        for (int i = 1; i <= bufferInClient; i++) {
-            mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, static_cast<uint32_t>(i * frameDur));
+        if (mDequeueThreadUtil != nullptr) {
+            int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task", __func__, bufferInClient);
+            uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
+            if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
+                    C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
+            }
+            mDequeueThreadUtil->StartAllocBuffer();
+            for (int i = 1; i <= bufferInClient; i++) {
+                mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, static_cast<uint32_t>(i * frameDur));
+            }
         }
     }
     return C2_OK;
