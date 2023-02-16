@@ -39,6 +39,7 @@ public:
     c2_status_t videoResolutionChangeTunnel();
     void onAndroidVideoPeek();
     VideoTunnelRendererBase* getTunnelRender() { return mVideoTunnelRenderer->getTunnelRenderer();}
+    bool fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId);
 
 private:
     static int fillVideoFrameCallback2(void* obj, void* args);

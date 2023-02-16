@@ -645,10 +645,25 @@ void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
     // When the work is done, the input buffer shall be reset by component.
     work->input.buffers.front().reset();
     mInputQueueNum --;
-    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "queue input done index=%d pending size:%zu", bitstreamId, mPendingBuffersToWork.size());
-    //report csd work
-    if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) || work->worklets.front()->output.flags == C2FrameData::FLAG_DROP_FRAME) {
-        reportWorkIfFinished(bitstreamId,0);
+    BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "queue input done index=%d flag=%d pending size:%zu",
+            bitstreamId, (int32_t)work->input.flags, mPendingBuffersToWork.size());
+
+    //report csd work and drop work
+    if ((work->input.flags & C2FrameData::FLAG_CODEC_CONFIG)
+        || (work->worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME)
+        || (work->input.flags & C2FrameData::FLAG_DROP_FRAME)) {
+        if (work->input.flags & C2FrameData::FLAG_DROP_FRAME) {
+            c2_cntr64_t timestamp = work->worklets.front()->output.ordinal.timestamp + work->input.ordinal.customOrdinal.peekull()
+                - work->input.ordinal.timestamp;
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "drop frame(bitstreamid %lld,pts:%lld) as app required",
+                    (long long)bitstreamId, timestamp.peekull());
+        }
+
+        if (isNonTunnelMode()) {
+            reportWorkIfFinished(bitstreamId, 0);
+        } else if (mTunnelHelper && isTunnelMode()) {
+            mTunnelHelper->fastHandleWorkAndOutBufferTunnel(true, bitstreamId, 0);
+        }
     } else {
        if (!mPendingBuffersToWork.empty() && isNonTunnelMode()) {
             mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::sendOutputBufferToWorkIfAnyTask,
@@ -785,6 +800,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         C2Vdec_LOG(CODEC2_LOG_INFO, "onOutputBufferDone :%d mResolutionChanging true,ignore this buf", pictureBufferId);
         return;
     }
+
     if (mComponentState == ComponentState::FLUSHING) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s] in flushing, pending bitstreamId=%" PRId64 " first", __func__, bitstreamId);
         mLastOutputBitstreamId = bitstreamId;
@@ -803,10 +819,11 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
     }
 
+    C2Work* work = NULL;
     if (mLastOutputBitstreamId != bitstreamId) {
-        C2Work* work = getPendingWorkByBitstreamId(bitstreamId);
+        work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] “Can't found bitstreamId,should have been flushed:%" PRId64 "", __LINE__,bitstreamId);
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] Can't found bitstreamId,should have been flushed or dropped:%" PRId64 "", __LINE__,bitstreamId);
             sendOutputBufferToAccelerator(info, true);
             return;
         }
@@ -823,7 +840,12 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     if (isNonTunnelMode()) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else if (isTunnelMode() && mTunnelHelper) {
-        mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
+        if (!(work->input.flags & C2FrameData::FLAG_DROP_FRAME)) {
+            mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
+        } else {
+            mTunnelHelper->fastHandleWorkAndOutBufferTunnel(false, bitstreamId, pictureBufferId);
+        }
+        return;
     }
 
     if (mOutputWorkCount == 1 && (mDequeueThreadUtil->getAllocBufferLoopState() == false)) {
@@ -1286,7 +1308,7 @@ void C2VdecComponent::onFlushDone() {
             if (mTunnelHelper) {
                 mTunnelHelper->storeAbandonedFrame(work->input.ordinal.timestamp.peekull());
             }
-            if (!mUseBufferQueue && mFlushPendingWorkList.empty() && mIsReportEosWork) {
+            if (!mUseBufferQueue && mFlushPendingWorkList.empty() && mIsReportEosWork && isNonTunnelMode()) {
                 for (auto & info : mGraphicBlocks) {
                     if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
                             C2ConstGraphicBlock constBlock = info.mGraphicBlock->share(
@@ -3170,10 +3192,11 @@ void C2VdecComponent::reportAbandonedWorks() {
         if (!work->input.buffers.empty()) {
             work->input.buffers.front().reset();
         }
+
         if (mTunnelHelper) {
             mTunnelHelper->storeAbandonedFrame(work->input.ordinal.timestamp.peekull());
         }
-        if (!mUseBufferQueue && abandonedWorks.empty() && mIsReportEosWork) {
+        if (!mUseBufferQueue && abandonedWorks.empty() && mIsReportEosWork && isNonTunnelMode()) {
             for (auto & info : mGraphicBlocks) {
                 if (info.mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
                         C2ConstGraphicBlock constBlock = info.mGraphicBlock->share(

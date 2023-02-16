@@ -675,4 +675,42 @@ uint64_t C2VdecComponent::TunnelHelper::getPlatformUsage() {
     return usage & C2MemoryUsage::PLATFORM_MASK;
 }
 
+bool C2VdecComponent::TunnelHelper::fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId) {
+    auto workIter = mComp->findPendingWorkByBitstreamId(bitstreamId);
+    if (workIter == mComp->mPendingWorks.end()) {
+        C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%lld, please check!", __func__, __LINE__, bitstreamId);
+        return false;
+    }
+
+    C2Work* work = workIter->get();
+    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] %s bistreamId:%lld, pictureId:%d", __func__, __LINE__,
+            (input? "input":"output"), bitstreamId, pictureBufferId);
+    DCHECK((work->input.flags & C2FrameData::FLAG_DROP_FRAME)
+            || (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG));
+
+    if (input) {
+        work->result = C2_OK;
+        work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
+        work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
+        mComp->reportWork(std::move(*workIter));
+        mComp->mOutputFinishedWorkCount++;
+        mComp->mPendingWorks.erase(workIter);
+    } else {
+        GraphicBlockInfo* info = mComp->getGraphicBlockById(pictureBufferId);
+        if (!info) {
+            C2VdecTMH_LOG(CODEC2_LOG_ERR, "Can't get graphic block pictureBufferId:%d, please check!", pictureBufferId);
+            return false;
+        }
+        if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+            GraphicBlockStateChange(mComp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+        }
+        mComp->sendOutputBufferToAccelerator(info, true);
+        int64_t timestamp = work->input.ordinal.timestamp.peekull();
+        mComp->erasePendingBuffersToWorkByTime(timestamp);
+        BufferStatus(mComp, CODEC2_LOG_TAG_BUFFER, "tunnel drop and reuse fd=%d, index=%d", info->mFd, info->mBlockId);
+    }
+
+    return true;
+}
+
 }
