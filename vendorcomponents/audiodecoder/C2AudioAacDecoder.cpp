@@ -280,12 +280,21 @@ C2AudioAacDecoder::C2AudioAacDecoder(
       mIntf(intfImpl),
       mAACDecoder(nullptr),
       mStreamInfo(nullptr),
+      mIsFirst(false),
+      mInputBufferCount(0),
+      mOutputBufferCount(0),
       mSignalledError(false),
       mOutputPortDelay(kDefaultOutputPortDelay),
-      mOutputDelayRingBuffer(nullptr) {
+      mOutputDelayCompensated(0),
+      mOutputDelayRingBufferSize(0),
+      mOutputDelayRingBuffer(nullptr),
+      mOutputDelayRingBufferWritePos(0),
+      mOutputDelayRingBufferReadPos(0),
+      mOutputDelayRingBufferFilled(0){
       ALOGV("%s()", __func__);
 }
 
+/*coverity[exn_spec_violation]*/
 C2AudioAacDecoder::~C2AudioAacDecoder() {
     onRelease();
 }
@@ -541,7 +550,7 @@ void C2AudioAacDecoder::process(
     UINT inBufferLength[FILEREAD_MAX_LAYERS] = {0};
     UINT bytesValid[FILEREAD_MAX_LAYERS] = {0};
 
-    INT_PCM tmpOutBuffer[2048 * MAX_CHANNEL_COUNT];
+    INT_PCM tmpOutBuffer[2048 * MAX_CHANNEL_COUNT] = {'\0'};
     C2ReadView view = mDummyReadView;
     size_t offset = 0u;
     size_t size = 0u;
@@ -899,7 +908,7 @@ void C2AudioAacDecoder::drainDecoder() {
     // flush decoder until outputDelay is compensated
     while (mOutputDelayCompensated > 0) {
         // a buffer big enough for MAX_CHANNEL_COUNT channels of decoded HE-AAC
-        INT_PCM tmpOutBuffer[2048 * MAX_CHANNEL_COUNT];
+        INT_PCM tmpOutBuffer[2048 * MAX_CHANNEL_COUNT] = {'\0'};
 
 
         AAC_DECODER_ERROR decoderErr =
@@ -915,7 +924,11 @@ void C2AudioAacDecoder::drainDecoder() {
         if (tmpOutBufferSamples > mOutputDelayCompensated) {
             tmpOutBufferSamples = mOutputDelayCompensated;
         }
-        outputDelayRingBufferPutSamples(tmpOutBuffer, tmpOutBufferSamples);
+
+      if (!outputDelayRingBufferPutSamples(tmpOutBuffer, tmpOutBufferSamples)) {
+            mSignalledError = true;
+            return;
+      }
 
         mOutputDelayCompensated -= tmpOutBufferSamples;
     }

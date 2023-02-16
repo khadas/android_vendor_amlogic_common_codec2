@@ -251,25 +251,32 @@ C2AudioFFMPEGDecoder::C2AudioFFMPEGDecoder(
     mSeeking(false),
     mDecoderState(DECODER_StateInvalid),
     mSetUp(false),
+    mIsFirst(false),
+    mAbortPlaying(false),
     mIsSecure(false),
     mClearBuffer(NULL),
     mClearLen(0),
     mNumFramesOutput(0),
     mCodec(NULL),
     mDecodeFilledTotalTimeUs(0),
-    mDecoderFilledTimeUs(0)
+    mDecoderFilledTimeUs(0),
+    mDecodingErrors(0),
+    mDecodedFrames(0),
+    sysfs_buf{'\0'},
+    mOutSize(0)
 {
     ALOGV("%s() %d  name:%s", __func__, __LINE__, mComponentName);
     {
         AutoMutex l(mSetUpLock);
         initializeState_l();
     }
-
     mOutBufferLen = 1024*1024*2;//2M size
     mOutBuffer = (char *)malloc(mOutBufferLen);
-    memset(mOutBuffer, 0, sizeof(mOutBuffer));
+    if (mOutBuffer)
+        memset(mOutBuffer, 0, mOutBufferLen);
 }
 
+/*coverity[exn_spec_violation]*/
 C2AudioFFMPEGDecoder::~C2AudioFFMPEGDecoder() {
     ALOGV("%s() %d", __func__, __LINE__);
     if (mOutBuffer != NULL) {
@@ -587,6 +594,7 @@ void C2AudioFFMPEGDecoder::drainOutBuffer(
 
         mBuffersInfo.pop_front();
         if (debug_print) {
+            /*coverity[use_after_free]*/
             ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
         }
     }
@@ -668,7 +676,7 @@ void C2AudioFFMPEGDecoder::process(
 
 
         if (ret < 0 || usedsize < 0) {//can't decode this frame
-            inBuffer_nFilledLen -= inBuffer_nFilledLen;
+            inBuffer_nFilledLen = 0;
         } else {
             inBuffer_nFilledLen -= usedsize;
         }

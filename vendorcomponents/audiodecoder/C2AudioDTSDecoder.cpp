@@ -188,6 +188,8 @@ C2AudioDTSDecoder::C2AudioDTSDecoder(
     mInputFlushDone(false),
     mOutputFlushDone(false),
     mRunning(0),
+    mIsFirst(false),
+    mAbortPlaying(false),
     nPassThroughEnable(0),
     decode_offset(0),
     adec_call(false)
@@ -200,6 +202,9 @@ C2AudioDTSDecoder::C2AudioDTSDecoder(
     }
 
     gDtsDecoderLibHandler = NULL;
+    dts_decoder_init = NULL;
+    dts_decoder_cleanup = NULL;
+    dts_decoder_process = NULL;
     memset(&pcm_out_info, 0, sizeof(pcm_out_info));
     mOutputBuffer = (char *)malloc(DTS_OUT_BUFFER_SIZE);
     mOutputRawBuffer = (char *)malloc(DTS_OUT_BUFFER_SIZE);
@@ -211,14 +216,19 @@ C2AudioDTSDecoder::C2AudioDTSDecoder(
     }
 }
 
+/*coverity[exn_spec_violation]*/
 C2AudioDTSDecoder::~C2AudioDTSDecoder() {
     ALOGV("%s() %d", __func__, __LINE__);
     onRelease();
 
     if (mConfig != NULL) {
-        if (mConfig->poutput_raw != NULL) {
-            free(mConfig->poutput_raw);
-            mConfig->poutput_raw = NULL;
+        if (mOutputBuffer != NULL) {
+            free(mOutputBuffer);
+            mOutputBuffer = NULL;
+        }
+        if (mOutputRawBuffer != NULL) {
+            free(mOutputRawBuffer);
+            mOutputRawBuffer = NULL;
         }
         free(mConfig);
         mConfig = NULL;
@@ -411,6 +421,7 @@ void C2AudioDTSDecoder::drainOutBuffer(
 
         mBuffersInfo.pop_front();
         if (mConfig->debug_print) {
+            /*coverity[use_after_free]*/
             ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
         }
     }

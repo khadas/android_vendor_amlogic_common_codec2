@@ -67,12 +67,6 @@ private:
     };
     std::list<Info> mBuffersInfo;
 
-    enum {
-        NONE,
-        AWAITING_DISABLED,
-        AWAITING_ENABLED
-    } mOutputPortSettingsChange;
-
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;

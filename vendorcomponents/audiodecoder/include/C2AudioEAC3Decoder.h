@@ -74,12 +74,6 @@ private:
     };
     std::list<Info> mBuffersInfo;
 
-    enum {
-        NONE,
-        AWAITING_DISABLED,
-        AWAITING_ENABLED
-    } mOutputPortSettingsChange;
-
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;
@@ -108,7 +102,6 @@ private:
     void *handle;
     bool mEos;
     bool mSetUp;
-    //bool mIsFirst;
     bool adec_call;
 
     int64_t mAnchorTimeUs;

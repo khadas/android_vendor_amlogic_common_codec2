@@ -95,6 +95,7 @@ void C2AudioDecComponent::WorkHandler::onMessageReceived(const sp<AMessage> &msg
         case kWhatProcess: {
             if (mRunning) {
                 if (thiz->processQueue()) {
+                    /*coverity[leaked_storage]*/
                     (new AMessage(kWhatProcess, this))->post();
                 }
             } else {
@@ -200,6 +201,7 @@ struct DummyReadView : public C2ReadView {
 
 C2AudioDecComponent::C2AudioDecComponent(
         const std::shared_ptr<C2ComponentInterface> &intf)
+    /*coverity[uninit_use_in_call]*/
     : mDummyReadView(DummyReadView()),
       mIntf(intf),
       mLooper(new ALooper),
@@ -209,6 +211,7 @@ C2AudioDecComponent::C2AudioDecComponent(
     mLooper->start(false, false, ANDROID_PRIORITY_VIDEO);
 }
 
+/*coverity[exn_spec_violation]*/
 C2AudioDecComponent::~C2AudioDecComponent() {
     mLooper->unregisterHandler(mHandler->id());
     (void)mLooper->stop();
@@ -250,6 +253,7 @@ c2_status_t C2AudioDecComponent::queue_nb(std::list<std::unique_ptr<C2Work>> * c
         }
     }
     if (queueWasEmpty) {
+        /*coverity[leaked_storage]*/
         (new AMessage(WorkHandler::kWhatProcess, mHandler))->post();
     }
     return C2_OK;
@@ -307,6 +311,7 @@ c2_status_t C2AudioDecComponent::drain_nb(drain_mode_t drainMode) {
         queue->markDrain(drainMode);
     }
     if (queueWasEmpty) {
+        /*coverity[leaked_storage]*/
         (new AMessage(WorkHandler::kWhatProcess, mHandler))->post();
     }
 
@@ -323,13 +328,15 @@ c2_status_t C2AudioDecComponent::start() {
     state.unlock();
     if (needsInit) {
         sp<AMessage> reply;
+        /*coverity[leaked_storage]*/
         (new AMessage(WorkHandler::kWhatInit, mHandler))->postAndAwaitResponse(&reply);
-        int32_t err;
+        int32_t err = 0;
         CHECK(reply->findInt32("err", &err));
         if (err != C2_OK) {
             return (c2_status_t)err;
         }
     } else {
+        /*coverity[leaked_storage]*/
         (new AMessage(WorkHandler::kWhatStart, mHandler))->post();
     }
     state.lock();
@@ -352,8 +359,9 @@ c2_status_t C2AudioDecComponent::stop() {
         queue->pending().clear();
     }
     sp<AMessage> reply;
+    /*coverity[leaked_storage]*/
     (new AMessage(WorkHandler::kWhatStop, mHandler))->postAndAwaitResponse(&reply);
-    int32_t err;
+    int32_t err = 0;
     CHECK(reply->findInt32("err", &err));
     if (err != C2_OK) {
         return (c2_status_t)err;
@@ -373,6 +381,7 @@ c2_status_t C2AudioDecComponent::reset() {
         queue->pending().clear();
     }
     sp<AMessage> reply;
+    /*coverity[leaked_storage]*/
     (new AMessage(WorkHandler::kWhatReset, mHandler))->postAndAwaitResponse(&reply);
     return C2_OK;
 }
@@ -380,6 +389,7 @@ c2_status_t C2AudioDecComponent::reset() {
 c2_status_t C2AudioDecComponent::release() {
     ALOGV("%s() %d", __func__, __LINE__);
     sp<AMessage> reply;
+    /*coverity[leaked_storage]*/
     (new AMessage(WorkHandler::kWhatRelease, mHandler))->postAndAwaitResponse(&reply);
     return C2_OK;
 }
@@ -414,6 +424,7 @@ void C2AudioDecComponent::finish(
     }
     if (work) {
         fillWork(work);
+        /*coverity[dereference]*/
         std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
         listener->onWorkDone_nb(shared_from_this(), vec(work));
         ALOGV("returning pending work");
@@ -440,6 +451,7 @@ void C2AudioDecComponent::cloneAndSend(
     work->worklets.emplace_back(new C2Worklet);
     if (work) {
         fillWork(work);
+        /*coverity[dereference]*/
         std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
         listener->onWorkDone_nb(shared_from_this(), vec(work));
         ALOGV("cloned and sending work");

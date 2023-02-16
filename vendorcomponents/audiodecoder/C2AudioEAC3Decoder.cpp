@@ -348,6 +348,8 @@ C2AudioEAC3Decoder::C2AudioEAC3Decoder(
         const std::shared_ptr<IntfImpl> &intfImpl)
     : C2AudioDecComponent(std::make_shared<AudioDecInterface<IntfImpl>>(name, id, intfImpl)),
       mIntf(intfImpl),
+    mIsFirst(false),
+    mAbortPlaying(false),
     nAudioCodec(1),
     digital_raw(0),
     nIsEc3(1),
@@ -364,16 +366,23 @@ C2AudioEAC3Decoder::C2AudioEAC3Decoder(
 
     gDDPDecoderLibHandler = NULL;
     handle = NULL;
+    ddp_decoder_init = NULL;
+    ddp_decoder_cleanup = NULL;
+    ddp_decoder_process = NULL;
     memset(&pcm_out_info, 0, sizeof(pcm_out_info));
     spdif_addr = (char *)malloc(6144*4*3);
-    memset(spdif_addr, 0, 6144*4*3);
+    if (spdif_addr)
+        memset(spdif_addr, 0, 6144*4*3);
     mRemainBufLen = 6144 * 4;
     mRemainBuffer = (unsigned char *)malloc(mRemainBufLen);
     mRemainLen = 0;
+    mDecodingErrors = 0;
+    mTotalDecodedFrames = 0;
     memset(sysfs_buf, 0, sizeof(sysfs_buf));
     mOutBuffer = (int16_t *)malloc(6144*4);//4*32ms size
 }
 
+/*coverity[exn_spec_violation]*/
 C2AudioEAC3Decoder::~C2AudioEAC3Decoder() {
     ALOGV("%s() %d", __func__, __LINE__);
     onRelease();
@@ -415,9 +424,11 @@ void C2AudioEAC3Decoder::initializeState_l() {
     {
         AutoMutex l(mConfigLock);
         mConfig = (AC3DecoderExternal *)malloc(sizeof(AC3DecoderExternal));
-        memset(mConfig, 0, sizeof(AC3DecoderExternal));
-        mConfig->num_channels =2;
-        mConfig->samplingRate = 48000;
+        if (mConfig) {
+            memset(mConfig, 0, sizeof(AC3DecoderExternal));
+            mConfig->num_channels =2;
+            mConfig->samplingRate = 48000;
+        }
     }
     mEos = false;
     mSetUp = false;
@@ -757,6 +768,7 @@ void C2AudioEAC3Decoder::drainOutBuffer(
 
         mBuffersInfo.pop_front();
         if (mConfig->debug_print) {
+            /*coverity[use_after_free]*/
             ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
         }
     }
@@ -893,7 +905,7 @@ void C2AudioEAC3Decoder::process(
                     }
                 } else {
                     mDecodingErrors++;
-                    char value[PROPERTY_VALUE_MAX];
+                    char value[PROPERTY_VALUE_MAX] = {'\0'};
                     if (property_get(AML_DEBUG_AUDIOINFO_REPORT_PROPERTY, value, NULL)) {
                         int isReportInfo = strtol(value, NULL, 0) & DUMP_AUDIO_INFO_DECODE;
                         if (isReportInfo) {
@@ -941,7 +953,7 @@ void C2AudioEAC3Decoder::process(
         if (mNumFramesOutput > 0) {
             mTotalDecodedFrames += mNumFramesOutput;
 
-            char value[PROPERTY_VALUE_MAX];
+            char value[PROPERTY_VALUE_MAX] = {'\0'};
             if (property_get(AML_DEBUG_AUDIOINFO_REPORT_PROPERTY, value, NULL)) {
                 int isReportInfo = strtol(value, NULL, 0) & DUMP_AUDIO_INFO_DECODE;
                 if (isReportInfo) {

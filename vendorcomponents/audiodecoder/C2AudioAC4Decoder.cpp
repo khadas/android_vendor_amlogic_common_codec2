@@ -162,6 +162,8 @@ C2AudioAC4Decoder::C2AudioAC4Decoder(
     mInputFlushDone(false),
     mOutputFlushDone(false),
     mRunning(0),
+    mIsFirst(0),
+    mAbortPlaying(0),
     nPassThroughEnable(0),
     decode_offset(0),
     adec_call(false),
@@ -176,7 +178,7 @@ C2AudioAC4Decoder::C2AudioAC4Decoder(
         AutoMutex l(mSetUpLock);
         initializeState_l();
     }
-
+    mAC4DecHandle = NULL;
     gAc4DecoderLibHandler = NULL;
     memset(&pcm_out_info, 0, sizeof(pcm_out_info));
     mOutputBuffer = (char *)malloc(AC4_OUT_BUFFER_SIZE);
@@ -185,10 +187,18 @@ C2AudioAC4Decoder::C2AudioAC4Decoder(
     } else {
         memset(mOutputBuffer, 0, AC4_OUT_BUFFER_SIZE);
     }
+    ac4_decoder_init = NULL;
+    ac4_decoder_cleanup = NULL;
+    ac4_decoder_process = NULL;
+    ac4_decoder_config = NULL;
 }
 
 C2AudioAC4Decoder::~C2AudioAC4Decoder() {
     onRelease();
+    if (mOutputBuffer != NULL) {
+        free(mOutputBuffer);
+        mOutputBuffer = NULL;
+    }
 }
 
 bool C2AudioAC4Decoder::tearDown() {
@@ -373,6 +383,7 @@ void C2AudioAC4Decoder::drainOutBuffer(
 
         mBuffersInfo.pop_front();
         if (mConfig->debug_print) {
+            /*coverity[use_after_free]*/
             ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
         }
     }

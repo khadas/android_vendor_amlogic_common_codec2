@@ -64,12 +64,6 @@ private:
     };
     std::list<Info> mBuffersInfo;
 
-    enum {
-        NONE,
-        AWAITING_DISABLED,
-        AWAITING_ENABLED
-    } mOutputPortSettingsChange;
-
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;
@@ -85,8 +79,7 @@ private:
             const std::unique_ptr<C2Work> &work);
 
 //      delay compensation
-    bool mEndOfInput;
-    bool mEndOfOutput;
+
     int32_t mOutputDelayCompensated;
     int32_t mOutputDelayRingBufferSize;
     std::unique_ptr<short[]> mOutputDelayRingBuffer;

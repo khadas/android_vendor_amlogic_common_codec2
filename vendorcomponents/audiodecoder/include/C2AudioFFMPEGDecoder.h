@@ -76,12 +76,6 @@ private:
     };
     std::list<Info> mBuffersInfo;
 
-    enum {
-        NONE,
-        AWAITING_DISABLED,
-        AWAITING_ENABLED
-    } mOutputPortSettingsChange;
-
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;
@@ -130,7 +124,6 @@ private:
     bool mIsSecure;
     unsigned char *mClearBuffer;
     int mClearLen;
-    int64_t mAnchorTimeUs;
     int64_t mNumFramesOutput;
     void initializeState_l();
     bool setUp();
