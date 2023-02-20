@@ -678,12 +678,12 @@ uint64_t C2VdecComponent::TunnelHelper::getPlatformUsage() {
 bool C2VdecComponent::TunnelHelper::fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId) {
     auto workIter = mComp->findPendingWorkByBitstreamId(bitstreamId);
     if (workIter == mComp->mPendingWorks.end()) {
-        C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%lld, please check!", __func__, __LINE__, bitstreamId);
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%" PRId64 ", please check!", __func__, __LINE__, bitstreamId);
         return false;
     }
 
     C2Work* work = workIter->get();
-    C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] %s bistreamId:%lld, pictureId:%d", __func__, __LINE__,
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] %s bistreamId:%" PRId64 ", pictureId:%d", __func__, __LINE__,
             (input? "input":"output"), bitstreamId, pictureBufferId);
     DCHECK((work->input.flags & C2FrameData::FLAG_DROP_FRAME)
             || (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG));
