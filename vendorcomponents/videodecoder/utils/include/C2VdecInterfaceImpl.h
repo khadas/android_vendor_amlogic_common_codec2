@@ -147,6 +147,8 @@ private:
     std::shared_ptr<C2DataSourceType::input> mDataSourceType;
     //stream mode input delay value
     std::shared_ptr<C2StreamModeInputDelay::input> mStreamModeInputDelay;
+    //stream mode pipeline delay value
+    std::shared_ptr<C2StreamModePipeLineDelay::input> mStreamModePipeLineDelay;
 
     std::shared_ptr<C2PortActualDelayTuning::output> mActualOutputDelay;
     std::shared_ptr<C2ActualPipelineDelayTuning> mActualPipelineDelay;

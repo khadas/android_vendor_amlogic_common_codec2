@@ -34,7 +34,8 @@ constexpr uint32_t kDefaultOutputDelay = 3;             // The output buffer mar
 constexpr uint32_t kMaxOutputDelay = 32;                // Max output delay.
 constexpr uint32_t kMaxInputDelay = 4;                // Max input delay for no-secure.
 constexpr uint32_t kMaxInputDelaySecure = 4;          // Max input delay for secure.
-constexpr uint32_t kMaxInputDelayStreamMode = 512;    // Max input delay for stream mode.
+constexpr uint32_t kMaxInputDelayStreamMode = 256;    // Max input delay for stream mode.
+constexpr uint32_t kMaxPipeLineDelayStreamMode = 256;    // Max pipeline delay for stream mode.
 
 
 //Tunnel Mode
@@ -224,6 +225,11 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode input delay :%d",
                     mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModeInputDelay->value);
                 mActualInputDelay->value = mStreamModeInputDelay->value;
+                break;
+            case C2StreamModePipeLineDelay::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode pipeline delay :%d",
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModePipeLineDelay->value);
+                mActualPipelineDelay->value = mStreamModePipeLineDelay->value;
                 break;
             case C2StreamTunnelStartRender::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config tunnel startRender",
@@ -1095,6 +1101,12 @@ void C2VdecComponent::IntfImpl::onVendorExtendParam() {
                 .withDefault(new C2StreamModeInputDelay::input(0))
                 .withFields({C2F(mStreamModeInputDelay, value).inRange(0, kMaxInputDelayStreamMode)})
                 .withSetter(Setter<decltype(*mStreamModeInputDelay)>::StrictValueWithNoDeps)
+        .build());
+        addParameter(
+        DefineParam(mStreamModePipeLineDelay, C2_PARAMKEY_VENDOR_STREAMMODE_PIPELINE_DELAY)
+                .withDefault(new C2StreamModePipeLineDelay::input(0))
+                .withFields({C2F(mStreamModePipeLineDelay, value).inRange(0, kMaxPipeLineDelayStreamMode)})
+                .withSetter(Setter<decltype(*mStreamModePipeLineDelay)>::StrictValueWithNoDeps)
         .build());
         addParameter(
         DefineParam(mPlayerId,C2_PARAMKEY_PLAYER_ID)
