@@ -68,6 +68,10 @@ C2SoftVdec::C2SoftVdec(C2String name, c2_node_id_t id,
         mDecInit(false),
         mPic(NULL),
         mFFmpegCodecLibHandler(NULL),
+        mFFmpegVideoDecoderInitFunc(NULL),
+        mFFmpegVideoDecoderProcessFunc(NULL),
+        mFFmpegVideoDecoderFreeFrameFunc(NULL),
+        mFFmpegVideoDecoderCloseFunc(NULL),
         mCodec(NULL),
         mExtraData(NULL),
         mDumpYuvFp(NULL) {
@@ -77,7 +81,7 @@ C2SoftVdec::C2SoftVdec(C2String name, c2_node_id_t id,
         CODEC2_LOG(CODEC2_LOG_INFO, "Create %s(%s)", __func__, name.c_str());
 
         propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
-        bool mDumpYuvEnable = property_get_bool(C2_PROPERTY_SOFTVDEC_DUMP_YUV, false);
+        mDumpYuvEnable = property_get_bool(C2_PROPERTY_SOFTVDEC_DUMP_YUV, false);
         if (mDumpYuvEnable) {
             char pathFile[1024] = { '\0'  };
             sprintf(pathFile, "/data/tmp/codec2_%d.yuv", mDumpFileCnt++);
@@ -102,6 +106,7 @@ C2SoftVdec::~C2SoftVdec() {
         fclose(mDumpYuvFp);
     }
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
+    //coverity[Error handling issues]
     CODEC2_LOG(CODEC2_LOG_INFO, "%s done", __func__);
 }
 

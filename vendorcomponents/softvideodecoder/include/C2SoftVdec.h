@@ -140,11 +140,6 @@ private:
     typedef int (*ffmpeg_video_decoder_free_frame_fn)(AmVideoCodec *mCodec);
     typedef int (*ffmpeg_video_decoder_close_fn)(AmVideoCodec *mCodec);
 
-    ffmpeg_video_decoder_init_fn mFFmpegVideoDecoderInitFunc;
-    ffmpeg_video_decoder_process_fn mFFmpegVideoDecoderProcessFunc;
-    ffmpeg_video_decoder_free_frame_fn mFFmpegVideoDecoderFreeFrameFunc;
-    ffmpeg_video_decoder_close_fn mFFmpegVideoDecoderCloseFunc;
-
     bool load_ffmpeg_decoder_lib();
     bool unload_ffmpeg_decoder_lib();
     // End
@@ -176,6 +171,10 @@ private:
     VIDEO_FRAME_WRAPPER_T *mPic;
     VIDEO_INFO_T mVideoInfo;
     void *mFFmpegCodecLibHandler;
+    ffmpeg_video_decoder_init_fn mFFmpegVideoDecoderInitFunc;
+    ffmpeg_video_decoder_process_fn mFFmpegVideoDecoderProcessFunc;
+    ffmpeg_video_decoder_free_frame_fn mFFmpegVideoDecoderFreeFrameFunc;
+    ffmpeg_video_decoder_close_fn mFFmpegVideoDecoderCloseFunc;
     AmVideoCodec *mCodec;
     uint8_t* mExtraData;
 

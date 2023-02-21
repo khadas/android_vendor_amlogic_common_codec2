@@ -594,6 +594,7 @@ C2SoftVdecComponent::C2SoftVdecComponent(
 
 C2SoftVdecComponent::~C2SoftVdecComponent() {
     mLooper->unregisterHandler(mHandler->id());
+    //coverity[Error handling issues]
     (void)mLooper->stop();
 }
 
