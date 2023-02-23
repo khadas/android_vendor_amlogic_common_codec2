@@ -1097,7 +1097,7 @@ bool C2VdecComponent::DeviceUtil::checkReallocOutputBuffer(VideoFormat rawFormat
 }
 
 bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint32_t& height) {
-    bool support_4k = property_get_bool("ro.vendor.platform.support.4k", true);
+    bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
 
     if (support_4k) {
         if (mIs8k) {

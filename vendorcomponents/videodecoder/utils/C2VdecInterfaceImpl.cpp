@@ -256,6 +256,24 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] config error policy :%d",
                     mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mErrorPolicy->value);
                 break;
+            case C2StreamPictureSizeInfo::CORE_INDEX: {
+                    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config picture w:%d h:%d",
+                            C2VdecComponent::mInstanceID, mComponent->mCurInstanceID,
+                            mSize->width, mSize->height);
+                    bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+                    if (!support_4k
+                        && (mSize->width * mSize->height > 1920 * 1088)) {
+                        CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] not support 4K for non-4K platform, config failed",
+                            C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+                        std::unique_ptr<C2SettingResult> result = std::unique_ptr<C2SettingResult>(new C2SettingResult {
+                            .field = C2ParamFieldValues(C2ParamField(param)),
+                            .failure = C2SettingResult::Failure::BAD_VALUE,
+                        });
+                        failures->emplace_back(std::move(result));
+                        return C2_BAD_VALUE;
+                    }
+                }
+                break;
             default:
                 break;
         }
