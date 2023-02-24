@@ -1037,7 +1037,10 @@ bool C2VdecComponent::DeviceUtil::isYcrcb420Stream() const {
 bool C2VdecComponent::DeviceUtil::isYcbcRP010Stream() const {
     //The current component supports the maximum size of 720*576 of 10 bit streams.
     //If the size exceeds this size, 8 bit buffer format will be used by default.
-    if ((mStreamBitDepth == 10) && (mBufferWidth <= kMaxWidthP010 && mBufferHeight <= kMaxHeightP010)) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
+    if ((mStreamBitDepth == 10) && (mBufferWidth <= kMaxWidthP010 && mBufferHeight <= kMaxHeightP010)
+        && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888)) {
         return true;
     }
 
