@@ -2133,7 +2133,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     //we cannot get out buf so fast.
     if (mDeviceUtil->isInterlaced() &&
         !(mIntfImpl->getCodecProfile() == media::MPEG2_PROFILE && mBlockPoolUtil->isBufferQueue()))
-        dequeue_buffer_num = mOutBufferCount - (2 + kDefaultSmoothnessFactor);
+        dequeue_buffer_num = mOutBufferCount - kDefaultSmoothnessFactor;
 
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %" PRId64"",
                 minBuffersForDisplay, (int)bufferCount, dequeue_buffer_num, usage.expected);
