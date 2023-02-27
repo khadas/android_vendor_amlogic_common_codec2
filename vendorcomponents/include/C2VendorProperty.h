@@ -52,5 +52,6 @@
 
 /* platform */
 #define PROPERTY_PLATFORM_SUPPORT_4K                "ro.vendor.platform.support.4k"
+#define PROPERTY_PLATFORM_SUPPORT_8K                "ro.vendor.platform.support.8k"
 
 #endif

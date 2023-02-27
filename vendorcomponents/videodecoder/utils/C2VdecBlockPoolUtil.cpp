@@ -257,7 +257,7 @@ c2_status_t C2VdecBlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
         mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay - 2;
     }
 
-    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Block pool deque buffer number max:%zu", mMaxDequeuedBufferNum);
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Block pool deque buffer number max:%d", mMaxDequeuedBufferNum);
     return C2_OK;
 }
 

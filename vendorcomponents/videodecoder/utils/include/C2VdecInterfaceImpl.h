@@ -210,6 +210,9 @@ private:
     void onStreamMaxBufferSizeInfoConfigParam();
     void onNetflixVPeekConfigParam();
     void onErrorPolicyConfigParam();
+
+    c2_status_t onStreamPictureSizeConfigParam(std::vector<std::unique_ptr<C2SettingResult>>* const failures, C2Param* const param);
+
 };
 }
 
