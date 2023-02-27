@@ -15,6 +15,7 @@
 #include <C2VdecInterfaceImpl.h>
 #include <C2VdecComponent.h>
 #include <C2VendorProperty.h>
+#include <C2VdecCodecConfig.h>
 #include <c2logdebug.h>
 
 #include <C2PlatformSupport.h>
@@ -225,6 +226,10 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 break;
             case C2StreamPictureSizeInfo::CORE_INDEX:
                 if (onStreamPictureSizeConfigParam(failures, param) != C2_OK)
+                    return C2_BAD_VALUE;
+                break;
+            case C2StreamFrameRateInfo::CORE_INDEX:
+                if (onStreamFrameRateConfigParam(failures, param) != true)
                     return C2_BAD_VALUE;
                 break;
             case C2VendorNetflixVPeek::CORE_INDEX:
@@ -1242,6 +1247,24 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
     }
 
     if (ret != C2_OK) {
+        std::unique_ptr<C2SettingResult> result = std::unique_ptr<C2SettingResult>(new C2SettingResult {
+            .field = C2ParamFieldValues(C2ParamField(param)),
+            .failure = C2SettingResult::Failure::BAD_VALUE,
+        });
+        failures->emplace_back(std::move(result));
+    }
+
+    return ret;
+}
+
+bool C2VdecComponent::IntfImpl::onStreamFrameRateConfigParam(
+        std::vector<std::unique_ptr<C2SettingResult>>* const failures, C2Param* const param) {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config frame rate:%f",
+                            C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mFrameRateInfo->value);
+
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
+    bool ret = C2VdecCodecConfig::getInstance().isCodecSupportFrameRate(vendorCodec, mSecureMode, mSize->width, mSize->height, mFrameRateInfo->value);
+    if (ret != true) {
         std::unique_ptr<C2SettingResult> result = std::unique_ptr<C2SettingResult>(new C2SettingResult {
             .field = C2ParamFieldValues(C2ParamField(param)),
             .failure = C2SettingResult::Failure::BAD_VALUE,

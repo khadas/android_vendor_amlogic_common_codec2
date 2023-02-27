@@ -7,9 +7,10 @@
  * Description:
  */
 
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 #define LOG_TAG "C2VdecCodecConfig"
 
+#include <stdio.h>
 #include <dlfcn.h>
 #include <unistd.h>
 #include <utils/Log.h>
@@ -118,7 +119,7 @@ static struct {
     {V4L_DEC_NR, kFeatureV4lDecNR, C2VdecCodecConfig::TYPE_BOOL},
     {DMA_BUF_HEAP, kFeatureDmaBufHeap, C2VdecCodecConfig::TYPE_BOOL},
     {ES_DMA_MODE, kFeatureEsDmaMode, C2VdecCodecConfig::TYPE_BOOL},
-    {DOUBLE_WRITE, kFeatureDoubleWrite, C2VdecCodecConfig::TYPE_STRING_ARRAY},
+    {DECODER_DOUBLE_WRITE, kFeatureDoubleWrite, C2VdecCodecConfig::TYPE_STRING_ARRAY},
 };
 
 //codec config
@@ -213,6 +214,44 @@ C2VdecCodecConfig::C2VdecCodecConfig():
 
 C2VdecCodecConfig::~C2VdecCodecConfig() {
     mCodecsMap.clear();
+}
+
+
+C2VendorCodec C2VdecCodecConfig::adaptorInputCodecToVendorCodec(InputCodec codec) {
+    switch (codec) {
+        case InputCodec::H264:
+            return C2VendorCodec::VDEC_H264;
+        case InputCodec::H265:
+            return C2VendorCodec::VDEC_H265;
+        case InputCodec::VP9:
+            return C2VendorCodec::VDEC_VP9;
+        case InputCodec::AV1:
+            return C2VendorCodec::VDEC_AV1;
+        case InputCodec::DVHE:
+            return C2VendorCodec::VDEC_DVHE;
+        case InputCodec::DVAV:
+            return C2VendorCodec::VDEC_DVAV;
+        case InputCodec::DVAV1:
+            return C2VendorCodec::VDEC_DVAV1;
+        case InputCodec::MP2V:
+            return C2VendorCodec::VDEC_MP2V;
+        case InputCodec::MP4V:
+            return C2VendorCodec::VDEC_MP4V;
+        case InputCodec::MJPG:
+            return C2VendorCodec::VDEC_MJPG;
+#ifdef SUPPORT_VDEC_AVS2
+        case InputCodec::AVS2:
+            return C2VendorCodec::VDEC_AVS2;
+#endif
+#ifdef SUPPORT_VDEC_AVS
+        case InputCodec::AVS:
+            return C2VendorCodec::VDEC_AVS;
+#endif
+        case InputCodec::UNKNOWN:
+            return C2VendorCodec::UNKNOWN;
+        default:
+            return C2VendorCodec::UNKNOWN;
+    }
 }
 
 char* C2VdecCodecConfig::getCodecFeatures() {
@@ -377,6 +416,56 @@ bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool s
         return false;
     }
 
+    const MediaCodecsXmlParser::TypeMap map = codec->second.typeMap;
+    auto typemap = map.begin();
+    while (typemap != map.end()) {
+        auto attributemap = typemap->second.begin();
+        struct CodecAttributes attributeItem;
+        attributeItem.typeName = typemap->first.c_str();
+
+        while (attributemap != typemap->second.end()) {
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %s %s -- %s", __func__, name, attributemap->first.c_str(), attributemap->second.c_str());
+            if (strstr(attributemap->first.c_str(), "alignment") != NULL) {
+                sscanf(attributemap->second.c_str(), "%dx%d", &attributeItem.alignMent.w, &attributeItem.alignMent.h);
+            } else if (strstr(attributemap->first.c_str(), "bitrate-range") != NULL) {
+                sscanf(attributemap->second.c_str(), "%d-%d", &attributeItem.bitRate.min, &attributeItem.bitRate.max);
+            } else if (strstr(attributemap->first.c_str(), "block-count-range") != NULL) {
+                sscanf(attributemap->second.c_str(), "%d-%d", &attributeItem.blockCount.min, &attributeItem.blockCount.max);
+            } else if (strstr(attributemap->first.c_str(), "block-size") != NULL) {
+                sscanf(attributemap->second.c_str(), "%dx%d", &attributeItem.blockSize.w, &attributeItem.blockSize.h);
+            } else if (strstr(attributemap->first.c_str(), "size") != NULL) {
+                sscanf(attributemap->second.c_str(),"%dx%d-%dx%d",&attributeItem.minSize.w, &attributeItem.minSize.h, &attributeItem.maxSize.w, &attributeItem.maxSize.h);
+            } else if (strstr(attributemap->first.c_str(), "blocks-per-second-range") != NULL) {
+                sscanf(attributemap->second.c_str(), "%d-%d", &attributeItem.blocksPerSecond.min, &attributeItem.blocksPerSecond.max);
+            } else if (strstr(attributemap->first.c_str(), "feature-adaptive-playback") != NULL) {
+                sscanf(attributemap->second.c_str(), "%d", &attributeItem.adaptivePlayback);
+            } else if (strstr(attributemap->first.c_str(), "feature-low-latency") != NULL) {
+                sscanf(attributemap->second.c_str(), "%d", &attributeItem.lowLatency);
+            } else if (strstr(attributemap->first.c_str(), "max-concurrent-instances") != NULL) {
+                sscanf(attributemap->second.c_str(), "%d", &attributeItem.concurrentInstance);
+            } else if (strstr(attributemap->first.c_str(), "feature-tunneled-playback") != NULL) {
+                sscanf(attributemap->second.c_str(), "%d", &attributeItem.tunnelPlayback);
+            }
+
+            attributemap ++;
+        }
+
+        mCodecAttributes.insert(std::pair<const char*, CodecAttributes>(name, attributeItem));
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] alignment(%d %d) blocksize-range(%d %d) minSize(%d %d) maxSize(%d %d)",
+                name,
+                attributeItem.alignMent.w,attributeItem.alignMent.h,
+                attributeItem.blockSize.w,attributeItem.blockSize.h,
+                attributeItem.minSize.w,attributeItem.minSize.h,
+                attributeItem.maxSize.w,attributeItem.maxSize.h);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "blockCount(%d %d) blocksPerSecond(%d %d) bitRate(%d %d) adaptivePlayback(%d) tunnelPlayback(%d) lowLatency(%d) concurrentInstance(%d)",
+                attributeItem.blockCount.min, attributeItem.blockCount.max,
+                attributeItem.blocksPerSecond.min, attributeItem.blocksPerSecond.max,
+                attributeItem.bitRate.min,attributeItem.bitRate.max,
+                attributeItem.adaptivePlayback,attributeItem.tunnelPlayback,
+                attributeItem.lowLatency, attributeItem.concurrentInstance);
+        typemap++;
+    }
+
     return true;
 }
 
@@ -389,6 +478,40 @@ bool C2VdecCodecConfig::codecSupport(C2VendorCodec type, bool secure, bool fromF
         return codecSupportFromFeatureList(type) & codecSupportFromMediaCodecXml(type, secure);
     else
         return true;
+}
+
+bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height, float frameRate) {
+    const char* name = NULL;
+    GetCompName(codec_type, secure, name);
+    int32_t size = width * height;
+    bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+
+    if (name == NULL) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"codecname is null and return.");
+        return false;
+    }
+
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s name:%s secure:%d size:%dx%d frameRate:%f", __func__, name, secure, width, height, frameRate);
+    auto attribute = mCodecAttributes.find(name);
+    if (attribute == mCodecAttributes.end()) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"don't found %s.", name);
+        return false;
+    }
+
+    if ((3840 * 2160 <= size && size <= 4096 * 2304) && !support_4k) {
+        struct CodecAttributes codecAttributes = attribute->second;
+        float supportFrameRate = (float)codecAttributes.blocksPerSecond.max / (float)codecAttributes.blockCount.max;
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported framerate:%f framerate:%f blocksPerSecond:%d blockCount:%d", __func__, supportFrameRate, frameRate,
+            codecAttributes.blocksPerSecond.max, codecAttributes.blockCount.max);
+
+        if (frameRate <= supportFrameRate) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 }

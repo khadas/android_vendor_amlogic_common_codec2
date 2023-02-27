@@ -59,6 +59,7 @@ cc_library_shared {
         "libevent",
         "libvendor_c2componentstore",
         "libamgralloc_ext",
+        "libstagefright_xmlparser",
     ],
 
     header_libs: [
@@ -70,7 +71,8 @@ cc_library_shared {
         "libnativebase_headers",
         "libmediahal_headers",
         "libvendor_c2componentstore_headers",
-        "libvendor_component_headers"
+        "libvendor_component_headers",
+        "libstagefright_xmlparser_headers",
     ],
 
     // -Wno-unused-parameter is needed for libchrome/base codes
@@ -91,4 +93,5 @@ cc_library_shared {
 
     ldflags: ["-Wl,-Bsymbolic"],
 
+    static_libs: ["libjsoncpp"],
 }

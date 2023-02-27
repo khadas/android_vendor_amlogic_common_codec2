@@ -34,8 +34,8 @@ enum FeatureIndex {
     V4L_DEC_NR,
     DMA_BUF_HEAP,
     ES_DMA_MODE,
-    DOUBLE_WRITE,
-    FEATURE_MAX = DOUBLE_WRITE + 1
+    DECODER_DOUBLE_WRITE,
+    FEATURE_MAX = DECODER_DOUBLE_WRITE + 1
 };
 
 class C2VdecCodecConfig : public Singleton<C2VdecCodecConfig> {
@@ -45,6 +45,11 @@ public:
     bool JsonValueToCodecsMap(Json::Value& json);
     bool codecSupport(C2VendorCodec type, bool secure, bool fromFeatureList, bool fromMediaCodecXml);
     bool codecFeatureSupport(C2VendorCodec codec_type, FeatureIndex feature_type);
+
+    C2VendorCodec adaptorInputCodecToVendorCodec(InputCodec codec);
+
+    // check xml param.
+    bool isCodecSupportFrameRate(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height, float frameRate);
 
     enum ValType {
         TYPE_INVALID = 0,
@@ -78,6 +83,32 @@ public:
         std::vector<int> svalIntArray;
     };
 
+    struct Size {
+        int32_t w;
+        int32_t h;
+    };
+    struct Range {
+        int32_t min;
+        int32_t max;
+    };
+    struct CodecAttributes {
+        std::string typeName;
+
+        int adaptivePlayback;
+        int tunnelPlayback;
+        int lowLatency;
+        int32_t concurrentInstance;
+
+        Size blockSize;
+        Size alignMent;
+        Size minSize;
+        Size maxSize;
+
+        Range blockCount;
+        Range blocksPerSecond;
+        Range bitRate;
+    };
+
 private:
     char* getCodecFeatures();
     bool codecsMapToString();
@@ -86,6 +117,7 @@ private:
 
     MediaCodecsXmlParser mParser;
     std::map<const char*, std::vector<Feature>> mCodecsMap;
+    std::map<const char*, CodecAttributes> mCodecAttributes;
 };
 
 }

@@ -211,6 +211,8 @@ private:
     void onNetflixVPeekConfigParam();
     void onErrorPolicyConfigParam();
 
+    bool onStreamFrameRateConfigParam(std::vector<std::unique_ptr<C2SettingResult>>* const failures, C2Param* const param);
+
     c2_status_t onStreamPictureSizeConfigParam(std::vector<std::unique_ptr<C2SettingResult>>* const failures, C2Param* const param);
 
 };
