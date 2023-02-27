@@ -1942,6 +1942,10 @@ int C2VdecComponent::getDefaultMaxBufNum(InputCodec videotype) {
         defaultMaxBuffers = 12;
     } else if (videotype == InputCodec::H264) {
         defaultMaxBuffers = 12;
+    } else if (videotype == InputCodec::MP2V) {
+        defaultMaxBuffers = 12;
+    } else if (videotype == InputCodec::MP4V) {
+        defaultMaxBuffers = 12;
     }
 
     return defaultMaxBuffers;
@@ -2636,7 +2640,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
 
-        if (mDequeueThreadUtil != nullptr) {
+        if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
             int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task", __func__, bufferInClient);
             uint32_t frameDur = mDeviceUtil->getVideoDurationUs();

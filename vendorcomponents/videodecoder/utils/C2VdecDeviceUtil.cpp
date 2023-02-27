@@ -111,9 +111,16 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
     }
 
     switch (codec) {
-        case InputCodec::H264:
         case InputCodec::DVAV:
             doubleWriteValue = 0x10;
+            break;
+        case InputCodec::H264:
+            if (mComp->isNonTunnelMode() & (mUseSurfaceTexture || mNoSurface)) {
+                doubleWriteValue = 0x10;
+                CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 0x10");
+            } else {
+                doubleWriteValue = 3;
+            }
             break;
         case InputCodec::MP2V:
         case InputCodec::MP4V:
@@ -146,10 +153,6 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         default:
             doubleWriteValue = 3;
             break;
-    }
-
-    if (codec == InputCodec::H264) {
-        doubleWriteValue = 0x10;
     }
 
     if (shouldEnableMMU()) {
@@ -1078,12 +1081,12 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
         realloc = true;
     } else {
         switch (mIntfImpl->getInputCodec()) {
-            case InputCodec::H264:
-            case InputCodec::MP2V:
-            case InputCodec::MP4V:
             case InputCodec::MJPG:
                 realloc = true;
                 break;
+            case InputCodec::H264:
+            case InputCodec::MP2V:
+            case InputCodec::MP4V:
             case InputCodec::VP9:
             case InputCodec::H265:
             case InputCodec::AV1:
@@ -1136,6 +1139,18 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
         if (mIs8k) {
             width = kMaxWidth8k;
             height = kMaxHeight8k;
+        }
+        //mpeg2 and mpeg4 default size is 1080p
+        if ((mIntfImpl->getInputCodec() == InputCodec::MP2V ||
+            mIntfImpl->getInputCodec() == InputCodec::MP4V)
+            ) {
+             if (width * height <= kMaxWidth1080p * kMaxHeight1080p) {
+                width = kMaxWidth1080p;
+                height = kMaxHeight1080p;
+             } else if (width * height <= kMaxWidth4k * kMaxHeight4k) {
+                width = kMaxWidth4k;
+                height = kMaxHeight4k;
+             }
         } else {
             width = kMaxWidth4k;
             height = kMaxHeight4k;

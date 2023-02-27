@@ -27,7 +27,7 @@ static unsigned int gloglevel = 1;
 
 #define CODEC2_LOG(level, f, s...) \
 do { \
-    if (level > CODEC2_LOG_ERR) { \
+    if (level & gloglevel) { \
         if (level == CODEC2_LOG_INFO) \
             ALOGI(f, ##s); \
         else if (level == CODEC2_LOG_DEBUG_LEVEL1 || level == CODEC2_LOG_DEBUG_LEVEL2) \
