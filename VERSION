@@ -1,8 +1,56 @@
 Major_V=1
-Minor_V=4
-BaseCommitId=a3f1318f2bb52432dc7acb07d791a57e37f76074
+Minor_V=5
+BaseCommitId=c429d4dded218bd27bc43aff54079785bc8952f3
 
 #history version
+#Release_ChangeId_V1_4=I65d8ed201a73046b166013ff0532fcb352b3904b
+#CommitId:c429d4dded218bd27bc43aff54079785bc8952f3
+#V1.4.78-gc429d4d ReleaseNote
+# add AC4 decoder.
+# support google drop frame cts case.
+# add tunnel report underflow and reconfig.
+# support stream mode no out frame report work.
+# add dma & canvas mode for multiencoder and henc.
+# add multi-debug trace in Codec2.
+# implement hdr10plus by C2StreamHdrDynamicMetadataInfo param.
+# support netflix vpeek feature.
+# support check mediacodec.xml then load component.
+# config error policy.
+# codec2 support force di.
+# Support AVC 4k MMU by APP set parameter.
+
+#Fixed BUG detail information:
+# limit Non-4K platform not support 4K playback.
+# fixed EOS error when cts.
+# fix codec2 64bit server do not have tombstones.
+# duration calculate error when seek end.
+# fix kernel panic while testing DecodeAccuracyTest
+# set the inputbuffer size by the current video format.
+# fix tunnel mode resolution change event pending issue.
+# fix testGetMaxSupportedInstances case.
+# play rm stream failed when seeking to the end.
+# modify default margin to 6.
+# trickmode not work in C2.
+# coverity issue in softvideodecoder.
+# configure pipeline delay buffer number for stream mode.
+# add h265bitstream to adjust vui info.
+# support tunerhal 1.1 version.
+# add hevc profile & level setting.
+# add the unsupport width solution.
+# fix I frame interval error.
+# optimize the process of fetch blocks from block pool.
+# Tunnel mode playback AVC fail.
+# enable ddp decoder for ms12 version.
+# modify max input buffer number for stream mode.
+# modify C2 work queue count.
+# add svc setting interface.
+# fix vts case fail on t7.
+# fix the fail for 4k screenrecord.
+# Increase priority of threads in c2.
+# unregister callback when tunnel destroy.
+# no reallocate the buffer when the number decreases.
+# Implement PTS Manager to revise video PTS.
+
 #Release_ChangeId_V1_3=I692d861aa301eb834d7c97a77e7ad619714e83e1
 #CommitId:a3f1318f2bb52432dc7acb07d791a57e37f76074
 #V1.3.62-ga3f1318 ReleaseNote

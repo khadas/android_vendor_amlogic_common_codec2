@@ -12,7 +12,11 @@
             "Multi Frame Streams Playback",
             "Hdr10 Hdr10Plus Streams Playback",
             "P010 Streams Playback",
-            "Tuner Passthrough Trick Mode"
+            "Tuner Passthrough Trick Mode",
+            "Check MediaCodec XML",
+            "Support AVC 4K MMU",
+            "Netflix Video Peek",
+            "Support DmA Canvas"
         ]
     },
     "softvdec": {
@@ -36,7 +40,10 @@
         "features": [
             "DD/DDP Dolby Decoder",
             "Dts Decoder",
-            "FFmpeg Decoder"
+            "FFmpeg Decoder",
+            "DolbyVision AC3/AC4/EC3",
+            "DTS/DTSE/DTSHD",
+            "FFmpeg APE/PMP/PCM/OPUS"
         ]
     }
 }
