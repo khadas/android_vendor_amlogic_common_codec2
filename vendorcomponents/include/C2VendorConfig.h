@@ -19,7 +19,7 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorErrorPolicy,
     kParamIndexVendorStreammodePipeLinedelay,
     kParamIndexVendorTunerPassthroughEventMask,
-
+    kParamIndexVendorStreammodeHwAvSyncID,
     /*these are Audio Decoder config parameters.*/
     kParamIndexVendorAdecCodecId = C2Param:: TYPE_INDEX_VENDOR_START + 0x200,
     kParamIndexVendorAdecExtraDataSize,
@@ -113,6 +113,8 @@ typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorVdecWorkMode> C2Vd
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorDataSourceType> C2DataSourceType;
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorStreammodeInputdelay> C2StreamModeInputDelay;
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorStreammodePipeLinedelay> C2StreamModePipeLineDelay;
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorStreammodeHwAvSyncID> C2StreamModeHwAvSyncId;
+
 
 constexpr char C2_PARAMKEY_VENDOR_VDEC_WORK_MODE[] = "vdec.workmode";
 constexpr char KEY_VENDOR_WORK_MODE[] = "vendor.vdec.workmode.value";
@@ -122,6 +124,8 @@ constexpr char C2_PARAMKEY_VENDOR_STREAMMODE_INPUT_DELAY[] = "streammode.inputde
 constexpr char KEY_VENDOR_STREAMMODE_INPUT_DELAY[] = "vendor.streammode.inputdelay.value";
 constexpr char C2_PARAMKEY_VENDOR_STREAMMODE_PIPELINE_DELAY[] = "streammode.pipelinedelay";
 constexpr char KEY_VENDOR_STREAMMODE_PIPELINE_DELAY[] = "vendor.streammode.pipelinedelay.value";
+constexpr char C2_PARAMKEY_VENDOR_STREAMMODE_HWAVSYNCID[] = "streammode.hwavsyncid";
+constexpr char KEY_VENDOR_STREAMMODE_HWAVSYNCID[] = "vendor.streammode.hwavsyncid.value";
 
 struct C2VendorNetflixVPeekStruct {
     inline C2VendorNetflixVPeekStruct() = default;

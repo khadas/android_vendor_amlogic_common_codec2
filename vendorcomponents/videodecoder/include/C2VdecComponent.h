@@ -108,7 +108,7 @@ public:
     void onConfigureTunerPassthroughMode();
     void onConfigureTunerPassthroughTrickMode();
     void onConfigureTunerPassthroughEventMask();
-
+    void onConfigureEsModeHwAvsyncId(int32_t avSyncId);
     //for out use
     bool isAmDolbyVision() {return mIsDolbyVision;}
     bool isSecureMode() {return mSecureMode;}

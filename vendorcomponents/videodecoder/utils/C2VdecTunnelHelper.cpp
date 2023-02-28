@@ -356,11 +356,10 @@ int C2VdecComponent::TunnelHelper::notifyTunnelEventCallback(void* obj, void* ar
     return 0;
 }
 
-c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId) {
+c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId, uint64_t timestamp) {
     LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
     DCHECK(mVideoTunnelRenderer != NULL);
-    int64_t timestamp = -1;
 
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] PictureId:%d, bitstreamId:%" PRId64 "", __func__, __LINE__,
             pictureBufferId, bitstreamId);
@@ -375,16 +374,15 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
         return C2_BAD_STATE;
     }
 
-    C2Work* work = comp->getPendingWorkByBitstreamId(bitstreamId);
-    if (!work) {
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, pts:%" PRId64"", __func__, __LINE__, info->mFd, timestamp);
-        return C2_CORRUPTED;
-    }
-    timestamp = work->input.ordinal.timestamp.peekull();
 
     // implement Android Video Peek
     if (!mAndroidPeekFrameReady) {
         mAndroidPeekFrameReady = true;
+        C2Work* work = comp->getPendingWorkByBitstreamId(bitstreamId);
+        if (!work) {
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, pts:%" PRId64"", __func__, __LINE__, info->mFd, timestamp);
+            return C2_CORRUPTED;
+        }
         work = comp->cloneWork(work);
         if (work != NULL) {
             std::unique_ptr<C2StreamTunnelHoldRender::output> frameReady = std::make_unique<C2StreamTunnelHoldRender::output>();
@@ -428,13 +426,10 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct r
         C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Empty pendingwork, ignore report it");
         return C2_OK;
     }
-    auto nextBuffer = comp->mPendingBuffersToWork.front();
-    if (rendertime->mediaUs < nextBuffer.mMediaTimeUs) {
-        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Old timestamp, ignore report it");
-        return C2_OK;
-    }
 
-    C2Work* work = comp->getPendingWorkByMediaTime(rendertime->mediaUs);
+    auto pendingBuffer = comp->findPendingBuffersToWorkByTime(rendertime->mediaUs);
+    int32_t renderBitstreamId = pendingBuffer->mBitstreamId;
+    C2Work* work = comp->getPendingWorkByBitstreamId(renderBitstreamId);
     if (work == NULL) {
         for (auto it = mTunnelAbandonMediaTimeQueue.begin(); it != mTunnelAbandonMediaTimeQueue.end(); it++) {
             if (rendertime->mediaUs == *it) {
@@ -452,7 +447,6 @@ c2_status_t C2VdecComponent::TunnelHelper::sendOutputBufferToWorkTunnel(struct r
     intfImpl->mTunnelSystemTimeOut->value = rendertime->renderUs * 1000;
     work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(intfImpl->mTunnelSystemTimeOut)));
 
-    auto pendingBuffer = comp->findPendingBuffersToWorkByTime(rendertime->mediaUs);
     if (pendingBuffer != comp->mPendingBuffersToWork.end()) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Rendertime:%" PRId64 ", bitstreamId:%d, flags:%d", __func__, __LINE__, rendertime->mediaUs, pendingBuffer->mBitstreamId,pendingBuffer->flags);
         comp->reportWorkIfFinished(pendingBuffer->mBitstreamId,pendingBuffer->flags);
@@ -750,7 +744,7 @@ c2_status_t C2VdecComponent::TunnelHelper::fastHandleWorkAndOutBufferTunnel(bool
     if (input) {
         work->result = C2_OK;
         work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
-        work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
+        work->worklets.front()->output.flags = static_cast<C2FrameData::flags_t>(0);
         comp->reportWork(std::move(*workIter));
         comp->mOutputFinishedWorkCount++;
         comp->mPendingWorks.erase(workIter);
@@ -771,5 +765,17 @@ c2_status_t C2VdecComponent::TunnelHelper::fastHandleWorkAndOutBufferTunnel(bool
 
     return C2_BAD_VALUE;
 }
+
+void C2VdecComponent::TunnelHelper::configureEsModeHwAvsyncId(int32_t avSyncId){
+    mSyncId = avSyncId;
+}
+
+void C2VdecComponent::TunnelHelper::videoSyncQueueVideoFrame(int64_t timestampUs, uint32_t size) {
+    if (mVideoTunnelRenderer) {
+        mVideoTunnelRenderer->videoSyncQueueVideoFrame((timestampUs*9/100),size);
+    }
+
+}
+
 
 }

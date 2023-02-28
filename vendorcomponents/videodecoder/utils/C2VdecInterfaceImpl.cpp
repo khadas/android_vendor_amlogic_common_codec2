@@ -220,6 +220,13 @@ c2_status_t C2VdecComponent::IntfImpl::config(
             case C2StreamModePipeLineDelay::CORE_INDEX:
                 onStreamModePipeLineDelayConfigParam();
                 break;
+              case C2StreamModeHwAvSyncId::CORE_INDEX:
+                CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode hwavsyncid  :%d",
+                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModeHwAvSyncId->value);
+                if (mComponent) {
+                    mComponent->onConfigureEsModeHwAvsyncId(mStreamModeHwAvSyncId->value);
+                }
+                break;
             case C2StreamTunnelStartRender::CORE_INDEX:
                 onStreamTunnelStartRenderConfigParam();
                 break;
@@ -1151,10 +1158,17 @@ void C2VdecComponent::IntfImpl::onVendorExtendParam() {
     .build());
 
     addParameter(
-        DefineParam(mPlayerId,C2_PARAMKEY_PLAYER_ID)
-            .withDefault(new C2VendorPlayerId::input(0))
-            .withFields({C2F(mPlayerId,value).any()})
-    .withSetter(Setter<decltype(*mPlayerId)>::StrictValueWithNoDeps)
+    DefineParam(mStreamModeHwAvSyncId, C2_PARAMKEY_VENDOR_STREAMMODE_HWAVSYNCID)
+            .withDefault(new C2StreamModeHwAvSyncId::input(0))
+            .withFields({C2F(mStreamModeHwAvSyncId, value).any()})
+            .withSetter(Setter<decltype(*mStreamModeHwAvSyncId)>::StrictValueWithNoDeps)
+    .build());
+
+    addParameter(
+    DefineParam(mPlayerId,C2_PARAMKEY_PLAYER_ID)
+           .withDefault(new C2VendorPlayerId::input(0))
+           .withFields({C2F(mPlayerId,value).any()})
+           .withSetter(Setter<decltype(*mPlayerId)>::StrictValueWithNoDeps)
     .build());
 
     addParameter(

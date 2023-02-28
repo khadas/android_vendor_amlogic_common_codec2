@@ -34,14 +34,15 @@ public:
     c2_status_t start();
     c2_status_t stop();
     c2_status_t flush();
-    c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
+    c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId,uint64_t timestamp);
     c2_status_t storeAbandonedFrame(int64_t timeus);
     c2_status_t allocTunnelBuffersAndSendToDecoder(const media::Size& size, uint32_t pixelFormat);
     c2_status_t videoResolutionChangeTunnel();
     void onAndroidVideoPeek();
     VideoTunnelRendererBase* getTunnelRender() { return mVideoTunnelRenderer->getTunnelRenderer();}
     c2_status_t fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId);
-
+    void configureEsModeHwAvsyncId(int32_t            avSyncId);
+    void videoSyncQueueVideoFrame(int64_t timestampUs, uint32_t size);
 private:
     static int fillVideoFrameCallback2(void* obj, void* args);
     int postFillVideoFrameTunnel2(int dmafd, bool rendered);

@@ -948,7 +948,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
             && ((work->input.flags & C2FrameData::FLAG_DROP_FRAME) != 0)) {
             mTunnelHelper->fastHandleWorkAndOutBufferTunnel(false, bitstreamId, pictureBufferId);
         } else {
-            mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
+            mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId,timestamp);
         }
         return;
     }
@@ -1578,6 +1578,10 @@ void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inp
             bitstreamId, timestamp, input.offset(), (int)input.size(), hdrlen, flags);
     if (mVideoDecWraper != NULL) {
         mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, hdrbuf, hdrlen, flags);
+        if (mIntfImpl) {
+            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE && mTunnelHelper)
+                mTunnelHelper->videoSyncQueueVideoFrame(timestamp,input.size());
+        }
     }
 }
 
@@ -3488,6 +3492,17 @@ void C2VdecComponent::onConfigureTunerPassthroughTrickMode() {
 void C2VdecComponent::onConfigureTunerPassthroughEventMask() {
    mTunerPassthroughHelper->setRenderCallBackEventFlag();
 }
+
+void C2VdecComponent::onConfigureEsModeHwAvsyncId(int32_t avSyncId){
+    if (mTunnelHelper) {
+        if ((avSyncId & 0x0000FF00) == 0xFF00 || avSyncId == 0x0) {
+            mTunnelHelper->configureEsModeHwAvsyncId((avSyncId |(1u << 16)));
+        } else {
+            CODEC2_LOG(CODEC2_LOG_ERR, "Invalid hwsyncid:0x%x", avSyncId);
+        }
+     }
+}
+
 class C2VdecComponentFactory : public C2ComponentFactory {
 public:
     C2VdecComponentFactory(C2String decoderName)

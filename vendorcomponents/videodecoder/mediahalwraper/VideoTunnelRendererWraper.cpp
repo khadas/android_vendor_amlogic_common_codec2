@@ -146,4 +146,10 @@ bool VideoTunnelRendererWraper::setFrameRate(int32_t framerate) {
     return true;
 }
 
+void VideoTunnelRendererWraper::videoSyncQueueVideoFrame(int64_t timestampUs, uint32_t size) {
+    if (!mVideoTunnelRenderer)
+        return ;
+    return mVideoTunnelRenderer->onVideoSyncQueueVideoFrame(timestampUs,size);
+}
+
 }
