@@ -36,10 +36,12 @@ C2R C2SoftVdec::IntfImpl::SizeSetter(bool mayBlock, const C2P<C2StreamPictureSiz
     (void)mayBlock;
     C2R res = C2R::Ok();
     if (!me.F(me.v.width).supportsAtAll(me.v.width)) {
+        //coverity[Memory - illegal accesses]
         res = res.plus(C2SettingResultBuilder::BadValue(me.F(me.v.width)));
         me.set().width = oldMe.v.width;
     }
     if (!me.F(me.v.height).supportsAtAll(me.v.height)) {
+        //coverity[Memory - illegal accesses]
         res = res.plus(C2SettingResultBuilder::BadValue(me.F(me.v.height)));
         me.set().height = oldMe.v.height;
     }

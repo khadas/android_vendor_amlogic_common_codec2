@@ -477,7 +477,8 @@ void C2SoftVdecComponent::WorkHandler::onMessageReceived(const sp<AMessage> &msg
         case kWhatProcess: {
             if (mRunning) {
                 if (thiz->processQueue()) {
-                    (new AMessage(kWhatProcess, this))->post();
+                    sp<AMessage> msg = new AMessage(kWhatProcess, this);
+                    msg->post();
                 }
             } else {
                 CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Ignore process message as we're not running");
@@ -635,7 +636,8 @@ c2_status_t C2SoftVdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>> * c
         }
     }
     if (queueWasEmpty) {
-        (new AMessage(WorkHandler::kWhatProcess, mHandler))->post();
+        sp<AMessage> msg = new AMessage(WorkHandler::kWhatProcess, mHandler);
+        msg->post();
     }
     return C2_OK;
 }
@@ -695,7 +697,8 @@ c2_status_t C2SoftVdecComponent::drain_nb(drain_mode_t drainMode) {
         queue->markDrain(drainMode);
     }
     if (queueWasEmpty) {
-        (new AMessage(WorkHandler::kWhatProcess, mHandler))->post();
+        sp<AMessage> msg = new AMessage(WorkHandler::kWhatProcess, mHandler);
+        msg->post();
     }
     return C2_OK;
 }
@@ -710,14 +713,16 @@ c2_status_t C2SoftVdecComponent::start() {
     state.unlock();
     if (needsInit) {
         sp<AMessage> reply;
-        (new AMessage(WorkHandler::kWhatInit, mHandler))->postAndAwaitResponse(&reply);
-        int32_t err;
+        sp<AMessage> msg = new AMessage(WorkHandler::kWhatInit, mHandler);
+        msg->postAndAwaitResponse(&reply);
+        int32_t err = C2_OK;
         CHECK(reply->findInt32("err", &err));
         if (err != C2_OK) {
             return (c2_status_t)err;
         }
     } else {
-        (new AMessage(WorkHandler::kWhatStart, mHandler))->post();
+        sp<AMessage> msg = new AMessage(WorkHandler::kWhatStart, mHandler);
+        msg->post();
     }
     state.lock();
     state->mState = RUNNING;
@@ -740,8 +745,9 @@ c2_status_t C2SoftVdecComponent::stop() {
         queue->pending().clear();
     }
     sp<AMessage> reply;
-    (new AMessage(WorkHandler::kWhatStop, mHandler))->postAndAwaitResponse(&reply);
-    int32_t err;
+    sp<AMessage> msg = new AMessage(WorkHandler::kWhatStop, mHandler);
+    msg->postAndAwaitResponse(&reply);
+    int32_t err = C2_OK;
     CHECK(reply->findInt32("err", &err));
     if (err != C2_OK) {
         return (c2_status_t)err;
@@ -761,14 +767,16 @@ c2_status_t C2SoftVdecComponent::reset() {
         queue->pending().clear();
     }
     sp<AMessage> reply;
-    (new AMessage(WorkHandler::kWhatReset, mHandler))->postAndAwaitResponse(&reply);
+    sp<AMessage> msg = new AMessage(WorkHandler::kWhatReset, mHandler);
+    msg->postAndAwaitResponse(&reply);
     return C2_OK;
 }
 
 c2_status_t C2SoftVdecComponent::release() {
     CODEC2_LOG(CODEC2_LOG_INFO, "%s", __func__);
     sp<AMessage> reply;
-    (new AMessage(WorkHandler::kWhatRelease, mHandler))->postAndAwaitResponse(&reply);
+    sp<AMessage> msg = new AMessage(WorkHandler::kWhatRelease, mHandler);
+    msg->postAndAwaitResponse(&reply);
     return C2_OK;
 }
 
@@ -803,6 +811,10 @@ void C2SoftVdecComponent::finish(
         work->input.ordinal.customOrdinal = customOrdinal;
         fillWork(work);
         std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
+        if (listener == nullptr) {
+            CODEC2_LOG(CODEC2_LOG_ERR, "%s unexpected null object error", __func__);
+            return;
+        }
         listener->onWorkDone_nb(shared_from_this(), vec(work));
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Returning pending work");
     }
@@ -829,6 +841,10 @@ void C2SoftVdecComponent::cloneAndSend(
     if (work) {
         fillWork(work);
         std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
+        if (listener == nullptr) {
+            CODEC2_LOG(CODEC2_LOG_ERR, "%s unexpected null object error", __func__);
+            return;
+        }
         listener->onWorkDone_nb(shared_from_this(), vec(work));
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Cloned and sending work");
     }

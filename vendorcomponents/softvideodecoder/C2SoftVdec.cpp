@@ -399,6 +399,10 @@ void C2SoftVdec::process(
                 free(mExtraData);
             }
             mExtraData = (uint8_t *)malloc(inSize);
+            if (mExtraData == NULL) {
+                work->result = C2_NO_MEMORY;
+                return;
+            }
             memcpy(mExtraData, inBuffuer, inSize);
             mVideoInfo.extra_data = mExtraData;
             mVideoInfo.extra_data_size = inSize;
