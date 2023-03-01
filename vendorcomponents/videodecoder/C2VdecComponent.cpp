@@ -853,10 +853,11 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     if (isNonTunnelMode()) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else if (isTunnelMode() && mTunnelHelper != NULL) {
-        if (!(work->input.flags & C2FrameData::FLAG_DROP_FRAME)) {
-            mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
-        } else {
+        if ((work != NULL)
+            && ((work->input.flags & C2FrameData::FLAG_DROP_FRAME) != 0)) {
             mTunnelHelper->fastHandleWorkAndOutBufferTunnel(false, bitstreamId, pictureBufferId);
+        } else {
+            mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId);
         }
         return;
     }
