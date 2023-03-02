@@ -340,6 +340,8 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     if (mUseSurfaceTexture || mNoSurface) {
         mEnableNR = false;
         mEnableDILocalBuf = false;
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "SurfaceText or noSurface unuse avbc out");
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_UNUSE_AVBC_OUT;
     }
 
     if (mEnableNR) {

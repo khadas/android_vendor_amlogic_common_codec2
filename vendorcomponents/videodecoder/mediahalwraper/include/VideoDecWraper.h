@@ -117,6 +117,8 @@ enum {
     VDEC_CFG_FLAG_NR_ENABLE    = (1<<15),
     VDEC_CFG_FLAG_PROG_ONLY    = (1<<16),
     VDEC_CFG_FLAG_FORCE_DI     = (1<<17),
+    VDEC_CFG_FLAG_RELEASE_VPP_EARLY = (1<<18),
+    VDEC_CFG_FLAG_UNUSE_AVBC_OUT = (1<<19),
 };
 
 enum {
