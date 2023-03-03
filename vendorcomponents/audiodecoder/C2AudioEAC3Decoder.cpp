@@ -128,6 +128,8 @@ public:
 
     u_int32_t getMaxChannelCount() const { return mMaxChannelCount->value; }
     int32_t getPassthroughEnable() const { return mPassthroughEnable->value; }
+    u_int32_t getSampleRate() const { return mSampleRate->value; }
+    u_int32_t getChannelCount() const { return mChannelCount->value; }
 
 private:
     std::shared_ptr<C2StreamSampleRateInfo::output> mSampleRate;
@@ -972,12 +974,20 @@ void C2AudioEAC3Decoder::process(
             * Make the returned buffer size equal to 6144(IEC61937 AC3) bytes.
             * Then the player and audioflinger will think there is enough pcm data.
             */
-           int spdif_out_len = 6144; // AC3 IEC61937 Framesize
-           memset((char *)mConfig->pOutputBuffer, 0, spdif_out_len);
-           memcpy((char *)mConfig->pOutputBuffer, (char *)mConfig->pInputBuffer, mConfig->inputBufferCurrentLength);
-           mConfig->outputFrameSize = spdif_out_len;
-           inBuffer_offset = inBuffer_nFilledLen;
-           inBuffer_nFilledLen = 0;
+            int spdif_out_len = 6144; // AC3 IEC61937 Framesize
+            memset((char *)mConfig->pOutputBuffer, 0, spdif_out_len);
+            memcpy((char *)mConfig->pOutputBuffer, (char *)mConfig->pInputBuffer, mConfig->CurrentFrameLength);
+            pcm_out_info.sample_rate = mIntf->getSampleRate();
+            pcm_out_info.channel_num = mIntf->getChannelCount();
+            mConfig->num_channels = pcm_out_info.channel_num;
+            mConfig->samplingRate = pcm_out_info.sample_rate;
+            mConfig->outputFrameSize = spdif_out_len;
+            if (mConfig->outputFrameSize > 0) {
+                inInfo.decodedSizes.push_back(mConfig->outputFrameSize);
+                mBuffersInfo.push_back(std::move(inInfo));
+            }
+            inBuffer_offset = inBuffer_nFilledLen;
+            inBuffer_nFilledLen = 0;
     }
 
     //update out config.
