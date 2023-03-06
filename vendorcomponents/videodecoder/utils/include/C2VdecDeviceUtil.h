@@ -75,6 +75,7 @@ public:
     bool checkConfigInfoFromDecoderAndReconfig(int type);
 
 private:
+    void init(bool secure);
     /* set hdr static to decoder */
     int setHDRStaticInfo();
     int checkHDRMetadataAndColorAspects(struct aml_vdec_hdr_infos* phdr);

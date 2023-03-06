@@ -46,40 +46,12 @@ constexpr int kMaxHeight1080p = 1088;
 constexpr int kMaxWidthP010 = 720;
 constexpr int kMaxHeightP010 = 576;
 
-C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
-    mUvmFd(-1),
-    mComp(comp),
-    mUseSurfaceTexture(false),
-    mNoSurface(false),
-    mHDRStaticInfoChanged(false),
-    mHDR10PLusInfoChanged(false),
-    mColorAspectsChanged(false),
-    mSecure(secure),
-    mEnableNR(false),
-    mEnableDILocalBuf(false),
-    mIs8k(false),
-    mEnable8kNR(false),
-    mForceFullUsage(false),
-    mIsInterlaced(false),
-    mEnableAvc4kMMU(false),
-    mDurationUs(0),
-    mDurationUsFromApp(0),
-    mCredibleDuration(0),
-    mUnstablePts(0),
-    mPlayerId(0),
-    mLastOutPts(0),
-    mOutputWorkCount(0),
-    mMarginBufferNum(0),
-    mStreamBitDepth(-1),
-    mBufferWidth(0),
-    mBufferHeight(0),
-    mSignalType(0),
-    mEnableAdaptivePlayback(false) {
-    mConfigParam = NULL;
-    mVideoDecWraper = NULL;
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure) {
+    mComp = comp;
     mIntfImpl = mComp->GetIntfImpl();
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
+    init(secure);
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 
     mUvmFd = amuvm_open();
     if (mUvmFd < 0) {
@@ -87,8 +59,6 @@ C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure):
         mUvmFd = -1;
     }
 
-    mForceDIPermission = false;
-    mDisableErrPolicy = true;
 }
 
 C2VdecComponent::DeviceUtil::~DeviceUtil() {
@@ -98,6 +68,48 @@ C2VdecComponent::DeviceUtil::~DeviceUtil() {
     }
 }
 
+void C2VdecComponent::DeviceUtil::init(bool secure) {
+    // config
+    mSignalType = 0;
+    mBufferWidth = 0;
+    mBufferHeight = 0;
+    mOutputWorkCount = 0;
+    mDurationUsFromApp = 0;
+    mConfigParam = NULL;
+    mVideoDecWraper = NULL;
+    mSecure = secure;
+    mStreamBitDepth = -1;
+    mUvmFd = -1;
+
+    // 8K
+    mIs8k = false;
+    mEnable8kNR = false;
+
+    // NR DI
+    mEnableNR = false;
+    mNoSurface = false;
+    mIsInterlaced = false;
+    mEnableAvc4kMMU = false;
+    mForceFullUsage = false;
+    mEnableDILocalBuf = false;
+    mUseSurfaceTexture = false;
+    mForceDIPermission = false;
+    mColorAspectsChanged = false;
+    mDisableErrPolicy = true;
+
+    // HDR
+    mHDRStaticInfoChanged = false;
+    mHDR10PLusInfoChanged = false;
+    mEnableAdaptivePlayback = false;
+    mPlayerId = 0;
+
+    // PTS
+    mLastOutPts = 0;
+    mDurationUs = 0;
+    mUnstablePts = 0;
+    mCredibleDuration = 0;
+    mMarginBufferNum = 0;
+}
 
 uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
     uint32_t doubleWriteValue = 3;
@@ -357,99 +369,38 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
     pAmlDecParam->cfg.uvm_hook_type = 2;
     if (/*!mSecureMode*/1) {
-        if (mIntfImpl->getInputCodec() == InputCodec::H265) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::VP9) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-            setHDRStaticInfo();
-        } else if (mIntfImpl->getInputCodec() == InputCodec::H264) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::AV1) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-            setHDRStaticInfo();
-        } else if (mIntfImpl->getInputCodec() == InputCodec::DVHE) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-            if (dvUseTwoLayer) {
-                pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_TWOLAYER;
-            }
-        } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::DVAV1) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::MP2V) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::MP4V) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::MJPG) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::AVS2) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
-        } else if (mIntfImpl->getInputCodec() == InputCodec::AVS) {
-            pAmlDecParam->cfg.init_height = bufwidth;
-            pAmlDecParam->cfg.init_width = bufheight;
-            pAmlDecParam->cfg.ref_buf_margin = margin;
-            pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
-            pAmlDecParam->cfg.canvas_mem_endian = 0;
-            pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+        //common param
+        pAmlDecParam->cfg.init_height = bufwidth;
+        pAmlDecParam->cfg.init_width = bufheight;
+        pAmlDecParam->cfg.ref_buf_margin = margin;
+        pAmlDecParam->cfg.double_write_mode = doubleWriteMode;
+        pAmlDecParam->cfg.canvas_mem_endian = 0;
+        pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
+
+        switch (mIntfImpl->getInputCodec()) {
+            case InputCodec::H264:
+            case InputCodec::H265:
+                {
+                    pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
+                }
+                break;
+            case InputCodec::VP9:
+            case InputCodec::AV1:
+                {
+                    pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_NEGATIVE;
+                    setHDRStaticInfo();
+                }
+                break;
+            case InputCodec::DVHE:
+                {
+                    if (dvUseTwoLayer) {
+                        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DV_TWOLAYER;
+                    }
+                }
+                break;
+            default:
+                C2VdecMDU_LOG(CODEC2_LOG_ERR,"input codec unknown!");
+                break;
         }
     }
 }
