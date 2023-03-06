@@ -9,6 +9,7 @@
 
 #include <memory>
 
+
 namespace android {
 
 const C2String kH264DecoderName = "c2.amlogic.avc.decoder";
@@ -67,6 +68,11 @@ const C2String kDTSHDDecoderName    = "c2.amlogic.audio.decoder.dtshd";
 const C2String kDTSSEDecoderName    = "c2.amlogic.audio.decoder.dtse";
 const C2String kAC4DecoderName      = "c2.amlogic.audio.decoder.ac4";
 
+enum RETURN_STATUS {
+    RET_FAIL = -1,
+    RET_OK = 0,
+    UNKNOWN = 0xff,
+};
 
 enum class InputCodec {
     H264,

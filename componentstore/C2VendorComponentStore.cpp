@@ -45,6 +45,21 @@ const C2String kComponentLoadVideoEncoderLibrary = "libcodec2_aml_video_encoder.
 const C2String kComponentLoadAudioDecoderLibrary = "libcodec2_aml_audio_decoder.so";
 
 
+static RETURN_STATUS C2VendorCheckFileMS12Status(void)
+{
+#define DOLBY_MS12_V24_LIB_PATH_A "/odm/lib/ms12/libdolbyms12.so"
+#define DOLBY_MS12_V24_LIB_PATH_B "/vendor/lib/ms12/libdolbyms12.so"
+
+    if (access(DOLBY_MS12_V24_LIB_PATH_A, R_OK) == RET_OK) {
+        return RET_OK;
+    } else if (access(DOLBY_MS12_V24_LIB_PATH_B, R_OK) == RET_OK) {
+        return RET_OK;
+    } else {
+        //TODO
+        return RET_FAIL;
+    }
+}
+
 class C2VendorComponentStore : public C2ComponentStore {
 public:
     C2VendorComponentStore();
@@ -592,9 +607,19 @@ C2VendorComponentStore::C2VendorComponentStore()
     }
     if (supportC2Adec) {
         for (int i = 0; i < sizeof(gC2AudioDecoderComponents) / sizeof(C2VendorComponent); i++) {
-            ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2AudioDecoderComponents[i].compname.c_str(), gC2AudioDecoderComponents[i].codec);
-            mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderComponents[i].compname),
-                    std::forward_as_tuple(kComponentLoadAudioDecoderLibrary, gC2AudioDecoderComponents[i].codec, true));
+            const char *pAc4 = strstr(gC2AudioDecoderComponents[i].compname.c_str(), (const char *)".ac4");
+            if (pAc4) {
+                RETURN_STATUS ms12_file_status = C2VendorCheckFileMS12Status();
+                ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d, ms12 so is %s\n",
+                    i, gC2AudioDecoderComponents[i].compname.c_str(), gC2AudioDecoderComponents[i].codec, !ms12_file_status?"ok":"not ok");
+                if (ms12_file_status == RET_OK)
+                    mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderComponents[i].compname),
+                        std::forward_as_tuple(kComponentLoadAudioDecoderLibrary, gC2AudioDecoderComponents[i].codec, true));
+            } else {
+                ALOGI("C2VendorComponentStore i:%d, compName:%s and id:%d\n", i, gC2AudioDecoderComponents[i].compname.c_str(), gC2AudioDecoderComponents[i].codec);
+                mComponents.emplace(std::piecewise_construct, std::forward_as_tuple(gC2AudioDecoderComponents[i].compname),
+                        std::forward_as_tuple(kComponentLoadAudioDecoderLibrary, gC2AudioDecoderComponents[i].codec, true));
+            }
         }
     }
     ALOGI("C2VendorComponentStore::C2VendorComponentStore\n");
