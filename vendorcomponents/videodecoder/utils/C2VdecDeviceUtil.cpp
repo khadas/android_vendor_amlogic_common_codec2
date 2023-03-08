@@ -151,7 +151,7 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
                 }
                 CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 1");
             } else if (codec == InputCodec::H265 && mIsInterlaced) {
-                doubleWriteValue = 0x10;
+                doubleWriteValue = 1;
             } else {
                 doubleWriteValue = 3;
             }
@@ -1275,7 +1275,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
 
     if (type & INTERLACE) {
         if (codec == InputCodec::H265 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
-           params->cfg.double_write_mode = 0x10;
+           params->cfg.double_write_mode = 1;
            configChanged = true;
         }
     } else if (type & DOUBLE_WRITE) {
