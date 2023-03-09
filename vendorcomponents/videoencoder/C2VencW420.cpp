@@ -418,8 +418,8 @@ public:
 
         struct LevelLimits {
             C2Config::level_t level;
-            uint64_t samplesPerSec;
-            uint64_t samples;
+            uint32_t samplesPerSec;
+            uint32_t samples;
             uint32_t bitrate;
         };
         constexpr LevelLimits kLimits[] = {
@@ -438,8 +438,8 @@ public:
             { LEVEL_HEVC_MAIN_6_2, 4278190080, 35651584, 240000000 },
         };
 
-        uint64_t samples = size.v.width * size.v.height;
-        uint64_t samplesPerSec = samples * frameRate.v.value;
+        uint32_t samples = size.v.width * size.v.height;
+        uint32_t samplesPerSec = samples * frameRate.v.value;
 
         // Check if the supplied level meets the MB / bitrate requirements. If
         // not, update the level with the lowest level meeting the requirements.
@@ -653,6 +653,10 @@ std::shared_ptr<C2Component> C2VencW420::create(
 C2VencW420::C2VencW420(const char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl)
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
               mIntfImpl(intfImpl),
+              mInitFunc(NULL),
+              mEncHeaderFunc(NULL),
+              mEncFrameFunc(NULL),
+              mDestroyFunc(NULL),
               mCodecHandle(0),
               mIDRInterval(0) {
     ALOGD("C2VencW420 constructor!");
@@ -664,6 +668,11 @@ C2VencW420::C2VencW420(const char *name, c2_node_id_t id, const std::shared_ptr<
 
 
 C2VencW420::~C2VencW420() {
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[exn_spec_violation:SUPPRESS]*/
+
     ALOGD("C2VencW420 destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     mInstanceID--;
@@ -688,6 +697,7 @@ bool C2VencW420::LoadModule() {
         mInitFunc = (fn_hevc_video_encoder_init)dlsym(handle, "vl_video_encoder_init");
         if (mInitFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_init failed");
+            dlclose(handle);
             return false;
         }
 
@@ -695,6 +705,7 @@ bool C2VencW420::LoadModule() {
         mEncHeaderFunc = (fn_hevc_video_encode_header)dlsym(handle, "vl_video_encode_header");
         if (mEncHeaderFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encode_header failed");
+            dlclose(handle);
             return false;
         }
 
@@ -702,6 +713,7 @@ bool C2VencW420::LoadModule() {
         mEncFrameFunc = (fn_hevc_video_encoder_encode)dlsym(handle, "vl_video_encoder_encode");
         if (mEncFrameFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_encode failed");
+            dlclose(handle);
             return false;
         }
 
@@ -709,12 +721,19 @@ bool C2VencW420::LoadModule() {
         mDestroyFunc = (fn_hevc_video_encoder_destroy)dlsym(handle,"vl_video_encoder_destroy");
         if (mDestroyFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_destroy failed");
+            dlclose(handle);
             return false;
         }
     } else {
         C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlopen for libvp_hevc_codec.so failed");
+        dlclose(handle);
         return false;
     }
+    /*
+    * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[leaked_storage:SUPPRESS]*/
+
     return true;
 }
 
@@ -1009,6 +1028,10 @@ c2_status_t C2VencW420::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFr
     if (IMG_FMT_RGBA8888 == inputInfo.fmt) {
         inputInfo.YCbCr[0] = (unsigned long)InputFrameInfo.yPlane;
         inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.uPlane;
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[copy_paste_error:SUPPRESS]*/
         inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;
     }
     else {

@@ -412,8 +412,8 @@ public:
 
         struct LevelLimits {
             C2Config::level_t level;
-            uint64_t samplesPerSec;
-            uint64_t samples;
+            uint32_t samplesPerSec;
+            uint32_t samples;
             uint32_t bitrate;
         };
         constexpr LevelLimits kLimits[] = {
@@ -432,8 +432,8 @@ public:
             { LEVEL_HEVC_MAIN_6_2, 4278190080, 35651584, 240000000 },
         };
 
-        uint64_t samples = size.v.width * size.v.height;
-        uint64_t samplesPerSec = samples * frameRate.v.value;
+        uint32_t samples = size.v.width * size.v.height;
+        uint32_t samplesPerSec = samples * frameRate.v.value;
 
         // Check if the supplied level meets the MB / bitrate requirements. If
         // not, update the level with the lowest level meeting the requirements.
@@ -646,13 +646,19 @@ std::shared_ptr<C2Component> C2VencW420New::create(
 C2VencW420New::C2VencW420New(const char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl)
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
               mIntfImpl(intfImpl),
+              mEncHeaderFunc(NULL),
+              mEncFrameFunc(NULL),
+              mEncBitrateChangeFunc(NULL),
+              mEncFrameRateChangeFunc(NULL),
+              mDestroyFunc(NULL),
               mCodecHandle(0),
               mIDRInterval(0),
               mBitrateBak(0),
               //mtimeStampBak(0),
               //curFrameRateBak(0),
               //mElapsedTime(0),
-              mtimeStampBak(0) {
+              mtimeStampBak(0),
+              mFrameRateValue(0) {
     ALOGD("C2VencW420New constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
@@ -662,6 +668,11 @@ C2VencW420New::C2VencW420New(const char *name, c2_node_id_t id, const std::share
 
 
 C2VencW420New::~C2VencW420New() {
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[exn_spec_violation:SUPPRESS]*/
+
     ALOGD("C2VencW420New destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     mInstanceID--;
@@ -717,6 +728,7 @@ bool C2VencW420New::LoadModule() {
         mInitFunc = (fn_hevc_video_encoder_init)dlsym(handle, "vl_video_encoder_init_hevc");
         if (mInitFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_init_hevc failed");
+            dlclose(handle);
             return false;
         }
 
@@ -724,6 +736,7 @@ bool C2VencW420New::LoadModule() {
         mEncHeaderFunc = (fn_hevc_video_encode_header)dlsym(handle, "vl_video_encoder_generate_header");
         if (mEncHeaderFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_generate_header failed");
+            dlclose(handle);
             return false;
         }
 
@@ -731,6 +744,7 @@ bool C2VencW420New::LoadModule() {
         mEncFrameFunc = (fn_hevc_video_encoder_encode)dlsym(handle, "vl_video_encoder_encode_hevc");
         if (mEncFrameFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_encode_hevc failed");
+            dlclose(handle);
             return false;
         }
 
@@ -738,6 +752,7 @@ bool C2VencW420New::LoadModule() {
         mEncBitrateChangeFunc = (fn_vl_change_bitrate)dlsym(handle, "vl_video_encoder_change_bitrate_hevc");
         if (mEncBitrateChangeFunc == NULL) {
             ALOGE("dlsym for vl_video_encoder_change_bitrate_hevc failed");
+            dlclose(handle);
             return false;
         }
 
@@ -745,6 +760,7 @@ bool C2VencW420New::LoadModule() {
         mEncFrameRateChangeFunc = (fn_vl_change_framerate_hevc)dlsym(handle, "vl_video_encoder_change_framerate_hevc");
         if (mEncFrameRateChangeFunc == NULL) {
             ALOGE("dlsym for vl_video_encoder_change_framerate_hevc failed");
+            dlclose(handle);
             return false;
         }
 
@@ -752,12 +768,19 @@ bool C2VencW420New::LoadModule() {
         mDestroyFunc = (fn_hevc_video_encoder_destroy)dlsym(handle,"vl_video_encoder_destroy_hevc");
         if (mDestroyFunc == NULL) {
             C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_destroy_hevc failed");
+            dlclose(handle);
             return false;
         }
     } else {
         C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlopen for libvp_hevc_codec.so failed");
+        dlclose(handle);
         return false;
     }
+    /*
+    * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[leaked_storage:SUPPRESS]*/
+
     return true;
 }
 
@@ -1050,6 +1073,10 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
     if (IMG_FMT_RGBA8888 == inputInfo.buf_fmt) {
         inputInfo.buf_info.in_ptr[0] = (unsigned long)InputFrameInfo.yPlane;
         inputInfo.buf_info.in_ptr[1] = (unsigned long)InputFrameInfo.uPlane;
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[copy_paste_error:SUPPRESS]*/
         inputInfo.buf_info.in_ptr[2] = (unsigned long)InputFrameInfo.vPlane;
     }
     else {

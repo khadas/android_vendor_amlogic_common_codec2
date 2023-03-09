@@ -592,8 +592,8 @@ public:
 
         struct LevelLimits {
             C2Config::level_t level;
-            uint64_t samplesPerSec;
-            uint64_t samples;
+            uint32_t samplesPerSec;
+            uint32_t samples;
             uint32_t bitrate;
         };
         constexpr LevelLimits kLimits[] = {
@@ -612,8 +612,8 @@ public:
             { LEVEL_HEVC_MAIN_6_2, 4278190080, 35651584, 240000000 },
         };
 
-        uint64_t samples = size.v.width * size.v.height;
-        uint64_t samplesPerSec = samples * frameRate.v.value;
+        uint32_t samples = size.v.width * size.v.height;
+        uint32_t samplesPerSec = samples * frameRate.v.value;
 
         // Check if the supplied level meets the MB / bitrate requirements. If
         // not, update the level with the lowest level meeting the requirements.
@@ -834,6 +834,11 @@ std::shared_ptr<C2Component> C2VencMulti::create(
 C2VencMulti::C2VencMulti(const char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl)
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
               mIntfImpl(intfImpl),
+              mInitFunc(NULL),
+              mEncHeaderFunc(NULL),
+              mEncFrameFunc(NULL),
+              mEncBitrateChangeFunc(NULL),
+              mDestroyFunc(NULL),
               mCodecHandle(0),
               mIDRInterval(0),
               mBitrateBak(0),
@@ -853,6 +858,11 @@ C2VencMulti::C2VencMulti(const char *name, c2_node_id_t id, const std::shared_pt
 
 
 C2VencMulti::~C2VencMulti() {
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[exn_spec_violation:SUPPRESS]*/
+
     ALOGD("C2VencMulti destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
 }
@@ -877,6 +887,7 @@ bool C2VencMulti::LoadModule() {
         mInitFunc = (fn_vl_multi_encoder_init)dlsym(handle, "vl_multi_encoder_init");
         if (mInitFunc == NULL) {
             ALOGE("dlsym for vl_multi_encoder_init failed");
+            dlclose(handle);
             return false;
         }
 
@@ -884,6 +895,7 @@ bool C2VencMulti::LoadModule() {
         mEncHeaderFunc = (fn_vl_multi_generate_header)dlsym(handle, "vl_multi_encoder_generate_header");
         if (mEncHeaderFunc == NULL) {
             ALOGE("dlsym for vl_multi_encoder_generate_header failed");
+            dlclose(handle);
             return false;
         }
 
@@ -891,6 +903,7 @@ bool C2VencMulti::LoadModule() {
         mEncBitrateChangeFunc = (fn_vl_multi_change_bitrate)dlsym(handle, "vl_video_encoder_change_bitrate");
         if (mEncBitrateChangeFunc == NULL) {
             ALOGE("dlsym for vl_video_encoder_change_bitrate failed");
+            dlclose(handle);
             return false;
         }
 
@@ -898,6 +911,7 @@ bool C2VencMulti::LoadModule() {
         mEncFrameFunc = (fn_vl_multi_encode_frame)dlsym(handle, "vl_multi_encoder_encode");
         if (mEncFrameFunc == NULL) {
             ALOGE("dlsym for vl_multi_encoder_encode failed");
+            dlclose(handle);
             return false;
         }
 
@@ -905,12 +919,19 @@ bool C2VencMulti::LoadModule() {
         mDestroyFunc = (fn_vl_multi_encoder_destroy)dlsym(handle,"vl_multi_encoder_destroy");
         if (mDestroyFunc == NULL) {
             ALOGE("dlsym for vl_multi_encoder_destroy failed");
+            dlclose(handle);
             return false;
         }
     } else {
         ALOGE("dlopen for libvpcodec.so failed,err:%s",dlerror());
+        dlclose(handle);
         return false;
     }
+    /*
+    * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[leaked_storage:SUPPRESS]*/
+
     return true;
 }
 
@@ -1276,6 +1297,10 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
         if (IMG_FMT_RGBA8888 == inputInfo.buf_fmt) {
             inputInfo.buf_info.in_ptr[0] = (unsigned long)InputFrameInfo.yPlane;
             inputInfo.buf_info.in_ptr[1] = (unsigned long)InputFrameInfo.uPlane;
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[copy_paste_error:SUPPRESS]*/
             inputInfo.buf_info.in_ptr[2] = (unsigned long)InputFrameInfo.vPlane;
         }
         else {

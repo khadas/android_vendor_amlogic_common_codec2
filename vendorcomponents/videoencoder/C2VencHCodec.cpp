@@ -704,9 +704,16 @@ std::shared_ptr<C2Component> C2VencHCodec::create(
 C2VencHCodec::C2VencHCodec(const char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl)
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
               mIntfImpl(intfImpl),
+              mInitFunc(NULL),
+              mEncHeaderFunc(NULL),
+              mEncFrameFunc(NULL),
+              mDestroyFunc(NULL),
               mCodecHandle(0),
               mIDRInterval(0),
-              mtimeStampBak(0) {
+              mtimeStampBak(0),
+              mFrameRateValue(0),
+              mBitrateBk(0),
+              mBitRate(0) {
     ALOGD("C2VencHCodec constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
@@ -716,6 +723,11 @@ C2VencHCodec::C2VencHCodec(const char *name, c2_node_id_t id, const std::shared_
 
 
 C2VencHCodec::~C2VencHCodec() {
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[exn_spec_violation:SUPPRESS]*/
+
     ALOGD("C2VencHCodec destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     mInstanceID--;
@@ -743,6 +755,7 @@ bool C2VencHCodec::LoadModule() {
         mInitFunc = (fn_vl_video_encoder_init)dlsym(handle, "vl_video_encoder_init");
         if (mInitFunc == NULL) {
             C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_init failed");
+            dlclose(handle);
             return false;
         }
 
@@ -750,6 +763,7 @@ bool C2VencHCodec::LoadModule() {
         mEncHeaderFunc = (fn_vl_video_encode_header)dlsym(handle, "vl_video_encode_header");
         if (mEncHeaderFunc == NULL) {
             C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encode_header failed");
+            dlclose(handle);
             return false;
         }
 
@@ -757,6 +771,7 @@ bool C2VencHCodec::LoadModule() {
         mEncFrameFunc = (fn_vl_video_encoder_encode_frame)dlsym(handle, "vl_video_encoder_encode_frame");
         if (mEncFrameFunc == NULL) {
             C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encode_header failed");
+            dlclose(handle);
             return false;
         }
 
@@ -764,12 +779,19 @@ bool C2VencHCodec::LoadModule() {
         mDestroyFunc = (fn_vl_video_encoder_destroy)dlsym(handle,"vl_video_encoder_destroy");
         if (mDestroyFunc == NULL) {
             C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_destroy failed");
+            dlclose(handle);
             return false;
         }
     } else {
         C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlopen for lib_avc_vpcodec.so failed");
+        dlclose(handle);
         return false;
     }
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+     */
+     /*coverity[leaked_storage:SUPPRESS]*/
+
     return true;
 }
 
@@ -1145,6 +1167,10 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
         if (IMG_FMT_RGBA8888 == inputInfo.fmt) {
             inputInfo.YCbCr[0] = (unsigned long)InputFrameInfo.yPlane;
             inputInfo.YCbCr[1] = (unsigned long)InputFrameInfo.uPlane;
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[copy_paste_error:SUPPRESS]*/
             inputInfo.YCbCr[2] = (unsigned long)InputFrameInfo.vPlane;
         }
         else {

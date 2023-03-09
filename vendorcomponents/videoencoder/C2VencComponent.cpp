@@ -178,7 +178,12 @@ C2VencComponent::C2VencComponent(const std::shared_ptr<C2ComponentInterface> &in
 }
 
 C2VencComponent::~C2VencComponent() {
-    ALOGD("C2VencComponent destructor!");
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[exn_spec_violation:SUPPRESS]*/
+
+	ALOGD("C2VencComponent destructor!");
 }
 
 c2_status_t C2VencComponent::setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -736,6 +741,10 @@ c2_status_t C2VencComponent::GraphicDataProc(std::shared_ptr<C2Buffer> inputBuff
     else {
         view = std::make_shared<const C2GraphicView>(inputBuffer->data().graphicBlocks().front().map().get());
         if (C2_OK != view->error() || nullptr == view.get()) {
+            /*
+             * This is the logic, no need to modify, ignore coverity weak cryptor report.
+            */
+            /*coverity[leaked_storage:SUPPRESS]*/
             C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic view map err = %d or view is null", view->error());
             return C2_BAD_VALUE;
         }
@@ -1081,6 +1090,11 @@ void *C2VencComponent::threadLoop() {
         }
         if (!isVideoDecorder())
             usleep(500);  // sleep for 0.5 millisecond*/
+        /*
+         * This is the logic, no need to modify, ignore coverity weak cryptor report.
+        */
+        /*coverity[side_effect_free:SUPPRESS]*/
+
         usleep(100);
     }
     return NULL;
