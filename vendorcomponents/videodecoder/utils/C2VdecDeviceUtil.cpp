@@ -127,9 +127,9 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             doubleWriteValue = 0x10;
             break;
         case InputCodec::H264:
-            if (mComp->isNonTunnelMode() & (mUseSurfaceTexture || mNoSurface)) {
+            if ((mComp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) || mSecure) {
                 doubleWriteValue = 0x10;
-                CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface use dw 0x10");
+                CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface  or secure video use dw 0x10");
             } else {
                 doubleWriteValue = 3;
             }
@@ -144,7 +144,7 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::AV1:
         case InputCodec::DVAV1:
         case InputCodec::DVHE:
-            if (mComp->isNonTunnelMode() & (mUseSurfaceTexture || mNoSurface)) {
+            if (mComp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) {
                 doubleWriteValue = 1;
                 if (isYcbcRP010Stream()) {
                     doubleWriteValue = 3;
