@@ -49,6 +49,8 @@
 #include <c2logdebug.h>
 #include <amuvm.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 
 #ifdef ATRACE_TAG
@@ -391,10 +393,18 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     C2Vdec_LOG(CODEC2_LOG_INFO, "OnStart DolbyVision:%d", mIsDolbyVision);
     //CHECK_EQ(mComponentState, ComponentState::UNINITIALIZED);
-    struct sched_param param = {0};
-    param.sched_priority = 1;
-    if (sched_setscheduler(0, SCHED_RR, &param) != 0) {
-        C2Vdec_LOG(CODEC2_LOG_ERR, "set sched_priority error: %s", strerror(errno));
+    bool disableRC = property_get_bool(C2_PROPERTY_VDEC_DISABLE_RC, true);
+    if (!disableRC) {
+        struct sched_param param = {0};
+        param.sched_priority = 1;
+        if (sched_setscheduler(0, SCHED_RR, &param) != 0) {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "set sched_priority error: %s", strerror(errno));
+        }
+    } else {
+        int niceval = -20;
+        if (setpriority(PRIO_PROCESS, 0, niceval) != 0) {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "setpriority error: %s", strerror(errno));
+        }
     }
 
     if (mDequeueThreadUtil == nullptr) {
