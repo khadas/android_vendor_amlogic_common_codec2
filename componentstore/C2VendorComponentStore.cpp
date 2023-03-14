@@ -192,7 +192,7 @@ private:
                     if (usage & C2MemoryUsage::READ_PROTECTED)
                         strncpy(me.set().m.heapName, "system-secure-uncached", me.v.flexCount());
                     else
-                        strncpy(me.set().m.heapName, "system-uncached", me.v.flexCount());
+                        strncpy(me.set().m.heapName, "system", me.v.flexCount());
                     me.set().m.allocFlags = 0;
                     return C2R::Ok();
                 };
