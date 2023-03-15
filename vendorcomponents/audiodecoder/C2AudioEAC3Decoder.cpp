@@ -469,7 +469,7 @@ bool C2AudioEAC3Decoder::load_license_decoder_lib(const char *filename){
 
     ddp_decoder_init = (int (*)(int, int,void **))dlsym(gDDPDecoderLibHandler, "ddp_decoder_init");
     if (ddp_decoder_init == NULL) {
-        ALOGE("%s,cant find decoder lib,%s\n", __FUNCTION__, dlerror());
+        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
         ALOGV("<%s::%d>--[ddp_decoder_init:]", __FUNCTION__, __LINE__);
@@ -477,7 +477,7 @@ bool C2AudioEAC3Decoder::load_license_decoder_lib(const char *filename){
 
     ddp_decoder_process = (int (*)(char * ,int ,int *,int ,char *,int *,struct pcm_info *,char *,int *,void *))dlsym(gDDPDecoderLibHandler, "ddp_decoder_process");
     if (ddp_decoder_process == NULL) {
-        ALOGE("%s,cant find decoder lib,%s\n", __FUNCTION__, dlerror());
+        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
         ALOGV("<%s::%d>--[ddp_decoder_process:]", __FUNCTION__, __LINE__);
@@ -485,7 +485,7 @@ bool C2AudioEAC3Decoder::load_license_decoder_lib(const char *filename){
 
     ddp_decoder_cleanup = (int (*)(void *))dlsym(gDDPDecoderLibHandler, "ddp_decoder_cleanup");
     if (ddp_decoder_cleanup == NULL) {
-        ALOGE("%s,cant find decoder lib,%s\n", __FUNCTION__, dlerror());
+        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
         ALOGV("<%s::%d>--[ddp_decoder_cleanup:]", __FUNCTION__, __LINE__);

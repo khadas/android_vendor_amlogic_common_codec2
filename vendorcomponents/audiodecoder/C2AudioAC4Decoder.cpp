@@ -535,7 +535,7 @@ bool C2AudioAC4Decoder::load_license_decoder_lib(const char *filename) {
 
     ac4_decoder_init = (int (*)(int , int *, int *, int , void **))dlsym(gAc4DecoderLibHandler, "ac4_decoder_init");
     if (ac4_decoder_init == NULL) {
-        ALOGE("%s,cant find decoder lib,%s\n", __FUNCTION__, dlerror());
+        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
         ALOGV("%s line %d ac4_decoder_init %p\n", __FUNCTION__, __LINE__, ac4_decoder_init);
@@ -543,7 +543,7 @@ bool C2AudioAC4Decoder::load_license_decoder_lib(const char *filename) {
 
     ac4_decoder_process = (int (*)(void *, const unsigned char*, int , const unsigned char *, int *, int , struct pcm_info *, int *))dlsym(gAc4DecoderLibHandler, "ac4_decoder_process");
     if (ac4_decoder_process == NULL) {
-        ALOGE("%s,cant find decoder lib,%s\n", __FUNCTION__, dlerror());
+        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
         ALOGV("%s line %d ac4_decoder_process %p\n", __FUNCTION__, __LINE__, ac4_decoder_process);
@@ -551,7 +551,7 @@ bool C2AudioAC4Decoder::load_license_decoder_lib(const char *filename) {
 
     ac4_decoder_cleanup = (int (*)(void *))dlsym(gAc4DecoderLibHandler, "ac4_decoder_cleanup");
     if (ac4_decoder_cleanup == NULL) {
-        ALOGE("%s,cant find decoder lib,%s\n", __FUNCTION__, dlerror());
+        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
         ALOGV("%s line %d ac4_decoder_cleanup %p\n", __FUNCTION__, __LINE__, ac4_decoder_cleanup);
@@ -559,7 +559,7 @@ bool C2AudioAC4Decoder::load_license_decoder_lib(const char *filename) {
 
     ac4_decoder_config = (int (*)(void *, ac4_config_type_t, ac4_config_t *))dlsym(gAc4DecoderLibHandler, "ac4_decoder_config");
     if (ac4_decoder_config == NULL) {
-        ALOGE("%s,cant find decoder lib,%s\n", __FUNCTION__, dlerror());
+        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
     } else {
         ALOGV("%s line %d ac4_decoder_config %p\n", __FUNCTION__, __LINE__, ac4_decoder_config);
     }
@@ -611,7 +611,7 @@ bool C2AudioAC4Decoder::setUpAudioDecoder_l() {
             return false;
         }
         else {
-            ALOGI("AC4 Decoder initialization(handle return %p) successed, got mInBufSize %d, mOutPCMFrameSize %d",
+            ALOGI("AC4 Decoder initialization(handle return %p) succeeded, got mInBufSize %d, mOutPCMFrameSize %d",
                 gAc4DecoderLibHandler, mInBufSize, mOutPCMFrameSize);
             mIsFirst = true;
             return true;
