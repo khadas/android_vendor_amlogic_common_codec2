@@ -42,6 +42,7 @@ namespace android {
 
 /** Used to remove warnings about unused parameters */
 #define UNUSED(x) ((void)(x))
+#define USE_SVC 0
 
 constexpr char COMPONENT_NAME[] = "c2.amlogic.avc.encoder";
 constexpr char COMPONENT_NAME_HEVC[] = "c2.amlogic.hevc.encoder";
@@ -377,7 +378,7 @@ public:
             .withFields({C2F(mMaxInputSize, value).any()})
             .calculatedAs(MaxSizeCalculator)
             .build());
-
+#if USE_SVC
     addParameter(
             DefineParam(mLayerCount, C2_PARAMKEY_TEMPORAL_LAYERING)
             .withDefault(C2StreamTemporalLayeringTuning::output::AllocShared(0u, 0, 0, 0))
@@ -385,6 +386,7 @@ public:
                          C2F(mLayerCount, m.bLayerCount).any()})
             .withSetter(LayerCountSetter)
             .build());
+#endif
 
 }
 
@@ -1063,8 +1065,7 @@ c2_status_t C2VencMulti::Init() {
     mPrependHeader = mIntfImpl->getPrependHeader();
     mVencCanvasMode = mIntfImpl->getCanvasMode();
     mIDRInterval = (mSyncFramePeriod->value / 1000000) * mFrameRate->value; //max_int:just one i frame,0:all i frame
-    mLayerCount = mIntfImpl->getLayerCount();
-    ALOGD("canvas mode:%d,prepend header:%d,layercount:%d",mVencCanvasMode->value,mPrependHeader->value,mLayerCount->m.layerCount);
+
     memset(&encode_info,0,sizeof(encode_info));
     memset(&qp_tbl,0,sizeof(qp_tbl));
     encode_info.qp_mode = 1;
@@ -1094,11 +1095,11 @@ c2_status_t C2VencMulti::Init() {
     encode_info.height = mSize->height;
     encode_info.frame_rate = mFrameRate->value;
     encode_info.bit_rate = mBitrate->value;
-    if (mIDRInterval < 0) {
-        encode_info.gop = mIDRInterval;
+    if (0 == mIDRInterval) {
+        encode_info.gop = mIDRInterval + 1;
     }
     else {
-        encode_info.gop = mIDRInterval + 1;
+        encode_info.gop = mIDRInterval;
     }
     encode_info.img_format = colorformat;
     mBitrateBak = mBitrate->value;
@@ -1106,6 +1107,9 @@ c2_status_t C2VencMulti::Init() {
     codec2ProfileTrans(&encode_info.profile);
 
     encode_info.enc_feature_opts |= ENC_ENABLE_PARA_UPDATE; //enable dynamic settings
+#if USE_SVC
+    mLayerCount = mIntfImpl->getLayerCount();
+    ALOGD("canvas mode:%d,prepend header:%d,layercount:%d",mVencCanvasMode->value,mPrependHeader->value,mLayerCount->m.layerCount);
 
     uint a = 0;
     if (mLayerCount->m.layerCount == 2) {
@@ -1117,7 +1121,7 @@ c2_status_t C2VencMulti::Init() {
         a = 10;
         encode_info.enc_feature_opts |= (a << 2) & 0x7c;
     }
-
+#endif
     if (C2_OK == genVuiParam((int32_t *)&encode_info.colour_primaries,(int32_t *)&encode_info.transfer_characteristics,(int32_t *)&encode_info.matrix_coefficients,(bool *)&encode_info.video_full_range_flag)) {
         encode_info.vui_parameters_present_flag = true;
         ALOGD("enable vui info");
