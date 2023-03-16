@@ -111,6 +111,7 @@ static C2ComponentInputCodec gC2ComponentInputCodec [] = {
     {kDVAV1DecoderName, InputCodec::DVAV1},
     {kDVAV1SecureDecoderName, InputCodec::DVAV1},
     {kMP2VDecoderName, InputCodec::MP2V},
+    {kMP2VSecureDecoderName, InputCodec::MP2V},
     {kMP4VDecoderName, InputCodec::MP4V},
     {kMJPGDecoderName, InputCodec::MJPG},
     {kAVS2DecoderName, InputCodec::AVS2},
@@ -191,6 +192,7 @@ static C2VendorComponent gC2VideoDecoderComponents [] = {
     {kDVAV1DecoderName, C2VendorCodec::VDEC_DVAV1},
     {kDVAV1SecureDecoderName, C2VendorCodec::VDEC_DVAV1},
     {kMP2VDecoderName, C2VendorCodec::VDEC_MP2V},
+    {kMP2VSecureDecoderName, C2VendorCodec::VDEC_MP2V},
     {kMP4VDecoderName, C2VendorCodec::VDEC_MP4V},
     {kMJPGDecoderName, C2VendorCodec::VDEC_MJPG},
 #ifdef SUPPORT_VDEC_AVS2
