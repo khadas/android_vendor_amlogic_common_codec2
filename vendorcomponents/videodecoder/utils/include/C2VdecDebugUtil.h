@@ -133,17 +133,17 @@ const int kSmoothnessFactor = 4;
 
 class C2VdecComponent::DebugUtil {
 public:
-    DebugUtil(C2VdecComponent* comp);
+    DebugUtil();
     virtual ~DebugUtil();
 
+    c2_status_t setComponent(std::shared_ptr<C2VdecComponent> sharecomp);
     void showGraphicBlockInfo();
     void startShowPipeLineBuffer();
     void showCurrentProcessFdInfo();
 
 private:
-    C2VdecComponent* mComp;
-    C2VdecComponent::IntfImpl* mIntfImpl;
-    scoped_refptr<::base::SingleThreadTaskRunner> mTaskRunner;
+    std::weak_ptr<C2VdecComponent> mComp;
+    std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
 };
 }
 #endif

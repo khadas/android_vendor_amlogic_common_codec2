@@ -113,12 +113,12 @@ public:
     bool isSecureMode() {return mSecureMode;}
     bool isResolutionChanging ();
 
-    IntfImpl* GetIntfImpl() {return mIntfImpl.get();}
+    std::shared_ptr<IntfImpl> GetIntfImpl() {return mIntfImpl;}
     std::shared_ptr<DeviceUtil> GetDeviceUtil() {return mDeviceUtil;}
     std::shared_ptr<C2VdecBlockPoolUtil> GetBlockPoolUtil() {return mBlockPoolUtil;}
     media::Size GetCurrentVideoSize() {return mOutputFormat.mCodedSize;}
     scoped_refptr<::base::SingleThreadTaskRunner> GetTaskRunner() {return mTaskRunner;}
-    VideoDecWraper* getCompVideoDecWraper() {return mVideoDecWraper.get();}
+    std::shared_ptr<VideoDecWraper> getCompVideoDecWraper() {return mVideoDecWraper;}
 
     //for multi-instance trace
     std::ostringstream TRACE_NAME_IN_PTS;

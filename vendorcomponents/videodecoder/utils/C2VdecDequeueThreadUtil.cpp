@@ -34,20 +34,36 @@
 
 namespace android {
 
-#define C2VdecDQ_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
+#define C2VdecDQ_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
 
 #define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
 #define DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN (100)
 
-C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil(C2VdecComponent* comp) {
-    mComp = comp;
-    DCHECK(mComp != NULL);
+#define LockWeakPtrWithReturnVal(name, weak, retval) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecDQ_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+        return retval;\
+    }
+
+#define LockWeakPtrWithReturnVoid(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecDQ_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+        return;\
+    }
+
+#define LockWeakPtrWithoutReturn(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecDQ_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+    }
+
+C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil() {
     mDequeueThread = new ::base::Thread("C2VdecDequeueThread");
-    mIntfImpl = mComp->GetIntfImpl();
-    DCHECK(mIntfImpl != NULL);
     mLastAllocBufferRetryTimeUs = -1;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
-    C2VdecDQ_LOG(CODEC2_LOG_INFO, "Creat DequeueThreadUtil!!");
+    CODEC2_LOG(CODEC2_LOG_INFO, "Creat DequeueThreadUtil!!");
     mRunTaskLoop.store(false);
     mAllocBufferLoop.store(false);
     mStreamDurationUs = 0;
@@ -56,7 +72,7 @@ C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil(C2VdecComponent* comp) {
 }
 
 C2VdecComponent::DequeueThreadUtil::~DequeueThreadUtil() {
-    C2VdecDQ_LOG(CODEC2_LOG_INFO, "~DequeueThreadUtil!!");
+    CODEC2_LOG(CODEC2_LOG_INFO, "~DequeueThreadUtil!!");
     StopRunDequeueTask();
     if (mDequeueThread != NULL) {
         delete mDequeueThread;
@@ -64,8 +80,17 @@ C2VdecComponent::DequeueThreadUtil::~DequeueThreadUtil() {
     }
 }
 
-bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, uint32_t pixelFormat) {
+c2_status_t C2VdecComponent::DequeueThreadUtil::setComponent(std::shared_ptr<C2VdecComponent> sharecomp) {
+    mComp = sharecomp;
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    mIntfImpl = comp->GetIntfImpl();
 
+    C2VdecDQ_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    return C2_OK;
+}
+
+bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, uint32_t pixelFormat) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
     if (mRunTaskLoop.load() == true) {
         C2VdecDQ_LOG(CODEC2_LOG_ERR,"[%s]dequeue thread is running, this is error!! return.", __func__);
         return false;
@@ -78,11 +103,9 @@ bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, u
     mRunTaskLoop.store(true);
     DCHECK(mDequeueTaskRunner != NULL);
 
-    std::shared_ptr<DeviceUtil> deviceUtil = mComp->GetDeviceUtil();
-    if (deviceUtil == nullptr) {
-        C2VdecDQ_LOG(CODEC2_LOG_ERR, "Failed to start dequeue thread!!");
-        return false;
-    }
+    mDeviceUtil = comp->GetDeviceUtil();
+    LockWeakPtrWithReturnVal(deviceUtil, mDeviceUtil, false);
+
     mStreamDurationUs = deviceUtil->getVideoDurationUs();
     mCurrentBlockSize = size;
     mCurrentPixelFormat = pixelFormat;
@@ -111,6 +134,7 @@ bool C2VdecComponent::DequeueThreadUtil::getAllocBufferLoopState() {
 }
 
 void C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask(media::Size size, uint32_t pixelFormat, bool waitRunning, uint32_t delayTimeUs) {
+    LockWeakPtrWithReturnVoid(comp, mComp);
     if (!mRunTaskLoop.load()) {
         C2VdecDQ_LOG(CODEC2_LOG_ERR,"postDequeueTask failed.");
         return;
@@ -129,7 +153,7 @@ void C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask(media::Size size, 
 }
 
 void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uint32_t pixelFormat) {
-    DCHECK(mComp != NULL);
+    LockWeakPtrWithReturnVoid(comp, mComp);
     DCHECK(mDequeueTaskRunner->BelongsToCurrentThread());
 
     if (!mRunTaskLoop.load()) {
@@ -169,10 +193,10 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         C2VdecDQ_LOG(CODEC2_LOG_ERR, "dequeueBlockTask  size pixel format error and exit.");
         return;
     }
-    media::Size videoSize = mComp->GetCurrentVideoSize();
-    bool resolutionchanging = mComp->isResolutionChanging();
-    std::shared_ptr<DeviceUtil> deviceUtil = mComp->GetDeviceUtil();
-    std::shared_ptr<C2VdecBlockPoolUtil> blockPoolUtil = mComp->GetBlockPoolUtil();
+    media::Size videoSize = comp->GetCurrentVideoSize();
+    bool resolutionchanging = comp->isResolutionChanging();
+    std::shared_ptr<DeviceUtil> deviceUtil = comp->GetDeviceUtil();
+    std::shared_ptr<C2VdecBlockPoolUtil> blockPoolUtil = comp->GetBlockPoolUtil();
 
     if (blockPoolUtil == NULL || deviceUtil == NULL) {
         C2VdecDQ_LOG(CODEC2_LOG_ERR,"device or pool util is null,cancel fetch task.");
@@ -180,7 +204,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
     }
     uint64_t platformUsage = deviceUtil->getPlatformUsage();
     C2MemoryUsage usage = {
-            mComp->isSecureMode() ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
+            comp->isSecureMode() ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
 
     uint32_t blockId = 0;
@@ -188,7 +212,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
     C2BlockPool::local_id_t poolId;
     std::shared_ptr<C2GraphicBlock> block;
 
-    if (mComp->IsCheckStopDequeueTask()) {
+    if (comp->IsCheckStopDequeueTask()) {
         C2VdecDQ_LOG(CODEC2_LOG_ERR,"the component current state can't deque block. cancel dequeue task.");
         return;
     }
@@ -213,12 +237,12 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
                 C2VdecDQ_LOG(CODEC2_LOG_ERR, "get the block id failed, please check it. err:%d", err);
             }
 
-            if (mComp->IsCompHaveCurrentBlock(poolId, blockId)) { //old block
-                mComp->GetTaskRunner()->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferReturned,
-                                            ::base::Unretained(mComp), std::move(block), poolId, blockId));
+            if (comp->IsCompHaveCurrentBlock(poolId, blockId)) { //old block
+                comp->GetTaskRunner()->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferReturned,
+                                            ::base::Unretained(comp.get()), std::move(block), poolId, blockId));
             } else { //new block
-                mComp->GetTaskRunner()->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onNewBlockBufferFetched,
-                                ::base::Unretained(mComp), std::move(block), poolId, blockId));
+                comp->GetTaskRunner()->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onNewBlockBufferFetched,
+                                ::base::Unretained(comp.get()), std::move(block), poolId, blockId));
             }
         } else {
             C2VdecDQ_LOG(CODEC2_LOG_TAG_BUFFER, "The allocated block size(%d*%d) does not match the current resolution(%d*%d), so discarded it.", block->width(), block->height(),
@@ -249,11 +273,13 @@ int32_t C2VdecComponent::DequeueThreadUtil::getFetchGraphicBlockDelayTimeUs(c2_s
     float frameRate = 0.0f;
     int perFrameDur = 0;
     static int sDelay = kFetchRetryDelayInit;
+    LockWeakPtrWithReturnVal(comp, mComp , 0);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl , 0);
 
-    std::shared_ptr<DeviceUtil> deviceUtil = mComp->GetDeviceUtil();
+    mDeviceUtil = comp->GetDeviceUtil();
+    LockWeakPtrWithReturnVal(deviceUtil, mDeviceUtil, 0);
 
-    if (mIntfImpl)
-        frameRate = mIntfImpl->getInputFrameRate();
+    frameRate = intfImpl->getInputFrameRate();
     if (frameRate > 0.0f) {
         perFrameDur = (int) (1000 / frameRate) * 1000;
         if (deviceUtil != nullptr && deviceUtil->isInterlaced())

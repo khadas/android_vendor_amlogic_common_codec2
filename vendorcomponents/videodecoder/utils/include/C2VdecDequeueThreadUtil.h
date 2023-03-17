@@ -24,8 +24,9 @@ namespace android {
 
 class C2VdecComponent::DequeueThreadUtil {
 public:
-    DequeueThreadUtil(C2VdecComponent* comp);
+    DequeueThreadUtil();
     virtual ~DequeueThreadUtil();
+    c2_status_t setComponent(std::shared_ptr<C2VdecComponent> sharecomp);
     bool StartRunDequeueTask(media::Size size, uint32_t pixelFormat);
     void StopRunDequeueTask();
 
@@ -38,8 +39,9 @@ private:
     void onAllocBufferTask(media::Size size, uint32_t pixelFormat);
     int32_t getFetchGraphicBlockDelayTimeUs(c2_status_t err);
 
-    C2VdecComponent* mComp;
-    C2VdecComponent::IntfImpl *mIntfImpl;
+    std::weak_ptr<C2VdecComponent> mComp;
+    std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
+    std::weak_ptr<DeviceUtil> mDeviceUtil;
 
     ::base::Thread* mDequeueThread;
     std::atomic<bool> mRunTaskLoop;

@@ -29,11 +29,30 @@
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
 
-#define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d##%d]"#fmt, mPlayerId, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
+#define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d##%d]"#fmt, mPlayerId, comp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
 
 #define OUTPUT_BUFS_ALIGN_SIZE (64)
 #define min(a, b) (((a) > (b))? (b):(a))
 
+#define LockWeakPtrWithReturnVal(name, weak, retval) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+        return retval;\
+    }
+
+#define LockWeakPtrWithReturnVoid(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+        return;\
+    }
+
+#define LockWeakPtrWithoutReturn(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+    }
 
 namespace android {
 
@@ -46,23 +65,21 @@ constexpr int kMaxHeight1080p = 1088;
 constexpr int kMaxWidthP010 = 720;
 constexpr int kMaxHeightP010 = 576;
 
-C2VdecComponent::DeviceUtil::DeviceUtil(C2VdecComponent* comp, bool secure) {
-    mComp = comp;
-    mIntfImpl = mComp->GetIntfImpl();
+C2VdecComponent::DeviceUtil::DeviceUtil(bool secure) {
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     init(secure);
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 
     mUvmFd = amuvm_open();
     if (mUvmFd < 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "Open uvm device fail.");
+        CODEC2_LOG(CODEC2_LOG_ERR, "Open uvm device fail.");
         mUvmFd = -1;
     }
 
 }
 
 C2VdecComponent::DeviceUtil::~DeviceUtil() {
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
     if (mUvmFd > 0) {
         amuvm_close(mUvmFd);
     }
@@ -76,7 +93,6 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mOutputWorkCount = 0;
     mDurationUsFromApp = 0;
     mConfigParam = NULL;
-    mVideoDecWraper = NULL;
     mSecure = secure;
     mStreamBitDepth = -1;
     mUvmFd = -1;
@@ -111,10 +127,21 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mMarginBufferNum = 0;
 }
 
+c2_status_t C2VdecComponent::DeviceUtil::setComponent(std::shared_ptr<C2VdecComponent> sharecomp) {
+    mComp = sharecomp;
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    mIntfImpl = comp->GetIntfImpl();
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+
+    return C2_OK;
+}
+
 uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
     uint32_t doubleWriteValue = 3;
-    InputCodec codec = mIntfImpl->getInputCodec();
+    LockWeakPtrWithReturnVal(comp, mComp, doubleWriteValue);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, doubleWriteValue);
 
+    InputCodec codec = intfImpl->getInputCodec();
     int32_t defaultDoubleWrite = getPropertyDoubleWrite();
     if (defaultDoubleWrite >= 0) {
         doubleWriteValue = defaultDoubleWrite;
@@ -127,7 +154,7 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             doubleWriteValue = 0x10;
             break;
         case InputCodec::H264:
-            if ((mComp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) || mSecure) {
+            if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) || mSecure) {
                 doubleWriteValue = 0x10;
                 CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface  or secure video use dw 0x10");
             } else {
@@ -144,7 +171,7 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::AV1:
         case InputCodec::DVAV1:
         case InputCodec::DVHE:
-            if (mComp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) {
+            if (comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) {
                 doubleWriteValue = 1;
                 if (isYcbcRP010Stream()) {
                     doubleWriteValue = 3;
@@ -178,13 +205,15 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
 }
 
 void C2VdecComponent::DeviceUtil::queryStreamBitDepth() {
-    int32_t bitdepth = -1;
-    VideoDecWraper *videoWraper = mComp->getCompVideoDecWraper();
-    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    mVideoDecWraper = comp->getCompVideoDecWraper();
+    LockWeakPtrWithReturnVoid(wraper, mVideoDecWraper);
 
-    if (msg != NULL && videoWraper != NULL) {
+    int32_t bitdepth = -1;
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    if (msg != NULL) {
         msg->setInt32("bitdepth", bitdepth);
-        videoWraper->postAndReplyMsg(msg);
+        wraper->postAndReplyMsg(msg);
         msg->findInt32("bitdepth", &bitdepth);
         if (bitdepth == 0 || bitdepth == 8 || bitdepth == 10) {
             mStreamBitDepth = bitdepth;
@@ -206,14 +235,10 @@ uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat)
     return format;
 }
 
-int C2VdecComponent::DeviceUtil::setVideoDecWraper(VideoDecWraper* videoDecWraper) {
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "setVideoDecWraper into.[%p]", videoDecWraper);
-    if (videoDecWraper)
-        mVideoDecWraper = videoDecWraper;
-    return 0;
-}
-
 void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    LockWeakPtrWithReturnVoid(intfImpl, mIntfImpl);
+
     uint32_t doubleWriteMode = 3;
     int default_margin = 6;
     uint32_t bufwidth = 0;
@@ -239,19 +264,19 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
     C2StreamPictureSizeInfo::output output = {0};
     c2_status_t err = C2_OK;
-    err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
+    err = intfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamPictureSizeInfo size error", __func__, __LINE__);
     }
 
     C2StreamFrameRateInfo::input inputFrameRateInfo = {0};
-    err = mIntfImpl->query({&inputFrameRateInfo}, {}, C2_MAY_BLOCK, nullptr);
+    err = intfImpl->query({&inputFrameRateInfo}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamFrameRateInfo message error", __func__, __LINE__);
     }
 
     C2StreamUnstablePts::input unstablePts = {0};
-    err = mIntfImpl->query({&unstablePts}, {}, C2_MAY_BLOCK, nullptr);
+    err = intfImpl->query({&unstablePts}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamUnstablePts message error", __func__, __LINE__);
     } else {
@@ -259,7 +284,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     }
 
     C2VendorPlayerId::input playerId = {0};
-    err = mIntfImpl->query({&playerId}, {}, C2_MAY_BLOCK, nullptr);
+    err = intfImpl->query({&playerId}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2VendorPlayerId message error", __func__, __LINE__);
     } else {
@@ -274,7 +299,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     mDurationUsFromApp = mDurationUs;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] query frame rate:%f updata mDurationUs = %d, unstablePts :%d",__func__, __LINE__, inputFrameRateInfo.value, mDurationUs, mUnstablePts);
     C2GlobalLowLatencyModeTuning lowLatency = {0};
-    err = mIntfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
+    err = intfImpl->query({&lowLatency}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query C2StreamPictureSizeInfo size error", __func__, __LINE__);
     }
@@ -287,7 +312,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABLE;
     }
 
-    if (mIntfImpl->mAvc4kMMUMode->value ||
+    if (intfImpl->mAvc4kMMUMode->value ||
            property_get_bool(C2_PROPERTY_VDEC_ENABLE_AVC_4K_MMU, false)) {
         mEnableAvc4kMMU = true;
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "mEnableAvc4kMMU = %d", mEnableAvc4kMMU);
@@ -295,7 +320,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
          mEnableAvc4kMMU = false;
     }
 
-    if (mComp->isAmDolbyVision()) {
+    if (comp->isAmDolbyVision()) {
         dvUseTwoLayer = checkDvProfileAndLayer();
     }
 
@@ -323,7 +348,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] is 8k",__func__, __LINE__);
     }
 
-    if (mIntfImpl->getInputCodec() == InputCodec::H264) {
+    if (intfImpl->getInputCodec() == InputCodec::H264) {
         C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] update doubleWriteMode to %d",__func__, __LINE__, doubleWriteMode);
         doubleWriteMode = 0x10;
     }
@@ -355,7 +380,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     }
 
     C2ErrorPolicy::input errorPolicy;
-    err = mIntfImpl->query({&errorPolicy}, {}, C2_MAY_BLOCK, nullptr);
+    err = intfImpl->query({&errorPolicy}, {}, C2_MAY_BLOCK, nullptr);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] query error policy error", __func__, __LINE__);
     }
@@ -379,7 +404,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         pAmlDecParam->cfg.canvas_mem_endian = 0;
         pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_CFGINFO;
 
-        switch (mIntfImpl->getInputCodec()) {
+        switch (intfImpl->getInputCodec()) {
             case InputCodec::H264:
             case InputCodec::H265:
                 {
@@ -410,12 +435,15 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
 bool C2VdecComponent::DeviceUtil::setUnstable()
 {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    mVideoDecWraper = comp->getCompVideoDecWraper();
+    LockWeakPtrWithReturnVal(wraper, mVideoDecWraper, false);
     bool ret = false;
     C2VdecMDU_LOG(CODEC2_LOG_INFO,"into set mUnstablePts = %d ", mUnstablePts);
     AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
     if (msg != NULL) {
         msg->setInt32("unstable", mUnstablePts);
-        mVideoDecWraper->postAndReplyMsg(msg);
+        wraper->postAndReplyMsg(msg);
         ret = true;
     }
     if (msg != NULL)
@@ -425,13 +453,16 @@ bool C2VdecComponent::DeviceUtil::setUnstable()
 //this only called when exit playback
 bool C2VdecComponent::DeviceUtil::clearDecoderDuration()
 {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    mVideoDecWraper = comp->getCompVideoDecWraper();
+    LockWeakPtrWithReturnVal(wraper, mVideoDecWraper, false);
     bool ret = false;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "into clearDecoderDuration");
     AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
     if (msg != NULL ) {
         msg->setInt32("duration", 0);
         msg->setInt32("type", 2);
-        mVideoDecWraper->postAndReplyMsg(msg);
+        wraper->postAndReplyMsg(msg);
         ret = true;
     }
     if (msg != NULL) {
@@ -442,13 +473,16 @@ bool C2VdecComponent::DeviceUtil::clearDecoderDuration()
 
 bool C2VdecComponent::DeviceUtil::setDuration()
 {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    mVideoDecWraper = comp->getCompVideoDecWraper();
+    LockWeakPtrWithReturnVal(wraper, mVideoDecWraper, false);
     bool ret = false;
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "into set mDurationUs = %d ", mDurationUs);
     AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
     if (msg != NULL && mDurationUs != 0) {
         msg->setInt32("duration", mDurationUs);
         msg->setInt32("type", 2);
-        mVideoDecWraper->postAndReplyMsg(msg);
+        wraper->postAndReplyMsg(msg);
         ret = true;
     }
     if (msg != NULL) {
@@ -474,6 +508,9 @@ int C2VdecComponent::DeviceUtil::HDRInfoDataBLEndianInt(int value) {
 }
 
 int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
+    LockWeakPtrWithReturnVal(comp, mComp, -1);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, -1);
+
     std::vector<std::unique_ptr<C2Param>> params;
     C2StreamHdrStaticInfo::output hdr = {0};
     bool isPresent = true;
@@ -482,11 +519,11 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
     int32_t primaries = 0;
     bool    range = false;
 
-    if (mIntfImpl == NULL) {
+    if (intfImpl == NULL) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "set HDR satic info error");
         return -1;
     }
-    c2_status_t err = mIntfImpl->query({&hdr}, {}, C2_DONT_BLOCK, &params);
+    c2_status_t err = intfImpl->query({&hdr}, {}, C2_DONT_BLOCK, &params);
     if (err != C2_OK) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "Query hdr info error");
         return 0;
@@ -511,7 +548,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
     struct aml_dec_params *pAmlDecParam = &mConfigParam->aml_dec_cfg;
     pAmlDecParam->hdr.color_parms.present_flag = 1;
 
-    if ((mIntfImpl->getInputCodec() == InputCodec::VP9)) {
+    if ((intfImpl->getInputCodec() == InputCodec::VP9)) {
         pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
         pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
         pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
@@ -524,7 +561,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
         pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
         pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
         pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
-    } else if ((mIntfImpl->getInputCodec() == InputCodec::AV1)) {
+    } else if ((intfImpl->getInputCodec() == InputCodec::AV1)) {
         //see 6.7.4. Metadata high dynamic range mastering display color volume
         //semantics
         //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
@@ -548,7 +585,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
         pAmlDecParam->hdr.color_parms.luminance[1]    = (int32_t)(hdr.mastering.minLuminance * 16384.0 + 0.5);//info.sType1.mMinDisplayLuminance;
         pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  (int32_t)(hdr.maxCll);//info.sType1.mMaxContentLightLevel;
         pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  (int32_t)(hdr.maxFall);//info.sType1.mMaxFrameAverageLightLevel;
-    } else if ((mIntfImpl->getInputCodec() == InputCodec::H265)) {
+    } else if ((intfImpl->getInputCodec() == InputCodec::H265)) {
         pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
         pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
         pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
@@ -634,6 +671,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
 }
 
 void C2VdecComponent::DeviceUtil::updateDecParmInfo(aml_dec_params* pInfo) {
+    LockWeakPtrWithReturnVoid(comp, mComp);
     if (pInfo != NULL) {
         C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Parms status %x\n", pInfo->parms_status);
         if (pInfo->parms_status & V4L2_CONFIG_PARM_DECODE_HDRINFO) {
@@ -643,6 +681,7 @@ void C2VdecComponent::DeviceUtil::updateDecParmInfo(aml_dec_params* pInfo) {
 }
 
 void C2VdecComponent::DeviceUtil::updateInterlacedInfo(bool isInterlaced) {
+    LockWeakPtrWithReturnVoid(comp, mComp);
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] isInterlaced:%d", __func__, __LINE__, isInterlaced);
     mIsInterlaced = isInterlaced;
 }
@@ -653,13 +692,15 @@ void C2VdecComponent::DeviceUtil::flush() {
 }
 
 int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec_hdr_infos* phdr) {
+    LockWeakPtrWithReturnVal(comp, mComp, -1);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, -1);
     bool isHdrChanged = false;
     bool isColorAspectsChanged = false;
     C2StreamHdrStaticInfo::output hdr = {0};
 
     //setup hdr metadata, only present_flag is 1 there has a hdr metadata
     if (phdr->color_parms.present_flag == 1) {
-        if ((mIntfImpl->getInputCodec() == InputCodec::VP9)) {
+        if ((intfImpl->getInputCodec() == InputCodec::VP9)) {
             hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
             hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
             hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
@@ -678,7 +719,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
                 phdr->color_parms.content_light_level.max_content;
             hdr.maxFall =
                 phdr->color_parms.content_light_level.max_pic_average;
-        } else if ((mIntfImpl->getInputCodec() == InputCodec::AV1)) {
+        } else if ((intfImpl->getInputCodec() == InputCodec::AV1)) {
             //see 6.7.4. Metadata high dynamic range mastering display color volume
             //semantics
             //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
@@ -706,7 +747,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             hdr.maxFall =
                 phdr->color_parms.content_light_level.max_pic_average;
 
-        } else if ((mIntfImpl->getInputCodec() == InputCodec::H265)) {
+        } else if ((intfImpl->getInputCodec() == InputCodec::H265)) {
             //see 265 spec
             // D.3.28 Mastering display colour volume SEI message semantics
             hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
@@ -785,7 +826,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
                         codedAspects.matrix, aspects.mMatrixCoeffs,
                         codedAspects.transfer, aspects.mTransfer);
             std::vector<std::unique_ptr<C2SettingResult>> failures;
-            c2_status_t err = mIntfImpl->config({&codedAspects}, C2_MAY_BLOCK, &failures);
+            c2_status_t err = intfImpl->config({&codedAspects}, C2_MAY_BLOCK, &failures);
             if (err != C2_OK) {
                 C2VdecMDU_LOG(CODEC2_LOG_ERR, "Failed to config hdr static info, error:%d", err);
             }
@@ -803,7 +844,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
         //OMX_IndexAndroidDescribeHDRStaticInfo, NULL)
         //config
         std::vector<std::unique_ptr<C2SettingResult>> failures;
-        c2_status_t err = mIntfImpl->config({&hdr}, C2_MAY_BLOCK, &failures);
+        c2_status_t err = intfImpl->config({&hdr}, C2_MAY_BLOCK, &failures);
         if (err != C2_OK) {
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "Failed to config hdr static info, error:%d", err);
         }
@@ -858,14 +899,16 @@ int C2VdecComponent::DeviceUtil::isHDRStaticInfoDifferent(struct aml_vdec_hdr_in
 }
 
 int C2VdecComponent::DeviceUtil::getVideoType() {
+    LockWeakPtrWithReturnVal(comp, mComp, -1);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, -1);
     int videotype = AM_VIDEO_4K;//AM_VIDEO_AFBC;
 
     if (mConfigParam->aml_dec_cfg.cfg.double_write_mode == 0 ||
         mConfigParam->aml_dec_cfg.cfg.double_write_mode == 3) {
-        if (mIntfImpl->getInputCodec() == InputCodec::VP9 ||
-            mIntfImpl->getInputCodec() == InputCodec::H265 ||
-            mIntfImpl->getInputCodec() == InputCodec::AV1 ||
-            mIntfImpl->getInputCodec() == InputCodec::H264) {
+        if (intfImpl->getInputCodec() == InputCodec::VP9 ||
+            intfImpl->getInputCodec() == InputCodec::H265 ||
+            intfImpl->getInputCodec() == InputCodec::AV1 ||
+            intfImpl->getInputCodec() == InputCodec::H264) {
             videotype |= AM_VIDEO_AFBC;
         }
     }
@@ -904,6 +947,7 @@ bool C2VdecComponent::DeviceUtil::isColorAspectsChanged() {
 }
 
 int32_t C2VdecComponent::DeviceUtil::getPropertyDoubleWrite() {
+    LockWeakPtrWithReturnVal(comp, mComp, -1);
     int32_t doubleWrite = property_get_int32(C2_PROPERTY_VDEC_DOUBLEWRITE, -1);
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "get property double write:%d", doubleWrite);
     return doubleWrite;
@@ -935,9 +979,11 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(uint32_t doublewri
 }
 
 bool C2VdecComponent::DeviceUtil::checkDvProfileAndLayer() {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
     bool uselayer = false;
     C2StreamProfileLevelInfo::input inputProfile = {0};
-    c2_status_t err = mIntfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
+    c2_status_t err = intfImpl->query({&inputProfile}, {}, C2_MAY_BLOCK, nullptr);
     if (err == C2_OK) {
         if (inputProfile) {
             InputCodec codecType;
@@ -968,7 +1014,7 @@ bool C2VdecComponent::DeviceUtil::checkDvProfileAndLayer() {
             if (inputProfile.profile == C2Config::PROFILE_DV_HE_04) {
                 uselayer = true;
             }
-            mIntfImpl->updateInputCodec(codecType);
+            intfImpl->updateInputCodec(codecType);
         }
     }
     return uselayer;
@@ -990,6 +1036,7 @@ bool C2VdecComponent::DeviceUtil::isYcbcRP010Stream() const {
 
 uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
     uint64_t usage = 0;
+    LockWeakPtrWithReturnVal(comp, mComp, usage);
 
     if (mUseSurfaceTexture || mNoSurface) {
         usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
@@ -1017,7 +1064,9 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
 }
 
 uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forceAlign) {
-    if ((mSecure && mIntfImpl->getInputCodec() == InputCodec::H264) || forceAlign)
+    LockWeakPtrWithReturnVal(comp, mComp, 0);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, 0);
+    if ((mSecure && intfImpl->getInputCodec() == InputCodec::H264) || forceAlign)
         return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
     return size;
 }
@@ -1025,6 +1074,8 @@ uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forc
 
 bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
     bool realloc = true;
+    LockWeakPtrWithReturnVal(comp, mComp, !realloc);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, !realloc);
     bool debugrealloc = property_get_bool(C2_PROPERTY_VDEC_OUT_BUF_REALLOC, false);
 
     if (debugrealloc)
@@ -1033,7 +1084,7 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
     if (mUseSurfaceTexture|| mNoSurface) {
         realloc = true;
     } else {
-        switch (mIntfImpl->getInputCodec()) {
+        switch (intfImpl->getInputCodec()) {
             case InputCodec::MJPG:
                 realloc = true;
                 break;
@@ -1056,6 +1107,7 @@ bool C2VdecComponent::DeviceUtil::checkReallocOutputBuffer(VideoFormat rawFormat
                                                     bool *sizechange, bool *buffernumincrease) {
     bool realloc = false, frameSizeChanged = false;
     bool bufferNumChanged = false;
+    LockWeakPtrWithReturnVal(comp, mComp, !realloc);
 
     if (currentFormat.mMinNumBuffers != rawFormat.mMinNumBuffers) {
         bufferNumChanged = true;
@@ -1086,6 +1138,8 @@ bool C2VdecComponent::DeviceUtil::checkReallocOutputBuffer(VideoFormat rawFormat
 }
 
 bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint32_t& height) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
     bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
 
     if (support_4k) {
@@ -1094,8 +1148,8 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
             height = kMaxHeight8k;
         }
         //mpeg2 and mpeg4 default size is 1080p
-        if ((mIntfImpl->getInputCodec() == InputCodec::MP2V ||
-            mIntfImpl->getInputCodec() == InputCodec::MP4V)
+        if ((intfImpl->getInputCodec() == InputCodec::MP2V ||
+            intfImpl->getInputCodec() == InputCodec::MP4V)
             ) {
              if (width * height <= kMaxWidth1080p * kMaxHeight1080p) {
                 width = kMaxWidth1080p;
@@ -1108,7 +1162,7 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
             width = kMaxWidth4k;
             height = kMaxHeight4k;
         }
-        if (mIntfImpl->getInputCodec() == InputCodec::H265 && mIsInterlaced) {
+        if (intfImpl->getInputCodec() == InputCodec::H265 && mIsInterlaced) {
             width = kMaxWidth1080p;
             height = kMaxHeight1080p;
         }
@@ -1125,6 +1179,7 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
 }
 
 bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, int *size) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
     if (mUvmFd <= 0) {
         mUvmFd = amuvm_open();
         if (mUvmFd < 0) {
@@ -1146,6 +1201,7 @@ bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, in
 }
 
 void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, int size, C2Work& work) {
+    LockWeakPtrWithReturnVoid(comp, mComp);
     struct aml_meta_head_s *meta_head;
     uint32_t offset = 0;
     uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
@@ -1211,6 +1267,8 @@ void C2VdecComponent::DeviceUtil::setHDRStaticColorAspects(std::shared_ptr<C2Str
 }
 
 void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size) {
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    LockWeakPtrWithReturnVoid(intfImpl, mIntfImpl);
     uint32_t durationData = 0;
     if (data == NULL || size <= 0) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR,"Update DurationUs error");
@@ -1232,7 +1290,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             mCredibleDuration = true;
 
             float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
-            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
+            if (intfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
                 if (mDurationUsFromApp > 0 && dur > 0 && (durStep < 1.3f)) {
                     mDurationUs = dur;
                 } else {
@@ -1250,6 +1308,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
 }
 
 bool C2VdecComponent::DeviceUtil::updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
     if (mUseSurfaceTexture|| mNoSurface) {
         //Only set for surfaceview with hwc.
         return false;
@@ -1266,12 +1325,14 @@ bool C2VdecComponent::DeviceUtil::updateDisplayInfoToGralloc(const native_handle
 }
 
 bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
     bool ret = true;
     bool configChanged = false;
 
     //check whether need reconfig
     struct aml_dec_params *params = &mConfigParam->aml_dec_cfg;
-    InputCodec codec = mIntfImpl->getInputCodec();
+    InputCodec codec = intfImpl->getInputCodec();
 
     if (type & INTERLACE) {
         if (codec == InputCodec::H265 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
@@ -1280,7 +1341,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
         }
     } else if (type & DOUBLE_WRITE) {
         if (isYcbcRP010Stream()) {
-            if (mComp->isNonTunnelMode()
+            if (comp->isNonTunnelMode()
                 &&(mUseSurfaceTexture || mNoSurface)
                 && (params->cfg.double_write_mode != 3)) {
                 params->cfg.double_write_mode = 3;
@@ -1289,11 +1350,11 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
         }
     } else if (type & TUNNEL_UNDERFLOW) {
         if (!(params->cfg.metadata_config_flag & VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI) &&
-            mComp->mTunnelUnderflow) {
+            comp->mTunnelUnderflow) {
             params->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI;
             configChanged = true;
         } else if ((params->cfg.metadata_config_flag & VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI) &&
-                !mComp->mTunnelUnderflow) {
+                !comp->mTunnelUnderflow) {
             params->cfg.metadata_config_flag &= (~VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI);
             configChanged = true;
         }
@@ -1301,7 +1362,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
 
     if (configChanged) {
         AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
-        VideoDecWraper *videoWraper = mComp->getCompVideoDecWraper();
+        std::shared_ptr<VideoDecWraper> videoWraper = comp->getCompVideoDecWraper();
         if (msg != NULL && videoWraper != NULL) {
             msg->setPointer("reconfig", (void*)mConfigParam);
             if (!videoWraper->postAndReplyMsg(msg)) {
@@ -1320,9 +1381,11 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
 }
 
 bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
-    if ((mIntfImpl->getInputCodec() == InputCodec::H264) && mEnableAvc4kMMU) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
+    if ((intfImpl->getInputCodec() == InputCodec::H264) && mEnableAvc4kMMU) {
         C2StreamPictureSizeInfo::output output = {0};
-        c2_status_t err = mIntfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
+        c2_status_t err = intfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
         if (err != C2_OK)
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query PictureSize error for avc 4k mmu", __func__, __LINE__);
         else if(mUseSurfaceTexture)

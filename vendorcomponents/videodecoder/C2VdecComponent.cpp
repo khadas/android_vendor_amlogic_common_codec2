@@ -222,8 +222,8 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     mFdInfoDebugEnable =  property_get_bool(C2_PROPERTY_VDEC_FD_INFO_DEBUG, false);
     mSupport10BitDepth =  property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
 
-    mDebugUtil = std::make_shared<DebugUtil>(this);
-    mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>(this);
+    mDebugUtil = std::make_shared<DebugUtil>();
+    mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
 
     if (mFdInfoDebugEnable && mDebugUtil) {
         mDebugUtil->showCurrentProcessFdInfo();
@@ -303,10 +303,6 @@ C2VdecComponent::~C2VdecComponent() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "~C2VdecComponent start");
     mComponentState = ComponentState::DESTROYING;
 
-    if (mFdInfoDebugEnable && mDebugUtil) {
-        mDebugUtil->showCurrentProcessFdInfo();
-    }
-
     if (mThread.IsRunning()) {
         ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                    ::base::WaitableEvent::InitialState::NOT_SIGNALED);
@@ -314,13 +310,6 @@ C2VdecComponent::~C2VdecComponent() {
                                 ::base::Unretained(this), &done));
         done.Wait();
         mThread.Stop();
-    }
-    //mDebugUtil used thread task to loop show debug info,
-    //so we need destroy "mDebugUtil" after thread is stopped
-    if (mDebugUtil) {
-        mDebugUtil->showGraphicBlockInfo();
-        mDebugUtil.reset();
-        mDebugUtil = NULL;
     }
 
     if (mSecureMode)
@@ -407,13 +396,18 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         }
     }
 
+    mDebugUtil->setComponent(shared_from_this());
+    mDequeueThreadUtil->setComponent(shared_from_this());
+
     if (mDequeueThreadUtil == nullptr) {
-        mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>(this);
+        mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
+        mDequeueThreadUtil->setComponent(shared_from_this());
     }
     if (!isTunnerPassthroughMode()) {
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
         mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
-        mDeviceUtil =  std::make_shared<DeviceUtil>(this, mSecureMode);
+        mDeviceUtil =  std::make_shared<DeviceUtil>(mSecureMode);
+        mDeviceUtil->setComponent(shared_from_this());
         mDeviceUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
         mDeviceUtil->codecConfig(&mConfigParam);
 
@@ -443,7 +437,6 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         }
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
                 (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
-        mDeviceUtil->setVideoDecWraper(mVideoDecWraper.get());
         //set some decoder config
         //set unstable state and duration to vdec
         mDeviceUtil->setUnstable();
@@ -1439,6 +1432,16 @@ void C2VdecComponent::onStopDone() {
         mTunnelHelper->stop();
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
+    }
+
+    if (mFdInfoDebugEnable && mDebugUtil) {
+        mDebugUtil->showCurrentProcessFdInfo();
+    }
+
+    if (mDebugUtil) {
+        mDebugUtil->showGraphicBlockInfo();
+        mDebugUtil.reset();
+        mDebugUtil = NULL;
     }
 
     if (mPendingGraphicBlockBuffer) {
@@ -2543,7 +2546,6 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
             }
             mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                         (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecFlags);
-            mDeviceUtil->setVideoDecWraper(mVideoDecWraper.get());
             //set some decoder config
             //set unstable state and duration to vdec
             mDeviceUtil->setUnstable();
@@ -2569,7 +2571,6 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
         }
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                   (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
-        mDeviceUtil->setVideoDecWraper(mVideoDecWraper.get());
         //set some decoder config
         //set unstable state and duration to vdec
         mDeviceUtil->setUnstable();
@@ -3363,7 +3364,8 @@ void C2VdecComponent::onConfigureTunnelMode() {
             if (((syncId & 0x0000FF00) == 0xFF00)
                 || (syncId == 0x0)) {
                 mSyncId = syncId;
-                mTunnelHelper =  std::make_shared<TunnelHelper>(this, mSecureMode);
+                mTunnelHelper =  std::make_shared<TunnelHelper>(mSecureMode);
+                mTunnelHelper->setComponent(shared_from_this());
                 mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
                 mSyncType |= C2_SYNC_TYPE_TUNNEL;
             }
@@ -3374,7 +3376,8 @@ void C2VdecComponent::onConfigureTunnelMode() {
 }
 
 void C2VdecComponent::onConfigureTunerPassthroughMode() {
-    mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(this, mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper.get());
+    mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper);
+    mTunerPassthroughHelper->setComponent(shared_from_this());
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
     mSyncType |= C2_SYNC_TYPE_PASSTHROUGH;
 }

@@ -10,7 +10,7 @@
 #define _C2VDEC_TUNNERPASSTHROUGH_H_
 
 #include <mutex>
-
+#include <memory.h>
 #include <C2Config.h>
 #include <C2Enum.h>
 #include <C2Param.h>
@@ -19,7 +19,6 @@
 #include <util/C2InterfaceHelper.h>
 
 #include <C2VdecComponent.h>
-
 #include <C2VdecBlockPoolUtil.h>
 #include <VideoTunnelRendererWraper.h>
 #include <C2VdecTunnelHelper.h>
@@ -28,10 +27,12 @@ namespace android {
 
 class C2VdecComponent::TunerPassthroughHelper {
 public:
-    TunerPassthroughHelper(C2VdecComponent* comp, bool secure, const char* mime, C2VdecComponent::TunnelHelper *tunnelHelper);
-    TunerPassthroughHelper(C2VdecComponent* comp, bool secure);
+    TunerPassthroughHelper(bool secure,
+            const char* mime,
+            std::shared_ptr<C2VdecComponent::TunnelHelper> tunnelHelper);
     virtual ~TunerPassthroughHelper();
 
+    c2_status_t setComponent(std::shared_ptr<C2VdecComponent> sharedcomp);
     c2_status_t start();
     c2_status_t stop();
     c2_status_t flush();
@@ -42,13 +43,12 @@ private:
     int postNotifyRenderTimeTunerPassthrough(struct renderTime* rendertime);
     void onNotifyRenderTimeTunerPassthrough(struct renderTime rendertime);
     int sendOutputBufferToWorkTunerPassthrough(struct renderTime* rendertime);
-    C2VdecComponent* mComp;
-    C2VdecComponent::TunnelHelper *mTunnelHelper;
-    C2VdecComponent::IntfImpl* mIntfImpl;
-    scoped_refptr<::base::SingleThreadTaskRunner> mTaskRunner;
+    std::weak_ptr<C2VdecComponent> mComp;
+    std::weak_ptr<C2VdecComponent::TunnelHelper> mTunnelHelper;
+    std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
     int32_t mSyncId;
     passthroughInitParams mTunerPassthroughParams;
-    TunerPassthroughWrapper *mTunerPassthrough;
+    std::shared_ptr<TunerPassthroughWrapper> mTunerPassthrough;
 };
 
 }

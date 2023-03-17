@@ -27,11 +27,12 @@ namespace android {
 
 class C2VdecComponent::TunnelHelper {
 public:
-    TunnelHelper(C2VdecComponent* comp, bool secure);
+    TunnelHelper(bool secure);
     virtual ~TunnelHelper();
 
-    bool start();
-    bool stop();
+    c2_status_t setComponent(std::shared_ptr<C2VdecComponent> comp);
+    c2_status_t start();
+    c2_status_t stop();
     c2_status_t flush();
     c2_status_t sendVideoFrameToVideoTunnel(int32_t pictureBufferId, int64_t bitstreamId);
     c2_status_t storeAbandonedFrame(int64_t timeus);
@@ -39,7 +40,7 @@ public:
     c2_status_t videoResolutionChangeTunnel();
     void onAndroidVideoPeek();
     VideoTunnelRendererBase* getTunnelRender() { return mVideoTunnelRenderer->getTunnelRenderer();}
-    bool fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId);
+    c2_status_t fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId);
 
 private:
     static int fillVideoFrameCallback2(void* obj, void* args);
@@ -63,13 +64,11 @@ private:
     c2_status_t resetBlockPoolBuffers();
     bool isInResolutionChanging();
 
-    C2VdecComponent* mComp;
-
-    C2VdecComponent::IntfImpl* mIntfImpl;
-    scoped_refptr<::base::SingleThreadTaskRunner> mTaskRunner;
-    VideoTunnelRendererWraper* mVideoTunnelRenderer;
-    C2VdecBlockPoolUtil* mBlockPoolUtil;
-    C2VdecComponent::DeviceUtil *mDeviceUtil;
+    std::weak_ptr<C2VdecComponent> mComp;
+    std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
+    std::shared_ptr<VideoTunnelRendererWraper> mVideoTunnelRenderer;
+    std::weak_ptr<C2VdecBlockPoolUtil> mBlockPoolUtil;
+    std::weak_ptr<C2VdecComponent::DeviceUtil> mDeviceUtil;
 
     bool mSecure;
     int32_t mTunnelId;

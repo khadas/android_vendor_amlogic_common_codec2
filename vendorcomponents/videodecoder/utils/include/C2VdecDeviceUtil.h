@@ -21,9 +21,10 @@ namespace android {
 
 class C2VdecComponent::DeviceUtil {
 public:
-    DeviceUtil(C2VdecComponent* comp, bool secure);
+    DeviceUtil(bool secure);
     virtual ~DeviceUtil();
 
+    c2_status_t setComponent(std::shared_ptr<C2VdecComponent> sharecomp);
     /* configure decoder */
     void codecConfig(mediahal_cfg_parms* params);
     void updateDecParmInfo(aml_dec_params* params);
@@ -70,7 +71,6 @@ public:
     bool shouldEnableMMU();
     bool clearDecoderDuration();
     bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
-    int setVideoDecWraper(VideoDecWraper* videoDecWraper);
 
     bool checkConfigInfoFromDecoderAndReconfig(int type);
 
@@ -96,10 +96,10 @@ private:
     int HDRInfoDataBLEndianInt(int value);
 
     int mUvmFd;
-    C2VdecComponent::IntfImpl* mIntfImpl;
-    VideoDecWraper* mVideoDecWraper;
+    std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
+    std::weak_ptr<VideoDecWraper> mVideoDecWraper;
     mediahal_cfg_parms* mConfigParam;
-    C2VdecComponent* mComp;
+    std::weak_ptr<C2VdecComponent> mComp;
     bool mUseSurfaceTexture;
     bool mNoSurface;
     bool mHDRStaticInfoChanged;

@@ -35,59 +35,89 @@
 namespace android {
 #define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
     do {                                                                   \
-        if (mComp->mHasError \
-            || mComp->mComponentState == ComponentState::UNINITIALIZED \
-            || mComp->mComponentState == ComponentState::DESTROYING \
-            || mComp->mComponentState == ComponentState::DESTROYED) \
+        if (comp->mHasError \
+            || comp->mComponentState == ComponentState::UNINITIALIZED \
+            || comp->mComponentState == ComponentState::DESTROYING \
+            || comp->mComponentState == ComponentState::DESTROYED) \
             return;                                                        \
     } while (0)
 
-#define C2VdecDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mComp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
+#define C2VdecDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
 
-C2VdecComponent::DebugUtil::DebugUtil(C2VdecComponent* comp):
-    mComp(comp) {
-    DCHECK(mComp != NULL);
-    mTaskRunner = mComp->GetTaskRunner();
-    DCHECK(mTaskRunner != NULL);
-    mIntfImpl = mComp->GetIntfImpl();
-    DCHECK(mIntfImpl != NULL);
+#define LockWeakPtrWithReturnVal(name, weak, retval) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+        return retval;\
+    }
 
+#define LockWeakPtrWithReturnVoid(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        C2VdecDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+        return;\
+    }
+
+#define LockWeakPtrWithoutReturn(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
+    }
+
+
+C2VdecComponent::DebugUtil::DebugUtil() {
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 }
 
 C2VdecComponent::DebugUtil::~DebugUtil() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+}
 
+c2_status_t C2VdecComponent::DebugUtil::setComponent(std::shared_ptr<C2VdecComponent> sharedcomp) {
+    mComp = sharedcomp;
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    mIntfImpl = comp->GetIntfImpl();
+    C2VdecDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+
+    return C2_OK;
 }
 
 void C2VdecComponent::DebugUtil::showGraphicBlockInfo() {
-    for (auto & blockItem : mComp->mGraphicBlocks) {
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    for (auto & blockItem : comp->mGraphicBlocks) {
         C2VdecDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] PoolId(%d) BlockId(%d) Fd(%d) State(%s) Blind(%d) FdHaveSet(%d) UseCount(%ld)",
              __func__, blockItem.mPoolId, blockItem.mBlockId,
-            blockItem.mFd, mComp->GraphicBlockState(blockItem.mState),
+            blockItem.mFd, comp->GraphicBlockState(blockItem.mState),
             blockItem.mBind, blockItem.mFdHaveSet, blockItem.mGraphicBlock.use_count());
     }
 }
 
 void C2VdecComponent::DebugUtil::startShowPipeLineBuffer() {
-    if (mComp != NULL) {
-        RETURN_ON_UNINITIALIZED_OR_ERROR();
-        BufferStatus(mComp, CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64 "(%d)/%" PRId64 "(%zu)}, pipeline status",
-            mComp->mInputWorkCount, mComp->mInputCSDWorkCount,
-            mComp->mOutputWorkCount, mComp->mPendingBuffersToWork.size());
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    scoped_refptr<::base::SingleThreadTaskRunner> taskRunner = comp->GetTaskRunner();
+    if (taskRunner == nullptr) {
+        return;
     }
+    RETURN_ON_UNINITIALIZED_OR_ERROR();
+
+    BufferStatus(comp, CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64 "(%d)/%" PRId64 "(%zu)}, pipeline status",
+        comp->mInputWorkCount, comp->mInputCSDWorkCount,
+        comp->mOutputWorkCount, comp->mPendingBuffersToWork.size());
 #if 0
-    BufferStatus(mComp, CODEC2_LOG_INFO, "pipeline status");
+    BufferStatus(comp, CODEC2_LOG_INFO, "pipeline status");
     C2Vdec_LOG(CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64"(%d)/%" PRId64"(%zu)}",
-            mComp->mInputWorkCount, mComp->mInputCSDWorkCount,
-            mComp->mOutputWorkCount, mComp->mPendingBuffersToWork.size());
+            comp->mInputWorkCount, comp->mInputCSDWorkCount,
+            comp->mOutputWorkCount, comp->mPendingBuffersToWork.size());
 #endif
-    mTaskRunner->PostDelayedTask(FROM_HERE,
+    taskRunner->PostDelayedTask(FROM_HERE,
         ::base::Bind(&C2VdecComponent::DebugUtil::startShowPipeLineBuffer, ::base::Unretained(this)),
         ::base::TimeDelta::FromMilliseconds(5000));
 }
 
 void C2VdecComponent::DebugUtil::showCurrentProcessFdInfo() {
 #if DUMP_PROCESS_FDINFO_ENABLE
+    LockWeakPtrWithReturnVoid(comp, mComp);
     int iPid = (int)getpid();
     std::string path;
     path.append("/proc/" + std::to_string(iPid) + "/fdinfo/");
