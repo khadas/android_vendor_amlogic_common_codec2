@@ -244,6 +244,7 @@ void C2VdecComponent::Init(C2String compName) {
     mDeviceUtil = NULL;
     mOutputDelay = nullptr;
     mVideoDecWraper = NULL;
+    mLastOutputReportWork = nullptr;
 
     // tunnel mode
     mTunnelHelper = NULL;
@@ -334,10 +335,6 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
     mPendingBuffersToWork.clear();
     mNoOutFrameWorkQueue.clear();
 
-    if (mDeviceUtil) {
-        C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] clear decoder duration", __func__);
-        mDeviceUtil->clearDecoderDuration();
-    }
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
         mVideoDecWraper.reset();
@@ -1401,6 +1398,10 @@ void C2VdecComponent::onStopDone() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     CHECK(mStopDoneEvent);
 
+    if (mTunnelHelper) {
+        mTunnelHelper->stop();
+    }
+
     if (mDequeueThreadUtil) {
         mDequeueThreadUtil->StopRunDequeueTask();
         mDequeueThreadUtil.reset();
@@ -1416,22 +1417,9 @@ void C2VdecComponent::onStopDone() {
 
     if (mVideoDecWraper) {
         mVideoDecWraper->destroy();
-        mVideoDecWraper.reset();
-        mVideoDecWraper = NULL;
-        if (mDeviceUtil) {
-            mDeviceUtil.reset();
-            mDeviceUtil = NULL;
-        }
     }
     if (mTunerPassthroughHelper) {
         mTunerPassthroughHelper->stop();
-        mTunerPassthroughHelper.reset();
-        mTunerPassthroughHelper = NULL;
-    }
-    if (mTunnelHelper) {
-        mTunnelHelper->stop();
-        mTunnelHelper.reset();
-        mTunnelHelper = NULL;
     }
 
     if (mFdInfoDebugEnable && mDebugUtil) {
@@ -1440,17 +1428,18 @@ void C2VdecComponent::onStopDone() {
 
     if (mDebugUtil) {
         mDebugUtil->showGraphicBlockInfo();
-        mDebugUtil.reset();
-        mDebugUtil = NULL;
     }
 
+    if (mDeviceUtil) {
+        C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] clear decoder duration", __func__);
+        mDeviceUtil->clearDecoderDuration();
+    }
     if (mPendingGraphicBlockBuffer) {
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Clear pending blockId: %d, count:%ld",
                 mPendingGraphicBlockBufferId, mPendingGraphicBlockBuffer.use_count());
         mPendingGraphicBlockBufferId = -1;
         mPendingGraphicBlockBuffer.reset();
     }
-
     mBufferFirstAllocated = false;
     mSurfaceUsageGot = false;
     for (auto& info : mGraphicBlocks) {
@@ -1461,10 +1450,7 @@ void C2VdecComponent::onStopDone() {
     mGraphicBlocks.clear();
     if (mBlockPoolUtil != NULL) {
         mBlockPoolUtil->cancelAllGraphicBlock();
-        mBlockPoolUtil.reset();
-        mBlockPoolUtil = NULL;
     }
-
     mComponentState = ComponentState::UNINITIALIZED;
     if (mStopDoneEvent != nullptr)
         mStopDoneEvent->Signal();
@@ -3106,10 +3092,10 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
             work->input.ordinal.frameIndex.peekull(), timestamp.peekull());
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
-        mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
         CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
-        mPendingWorks.erase(workIter);
+        mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
         CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
+        mPendingWorks.erase(workIter);
         mOutputFinishedWorkCount++;
         return C2_OK;
     }

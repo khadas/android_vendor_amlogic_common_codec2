@@ -91,6 +91,23 @@ cc_binary {
         "android.hardware.amlogic.media.c2@1.2-seccomp-policy",
         "android.hardware.amlogic.media.c2@1.2-extended-seccomp-policy",
     ],
+    //Only enabled when using Asan for debugging or self-testing
+    // cflags: [
+    //     "-g",
+    //     "-Werror",
+    //     "-Wall",
+    //     "-Wno-unused-parameter",
+    //     "-fno-omit-frame-pointer",
+    // ],
+
+    // sanitize: {
+    //     address: true,
+    //     misc_undefined: [
+    //         "unsigned-integer-overflow",
+    //         "signed-integer-overflow",
+    //     ],
+    // },
+
 
 
     // The content in manifest_media_c2_V1_2_default.xml can be included

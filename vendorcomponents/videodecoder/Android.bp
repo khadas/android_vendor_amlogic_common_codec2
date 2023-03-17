@@ -84,12 +84,19 @@ cc_library_shared {
         "-Wno-unused-lambda-capture",
         "-Wno-unknown-warning-option",
     ],
-    sanitize: {
-        misc_undefined: [
-            "unsigned-integer-overflow",
-            "signed-integer-overflow",
-        ],
-    },
+    //Only enabled when using Asan for debugging or self-testing
+    // ] + [
+    //     "-g",
+    //     "-fno-omit-frame-pointer",
+    // ],
+    // relative_install_path: "asan",
+    // sanitize: {
+    //     address: true,
+    //     misc_undefined: [
+    //         "unsigned-integer-overflow",
+    //         "signed-integer-overflow",
+    //     ],
+    // },
 
     ldflags: ["-Wl,-Bsymbolic"],
 
