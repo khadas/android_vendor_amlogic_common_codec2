@@ -1089,6 +1089,12 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
                 realloc = true;
                 break;
             case InputCodec::H264:
+                if (mSecure) {
+                  realloc = true;
+                } else {
+                  realloc = false;
+                }
+                break;
             case InputCodec::MP2V:
             case InputCodec::MP4V:
             case InputCodec::VP9:
@@ -1394,6 +1400,9 @@ bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
         else if(mUseSurfaceTexture)
             C2VdecMDU_LOG(CODEC2_LOG_INFO, "mUseSurfaceTexture = %d, DO NOT Enable MMU", mUseSurfaceTexture);
         else if (output.width * output.height >= 3840 * 2160) {
+            if (mSecure) {
+                return false;
+            }
             C2VdecMDU_LOG(CODEC2_LOG_INFO, "4k H264 Stream use MMU, width:%d height:%d",
                     output.width, output.height);
             return true;
