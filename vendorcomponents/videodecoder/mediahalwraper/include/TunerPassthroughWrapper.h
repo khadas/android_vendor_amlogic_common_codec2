@@ -29,6 +29,7 @@ public:
     int getSyncInstansNo(int *no);
     int SetTrickMode(int mode);
     int SetTrickSpeed(float speed);
+    int SetRenderCallBackEventFlag(int64_t eventflag);
 
 private:
     static uint32_t gInstanceCnt;

@@ -3406,6 +3406,9 @@ void C2VdecComponent::onConfigureTunerPassthroughTrickMode() {
    mTunerPassthroughHelper->setTrickMode();
 }
 
+void C2VdecComponent::onConfigureTunerPassthroughEventMask() {
+   mTunerPassthroughHelper->setRenderCallBackEventFlag();
+}
 class C2VdecComponentFactory : public C2ComponentFactory {
 public:
     C2VdecComponentFactory(C2String decoderName)

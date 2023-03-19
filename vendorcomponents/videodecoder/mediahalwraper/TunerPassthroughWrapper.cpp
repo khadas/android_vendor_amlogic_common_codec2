@@ -137,6 +137,12 @@ int TunerPassthroughWrapper::SetTrickSpeed(float speed) {
     return 0;
 }
 
+int TunerPassthroughWrapper::SetRenderCallBackEventFlag(int64_t eventflag) {
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetRenderCallBackEventFlag");
+    if (mTunerPassthrough)
+        mTunerPassthrough->SetRenderCallBackEventFlag(eventflag);
+    return 0;
+}
 
 
 }

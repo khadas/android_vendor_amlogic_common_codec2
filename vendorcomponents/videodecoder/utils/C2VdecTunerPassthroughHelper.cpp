@@ -178,6 +178,17 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
     return C2_OK;
 }
 
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setRenderCallBackEventFlag() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int64_t mask = intfImpl->mVendorTunerPassthroughEventMask->eventMask;
+
+    mTunerPassthrough->SetRenderCallBackEventFlag(mask);
+
+    return C2_OK;
+}
+
 void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough(struct renderTime rendertime) {
     LockWeakPtrWithReturnVoid(comp, mComp);
     scoped_refptr<::base::SingleThreadTaskRunner> taskRunner = comp->GetTaskRunner();

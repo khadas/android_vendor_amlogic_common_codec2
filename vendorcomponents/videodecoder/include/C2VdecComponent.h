@@ -107,6 +107,7 @@ public:
     void onConfigureTunnelMode();
     void onConfigureTunerPassthroughMode();
     void onConfigureTunerPassthroughTrickMode();
+    void onConfigureTunerPassthroughEventMask();
 
     //for out use
     bool isAmDolbyVision() {return mIsDolbyVision;}

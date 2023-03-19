@@ -18,6 +18,7 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorStreammodeInputdelay,
     kParamIndexVendorErrorPolicy,
     kParamIndexVendorStreammodePipeLinedelay,
+    kParamIndexVendorTunerPassthroughEventMask,
 
     /*these are Audio Decoder config parameters.*/
     kParamIndexVendorAdecCodecId = C2Param:: TYPE_INDEX_VENDOR_START + 0x200,
@@ -84,6 +85,19 @@ constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughTrickMode[] = "tunerhal.passth
 constexpr char KEY_VENDOR_TRAICKMODE[] = "vendor.tunerhal.passthrough.trick-mode";
 constexpr char KEY_VENDOR_TRICKSPEED[] = "vendor.tunerhal.passthrough.trick-speed";
 constexpr char KEY_VENDOR_FRAMEADVANCE[] = "vendor.tunerhal.passthrough.frame-advance";
+
+struct C2VendorTunerPassthroughEventMaskStruct {
+    inline C2VendorTunerPassthroughEventMaskStruct() = default;
+    inline C2VendorTunerPassthroughEventMaskStruct(int64_t event_mask)
+        :eventMask(event_mask) {}
+    int64_t eventMask;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughEventMask)
+    C2FIELD(eventMask, "event-mask")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughEventMaskStruct, kParamIndexVendorTunerPassthroughEventMask> C2VendorTunerPassthroughEventMask;
+constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughEventMask[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_EVENTMASK[] = "vendor.tunerhal.passthrough.event-mask";
 
 enum VDEC_WORKMODE {
     VDEC_FRAMEMODE,

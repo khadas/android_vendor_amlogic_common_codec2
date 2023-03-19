@@ -37,6 +37,7 @@ public:
     c2_status_t stop();
     c2_status_t flush();
     c2_status_t setTrickMode();
+    c2_status_t setRenderCallBackEventFlag();
 
 private:
     static int notifyTunerPassthroughRenderTimeCallback(void* obj, void* args);
