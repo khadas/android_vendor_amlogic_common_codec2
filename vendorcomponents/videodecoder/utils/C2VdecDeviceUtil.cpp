@@ -154,9 +154,9 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             doubleWriteValue = 0x10;
             break;
         case InputCodec::H264:
-            if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) || mSecure) {
+            if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) || mSecure || mIsInterlaced) {
                 doubleWriteValue = 0x10;
-                CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface  or secure video use dw 0x10");
+                CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface  or secure or interlaced video use dw 0x10");
             } else {
                 doubleWriteValue = 3;
             }
@@ -1337,6 +1337,9 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
     if (type & INTERLACE) {
         if (codec == InputCodec::H265 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
            params->cfg.double_write_mode = 1;
+           configChanged = true;
+        } else if (codec == InputCodec::H264 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
+           params->cfg.double_write_mode = 0x10;
            configChanged = true;
         }
     } else if (type & DOUBLE_WRITE) {

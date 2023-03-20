@@ -501,7 +501,9 @@ c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffer(const media::Size& 
     }
 
     LockWeakPtrWithReturnVal(blockPoolUtil, mBlockPoolUtil, C2_BAD_VALUE);
-    uint64_t platformUsage = getPlatformUsage();
+    LockWeakPtrWithReturnVal(deviceUtil, mDeviceUtil, C2_BAD_VALUE);
+
+    uint64_t platformUsage = deviceUtil->getPlatformUsage();
     C2MemoryUsage usage = {
             mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
@@ -570,8 +572,9 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
     bool bufferNumSet = false;
     LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
     LockWeakPtrWithReturnVal(blockPoolUtil, mBlockPoolUtil, C2_BAD_VALUE)
+    LockWeakPtrWithReturnVal(deviceUtil, mDeviceUtil, C2_BAD_VALUE);
 
-    uint64_t platformUsage = getPlatformUsage();
+    uint64_t platformUsage = deviceUtil->getPlatformUsage();
     C2MemoryUsage usage = {
             mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
@@ -718,59 +721,6 @@ void C2VdecComponent::TunnelHelper::appendTunnelOutputBuffer(std::shared_ptr<C2G
     info.mNeedRealloc = false;
     info.mFdHaveSet = false;
     comp->mGraphicBlocks.push_back(std::move(info));
-}
-
-uint64_t C2VdecComponent::TunnelHelper::getPlatformUsage() {
-    uint64_t usage = 0;
-    LockWeakPtrWithReturnVal(comp, mComp, usage);
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, usage);
-
-    switch (intfImpl->getInputCodec()) {
-        case InputCodec::H264:
-        case InputCodec::MP2V:
-        case InputCodec::MP4V:
-        case InputCodec::DVAV:
-        case InputCodec::MJPG:
-            //C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "1:1 usage");
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            break;
-        case InputCodec::H265:
-        case InputCodec::VP9:
-        case InputCodec::AV1:
-        case InputCodec::DVHE:
-        case InputCodec::DVAV1:
-        default:
-            //C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL2, "1:16 usage");
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            break;
-    }
-
-    /* check debug doublewrite */
-    char value[PROPERTY_VALUE_MAX] = {0};
-    if (property_get(C2_PROPERTY_VDEC_DOUBLEWRITE, value, NULL) > 0) {
-        int32_t doublewrite_debug = atoi(value);
-        C2VdecTMH_LOG(CODEC2_LOG_INFO, "Set double:%d", doublewrite_debug);
-        if (doublewrite_debug != 0) {
-            switch (doublewrite_debug) {
-                case 1:
-                case 0x10:
-                    usage = am_gralloc_get_video_decoder_full_buffer_usage();
-                    break;
-                case 2:
-                case 3:
-                    usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                    break;
-                case 4:
-                    usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-                    break;
-                default:
-                    usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-                    break;
-            }
-        }
-    }
-
-    return usage & C2MemoryUsage::PLATFORM_MASK;
 }
 
 c2_status_t C2VdecComponent::TunnelHelper::fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId) {
