@@ -279,6 +279,8 @@ void C2VdecComponent::Init(C2String compName) {
     mBufferFirstAllocated = false;
     mVdecComponentStopDone = false;
     mHDR10PlusMeteDataNeedCheck = false;
+    mHaveDrainDone = false;
+    mHaveFlushDone = false;
 
     mPlayerId = 0;
     mUnstable = 0;
@@ -523,11 +525,28 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
     //  TODO: set a maximum size of mQueue and check if mQueue is already full.
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
 
-    if (mReportEosWork == true) {
+    if (mReportEosWork == true || (mHaveFlushDone == true)) {
         mReportEosWork = false;
-        if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
-            C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
+        mHaveDrainDone = false;
+        mHaveFlushDone = false;
+        if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
+            int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task [%s][%d]", __func__, bufferInClient, mCurrentBlockSize.ToString().c_str() , mCurrentPixelFormat);
+            uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
+            if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
+                    C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
+            }
+            mDequeueThreadUtil->StartAllocBuffer();
+            if (mBufferFirstAllocated == true) {
+                for (int i = 1; i <= bufferInClient; i++) {
+                    mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, static_cast<uint32_t>(i * frameDur));
+                }
+            }
         }
+        // mDequeueThreadUtil->StartAllocBuffer();
+        // if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
+        //     C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
+        // }
     }
 }
 
@@ -715,6 +734,12 @@ void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> blo
         // Output buffer is returned after we changed output resolution. Just let the buffer be
         // released.
         C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Discard obsolete graphic block: poolId=%u", poolId);
+        return;
+    }
+
+    //pending outbuffer
+    if (mHaveDrainDone == true) {
+        C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "have receive eos, pending output buffer poolId=%u", poolId);
         return;
     }
 
@@ -2661,27 +2686,27 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
         }
     }
 
-    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] flush work size:%zd Queue size:%zd", __func__,
-                flushedWork->size(), mQueue.size());
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] flush work size:%zd Queue size:%zd  blocksize:%s mCurrentPixelFormat:%d", __func__,
+                flushedWork->size(), mQueue.size(), mCurrentBlockSize.ToString().c_str(), mCurrentPixelFormat);
 
     // passthrough mode has no data flow in C2
     if (!mTunerPassthroughHelper) {
         // Work dequeueing was stopped while component flushing. Restart it.
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
-
-        if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
-            int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task", __func__, bufferInClient);
-            uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
-            if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
-                    C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
-            }
-            mDequeueThreadUtil->StartAllocBuffer();
-            for (int i = 1; i <= bufferInClient; i++) {
-                mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, static_cast<uint32_t>(i * frameDur));
-            }
-        }
+        mHaveFlushDone = true;
+        // if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
+        //     int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
+        //     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task", __func__, bufferInClient);
+        //     uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
+        //     if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
+        //             C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
+        //     }
+        //     mDequeueThreadUtil->StartAllocBuffer();
+        //     for (int i = 1; i <= bufferInClient; i++) {
+        //         mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, static_cast<uint32_t>(i * frameDur));
+        //     }
+        // }
     }
     return C2_OK;
 }
@@ -2885,6 +2910,8 @@ void C2VdecComponent::NotifyEndOfBitstreamBuffer(int32_t bitstreamId) {
 
 void C2VdecComponent::NotifyFlushDone() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
+    mDequeueThreadUtil->StopAllocBuffer();
+    mHaveDrainDone = true;
     mTaskRunner->PostTask(FROM_HERE,
                           ::base::Bind(&C2VdecComponent::onDrainDone, ::base::Unretained(this)));
 }

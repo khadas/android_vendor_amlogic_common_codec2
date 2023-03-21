@@ -533,6 +533,8 @@ private:
     bool mIsReportEosWork;
     bool mReportEosWork;
     bool mSupport10BitDepth;
+    bool mHaveDrainDone;
+    bool mHaveFlushDone;
     //no correspond outframe work
     std::deque<int64_t> mNoOutFrameWorkQueue;
 
