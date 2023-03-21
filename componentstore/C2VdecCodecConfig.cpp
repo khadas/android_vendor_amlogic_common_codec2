@@ -498,7 +498,7 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
         return false;
     }
 
-    if ((3840 * 2160 <= size && size <= 4096 * 2304) && !support_4k) {
+    if ((3840 * 2160 <= size && size <= 4096 * 2304) && support_4k) {
         struct CodecAttributes codecAttributes = attribute->second;
         float supportFrameRate = (float)codecAttributes.blocksPerSecond.max / (float)codecAttributes.blockCount.max;
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported framerate:%f framerate:%f blocksPerSecond:%d blockCount:%d", __func__, supportFrameRate, frameRate,
