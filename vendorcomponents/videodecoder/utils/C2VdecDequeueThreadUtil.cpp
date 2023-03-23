@@ -163,7 +163,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
 
     int64_t nowTimeUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
     int64_t allocRetryDurationUs = nowTimeUs - mLastAllocBufferRetryTimeUs;
-    int64_t allocSuccessDuraionUs = nowTimeUs - mLastAllocBufferSuccessTimeUs;
+    int64_t allocSuccessDurationUs = nowTimeUs - mLastAllocBufferSuccessTimeUs;
 
     if ((allocRetryDurationUs <=  mStreamDurationUs) && mAllocBufferLoop.load()) {
         int64_t delayTimeUs = (mStreamDurationUs >= allocRetryDurationUs) ? (mStreamDurationUs - allocRetryDurationUs) : mStreamDurationUs;
@@ -174,8 +174,8 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
     }
 
     if (mFetchBlockCount >= DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN) {
-        if (allocSuccessDuraionUs <= mMinFetchBlockInterval && mAllocBufferLoop.load()) {
-            int64_t delayTimeUs = mMinFetchBlockInterval - allocSuccessDuraionUs;
+        if (allocSuccessDurationUs <= mMinFetchBlockInterval && mAllocBufferLoop.load()) {
+            int64_t delayTimeUs = mMinFetchBlockInterval - allocSuccessDurationUs;
             mDequeueTaskRunner->PostDelayedTask(
                 FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
                 size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTimeUs));

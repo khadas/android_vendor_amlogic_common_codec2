@@ -362,14 +362,6 @@ private:
     void reportWork(std::unique_ptr<C2Work> work);
     void reportEmptyWork(int32_t bitstreamId, int32_t flags);
 
-    // Start dequeue thread, return true on success. If |resetBuffersInClient|, reset the counter
-    // |mBuffersInClient| on start.
-    bool startDequeueThread(const media::Size& size, uint32_t pixelFormat, bool resetBuffersInClient);
-    // Stop dequeue thread.
-    void stopDequeueThread();
-    // The routine task running on dequeue thread.
-    void dequeueThreadLoop(const media::Size& size, uint32_t pixelFormat);
-
     //convert codec profile to mime
     const char* VideoCodecProfileToMime(media::VideoCodecProfile profile);
     c2_status_t videoResolutionChange();
@@ -535,6 +527,8 @@ private:
     bool mSupport10BitDepth;
     bool mHaveDrainDone;
     bool mHaveFlushDone;
+    bool mFlushDoneWithOutEosWork;
+    std::deque<int32_t> mFlushDoneBufferOwnedByComp;
     //no correspond outframe work
     std::deque<int64_t> mNoOutFrameWorkQueue;
 

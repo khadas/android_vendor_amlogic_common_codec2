@@ -281,6 +281,7 @@ void C2VdecComponent::Init(C2String compName) {
     mHDR10PlusMeteDataNeedCheck = false;
     mHaveDrainDone = false;
     mHaveFlushDone = false;
+    mFlushDoneWithOutEosWork = false;
 
     mPlayerId = 0;
     mUnstable = 0;
@@ -330,6 +331,11 @@ C2VdecComponent::~C2VdecComponent() {
                                 ::base::Unretained(this), &done));
         done.Wait();
         mThread.Stop();
+    }
+
+    if (mDebugUtil) {
+        mDebugUtil.reset();
+        mDebugUtil = NULL;
     }
 
     if (mSecureMode)
@@ -672,6 +678,34 @@ void C2VdecComponent::onDequeueWork() {
         // Directly report the empty CSD work as finished.
         C2Vdec_LOG(CODEC2_LOG_INFO, "OnDequeueWork empty csd work, bitId:%d\n", bitstreamId);
         reportWorkIfFinished(bitstreamId, 0, isEmptyWork);
+    }
+
+    if (mFlushDoneWithOutEosWork == true && mBufferFirstAllocated == true) {
+        mFlushDoneWithOutEosWork = false;
+        while (!mFlushDoneBufferOwnedByComp.empty()) {
+            auto ite = mFlushDoneBufferOwnedByComp.front();
+            GraphicBlockInfo* info = getGraphicBlockById(ite);
+            if (info == NULL) {
+                mFlushDoneBufferOwnedByComp.pop_front();
+                C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] info is null, please check it.", __func__);
+                continue;
+            }
+
+            if (info->mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_ACCELERATOR);
+                BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "[%s] index=%d", __func__, info->mBlockId);
+            }
+            mFlushDoneBufferOwnedByComp.pop_front();
+        }
+
+        //after flush we need reuse the buffer which owned by accelerator
+        for (auto& info : mGraphicBlocks) {
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Index:%d,graphic block status:%s count:%ld", __func__,
+                    info.mBlockId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
+            if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+                sendOutputBufferToAccelerator(&info, false);
+            }
+        }
     }
 
     if (!mQueue.empty()) {
@@ -1411,7 +1445,9 @@ void C2VdecComponent::onFlushDone() {
 
                 mFlushPendingWorkList.emplace_back(std::move(work));
         }
+
         mPendingWorks.clear();
+        mFlushDoneBufferOwnedByComp.clear();
 
         while (!mPendingBuffersToWork.empty()) {
             auto nextBuffer = mPendingBuffersToWork.front();
@@ -1420,22 +1456,11 @@ void C2VdecComponent::onFlushDone() {
                 C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] info is null, please check it.", __func__);
                 continue;
             }
-            if (info->mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
-                GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_ACCELERATOR);
-                BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "flush index=%d", info->mBlockId);
-            }
+            BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "[%s] add flush done add index=%d", __func__,nextBuffer.mBlockId);
+            mFlushDoneBufferOwnedByComp.push_back(nextBuffer.mBlockId);
             mPendingBuffersToWork.pop_front();
         }
         mPendingBuffersToWork.clear();
-
-        //after flush we need reuse the buffer which owned by accelerator
-        for (auto& info : mGraphicBlocks) {
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Index:%d,graphic block status:%s count:%ld", __func__,
-                    info.mBlockId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
-            if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
-                sendOutputBufferToAccelerator(&info, false);
-            }
-        }
 
         if (mDeviceUtil != nullptr) {
             mDeviceUtil->flush();
@@ -2695,6 +2720,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
         mTaskRunner->PostTask(FROM_HERE,
                               ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
         mHaveFlushDone = true;
+        mFlushDoneWithOutEosWork = true;
         // if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
         //     int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
         //     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task", __func__, bufferInClient);
