@@ -190,6 +190,23 @@ struct DummyReadView : public C2ReadView {
     DummyReadView() : C2ReadView(C2_NO_INIT) {}
 };
 
+void C2VdecComponent::Preempted()
+{
+    mPreempting = true;
+}
+
+bool C2VdecComponent::Preempting()
+{
+    return mPreempting;
+}
+
+void QuitEventFunc(void *classptr)
+{
+    C2VdecComponent *comp = (C2VdecComponent*)classptr;
+    ALOGW("CODEC2-%d was preempted", comp->mCurInstanceID);
+    comp->Preempted();
+}
+
 C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
                                const std::shared_ptr<C2ReflectorHelper>& helper):
     mIntfImpl(std::make_shared<IntfImpl>(name, helper)),
@@ -432,8 +449,10 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
                 vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
         }
+        char mInstanceName[32];
+        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
-                (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
+                (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags, mInstanceName, QuitEventFunc, (void *)this);
         //set some decoder config
         //set unstable state and duration to vdec
         mDeviceUtil->setUnstable();
@@ -1105,6 +1124,18 @@ void C2VdecComponent::updateUndequeuedBlockIds(int32_t blockId) {
     // The size of |mUndequeuedBlockIds| will always be the minimum buffer count for display.
     mUndequeuedBlockIds.push_back(blockId);
     mUndequeuedBlockIds.pop_front();
+}
+
+void C2VdecComponent::checkPreempting() {
+    if (mComponentState >= ComponentState::STARTED && mComponentState < ComponentState::DESTROYING
+        && Preempting()) {
+        C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] cancel", __func__);
+        reportError(C2_CANCELED);
+    } else {
+        mTaskRunner->PostDelayedTask(FROM_HERE,
+            ::base::Bind(&C2VdecComponent::checkPreempting, ::base::Unretained(this)),
+            ::base::TimeDelta::FromMilliseconds(100));
+    }
 }
 
 void C2VdecComponent::onDrain(uint32_t drainMode) {
@@ -2481,6 +2512,7 @@ void C2VdecComponent::setOutputFormatCrop(const media::Rect& cropRect) {
 
 void C2VdecComponent::onCheckVideoDecReconfig() {
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%s]",__func__);
+    char mInstanceName[32];
     if (mSurfaceUsageGot)
         return;
 
@@ -2530,8 +2562,9 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
                 if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
                     vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
             }
-            mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                        (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecFlags);
+        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
+        mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
+                        (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecFlags, mInstanceName, QuitEventFunc, (void *)this);
             //set some decoder config
             //set unstable state and duration to vdec
             mDeviceUtil->setUnstable();
@@ -2555,8 +2588,9 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
             if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
                 vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
         }
+        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
-                  (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags);
+                  (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags, mInstanceName, QuitEventFunc, (void *)this);
         //set some decoder config
         //set unstable state and duration to vdec
         mDeviceUtil->setUnstable();
@@ -2702,6 +2736,9 @@ c2_status_t C2VdecComponent::start() {
     if (mDebugUtil) {
         mDebugUtil->startShowPipeLineBuffer();
     }
+    mTaskRunner->PostDelayedTask(FROM_HERE,
+        ::base::Bind(&C2VdecComponent::checkPreempting, ::base::Unretained(this)),
+        ::base::TimeDelta::FromMilliseconds(100));
     mVdecComponentStopDone = false;
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done",__func__);
     return C2_OK;

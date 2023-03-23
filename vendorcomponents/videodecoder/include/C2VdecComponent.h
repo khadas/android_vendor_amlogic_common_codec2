@@ -127,13 +127,16 @@ public:
     std::ostringstream TRACE_NAME_OUT_PTS;
     std::ostringstream TRACE_NAME_FINISHED_WORK_PTS;
 
+    void Preempted();
+    bool Preempting();
+    void checkPreempting();
     static uint32_t mInstanceNum;
     static uint32_t mInstanceID;
     uint32_t mCurInstanceID;
 
     static const uint32_t kUpdateDurationFramesNumMax = 10;
     int mUpdateDurationUsCount;
-
+    bool mPreempting;
     bool IsCompHaveCurrentBlock(uint32_t poolId, uint32_t blockId);
     bool IsCheckStopDequeueTask();
     void onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> block, uint32_t poolId,uint32_t blockId);

@@ -161,7 +161,10 @@ int VideoDecWraper::initialize(
     uint32_t configLen,
     bool secureMode,
     VideoDecWraperCallback* client,
-    int32_t flags) {
+    int32_t flags,
+    char* resAppName,
+    void (* resCallback)(void *),
+    void* resOpaque) {
     C2VdecWraper_LOG(CODEC2_LOG_INFO, "initialize:mime:%s secureMode is %d flags is 0x%x", mime, secureMode, flags);
     if (!mAmVideoDec)
         mAmVideoDec = getAmVideoDec(this);
@@ -169,7 +172,20 @@ int VideoDecWraper::initialize(
         C2VdecWraper_LOG(CODEC2_LOG_ERR,"%s:%d can not get AmVideoDec, init error\n", __FUNCTION__, __LINE__);
         return -1;
     }
-    int ret = mAmVideoDec->initialize(mime, config, configLen, secureMode, true, flags);
+    video_dec_init_params vdecParams;
+    memset(&vdecParams, 0, sizeof(vdecParams));
+    memset(vdecParams.mime, 0, sizeof(vdecParams.mime));
+    memcpy(vdecParams.mime, mime,strlen(mime));
+    vdecParams.config = config;
+    vdecParams.configLen = configLen;
+    vdecParams.secureMode = secureMode;
+    vdecParams.flags = flags;
+    vdecParams.useV4l2 = true;
+    if (resAppName && strlen(resAppName) > 0 && strlen(resAppName) < 32)
+        memcpy(vdecParams.resAppName, resAppName,strlen(resAppName));
+    vdecParams.resCallback = resCallback;
+    vdecParams.resOpaque = resOpaque;
+    int ret = mAmVideoDec->initialize(&vdecParams);
     if (ret != 0)
         return -1;
     setInstanceId2Hal();
