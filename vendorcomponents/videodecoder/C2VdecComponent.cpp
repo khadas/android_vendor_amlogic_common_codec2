@@ -411,12 +411,11 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     }
 
     mDebugUtil->setComponent(shared_from_this());
-    mDequeueThreadUtil->setComponent(shared_from_this());
 
     if (mDequeueThreadUtil == nullptr) {
         mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
-        mDequeueThreadUtil->setComponent(shared_from_this());
     }
+    mDequeueThreadUtil->setComponent(shared_from_this());
     if (!isTunnerPassthroughMode()) {
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
         mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
@@ -1435,8 +1434,6 @@ void C2VdecComponent::onStopDone() {
 
     if (mDequeueThreadUtil) {
         mDequeueThreadUtil->StopRunDequeueTask();
-        mDequeueThreadUtil.reset();
-        mDequeueThreadUtil = NULL;
     }
     //  TODO: At this moment, there may be C2Buffer still owned by client, do we need to
     // do something for them?
