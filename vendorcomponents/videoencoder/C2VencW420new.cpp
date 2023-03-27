@@ -646,6 +646,7 @@ std::shared_ptr<C2Component> C2VencW420New::create(
 C2VencW420New::C2VencW420New(const char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl)
             : C2VencComponent(std::make_shared<SimpleInterface<IntfImpl>>(name, id, intfImpl)),
               mIntfImpl(intfImpl),
+              mInitFunc(NULL),
               mEncHeaderFunc(NULL),
               mEncFrameFunc(NULL),
               mEncBitrateChangeFunc(NULL),
@@ -664,6 +665,7 @@ C2VencW420New::C2VencW420New(const char *name, c2_node_id_t id, const std::share
     ALOGD("gloglevel:%x",gloglevel);
     sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
     mInstanceID++;
+    mSyncFramePeriod=NULL;
 }
 
 
@@ -722,8 +724,9 @@ bool C2VencW420New::isSupportCanvas() {
 
 bool C2VencW420New::LoadModule() {
     C2W420_LOG(CODEC2_VENC_LOG_INFO,"C2VencW420New initModule!");
-    void *handle = dlopen("libvp_hevc_codec_new.so", RTLD_NOW);
-    if (handle) {
+    void *handle = nullptr;
+    handle = dlopen("libvp_hevc_codec_new.so", RTLD_NOW);
+    if (handle != nullptr) {
         mInitFunc = NULL;
         mInitFunc = (fn_hevc_video_encoder_init)dlsym(handle, "vl_video_encoder_init_hevc");
         if (mInitFunc == NULL) {
@@ -773,7 +776,6 @@ bool C2VencW420New::LoadModule() {
         }
     } else {
         C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlopen for libvp_hevc_codec.so failed");
-        dlclose(handle);
         return false;
     }
     /*

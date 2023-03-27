@@ -54,12 +54,16 @@ namespace android {
 
 C2VdecComponent::TunnelHelper::TunnelHelper(bool secure) {
     mSecure = secure;
+    mReallocWhenResChange = false;
     mReallocWhenResChange = property_get_bool(C2_PROPERTY_VDEC_REALLOC_TUNNEL_RESCHANGE, mReallocWhenResChange);
     mAndroidPeekFrameReady = false;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     mPixelFormat = 0;
     mOutBufferCount = 0;
 
+    mSyncId = 0;
+    mTunnelId = 0;
+    mTunnelHandle = NULL;
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 }
 

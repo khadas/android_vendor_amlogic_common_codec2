@@ -691,8 +691,9 @@ bool C2VencW420::isSupportCanvas() {
 
 bool C2VencW420::LoadModule() {
     C2W420_LOG(CODEC2_VENC_LOG_INFO,"C2VencW420 initModule!");
-    void *handle = dlopen("libvp_hevc_codec.so", RTLD_NOW);
-    if (handle) {
+    void *handle = nullptr;
+    handle = dlopen("libvp_hevc_codec.so", RTLD_NOW);
+    if (handle != nullptr) {
         mInitFunc = NULL;
         mInitFunc = (fn_hevc_video_encoder_init)dlsym(handle, "vl_video_encoder_init");
         if (mInitFunc == NULL) {
@@ -726,7 +727,6 @@ bool C2VencW420::LoadModule() {
         }
     } else {
         C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlopen for libvp_hevc_codec.so failed");
-        dlclose(handle);
         return false;
     }
     /*

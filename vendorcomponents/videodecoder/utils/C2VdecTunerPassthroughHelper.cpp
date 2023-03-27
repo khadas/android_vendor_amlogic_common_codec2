@@ -79,7 +79,12 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(bool secure,
     mTunerPassthroughParams.secure_mode = secure;
     mTunerPassthroughParams.mime = mime;
     mTunerPassthroughParams.tunnel_renderer = helper->getTunnelRender();
+    mTunerPassthroughParams.dmx_id = -1;
+    mTunerPassthroughParams.video_pid = -1;
+    mTunerPassthroughParams.hw_sync_id = -1;
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+
+    mSyncId = 0;
 }
 
 C2VdecComponent::TunerPassthroughHelper::~TunerPassthroughHelper() {

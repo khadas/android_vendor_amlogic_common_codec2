@@ -67,7 +67,7 @@ private:
     fn_hevc_video_encoder_encode mEncFrameFunc;
     fn_hevc_video_encoder_destroy mDestroyFunc;
     vl_codec_handle_t mCodecHandle;
-    uint32_t mIDRInterval;
+    int32_t mIDRInterval;
     //uint32_t mIInterval;
     //uint32_t mBframes;
 };

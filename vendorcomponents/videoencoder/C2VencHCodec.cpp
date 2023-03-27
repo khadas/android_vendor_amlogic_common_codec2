@@ -749,8 +749,9 @@ bool C2VencHCodec::isSupportCanvas() {
 bool C2VencHCodec::LoadModule() {
     ALOGD("C2VencHCodec initModule!,LOG_INFO:%d,gloglevel:%d",CODEC2_VENC_LOG_INFO,gloglevel);
     C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"C2VencHCodec initModule!");
-    void *handle = dlopen("lib_avc_vpcodec.so", RTLD_NOW);
-    if (handle) {
+    void *handle = nullptr;
+    handle = dlopen("lib_avc_vpcodec.so", RTLD_NOW);
+    if (handle != nullptr) {
         mInitFunc = NULL;
         mInitFunc = (fn_vl_video_encoder_init)dlsym(handle, "vl_video_encoder_init");
         if (mInitFunc == NULL) {
@@ -784,7 +785,6 @@ bool C2VencHCodec::LoadModule() {
         }
     } else {
         C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"dlopen for lib_avc_vpcodec.so failed");
-        dlclose(handle);
         return false;
     }
     /*
@@ -978,7 +978,7 @@ c2_status_t C2VencHCodec::Init() {
     initParam.width = mSize->width;
     initParam.height = mSize->height;
     initParam.frame_rate = mFrameRate->value;
-    initParam.bit_rate = mBitrate->value;
+    initParam.bit_rate = (int)mBitrate->value;
     if (mIDRInterval < 0)
         initParam.gop = mIDRInterval;
     else

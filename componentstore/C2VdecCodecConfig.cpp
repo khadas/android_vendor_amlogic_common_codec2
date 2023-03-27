@@ -422,6 +422,7 @@ bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool s
     while (typemap != map.end()) {
         auto attributemap = typemap->second.begin();
         struct CodecAttributes attributeItem;
+        memset(&attributeItem, 0, sizeof(attributeItem));
         attributeItem.typeName = typemap->first.c_str();
 
         while (attributemap != typemap->second.end()) {

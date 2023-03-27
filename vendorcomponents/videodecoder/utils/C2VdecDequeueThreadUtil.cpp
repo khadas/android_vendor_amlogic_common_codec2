@@ -61,13 +61,19 @@ namespace android {
 
 C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil() {
     mDequeueThread = new ::base::Thread("C2VdecDequeueThread");
-    mLastAllocBufferRetryTimeUs = -1;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     CODEC2_LOG(CODEC2_LOG_INFO, "Creat DequeueThreadUtil!!");
+
     mRunTaskLoop.store(false);
     mAllocBufferLoop.store(false);
+
+    mFetchBlockCount = 0;
     mStreamDurationUs = 0;
     mCurrentPixelFormat = 0;
+    mMinFetchBlockInterval = 0;
+
+    mLastAllocBufferRetryTimeUs = -1;
+    mLastAllocBufferSuccessTimeUs = -1;
     memset(&mCurrentBlockSize, 0, sizeof(mCurrentBlockSize));
 }
 

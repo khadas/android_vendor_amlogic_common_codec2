@@ -75,7 +75,7 @@ private:
     fn_vl_change_framerate_hevc mEncFrameRateChangeFunc;
     fn_hevc_video_encoder_destroy mDestroyFunc;
     vl_codec_handle_hevc_t mCodecHandle;
-    uint32_t mIDRInterval;
+    int32_t mIDRInterval;
     uint32_t mBitrateBak;
     //uint64_t mtimeStampBak;
     //uint32_t curFrameRateBak;

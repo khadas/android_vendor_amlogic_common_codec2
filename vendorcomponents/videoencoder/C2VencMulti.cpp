@@ -883,8 +883,9 @@ bool C2VencMulti::isSupportCanvas() {
 
 bool C2VencMulti::LoadModule() {
     ALOGD("C2VencMulti initModule!");
-    void *handle = dlopen("libvpcodec.so", RTLD_NOW | RTLD_NODELETE);
-    if (handle) {
+    void *handle = nullptr;
+    handle = dlopen("libvpcodec.so", RTLD_NOW | RTLD_NODELETE);
+    if (handle != nullptr) {
         mInitFunc = NULL;
         mInitFunc = (fn_vl_multi_encoder_init)dlsym(handle, "vl_multi_encoder_init");
         if (mInitFunc == NULL) {
@@ -926,7 +927,6 @@ bool C2VencMulti::LoadModule() {
         }
     } else {
         ALOGE("dlopen for libvpcodec.so failed,err:%s",dlerror());
-        dlclose(handle);
         return false;
     }
     /*
