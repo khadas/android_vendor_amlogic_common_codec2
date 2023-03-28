@@ -1478,6 +1478,8 @@ void C2VdecComponent::onStopDone() {
     mGraphicBlocks.clear();
     if (mBlockPoolUtil != NULL) {
         mBlockPoolUtil->cancelAllGraphicBlock();
+        mBlockPoolUtil.reset();
+        mBlockPoolUtil = NULL;
     }
     mComponentState = ComponentState::UNINITIALIZED;
     if (mStopDoneEvent != nullptr)
