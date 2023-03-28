@@ -959,12 +959,31 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else if (isTunnelMode() && mTunnelHelper != NULL) {
 
-       if ((flags & (int)PictureFlag::PICTURE_FLAG_ERROR_FRAME) != 0) {
+        if ((flags & (int)PictureFlag::PICTURE_FLAG_ERROR_FRAME) != 0) {
            mTunnelHelper->fastHandleOutBufferTunnel(timestamp, pictureBufferId);
            return;
-       }
-
-       if ((work != NULL)
+        }
+        if (mHDR10PlusMeteDataNeedCheck) {
+            unsigned char  buffer[META_DATA_SIZE];
+            int buffer_size = 0;
+            memset(buffer, 0, META_DATA_SIZE);
+            mDeviceUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
+            bool gotDur = false;
+            if (buffer_size > META_DATA_SIZE) {
+                C2Vdec_LOG(CODEC2_LOG_ERR, "Uvm metadata size error, please check");
+            } else if (buffer_size <= 0)  {
+                //Do not have meta data, do not need check more.
+                mHDR10PlusMeteDataNeedCheck = false;
+            } else {
+                gotDur = mDeviceUtil->parseAndProcessDuration(buffer, buffer_size);
+                if (gotDur == true) {
+                    C2Vdec_LOG(CODEC2_LOG_INFO, "Got decoder duration");
+                    mHDR10PlusMeteDataNeedCheck = false;
+                }
+            }
+            mUpdateDurationUsCount++;
+        }
+        if ((work != NULL)
             && ((work->input.flags & C2FrameData::FLAG_DROP_FRAME) != 0)) {
              mTunnelHelper->fastHandleOutBufferTunnel(timestamp, pictureBufferId);
              return;
@@ -2392,6 +2411,7 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
     if (isNonTunnelMode()) {
         allocNonTunnelBuffers(size, pixelFormat);
     } else if (isTunnelMode() && mTunnelHelper){
+        mHDR10PlusMeteDataNeedCheck = true;
         mTunnelHelper->allocTunnelBuffersAndSendToDecoder(size, pixelFormat);
     }
 

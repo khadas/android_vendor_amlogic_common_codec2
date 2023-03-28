@@ -1219,6 +1219,47 @@ bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, in
     return true;
 }
 
+bool C2VdecComponent::DeviceUtil::parseAndProcessDuration(unsigned char *data, int size) {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    struct aml_meta_head_s *meta_head;
+    uint32_t offset = 0;
+    uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
+    bool ret = false;
+    if (data == NULL || size <= 0) {
+        C2VdecMDU_LOG(CODEC2_LOG_ERR,"Parse and process meta data failed");
+        return ret;
+    }
+    meta_head = (struct aml_meta_head_s *)data;
+    while ((offset + AML_META_HEAD_SIZE) < size) {
+        meta_magic = meta_head->magic;
+        meta_type  = meta_head->type;
+        meta_size  = meta_head->data_size;
+        if (meta_magic != META_DATA_MAGIC ||
+            (meta_size > META_DATA_SIZE) ||
+            (meta_size <= 0)) {
+            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Get mate head error");
+            break;
+        }
+        unsigned char buf[meta_size];
+        memset(buf, 0, meta_size);
+        if ((offset + AML_META_HEAD_SIZE + meta_size) > size) {
+            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Metadata oversize %u > %u, please check",
+                    (unsigned int)(offset + AML_META_HEAD_SIZE + meta_size), (unsigned int)size);
+            break;
+        }
+
+        memcpy(buf, (data + offset + AML_META_HEAD_SIZE), meta_size);
+        offset = offset + AML_META_HEAD_SIZE + meta_size;
+        meta_head = (struct aml_meta_head_s *)(&data[offset]);
+
+        if (meta_type == UVM_META_DATA_VF_BASE_INFOS) {
+            updateDurationUs(buf, meta_size);
+            ret = true;
+        }
+    }
+    return ret;
+}
+
 void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, int size, C2Work& work) {
     LockWeakPtrWithReturnVoid(comp, mComp);
     struct aml_meta_head_s *meta_head;
@@ -1310,11 +1351,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
 
             float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
             if (intfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
-                if (mDurationUsFromApp > 0 && dur > 0 && (durStep < 1.3f)) {
-                    mDurationUs = dur;
-                } else {
-                    mDurationUs = mDurationUsFromApp;
-                }
+                mDurationUs = dur;
                 if (oldDur != mDurationUs) {
                     setDuration();
                 }
