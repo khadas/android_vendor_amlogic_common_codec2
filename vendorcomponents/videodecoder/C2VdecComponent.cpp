@@ -364,10 +364,10 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
         mVideoDecWraper->destroy();
         mVideoDecWraper.reset();
         mVideoDecWraper = NULL;
-        if (mDeviceUtil) {
-            mDeviceUtil.reset();
-            mDeviceUtil = NULL;
-        }
+    }
+    if (mDeviceUtil) {
+        mDeviceUtil.reset();
+        mDeviceUtil = NULL;
     }
     if (mTunerPassthroughHelper) {
         mTunerPassthroughHelper.reset();
@@ -425,8 +425,16 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     }
     mDequeueThreadUtil->setComponent(shared_from_this());
     if (!isTunnerPassthroughMode()) {
+        if (mVideoDecWraper) {
+            mVideoDecWraper.reset();
+            mVideoDecWraper = NULL;
+        }
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
         mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
+        if (mDeviceUtil) {
+            mDeviceUtil.reset();
+            mDeviceUtil = NULL;
+        }
         mDeviceUtil =  std::make_shared<DeviceUtil>(mSecureMode);
         mDeviceUtil->setComponent(shared_from_this());
         mDeviceUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
@@ -3439,6 +3447,10 @@ void C2VdecComponent::onConfigureTunnelMode() {
             if (((syncId & 0x0000FF00) == 0xFF00)
                 || (syncId == 0x0)) {
                 mSyncId = syncId;
+                if (mTunnelHelper) {
+                    mTunnelHelper.reset();
+                    mTunnelHelper = NULL;
+                }
                 mTunnelHelper =  std::make_shared<TunnelHelper>(mSecureMode);
                 mTunnelHelper->setComponent(shared_from_this());
                 mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
@@ -3451,6 +3463,10 @@ void C2VdecComponent::onConfigureTunnelMode() {
 }
 
 void C2VdecComponent::onConfigureTunerPassthroughMode() {
+    if (mTunerPassthroughHelper) {
+        mTunerPassthroughHelper.reset();
+        mTunerPassthroughHelper = NULL;
+    }
     mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper);
     mTunerPassthroughHelper->setComponent(shared_from_this());
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
