@@ -1181,7 +1181,9 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
             width = kMaxWidth4k;
             height = kMaxHeight4k;
         }
-        if (intfImpl->getInputCodec() == InputCodec::H265 && mIsInterlaced) {
+        //264 and 265 interlace stream
+        if ((intfImpl->getInputCodec() == InputCodec::H265 ||
+            intfImpl->getInputCodec() == InputCodec::H264) && mIsInterlaced) {
             width = kMaxWidth1080p;
             height = kMaxHeight1080p;
         }
