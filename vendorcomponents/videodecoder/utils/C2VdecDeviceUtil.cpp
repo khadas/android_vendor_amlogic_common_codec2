@@ -27,6 +27,7 @@
 #include <C2VdecInterfaceImpl.h>
 #include <VideoDecodeAcceleratorAdaptor.h>
 #include <media/stagefright/foundation/ColorUtils.h>
+#include <media/stagefright/foundation/hexdump.h>
 #include <am_gralloc_ext.h>
 #include <C2VendorProperty.h>
 #include <c2logdebug.h>
@@ -1302,12 +1303,22 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
 
 void C2VdecComponent::DeviceUtil::updateHDR10plusToWork(unsigned char *data, int size, C2Work& work) {
     std::lock_guard<std::mutex> lock(mMutex);
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    LockWeakPtrWithReturnVoid(intfImpl, mIntfImpl);
     if (size > 0) {
         mHDR10PLusInfoChanged = true;
         std::unique_ptr<C2StreamHdrDynamicMetadataInfo::output> hdr10PlusInfo =
             C2StreamHdrDynamicMetadataInfo::output::AllocUnique(size);
         hdr10PlusInfo->m.type_ = C2Config::HDR_DYNAMIC_METADATA_TYPE_SMPTE_2094_40;
         memcpy(hdr10PlusInfo->m.data, data, size);
+
+        if (gloglevel & CODEC2_LOG_DEBUG_LEVEL2) {
+            AString tmp;
+            hexdump(data, size, 4, &tmp);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "update Decoder HDR10+ info timestap:%lld size:%d data:",
+                                (unsigned long long)work.input.ordinal.customOrdinal.peekull(), size);
+            ALOGD("%s", tmp.c_str());
+        }
         work.worklets.front()->output.configUpdate.push_back(std::move(hdr10PlusInfo));
     }
 }

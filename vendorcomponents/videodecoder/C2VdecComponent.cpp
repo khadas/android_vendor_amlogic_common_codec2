@@ -34,6 +34,7 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/foundation/ColorUtils.h>
+#include <media/stagefright/foundation/hexdump.h>
 #include <ui/GraphicBuffer.h>
 #include <cutils/properties.h>
 #include <cutils/native_handle.h>
@@ -670,6 +671,14 @@ void C2VdecComponent::onDequeueWork() {
                 mIntfImpl->updateHdr10PlusInfoToWork(*work);
                 mIntfImpl->getHdr10PlusBuf(&hdr10plusBuf, &hdr10plusLen);
             }
+        }
+
+        if (gloglevel & CODEC2_LOG_DEBUG_LEVEL2 && (hdr10plusLen > 0)) {
+            AString tmp;
+            hexdump(hdr10plusBuf, hdr10plusLen, 4, &tmp);
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%d##%d] update Container HDR10+ info ID:%d, timestamp:%lld size:%d, data:",
+                                            mInstanceID, mCurInstanceID, bitstreamId, (long long)timestamp, hdr10plusLen);
+            ALOGD("%s", tmp.c_str());
         }
         sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusBuf, hdr10plusLen);
     }
@@ -2406,15 +2415,13 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
         if (!(surfaceUsage & GRALLOC_USAGE_HW_COMPOSER)) {
             usersurfacetexture = true;
             mDeviceUtil->setUseSurfaceTexture(true);
-        } else {
-            //Only surface view need check HDR10+
-            mHDR10PlusMeteDataNeedCheck = true;
         }
     } else {
         if (isNonTunnelMode()) {
             mDeviceUtil->setNoSurface(true);
         }
     }
+    mHDR10PlusMeteDataNeedCheck = true;
 
     if (isNonTunnelMode()) {
         allocNonTunnelBuffers(size, pixelFormat);
