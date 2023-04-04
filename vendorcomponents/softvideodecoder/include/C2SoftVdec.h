@@ -26,7 +26,7 @@
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
 
-#include <C2VendorSupport.h>
+#include <C2VendorSoftVideoSupport.h>
 #include <C2SoftVdecComponent.h>
 
 

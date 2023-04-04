@@ -179,6 +179,7 @@ private:
     void onMjpgDeclareParam();
     void onAvsDeclareParam();
     void onAvs2DeclareParam();
+    void onAvs3DeclareParam();
 
     // Declare the configuration parameters before playback.
     void onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper);

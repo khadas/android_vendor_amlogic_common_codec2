@@ -13,6 +13,7 @@
 #include <string.h>
 #include <string>
 #include <C2VendorSupport.h>
+#include <AmVideoDecBase.h>
 #include <utils/Singleton.h>
 #include <json/json.h>
 #include <media/stagefright/xmlparser/MediaCodecsXmlParser.h>

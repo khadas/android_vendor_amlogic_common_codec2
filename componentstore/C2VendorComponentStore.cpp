@@ -7,7 +7,10 @@
 #include <C2Component.h>
 #include <C2ComponentFactory.h>
 #include <C2Config.h>
-#include <C2VendorSupport.h>
+#include <C2VendorAudioSupport.h>
+#include <C2VendorVideoSupport.h>
+#include <C2VendorEncoderSupport.h>
+#include <C2VendorSoftVideoSupport.h>
 #include <util/C2InterfaceHelper.h>
 #include <C2VdecCodecConfig.h>
 
@@ -381,6 +384,12 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
                   createFactoryName = "CreateC2VdecMJPGFactory";
                   destroyFactoryName = "DestroyC2VdecMJPGFactory";
                   break;
+#ifdef SUPPORT_VDEC_AVS3
+            case C2VendorCodec::VDEC_AVS3:
+                createFactoryName = "CreateC2VdecAVS3Factory";
+                destroyFactoryName = "DestroyC2VdecAVS3Factory";
+                break;
+#endif
 #ifdef SUPPORT_VDEC_AVS2
             case C2VendorCodec::VDEC_AVS2:
                 createFactoryName = "CreateC2VdecAVS2Factory";

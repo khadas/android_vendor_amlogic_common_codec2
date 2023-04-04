@@ -28,7 +28,7 @@ func componentstoreDefaults(ctx android.LoadHookContext) {
     }
 
     if vconfig.Bool("enable_hwcodec") == true {
-        cppflags = append(cppflags, "-DSUPPORT_VDEC_AVS=1 -DSUPPORT_VDEC_AVS2=1")
+        cppflags = append(cppflags, "-DSUPPORT_VDEC_AVS=1 -DSUPPORT_VDEC_AVS2=1 -DSUPPORT_VDEC_AVS3=1")
     }
 
     p.Cflags = cppflags

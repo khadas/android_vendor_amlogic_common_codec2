@@ -50,6 +50,7 @@ cc_library_shared {
     header_libs: [
         "media_plugin_headers",
         "libcodec2_headers",
+        "libmediahal_headers",
         "libvendor_component_headers",
         "libstagefright_xmlparser_headers",
     ],

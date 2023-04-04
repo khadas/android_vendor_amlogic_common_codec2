@@ -47,7 +47,7 @@
 #include <TunerPassthroughWrapper.h>
 #include <C2VendorConfig.h>
 #include <C2VdecBlockPoolUtil.h>
-#include <C2VendorSupport.h>
+#include <C2VendorVideoSupport.h>
 #include <AmlMessageBase.h>
 
 namespace android {

@@ -33,6 +33,7 @@
 #include <C2AudioDecInterface.h>
 
 #include "C2VendorSupport.h"
+#include "C2VendorAudioSupport.h"
 #include "C2AudioEAC3Decoder.h"
 #include "aml_ac3_decoder_api.h"
 #include "C2VendorConfig.h"

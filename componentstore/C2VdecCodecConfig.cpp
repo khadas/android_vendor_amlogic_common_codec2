@@ -17,6 +17,8 @@
 #include <C2VdecCodecConfig.h>
 #include <c2logdebug.h>
 #include <C2VendorProperty.h>
+#include <C2VendorVideoSupport.h>
+#include <AmVideoDecBase.h>
 
 #undef TEST
 #ifndef ARRAY_SIZE
@@ -73,12 +75,9 @@ const char* kDVAV1ModuleName = "ammvdec_av1_v4l";
 const char* kMP2ModuleName = "ammvdec_mpeg2_v4l";
 const char* kMP4ModuleName = "ammvdec_mpeg4_v4l";
 const char* kMJPGModuleName = "ammvdec_mjpeg_v4l";
-#ifdef  SUPPORT_VDEC_AVS2
+const char* kAVS3ModuleName = "ammvdec_avs3_v4l";
 const char* kAVS2ModuleName = "ammvdec_avs2_v4l";
-#endif
-#ifdef  SUPPORT_VDEC_AVS2
 const char* kAVSModuleName = "ammvdec_avs_v4l";
-#endif
 
 //decoder feature name
 const char* kFeatureCCSubtitle = "CC subtitle";
@@ -138,6 +137,9 @@ static struct {
     {C2VendorCodec::VDEC_MP2V, kMP2VDecoderName, kMP2ModuleName},
     {C2VendorCodec::VDEC_MP4V, kMP4VDecoderName, kMP4ModuleName},
     {C2VendorCodec::VDEC_MJPG, kMJPGDecoderName, kMJPGModuleName},
+#ifdef  SUPPORT_VDEC_AVS3
+    {C2VendorCodec::VDEC_AVS3, kAVS3DecoderName, kAVS3ModuleName},
+#endif
 #ifdef  SUPPORT_VDEC_AVS2
     {C2VendorCodec::VDEC_AVS2, kAVS2DecoderName, kAVS2ModuleName},
 #endif
@@ -240,6 +242,10 @@ C2VendorCodec C2VdecCodecConfig::adaptorInputCodecToVendorCodec(InputCodec codec
             return C2VendorCodec::VDEC_MP4V;
         case InputCodec::MJPG:
             return C2VendorCodec::VDEC_MJPG;
+#ifdef SUPPORT_VDEC_AVS3
+        case InputCodec::AVS3:
+            return C2VendorCodec::VDEC_AVS3;
+#endif
 #ifdef SUPPORT_VDEC_AVS2
         case InputCodec::AVS2:
             return C2VendorCodec::VDEC_AVS2;
@@ -411,9 +417,14 @@ bool C2VdecCodecConfig::codecFeatureSupport(C2VendorCodec codec_type, FeatureInd
 bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool secure)  {
     const char* name = NULL;
     GetCompName(type, secure, name);
+
+    if (name == NULL) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%d not support from media codec xml", type);
+        return false;
+    }
     const auto& codec = mParser.getCodecMap().find(name);
     if (codec == mParser.getCodecMap().cend()) {
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s not support from mediacodec xml", name);
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s not support from media codec xml", name);
         return false;
     }
 
