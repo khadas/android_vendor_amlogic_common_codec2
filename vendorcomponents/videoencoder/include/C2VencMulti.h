@@ -47,6 +47,7 @@ public:
 
     //static
     static std::atomic<int32_t> sConcurrentInstances;
+    static uint32_t mInstanceID;
     // static
     static std::shared_ptr<C2Component> create(
             char *name, c2_node_id_t id, const std::shared_ptr<C2VencMulti::IntfImpl>& helper);

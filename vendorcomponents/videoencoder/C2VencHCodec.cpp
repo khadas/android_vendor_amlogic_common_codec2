@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "C2VencHCodec"
 #include <utils/Log.h>
 #include <utils/misc.h>
@@ -424,7 +424,7 @@ public:
     static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me/*,
                                        const C2P<C2StreamPictureSizeInfo::output>& size*/) /*(bool mayBlock, const C2P<C2StreamMaxBufferSizeInfo::input>& me)*/ {
         (void)mayBlock;
-        ALOGE("MaxSizeCalculator enter");
+        ALOGD("MaxSizeCalculator enter");
 
         me.set().value = 4*1024*1024;
         return C2R::Ok();
@@ -735,20 +735,19 @@ C2VencHCodec::~C2VencHCodec() {
 
 
 bool C2VencHCodec::isSupportDMA() {
-    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"hcodec support dma mode:%d",SUPPORT_DMA);
+    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"hcodec support dma mode:%d",SUPPORT_DMA);
     return SUPPORT_DMA;
 }
 
 
 bool C2VencHCodec::isSupportCanvas() {
-    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"hcodec support canvas mode!");
+    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"hcodec support canvas mode!");
     return true;
 }
 
 
 bool C2VencHCodec::LoadModule() {
     ALOGD("C2VencHCodec initModule!,LOG_INFO:%d,gloglevel:%d",CODEC2_VENC_LOG_INFO,gloglevel);
-    C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"C2VencHCodec initModule!");
     void *handle = nullptr;
     handle = dlopen("lib_avc_vpcodec.so", RTLD_NOW);
     if (handle != nullptr) {
@@ -1135,7 +1134,7 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             mIntfImpl->config({ &clearSync }, C2_MAY_BLOCK, &failures);
             inputInfo.frame_type = FRAME_TYPE_IDR;
-            C2HCodec_LOG(CODEC2_VENC_LOG_INFO,"Got dynamic IDR request");
+            C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"Got dynamic IDR request");
         }
         mRequestSync = requestSync;
     }
@@ -1189,13 +1188,13 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
     if (InputFrameInfo.frameIndex > 0 && InputFrameInfo.timeStamp != 0) {
         mElapsedTime = InputFrameInfo.timeStamp - mtimeStampBak;
         curFrameRate = 1000000.0 / mElapsedTime;
-        ALOGE("InputFrameInfo.frameIndex:%" PRId64",timestamp now:%" PRId64",timestamp last time:%" PRId64",mElapsedTime:%" PRId64"",InputFrameInfo.frameIndex,InputFrameInfo.timeStamp,mtimeStampBak,mElapsedTime);
-        ALOGE("now calculate current FrameRate:%d,mFrameRateValue:%d",curFrameRate,mFrameRateValue);
+        CODEC2_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo.frameIndex:%" PRId64",timestamp now:%" PRId64",timestamp last time:%" PRId64",mElapsedTime:%" PRId64"",InputFrameInfo.frameIndex,InputFrameInfo.timeStamp,mtimeStampBak,mElapsedTime);
+        C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"now calculate current FrameRate:%d,mFrameRateValue:%d",curFrameRate,mFrameRateValue);
         if (curFrameRate > 0 /*&& abs(curFrameRate - mFrameRateValue) >= 5*/) {
             int absvalue = (curFrameRate > mFrameRateValue )?(curFrameRate - mFrameRateValue):(mFrameRateValue - curFrameRate);
             if (absvalue >= 2) {
                 frame_rate = curFrameRate;
-                ALOGE("frame_rate change to :%d",frame_rate);
+                C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"frame_rate change to :%d",frame_rate);
                 #if 0
                 //mEncBitrateChangeFunc(mCodecHandle,bitRateNeedChangeTo);
                 mBitRate = mBitrate->value / frame_rate * mFrameRate->value;
@@ -1213,11 +1212,11 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
     //inputInfo.bitrate  = mBitrate->value / frame_rate * mFrameRate->value;
     //ALOGE("frame_rate change to :%d,bit_rate:%d",frame_rate,inputInfo.bitrate);
 
-    ALOGE("mBitrateBk: %d,new bitrate:%d",mBitrateBk,bitrate->value);
+    C2HCodec_LOG(CODEC2_VENC_LOG_DEBUG,"mBitrateBk: %d,new bitrate:%d",mBitrateBk,bitrate->value);
     if (mBitrateBk != bitrate->value) {
         mBitRate = bitrate->value;
         mBitrateBk = bitrate->value;
-        ALOGE("bitrate change to %d",bitrate->value);
+        C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"bitrate change to %d",bitrate->value);
     }
 
     inputInfo.height = mSize->height;

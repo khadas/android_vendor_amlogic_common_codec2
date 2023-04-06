@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "C2VencW420New"
 #include <utils/Log.h>
 #include <utils/misc.h>
@@ -711,12 +711,12 @@ int C2VencW420New::getFrameRate(int32_t frameIndex,int64_t timestamp) {
 }
 
 bool C2VencW420New::isSupportDMA() {
-    C2W420_LOG(CODEC2_VENC_LOG_INFO,"w420 support dma mode:%d!",0);
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"w420 support dma mode:%d!",0);
     return false;
 }
 
 bool C2VencW420New::isSupportCanvas() {
-    C2W420_LOG(CODEC2_VENC_LOG_INFO,"w420 not support canvas mode!");
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"w420 not support canvas mode!");
     return false;
 }
 
@@ -1034,7 +1034,7 @@ c2_status_t C2VencW420New::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_
 
 
 c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFrameInfo_t *pOutFrameInfo) {
-    ALOGD("C2VencMulti ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"C2VencMulti ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
     encoding_metadata_hevc_t ret;
     vl_buffer_info_hevc_t inputInfo;
     uint32_t curFrameRate = 0;
@@ -1042,10 +1042,10 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
     int32_t bitRateNeedChangeTo = 0;
 
     if (!InputFrameInfo.yPlane || !InputFrameInfo.uPlane || !InputFrameInfo.vPlane || !pOutFrameInfo) {
-        ALOGD("ProcessOneFrame parameter bad value,pls check!");
+        ALOGE("ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
-    ALOGE("y1:%d,y2:%d,y3:%d",InputFrameInfo.yPlane[0],InputFrameInfo.yPlane[1],InputFrameInfo.yPlane[2]);
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"y1:%d,y2:%d,y3:%d",InputFrameInfo.yPlane[0],InputFrameInfo.yPlane[1],InputFrameInfo.yPlane[2]);
     memset(&inputInfo,0,sizeof(inputInfo));
     IntfImpl::Lock lock = mIntfImpl->lock();
     //std::shared_ptr<C2StreamIntraRefreshTuning::output> intraRefresh = mIntfImpl->getIntraRefresh();
@@ -1063,12 +1063,12 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             mIntfImpl->config({ &clearSync }, C2_MAY_BLOCK, &failures);
             frameType = FRAME_TYPE_IDR;
-            ALOGV("Got dynamic IDR request");
+            ALOGE("Got dynamic IDR request");
         }
         mRequestSync = requestSync;
     }
     inputInfo.buf_type = VMALLOC_TYPE;
-    ALOGI("mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
     codec2TypeTrans(InputFrameInfo.colorFmt,&inputInfo.buf_fmt);
 
 
@@ -1098,13 +1098,13 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
     if (InputFrameInfo.frameIndex > 0 && InputFrameInfo.timeStamp != 0) {
         mElapsedTime = InputFrameInfo.timeStamp - mtimeStampBak;
         curFrameRate = 1000000.0 / mElapsedTime;
-        ALOGE("InputFrameInfo.frameIndex:%" PRId64",timestamp now:%" PRId64",timestamp last time:%" PRId64",mElapsedTime:%" PRId64"",InputFrameInfo.frameIndex,InputFrameInfo.timeStamp,mtimeStampBak,mElapsedTime);
-        ALOGE("now calculate current FrameRate:%d,mFrameRateValue:%d",curFrameRate,mFrameRateValue);
+        CODEC2_LOG(CODEC2_VENC_LOG_DEBUG,"InputFrameInfo.frameIndex:%" PRId64",timestamp now:%" PRId64",timestamp last time:%" PRId64",mElapsedTime:%" PRId64"",InputFrameInfo.frameIndex,InputFrameInfo.timeStamp,mtimeStampBak,mElapsedTime);
+        C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"now calculate current FrameRate:%d,mFrameRateValue:%d",curFrameRate,mFrameRateValue);
         if (curFrameRate > 0 /*&& abs(curFrameRate - mFrameRateValue) >= 5*/) {
             int absvalue = (curFrameRate > mFrameRateValue )?(curFrameRate - mFrameRateValue):(mFrameRateValue - curFrameRate);
             if (absvalue >= 2) {
                 frame_rate = curFrameRate;
-                ALOGE("frame_rate change to :%d",frame_rate);
+                C2W420_LOG(CODEC2_VENC_LOG_ERR,"frame_rate change to :%d",frame_rate);
                 mEncFrameRateChangeFunc(mCodecHandle,frame_rate,bitrate->value);
                 #if 0
                     bitRateNeedChangeTo  = mBitrate->value / frame_rate * mFrameRate->value;
@@ -1121,16 +1121,16 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
     mtimeStampBak = InputFrameInfo.timeStamp;
 
     if (mBitrateBak != bitrate->value) {
-        ALOGD("bitrate change to %d",bitrate->value);
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"bitrate change to %d",bitrate->value);
         mEncBitrateChangeFunc(mCodecHandle,bitrate->value);
         mBitrateBak = bitrate->value;
     }
 
-    ALOGD("Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,bitrate:%d",inputInfo.buf_info.in_ptr[0],
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,bitrate:%d",inputInfo.buf_info.in_ptr[0],
          inputInfo.buf_info.in_ptr[1],inputInfo.buf_info.in_ptr[2],inputInfo.buf_type,inputInfo.buf_fmt,inputInfo.buf_stride,bitrate->value);
     ret = mEncFrameFunc(mCodecHandle, frameType, (unsigned char*)pOutFrameInfo->Data, &inputInfo);
     pOutFrameInfo->Length = ret.encoded_data_length_in_bytes;
-    ALOGD("encode finish,output len:%d",ret.encoded_data_length_in_bytes);
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"encode finish,output len:%d",ret.encoded_data_length_in_bytes);
     if (!ret.is_valid) {
         ALOGE("multi encode frame failed,errcode:%d",ret.err_cod);
         return C2_CORRUPTED;

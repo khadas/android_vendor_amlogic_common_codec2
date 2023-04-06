@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "C2VencMulti"
 #include <utils/Log.h>
 #include <utils/misc.h>
@@ -47,6 +47,8 @@ namespace android {
 constexpr char COMPONENT_NAME[] = "c2.amlogic.avc.encoder";
 constexpr char COMPONENT_NAME_HEVC[] = "c2.amlogic.hevc.encoder";
 
+#define C2MULTI_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
+uint32_t C2VencMulti::mInstanceID = 0;
 
 #define SUPPORT_DMA   1  //support dma mode or not
 constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;
@@ -465,7 +467,7 @@ public:
     static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me/*,
                                        const C2P<C2StreamPictureSizeInfo::output>& size*/) /*(bool mayBlock, const C2P<C2StreamMaxBufferSizeInfo::input>& me)*/ {
         (void)mayBlock;
-        ALOGE("MaxSizeCalculator enter");
+        ALOGD("MaxSizeCalculator enter");
 
         me.set().value = kLinearBufferSize;
         return C2R::Ok();
@@ -474,7 +476,7 @@ public:
     static C2R LayerCountSetter(bool mayBlock, C2P<C2StreamTemporalLayeringTuning::output> &me) {
         (void)mayBlock;
         C2R res = C2R::Ok();
-        ALOGE("LayerCountSetter enter,layercount:%d,bLayerCount:%d",me.v.m.layerCount,me.v.m.bLayerCount);
+        ALOGD("LayerCountSetter enter,layercount:%d,bLayerCount:%d",me.v.m.layerCount,me.v.m.bLayerCount);
         /*if (me.v.period < 1) {
             me.set().mode = C2Config::INTRA_REFRESH_DISABLED;
             me.set().period = 0;
@@ -822,11 +824,11 @@ std::shared_ptr<C2Component> C2VencMulti::create(
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     if (strcmp(name,COMPONENT_NAME) && strcmp(name,COMPONENT_NAME_HEVC)) {
-        ALOGD("invalid component name %s",name);
+        ALOGE("invalid component name %s",name);
         return nullptr;
     }
     if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
-        ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
+        ALOGE("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
         return nullptr;
     }
     return std::shared_ptr<C2Component>(new C2VencMulti(name, id, helper));
@@ -871,12 +873,12 @@ C2VencMulti::~C2VencMulti() {
 
 
 bool C2VencMulti::isSupportDMA() {
-    ALOGD("multiencoder support dma mode:%d!",SUPPORT_DMA);
+    C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"multiencoder support dma mode:%d!",SUPPORT_DMA);
     return SUPPORT_DMA;
 }
 
 bool C2VencMulti::isSupportCanvas() {
-    ALOGD("hcodec support canvas mode!");
+    C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"hcodec support canvas mode!");
     return false;
 }
 
@@ -1248,14 +1250,14 @@ c2_status_t C2VencMulti::getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp
 
 
 c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFrameInfo_t *pOutFrameInfo) {
-    ALOGD("C2VencMulti ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
+    C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"C2VencMulti ProcessOneFrame! yPlane:%p,uPlane:%p,vPlane:%p",InputFrameInfo.yPlane,InputFrameInfo.uPlane,InputFrameInfo.vPlane);
     encoding_metadata_t ret;
     vl_buffer_info_t inputInfo;
     vl_buffer_info_t retbuf;
     vl_frame_type_t frameType = FRAME_TYPE_NONE;
 
     if (!pOutFrameInfo) {
-        ALOGD("ProcessOneFrame parameter bad value,pls check!");
+        C2MULTI_LOG(CODEC2_VENC_LOG_ERR,"ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
     memset(&inputInfo,0,sizeof(inputInfo));
@@ -1275,7 +1277,7 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
             std::vector<std::unique_ptr<C2SettingResult>> failures;
             mIntfImpl->config({ &clearSync }, C2_MAY_BLOCK, &failures);
             frameType = FRAME_TYPE_IDR;
-            ALOGV("Got dynamic IDR request");
+            C2MULTI_LOG(CODEC2_VENC_LOG_ERR,"Got dynamic IDR request");
         }
         mRequestSync = requestSync;
     }
@@ -1288,7 +1290,7 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
         inputInfo.buf_info.dma_info.shared_fd[1] = 0;//InputFrameInfo.shareFd[1];
         inputInfo.buf_info.dma_info.shared_fd[2] = 0;//InputFrameInfo.shareFd[2];
         inputInfo.buf_info.dma_info.num_planes = InputFrameInfo.planeNum;
-        ALOGD("dma mode,plan num:%d,fd[%d %d %d]",InputFrameInfo.planeNum,InputFrameInfo.shareFd[0],
+        C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"dma mode,plan num:%d,fd[%d %d %d]",InputFrameInfo.planeNum,InputFrameInfo.shareFd[0],
                                                   InputFrameInfo.shareFd[1],
                                                   InputFrameInfo.shareFd[2]);
     }
@@ -1315,21 +1317,21 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
         inputInfo.buf_stride = InputFrameInfo.yStride;
     }
 
-    ALOGI("mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
+    C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
 
     if (mBitrateBak != bitrate->value) {
-        ALOGD("bitrate change to %d",bitrate->value);
+        C2MULTI_LOG(CODEC2_VENC_LOG_ERR,"bitrate change to %d",bitrate->value);
         mEncBitrateChangeFunc(mCodecHandle,bitrate->value);
         mBitrateBak = bitrate->value;
     }
 
-    ALOGD("Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,bitrate:%d",inputInfo.buf_info.in_ptr[0],
+    C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"Debug input info:yAddr:0x%lx,uAddr:0x%lx,vAddr:0x%lx,frame_type:%d,fmt:%d,pitch:%d,bitrate:%d",inputInfo.buf_info.in_ptr[0],
          inputInfo.buf_info.in_ptr[1],inputInfo.buf_info.in_ptr[2],inputInfo.buf_type,inputInfo.buf_fmt,inputInfo.buf_stride,bitrate->value);
     ret = mEncFrameFunc(mCodecHandle, frameType, (unsigned char*)pOutFrameInfo->Data, &inputInfo, &retbuf);
     pOutFrameInfo->Length = ret.encoded_data_length_in_bytes;
-    ALOGD("encode finish,output len:%d",ret.encoded_data_length_in_bytes);
+    C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"encode finish,output len:%d",ret.encoded_data_length_in_bytes);
     if (!ret.is_valid) {
-        ALOGE("multi encode frame failed,errcode:%d",ret.err_cod);
+        C2MULTI_LOG(CODEC2_VENC_LOG_ERR,"multi encode frame failed,errcode:%d",ret.err_cod);
         return C2_CORRUPTED;
     }
 

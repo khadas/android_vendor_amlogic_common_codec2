@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "C2VencComponent"
 
 #include <C2VencComponent.h>
@@ -183,7 +183,7 @@ C2VencComponent::~C2VencComponent() {
     */
     /*coverity[exn_spec_violation:SUPPRESS]*/
 
-	ALOGD("C2VencComponent destructor!");
+    ALOGD("C2VencComponent destructor!");
 }
 
 c2_status_t C2VencComponent::setListener_vb(const std::shared_ptr<Listener>& listener,
@@ -195,7 +195,7 @@ c2_status_t C2VencComponent::setListener_vb(const std::shared_ptr<Listener>& lis
 }
 
 c2_status_t C2VencComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const items) {
-    ALOGD("C2VencComponent queue_nb!,receive buffer count:%d", (int)items->size());
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"C2VencComponent queue_nb!,receive buffer count:%d", (int)items->size());
     AutoMutex l(mInputQueueLock);
     while (!items->empty()) {
         mQueue.push_back(std::move(items->front()));
@@ -770,7 +770,7 @@ c2_status_t C2VencComponent::GraphicDataProc(std::shared_ptr<C2Buffer> inputBuff
         else {
             res = ViewDataProc(view,pFrameInfo,&dumpFileSize);
             if (C2_OK != res) {
-                C2Venc_LOG(CODEC2_VENC_LOG_INFO,"ViewDataProc failed!!!");
+                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"ViewDataProc failed!!!");
                 return res;
             }
         }
@@ -860,7 +860,7 @@ void C2VencComponent::ProcessData()
 
     inputBuffer = work->input.buffers[0];
     int type = inputBuffer->data().type();
-    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"inputbuffer type:%d",type);
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"inputbuffer type:%d",type);
     if (C2BufferData::GRAPHIC == type) {
         if (C2_OK != GraphicDataProc(inputBuffer,&InputFrameInfo)) {
             C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic buffer proc failed!!");
@@ -1022,7 +1022,7 @@ void C2VencComponent::finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &wo
     std::list<std::unique_ptr<C2Work>> finishedWorks;
     finishedWorks.emplace_back(std::move(DoneWork));
     mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
-    ALOGI("finish this work,index:%" PRId64"",workIndex);
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"finish this work,index:%" PRId64"",workIndex);
     #if 0
     if (work && c2_cntr64_t(workIndex) == work->input.ordinal.frameIndex) {
         fillWork(work);
