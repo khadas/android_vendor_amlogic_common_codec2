@@ -154,9 +154,10 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             doubleWriteValue = 0x10;
             break;
         case InputCodec::H264:
-            if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) || mSecure || mIsInterlaced) {
+            if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
+                    mIsInterlaced || !mEnableNR || !mEnableDILocalBuf) {
                 doubleWriteValue = 0x10;
-                CODEC2_LOG(CODEC2_LOG_INFO, "surface texture/nosurface  or secure or interlaced video use dw 0x10");
+                CODEC2_LOG(CODEC2_LOG_INFO, "texture/nosurface or interlaced or no di/nr video use dw 0x10");
             } else {
                 doubleWriteValue = 3;
             }
@@ -1092,7 +1093,7 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
                 realloc = true;
                 break;
             case InputCodec::H264:
-                if (mSecure) {
+                if (mIsInterlaced || !mEnableNR || !mEnableDILocalBuf) {
                   realloc = true;
                 } else {
                   realloc = false;
