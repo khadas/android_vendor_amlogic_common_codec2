@@ -595,7 +595,7 @@ c2_status_t C2VencComponent::DMAProc(const private_handle_t *priv_handle,InputFr
     return C2_OK;
 }
 
-c2_status_t C2VencComponent::CheckPicSize(std::shared_ptr<const C2GraphicView> view) {
+c2_status_t C2VencComponent::CheckPicSize(std::shared_ptr<const C2GraphicView> view,uint64_t frameIndex) {
     C2StreamPictureSizeInfo::input PicSize(0u, 16, 16);
     c2_status_t err = intf()->query_vb({&PicSize},{},C2_DONT_BLOCK,nullptr);
     if (err == C2_BAD_INDEX) {
@@ -607,10 +607,26 @@ c2_status_t C2VencComponent::CheckPicSize(std::shared_ptr<const C2GraphicView> v
         C2Venc_LOG(CODEC2_VENC_LOG_ERR,"get subclass param failed!!");
         return C2_BAD_VALUE;
     }
+
     if (PicSize.width != view->width() || PicSize.height != view->height()) {
+        if (0 == frameIndex) {  //first frame is normally
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"pic size :%d x %d,this buffer is:%d x %d,change pic size...",PicSize.width,PicSize.height,view->width(),view->height());
+            PicSize.width = view->width();
+            PicSize.height = view->height();
+
+            std::vector<std::unique_ptr<C2SettingResult>> failures;
+            err = intf()->config_vb({&PicSize}, C2_MAY_BLOCK, &failures);
+        }
+        else {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"buffer is not valid,pic size :%d x %d,but this buffer is:%d x %d",PicSize.width,PicSize.height,view->width(),view->height());
+            return C2_BAD_VALUE;
+        }
+    }
+/*
+    if (frameIndex > 0 && (PicSize.width != view->width() || PicSize.height != view->height())) { //first frame is normally
         C2Venc_LOG(CODEC2_VENC_LOG_ERR,"buffer is not valid,pic size :%d x %d,but this buffer is:%d x %d",PicSize.width,PicSize.height,view->width(),view->height());
         return C2_BAD_VALUE;
-    }
+    }*/
     return C2_OK;
 }
 
@@ -628,7 +644,7 @@ c2_status_t C2VencComponent::ViewDataProc(std::shared_ptr<const C2GraphicView> v
     pFrameInfo->vStride = layout.planes[C2PlanarLayout::PLANE_V].rowInc;
     (*dumpFileSize) = view->width() * view->height() * 3 / 2;
 
-    if (C2_OK != CheckPicSize(view)) {
+    if (C2_OK != CheckPicSize(view,pFrameInfo->frameIndex)) {
         return C2_BAD_VALUE;
     }
 
@@ -875,7 +891,12 @@ void C2VencComponent::ProcessData()
 
     inputBuffer = work->input.buffers[0];
     int type = inputBuffer->data().type();
-    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"inputbuffer type:%d",type);
+
+    InputFrameInfo.frameIndex = work->input.ordinal.frameIndex.peekull();
+    InputFrameInfo.timeStamp = work->input.ordinal.timestamp.peekull();
+
+    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"inputbuffer type:%d",type);
+
     if (C2BufferData::GRAPHIC == type) {
         if (C2_OK != GraphicDataProc(inputBuffer,&InputFrameInfo)) {
             C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic buffer proc failed!!");
@@ -983,8 +1004,6 @@ void C2VencComponent::ProcessData()
     memset(&OutInfo,0,sizeof(OutInfo));
     OutInfo.Data = wView.base();
     OutInfo.Length = wView.capacity();
-    InputFrameInfo.frameIndex = work->input.ordinal.frameIndex.peekull();
-    InputFrameInfo.timeStamp = work->input.ordinal.timestamp.peekull();
     c2_status_t res = ProcessOneFrame(InputFrameInfo,&OutInfo);
     if (C2_OK == res) {
         if (mDumpEsEnable) {
