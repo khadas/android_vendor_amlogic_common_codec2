@@ -564,6 +564,8 @@ c2_status_t C2VencComponent::DMAProc(const private_handle_t *priv_handle,InputFr
     pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride;
     pFrameInfo->uStride = priv_handle->plane_info[1].byte_stride;
     pFrameInfo->vStride = priv_handle->plane_info[2].byte_stride;
+    pFrameInfo->HStride = priv_handle->plane_info[0].alloc_height;
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"actual height:%d",pFrameInfo->HStride);
     int format = priv_handle->format;
     switch (format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
@@ -584,7 +586,7 @@ c2_status_t C2VencComponent::DMAProc(const private_handle_t *priv_handle,InputFr
         default:
             pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
             (*dumpFileSize) = pFrameInfo->yStride * PicSize.height * 3 / 2;
-            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot find support fmt,default:%d",pFrameInfo->colorFmt);
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot find support fmt %d,default:%d",format,pFrameInfo->colorFmt);
             break;
     }
     C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,plane num:%d",

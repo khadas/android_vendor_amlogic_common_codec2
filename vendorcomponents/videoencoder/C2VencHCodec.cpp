@@ -849,6 +849,11 @@ bool C2VencHCodec::codec2TypeTrans(ColorFmt inputFmt,vl_img_format_t *pOutputCod
             ret = true;
             break;
         }
+        case C2_ENC_FMT_YV12: {
+            *pOutputCodec = IMG_FMT_YV12;
+            ret = true;
+            break;
+        }
         default: {
             C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"cannot support colorformat:%x",inputFmt);
             ret = false;
@@ -1219,7 +1224,7 @@ c2_status_t C2VencHCodec::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Output
         C2HCodec_LOG(CODEC2_VENC_LOG_ERR,"bitrate change to %d",bitrate->value);
     }
 
-    inputInfo.height = mSize->height;
+    inputInfo.height = InputFrameInfo.HStride;//mSize->height;
     inputInfo.bitrate = mBitRate;
     inputInfo.coding_timestamp = InputFrameInfo.timeStamp;//pts ???
 

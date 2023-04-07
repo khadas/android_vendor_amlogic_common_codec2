@@ -78,6 +78,7 @@ typedef struct InputFrameInfo{
     int32_t yStride;
     int32_t uStride;
     int32_t vStride;
+    int32_t HStride; //for height stride
     BufferType_e bufType;
     int shareFd[3];
     int planeNum;
