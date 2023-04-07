@@ -310,12 +310,12 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
         if (isAudio) {
             ALOGI("in %s ===> start codec:%d", __func__, codec);
             switch (codec) {
+#ifdef SUPPORT_SOFT_AFFMPEG
                 case C2VendorCodec::ADEC_MP2:
                     ALOGI("in %s  start mp2 decoder create", __func__);
                     createFactoryName = "CreateC2AudioDecoderMP2Factory";
                     destroyFactoryName = "DestroyC2AudioDecoderMP2Factory";
                     break;
-#ifdef SUPPORT_SOFT_AFFMPEG
               case C2VendorCodec::ADEC_FFMPEG:
                   createFactoryName = "CreateC2AudioDecoderFFMPEGFactory";
                   destroyFactoryName = "DestroyC2AudioDecoderFFMPEGFactory";
