@@ -186,8 +186,13 @@ int VideoDecWraper::initialize(
     vdecParams.resCallback = resCallback;
     vdecParams.resOpaque = resOpaque;
     int ret = mAmVideoDec->initialize(&vdecParams);
-    if (ret != 0)
+    if (ret != 0) {
+        //destroy mAmVideoDec obj,it will not crash
+        //when dec init fail and usr call wrapper api.
+        delete mAmVideoDec;
+        mAmVideoDec = NULL;
         return -1;
+    }
     setInstanceId2Hal();
 
     bool stream_mode = ((flags & AM_VIDEO_DEC_INIT_FLAG_STREAMMODE) ? true : false);

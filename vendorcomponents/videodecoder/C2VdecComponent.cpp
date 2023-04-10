@@ -177,8 +177,14 @@ std::shared_ptr<C2Component> C2VdecComponent::create(
             ALOGW("Reject to Initialize() due to too many secure instances: %d", sConcurrentInstanceSecures.load());
             return nullptr;
         }
+        if (kMaxSecureConcurrentInstances >= 0 &&
+            ((sConcurrentInstances.load() + sConcurrentInstanceSecures.load()) >= kMaxConcurrentInstances)) {
+            ALOGW("Reject to Initialize() due to too many secure and nosecure instances: %d", sConcurrentInstanceSecures.load());
+            return nullptr;
+        }
     } else {
-        if (kMaxConcurrentInstances >= 0 && sConcurrentInstances.load() >= kMaxConcurrentInstances) {
+        if (kMaxConcurrentInstances >= 0 &&
+            ((sConcurrentInstances.load() + sConcurrentInstanceSecures.load()) >= kMaxConcurrentInstances)) {
             ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
             return nullptr;
         }
