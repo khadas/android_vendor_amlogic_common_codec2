@@ -728,7 +728,7 @@ void C2VdecComponent::TunnelHelper::appendTunnelOutputBuffer(std::shared_ptr<C2G
     comp->mGraphicBlocks.push_back(std::move(info));
 }
 
-c2_status_t C2VdecComponent::TunnelHelper::fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId) {
+c2_status_t C2VdecComponent::TunnelHelper::fastHandleWorkTunnel(int64_t bitstreamId, int32_t pictureBufferId) {
     LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
 
     auto workIter = comp->findPendingWorkByBitstreamId(bitstreamId);
@@ -743,34 +743,59 @@ c2_status_t C2VdecComponent::TunnelHelper::fastHandleWorkAndOutBufferTunnel(bool
         return C2_BAD_VALUE;
     }
 
-    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] %s bistreamId:%" PRId64 ", pictureId:%d", __func__, __LINE__,
-            (input? "input":"output"), bitstreamId, pictureBufferId);
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] bistreamId:%" PRId64 ", pictureId:%d", __func__, __LINE__,
+            bitstreamId, pictureBufferId);
     DCHECK((work->input.flags & C2FrameData::FLAG_DROP_FRAME)
             || (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG));
 
-    if (input) {
+    work->result = C2_OK;
+    work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
+    work->worklets.front()->output.flags = static_cast<C2FrameData::flags_t>(0);
+    comp->reportWork(std::move(*workIter));
+    comp->mOutputFinishedWorkCount++;
+    comp->mPendingWorks.erase(workIter);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunnelHelper::fastHandleOutBufferTunnel(uint64_t timestamp, int32_t pictureBufferId) {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+
+    if (comp->mPendingBuffersToWork.empty()) {
+        C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Empty BuffersToWork, ignore it");
+        return C2_OK;
+    }
+
+    C2Work* work = NULL;
+    auto pendingBuffer = comp->findPendingBuffersToWorkByTime(timestamp);
+    auto workIter = comp->findPendingWorkByBitstreamId(pendingBuffer->mBitstreamId);
+    if (workIter != comp->mPendingWorks.end()) {
+        work = workIter->get();
+    }
+
+    if (work != NULL) {
         work->result = C2_OK;
         work->workletsProcessed = static_cast<uint32_t>(work->worklets.size());
         work->worklets.front()->output.flags = static_cast<C2FrameData::flags_t>(0);
         comp->reportWork(std::move(*workIter));
         comp->mOutputFinishedWorkCount++;
         comp->mPendingWorks.erase(workIter);
-    } else {
-        GraphicBlockInfo* info = comp->getGraphicBlockById(pictureBufferId);
-        if (!info) {
-            C2VdecTMH_LOG(CODEC2_LOG_ERR, "Can't get graphic block pictureBufferId:%d, please check!", pictureBufferId);
-            return C2_BAD_VALUE;
-        }
-        if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
-            GraphicBlockStateChange(comp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
-        }
-        comp->sendOutputBufferToAccelerator(info, true);
-        int64_t timestamp = work->input.ordinal.timestamp.peekull();
-        comp->erasePendingBuffersToWorkByTime(timestamp);
-        BufferStatus(comp, CODEC2_LOG_TAG_BUFFER, "tunnel drop and reuse fd=%d, index=%d", info->mFd, info->mBlockId);
     }
 
-    return C2_BAD_VALUE;
+    GraphicBlockInfo* info = comp->getGraphicBlockById(pictureBufferId);
+    if (!info) {
+        C2VdecTMH_LOG(CODEC2_LOG_ERR, "Can't get graphic block pictureBufferId:%d, please check!", pictureBufferId);
+        return C2_BAD_VALUE;
+    }
+
+    if (info->mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+        GraphicBlockStateChange(comp, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+    }
+
+    comp->sendOutputBufferToAccelerator(info, true);
+    comp->erasePendingBuffersToWorkByTime(timestamp);
+    BufferStatus(comp, CODEC2_LOG_TAG_BUFFER, "tunnel drop and reuse fd=%d, index=%d", info->mFd, info->mBlockId);
+    return C2_OK;
 }
 
 void C2VdecComponent::TunnelHelper::configureEsModeHwAvsyncId(int32_t avSyncId){

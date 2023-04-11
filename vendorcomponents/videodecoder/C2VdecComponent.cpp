@@ -767,7 +767,7 @@ void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
         if (isNonTunnelMode()) {
             reportWorkIfFinished(bitstreamId, 0);
         } else if (mTunnelHelper && isTunnelMode()) {
-            mTunnelHelper->fastHandleWorkAndOutBufferTunnel(true, bitstreamId, 0);
+            mTunnelHelper->fastHandleWorkTunnel(bitstreamId, 0);
         }
     } else {
        if (!mPendingBuffersToWork.empty() && isNonTunnelMode()) {
@@ -952,13 +952,20 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     if (isNonTunnelMode()) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else if (isTunnelMode() && mTunnelHelper != NULL) {
-        if ((work != NULL)
+
+       if ((flags & (int)PictureFlag::PICTURE_FLAG_ERROR_FRAME) != 0) {
+           mTunnelHelper->fastHandleOutBufferTunnel(timestamp, pictureBufferId);
+           return;
+       }
+
+       if ((work != NULL)
             && ((work->input.flags & C2FrameData::FLAG_DROP_FRAME) != 0)) {
-            mTunnelHelper->fastHandleWorkAndOutBufferTunnel(false, bitstreamId, pictureBufferId);
-        } else {
-            mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId,timestamp);
-        }
-        return;
+             mTunnelHelper->fastHandleOutBufferTunnel(timestamp, pictureBufferId);
+             return;
+       }
+
+       mTunnelHelper->sendVideoFrameToVideoTunnel(pictureBufferId, bitstreamId,timestamp);
+       return;
     }
 
     if (mOutputWorkCount == 1 && (mDequeueThreadUtil->getAllocBufferLoopState() == false)) {

@@ -48,7 +48,8 @@ public:
     c2_status_t videoResolutionChangeTunnel();
     void onAndroidVideoPeek();
     VideoTunnelRendererBase* getTunnelRender() { return mVideoTunnelRenderer->getTunnelRenderer();}
-    c2_status_t fastHandleWorkAndOutBufferTunnel(bool input, int64_t bitstreamId, int32_t pictureBufferId);
+    c2_status_t fastHandleWorkTunnel(int64_t bitstreamId, int32_t pictureBufferId);
+    c2_status_t fastHandleOutBufferTunnel(uint64_t timestamp, int32_t pictureBufferId);
     void configureEsModeHwAvsyncId(int32_t            avSyncId);
     void videoSyncQueueVideoFrame(int64_t timestampUs, uint32_t size);
 private:
