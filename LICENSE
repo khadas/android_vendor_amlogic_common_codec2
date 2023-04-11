@@ -1,12 +1,13 @@
-Amlogic Reference Source Code (Software) is licensed, not sold,
-and that title to and ownership of the Software and any portion thereof remain with Amlogic or its licensors.
+Copyright (C) 2023 Amlogic, Inc. All rights reserved.
 
-All express and implied warranties are disclaimed on behalf of Amlogic.
-Liability of Amlogic and its licensors is excluded for any special, indirect, exemplary, incidental or consequential damages.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-You are prohibited from
-(a) copying the Software, except as reasonably necessary for internal back-up purposes,
-(b) using and/or transferring the Software to any third party apart from the Android TV build release,
-(c) modifying the Software,
-(d) attempting to reverse engineer, decompile or disassemble any portion of the Software, or
-(e) exporting the Software or any underlying technology in contravention of any applicable U.S. or foreign export laws and regulations.
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
