@@ -433,11 +433,6 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     }
 
     mDebugUtil->setComponent(shared_from_this());
-
-    if (mDequeueThreadUtil == nullptr) {
-        mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
-    }
-    mDequeueThreadUtil->setComponent(shared_from_this());
     if (!isTunnerPassthroughMode()) {
         if (mVideoDecWraper) {
             mVideoDecWraper.reset();
@@ -449,7 +444,7 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             mDeviceUtil.reset();
             mDeviceUtil = NULL;
         }
-        mDeviceUtil =  std::make_shared<DeviceUtil>(mSecureMode);
+        mDeviceUtil = std::make_shared<DeviceUtil>(mSecureMode);
         mDeviceUtil->setComponent(shared_from_this());
         mDeviceUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
         mDeviceUtil->codecConfig(&mConfigParam);
@@ -492,10 +487,15 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         TRACE_NAME_OUT_PTS << mCurInstanceID << "-" << mPlayerId << "-c2OutPts";
         TRACE_NAME_FETCH_OUT_BLOCK_ID << mCurInstanceID << "-" << mPlayerId << "-c2FetchOutBlockId";
         TRACE_NAME_FINISHED_WORK_PTS << mCurInstanceID << "-" << mPlayerId << "-c2FinishedWorkPTS";
-
+        TRACE_NAME_SEND_OUTPUT_BUFFER << mCurInstanceID << "-" << mPlayerId << "-c2SendOutPutBuffer";
     } else {
         mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
     }
+
+    if (mDequeueThreadUtil == nullptr) {
+        mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
+    }
+    mDequeueThreadUtil->setComponent(shared_from_this());
 
     if (isTunnelMode() && mTunnelHelper) {
         mTunnelHelper->start();
@@ -833,7 +833,9 @@ void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> blo
     }
     info->mGraphicBlock = std::move(block);
     GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+    CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), info->mBlockId);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf return index=%d", info->mBlockId);
+    CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), 0);
 
     if (mPendingOutputFormat) {
         tryChangeOutputFormat();
@@ -877,7 +879,9 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
                 return;
             }
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+            CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), info->mBlockId);
             BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%u", info->mBlockId);
+            CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), 0);
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
         } else {
             C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch current block(%d*%d) is pending and reset it.", block->width(), block->height());
@@ -897,7 +901,9 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
                 return;
             }
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
+            CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), info->mBlockId);
             BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%d", info->mBlockId);
+            CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), 0);
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
         } else {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Fetch current block(%d*%d) is pending", block->width(), block->height());
@@ -1900,7 +1906,7 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
     if (mDequeueThreadUtil)
         mDequeueThreadUtil->StopRunDequeueTask();
 
-    auto reallocate = mDeviceUtil->checkReallocOutputBuffer(mLastOutputFormat, mOutputFormat, &bufferSizeChanged, &bufferNumIncreased);
+    auto reallocate = mDeviceUtil->isReallocateOutputBuffer(mLastOutputFormat, mOutputFormat, &bufferSizeChanged, &bufferNumIncreased);
     C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "output buffer reallocate:%d size change:%d number increase:%d", reallocate, bufferSizeChanged, bufferNumIncreased);
 
     if (mBlockPoolUtil->isBufferQueue()) {
@@ -2435,9 +2441,13 @@ void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool
         width  = info->mGraphicBlock->width();
         height = info->mGraphicBlock->height();
     }
+
+    CODEC2_VDEC_ATRACE(TRACE_NAME_SEND_OUTPUT_BUFFER.str().c_str(), info->mBlockId);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "send to videodec index=%d, ownByAccelerator=%d, blocksize(%dx%d) formatsize(%dx%d)",
                 info->mBlockId, ownByAccelerator, width, height,
                 mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height());
+    CODEC2_VDEC_ATRACE(TRACE_NAME_SEND_OUTPUT_BUFFER.str().c_str(), 0);
+
     // mHandles is not empty for the first time the buffer is passed to Vdec. In that case, Vdec needs
     // to import the buffer first.
     if (!info->mFdHaveSet) {

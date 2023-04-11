@@ -46,6 +46,11 @@ namespace android {
 #define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
 #define DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN (100)
 
+#ifdef ATRACE_TAG
+#undef ATRACE_TAG
+#define ATRACE_TAG ATRACE_TAG_VIDEO
+#endif
+
 #define LockWeakPtrWithReturnVal(name, weak, retval) \
     auto name = weak.lock(); \
     if (name == nullptr) { \
@@ -70,15 +75,12 @@ C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil() {
     mDequeueThread = new ::base::Thread("C2VdecDequeueThread");
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     CODEC2_LOG(CODEC2_LOG_INFO, "Creat DequeueThreadUtil!!");
-
     mRunTaskLoop.store(false);
     mAllocBufferLoop.store(false);
-
     mFetchBlockCount = 0;
     mStreamDurationUs = 0;
     mCurrentPixelFormat = 0;
     mMinFetchBlockInterval = 0;
-
     mLastAllocBufferRetryTimeUs = -1;
     mLastAllocBufferSuccessTimeUs = -1;
     memset(&mCurrentBlockSize, 0, sizeof(mCurrentBlockSize));
@@ -97,8 +99,8 @@ c2_status_t C2VdecComponent::DequeueThreadUtil::setComponent(std::shared_ptr<C2V
     mComp = sharecomp;
     LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
     mIntfImpl = comp->GetIntfImpl();
-
     C2VdecDQ_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    TRACE_NAME_FETCH_BLOCK << comp->getPlayerId() << "-" << comp->getInstanceId() << "-c2DqFetchBuffer";
     return C2_OK;
 }
 
@@ -123,6 +125,7 @@ bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, u
     mCurrentBlockSize = size;
     mCurrentPixelFormat = pixelFormat;
     mMinFetchBlockInterval = mStreamDurationUs / 4;
+
     C2VdecDQ_LOG(CODEC2_LOG_INFO,"%s task loop:%d alloc loop:%d duration:%d minfetchinterval:%d", __func__, mRunTaskLoop.load(), mAllocBufferLoop.load(), mStreamDurationUs, mMinFetchBlockInterval);
     return true;
 }
@@ -176,7 +179,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
 
     int64_t nowTimeUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;
     int64_t allocRetryDurationUs = nowTimeUs - mLastAllocBufferRetryTimeUs;
-    int64_t allocSuccessDurationUs = nowTimeUs - mLastAllocBufferSuccessTimeUs;
+    //int64_t allocSuccessDurationUs = nowTimeUs - mLastAllocBufferSuccessTimeUs;
 
     if ((allocRetryDurationUs <=  mStreamDurationUs) && mAllocBufferLoop.load()) {
         int64_t delayTimeUs = (mStreamDurationUs >= allocRetryDurationUs) ? (mStreamDurationUs - allocRetryDurationUs) : mStreamDurationUs;
@@ -186,7 +189,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         return;
     }
 
-    if (mFetchBlockCount >= DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN) {
+    /*if (mFetchBlockCount >= DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN) {
         if (allocSuccessDurationUs <= mMinFetchBlockInterval && mAllocBufferLoop.load()) {
             int64_t delayTimeUs = mMinFetchBlockInterval - allocSuccessDurationUs;
             mDequeueTaskRunner->PostDelayedTask(
@@ -194,7 +197,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
                 size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTimeUs));
             return;
         }
-    }
+    }*/
 
     if ((size.width() == 0 || size.height() == 0) || pixelFormat == 0) {
         C2VdecDQ_LOG(CODEC2_LOG_ERR, "dequeueBlockTask size pixel format error and exit.");
@@ -237,9 +240,11 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         blockPoolUtil->getPoolId(&poolId);
         auto format = deviceUtil->getStreamPixelFormat(pixelFormat);
 
+        CODEC2_ATRACE_BEGIN(TRACE_NAME_FETCH_BLOCK.str().c_str());
         err = blockPoolUtil->fetchGraphicBlock(deviceUtil->getOutAlignedSize(size.width()),
                                         deviceUtil->getOutAlignedSize(size.height()),
                                         format, usage, &block);
+        CODEC2_ATRACE_END();
     }
     if (err == C2_OK) {
         mLastAllocBufferSuccessTimeUs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000;

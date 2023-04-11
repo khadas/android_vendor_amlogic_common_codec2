@@ -70,6 +70,20 @@ do { \
     } \
 } while(0)
 
+#define CODEC2_ATRACE_BEGIN(tag) \
+do { \
+    if (gloglevel & CODEC2_LOG_TRACE) {\
+        ATRACE_BEGIN(tag); \
+    } \
+} while(0)
+
+#define CODEC2_ATRACE_END() \
+do { \
+    if (gloglevel & CODEC2_LOG_TRACE) {\
+        ATRACE_END(); \
+    } \
+} while(0)
+
 #define propGetInt(str,def) \
 do { \
     char value[PROPERTY_VALUE_MAX] = {}; \

@@ -163,7 +163,7 @@ uint32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
                     mIsInterlaced || !mEnableNR || !mEnableDILocalBuf) {
                 doubleWriteValue = 0x10;
-                CODEC2_LOG(CODEC2_LOG_INFO, "texture/nosurface or interlaced or no di/nr video use dw 0x10");
+                CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "texture/nosurface or interlaced or no di/nr video use dw 0x10");
             } else {
                 doubleWriteValue = 3;
             }
@@ -1122,7 +1122,7 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
     return realloc;
 }
 
-bool C2VdecComponent::DeviceUtil::checkReallocOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
+bool C2VdecComponent::DeviceUtil::isReallocateOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
                                                     bool *sizechange, bool *buffernumincrease) {
     bool realloc = false, frameSizeChanged = false;
     bool bufferNumChanged = false;

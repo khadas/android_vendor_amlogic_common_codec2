@@ -132,6 +132,8 @@ public:
     media::Size GetCurrentVideoSize() {return mOutputFormat.mCodedSize;}
     scoped_refptr<::base::SingleThreadTaskRunner> GetTaskRunner() {return mTaskRunner;}
     std::shared_ptr<VideoDecWraper> getCompVideoDecWraper() {return mVideoDecWraper;}
+    int32_t getPlayerId() {return mPlayerId;}
+    uint32_t getInstanceId() {return mInstanceID;}
 
     //for multi-instance trace
     std::ostringstream TRACE_NAME_IN_PTS;
@@ -139,6 +141,7 @@ public:
     std::ostringstream TRACE_NAME_FETCH_OUT_BLOCK_ID;
     std::ostringstream TRACE_NAME_OUT_PTS;
     std::ostringstream TRACE_NAME_FINISHED_WORK_PTS;
+    std::ostringstream TRACE_NAME_SEND_OUTPUT_BUFFER;
 
     void Preempted();
     bool Preempting();
