@@ -295,6 +295,7 @@ void C2VdecComponent::Init(C2String compName) {
     mHaveDrainDone = false;
     mHaveFlushDone = false;
     mFlushDoneWithOutEosWork = false;
+    mPreempting = false;
 
     mPlayerId = 0;
     mUnstable = 0;
