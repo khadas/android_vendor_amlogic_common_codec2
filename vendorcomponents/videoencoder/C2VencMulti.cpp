@@ -1134,7 +1134,7 @@ c2_status_t C2VencMulti::Init() {
                                                               mSize->height,
                                                               mFrameRate->value,
                                                               colorformat,
-                                                              mBitrate->value,
+                                                              encode_info.bit_rate,
                                                               encode_info.gop,
                                                               qp_tbl.qp_I_max,
                                                               qp_tbl.qp_I_min,

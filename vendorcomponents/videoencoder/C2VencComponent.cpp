@@ -42,7 +42,7 @@ namespace android {
 /** Used to remove warnings about unused parameters */
 #define UNUSED(x) ((void)(x))
 
-#define OUTPUT_BUFFERSIZE_MIN (2 * 1024 * 1024)
+#define OUTPUT_BUFFERSIZE_MIN (5 * 1024 * 1024)
 #define ENABLE_DUMP_ES        1
 #define ENABLE_DUMP_RAW       (1 << 1)
 #define ENCODER_PROP_DUMP_DATA        "debug.vendor.media.c2.venc.dump_data"
@@ -188,6 +188,7 @@ C2VencComponent::C2VencComponent(const std::shared_ptr<C2ComponentInterface> &in
     ALOGD("C2VencComponent constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
+    ALOGD("mOutBufferSize:%d",mOutBufferSize);
 }
 
 C2VencComponent::~C2VencComponent() {
