@@ -1,8 +1,51 @@
-Major_V=1
-Minor_V=5
-BaseCommitId=c429d4dded218bd27bc43aff54079785bc8952f3
+Major_V=2
+Minor_V=0
+BaseCommitId=1e90ddfe404075ca24cf146b0a8d184f180550f5
 
 #history version
+#Release_ChangeId_V2_0=Icfa143d3857ba87667abb9dc9438308b512ea364
+#CommitId:1e90ddfe404075ca24cf146b0a8d184f180550f5
+#V1.5.45-g1e90ddf ReleaseNote
+# AC4 decoder compatibility for ms12 and none ms12 version.
+# License&Copyright to Apache - HW-VDEC.
+# Initially use dw=0x10 when no di/nr.
+# codec2 support avs3.
+# change normal pointer to shar_ptr or weak_ptr.
+# Add flag to set for unuse avbc out.
+# fix codec2 coverity problem.
+# add w420 multi instance for DRTS.
+# optimize the fetch block process.
+# codec2 tunnel mode support Mediasync.
+# add resman for codec2.
+# check codec fps by xml config.
+# check codec param by xml config.
+
+#Fixed BUG detail information:
+# CtsMediaMiscTestCases module fail.
+# media v2 fail.
+# android.media.decoder.cts.AdaptivePlaybackTest fail.
+# fix avc interlaced stream can not play.
+# Add mpeg2 secure decoder support.
+# Change dmabuf heap to system.
+# Hisense Player can't play dolby audio.
+# H264 Secure block screen and crash.
+# add mp2 feature for ExoPlayer.
+# CtsMediaDecoderTestCases module 5 fail.
+# limit Non-8K platform not support 8K playback.
+# solve code coverity error.
+# send outputt buffer to decoder after input data.
+# not fetch and queue buffer to v4ldec after drain.
+# 4k avc in secure mode uses dw16.
+# video event report not work in C2.
+# svc function use micro to control.
+# default disable codec2 RR schedule.
+# modify the typo problem about code.
+# sync doublewrite with decoder for h265 interlace stream.
+# coverity issue in softvideodecoder.
+# fix black screen when play specific h265-interlace stream.
+# add hcodec support for DRTS test.
+# fix crash brought by drop frame feature.
+
 #Release_ChangeId_V1_4=I65d8ed201a73046b166013ff0532fcb352b3904b
 #CommitId:c429d4dded218bd27bc43aff54079785bc8952f3
 #V1.4.78-gc429d4d ReleaseNote

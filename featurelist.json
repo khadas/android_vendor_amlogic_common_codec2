@@ -16,7 +16,8 @@
             "Check MediaCodec XML",
             "Support AVC 4K MMU",
             "Netflix Video Peek",
-            "Support DmA Canvas"
+            "Support DmA Canvas",
+            "Resman"
         ]
     },
     "softvdec": {
