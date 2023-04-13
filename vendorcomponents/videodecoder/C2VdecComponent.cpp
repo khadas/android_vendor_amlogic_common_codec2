@@ -1522,9 +1522,7 @@ void C2VdecComponent::onStopDone() {
     mNoOutFrameWorkQueue.clear();
     mHasQueuedWork = false;
 
-    if (mVideoDecWraper) {
-        mVideoDecWraper->destroy();
-    }
+
     if (mTunerPassthroughHelper) {
         mTunerPassthroughHelper->stop();
     }
@@ -2689,7 +2687,7 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
     }
 
     if (!mSurfaceUsageGot) {
-        if (!isTunnerPassthroughMode())
+        if (isNonTunnelMode())
             mTaskRunner->PostTask(FROM_HERE,
                         ::base::Bind(&C2VdecComponent::onCheckVideoDecReconfig, ::base::Unretained(this)));
     }
