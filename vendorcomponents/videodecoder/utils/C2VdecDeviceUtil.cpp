@@ -1410,8 +1410,8 @@ bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
         c2_status_t err = intfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
         if (err != C2_OK)
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query PictureSize error for avc 4k mmu", __func__, __LINE__);
-        else if(mUseSurfaceTexture)
-            C2VdecMDU_LOG(CODEC2_LOG_INFO, "mUseSurfaceTexture = %d, DO NOT Enable MMU", mUseSurfaceTexture);
+        else if(mUseSurfaceTexture || mNoSurface)
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "mUseSurfaceTexture = %d/mNoSurface = %d, DO NOT Enable MMU", mUseSurfaceTexture, mNoSurface);
         else if (output.width * output.height >= 3840 * 2160) {
             if (mSecure) {
                 return false;
