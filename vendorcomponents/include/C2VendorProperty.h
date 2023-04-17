@@ -39,6 +39,8 @@
 
 #define C2_PROPERTY_VDEC_INST_MAX_NUM               "vendor.media.c2.vdec.inst.max_num"
 #define C2_PROPERTY_VDEC_INST_MAX_NUM_SECURE        "vendor.media.c2.vdec.inst.max_num_secure"
+#define C2_PROPERTY_VDEC_INST_MAX_HIGH_RES_NUM        "vendor.media.c2.vdec.inst.max_high_res"
+
 
 #define C2_PROPERTY_VDEC_OUT_DELAY                  "vendor.media.c2.vdec.out.delay"
 #define C2_PROPERTY_VDEC_OUT_BUF_REALLOC            "vendor.media.c2.vdec.out.buf_realloc"

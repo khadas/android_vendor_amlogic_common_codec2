@@ -59,6 +59,7 @@ public:
 
     // check xml param.
     bool isCodecSupportFrameRate(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height, float frameRate);
+    bool isMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height);
 
     enum ValType {
         TYPE_INVALID = 0,

@@ -1301,6 +1301,17 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
         failures->emplace_back(std::move(result));
     }
 
+    /*Check if use max resolution*/
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
+    bool isMaxRes = C2VdecCodecConfig::getInstance().isMaxResolutionFromXml(vendorCodec, mSecureMode, mSize->width, mSize->height);
+
+    if (isMaxRes && !mComponent->mIsMaxResolution) {
+        C2VdecComponent::sConcurrentMaxResolutionInstance.fetch_add(1, std::memory_order_relaxed);
+        mComponent->mIsMaxResolution = true;
+        CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] use max res, ins:%d",
+            C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, C2VdecComponent::sConcurrentMaxResolutionInstance.load());
+    }
+
     return ret;
 }
 

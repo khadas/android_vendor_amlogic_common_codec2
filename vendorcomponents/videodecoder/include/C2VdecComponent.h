@@ -149,6 +149,7 @@ public:
     static uint32_t mInstanceNum;
     static uint32_t mInstanceID;
     uint32_t mCurInstanceID;
+    bool mIsMaxResolution;
 
     static const uint32_t kUpdateDurationFramesNumMax = 10;
     int mUpdateDurationUsCount;
@@ -395,6 +396,7 @@ private:
     //get the delay time of fetch block
     static std::atomic<int32_t> sConcurrentInstances;
     static std::atomic<int32_t> sConcurrentInstanceSecures;
+    static std::atomic<int32_t> sConcurrentMaxResolutionInstance;
 
     // The pointer of component interface implementation.
     std::shared_ptr<IntfImpl> mIntfImpl;

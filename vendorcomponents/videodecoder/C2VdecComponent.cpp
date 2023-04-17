@@ -75,6 +75,8 @@
 #define MAX_INSTANCE_DEFAULT 9
 #define MAX_INSTANCE_SECURE_LOW_RAM 1
 #define MAX_INSTANCE_SECURE_DEFAULT 2
+#define MAX_INSTANCE_HIGH_RES_DEFAULT 2
+
 
 
 #define UNUSED(expr)  \
@@ -164,6 +166,10 @@ C2VdecComponent::VideoFormat::VideoFormat(HalPixelFormat pixelFormat, uint32_t m
 // static
 std::atomic<int32_t> C2VdecComponent::sConcurrentInstances = 0;
 std::atomic<int32_t> C2VdecComponent::sConcurrentInstanceSecures = 0;
+std::atomic<int32_t> C2VdecComponent::sConcurrentMaxResolutionInstance = 0;
+
+
+
 
 // static
 std::shared_ptr<C2Component> C2VdecComponent::create(
@@ -177,6 +183,8 @@ std::shared_ptr<C2Component> C2VdecComponent::create(
             property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM, maxInstance);
     static const int32_t kMaxSecureConcurrentInstances =
             property_get_int32(C2_PROPERTY_VDEC_INST_MAX_NUM_SECURE, maxInstanceSecure);
+    static const int32_t kMaxHighResConcurrentInstances =
+            property_get_int32(C2_PROPERTY_VDEC_INST_MAX_HIGH_RES_NUM, MAX_INSTANCE_HIGH_RES_DEFAULT);
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     bool isSecure = name.find(".secure") != std::string::npos;
@@ -197,6 +205,13 @@ std::shared_ptr<C2Component> C2VdecComponent::create(
             return nullptr;
         }
     }
+
+    ALOGW("Initialize() instances: %d", sConcurrentMaxResolutionInstance.load());
+    if (kMaxHighResConcurrentInstances >= 0 && (sConcurrentMaxResolutionInstance.load() >= kMaxHighResConcurrentInstances)) {
+        ALOGW("Reject to Initialize() due to too many Max instances: %d", sConcurrentMaxResolutionInstance.load());
+        return nullptr;
+    }
+
     return std::shared_ptr<C2Component>(new C2VdecComponent(name, id, helper));
 }
 
@@ -323,6 +338,8 @@ void C2VdecComponent::Init(C2String compName) {
     mCurInstanceID = mInstanceID;
     mStopDoneEvent = nullptr;
 
+    mIsMaxResolution = false;
+
     memset(&mConfigParam, 0, sizeof(mConfigParam));
     memset(mGraphicBlockStateCount, 0, sizeof(mGraphicBlockStateCount));
 
@@ -355,6 +372,10 @@ C2VdecComponent::~C2VdecComponent() {
         sConcurrentInstanceSecures.fetch_sub(1, std::memory_order_relaxed);
     else
         sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
+
+    if (mIsMaxResolution)
+        sConcurrentMaxResolutionInstance.fetch_sub(1, std::memory_order_relaxed);
+
     C2Vdec_LOG(CODEC2_LOG_INFO, "~C2VdecComponent done");
     --mInstanceNum;
 }

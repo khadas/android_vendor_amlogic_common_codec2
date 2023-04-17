@@ -534,4 +534,35 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
     return true;
 }
 
+bool C2VdecCodecConfig::isMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height) {
+    const char* name = NULL;
+    GetCompName(codec_type, secure, name);
+
+    if (name == NULL) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"codecname is null and return.");
+        return false;
+    }
+
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s name:%s secure:%d size:%dx%d", __func__, name, secure, width, height);
+    auto attribute = mCodecAttributes.find(name);
+    if (attribute == mCodecAttributes.end()) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"don't found %s.", name);
+        return false;
+    }
+
+    struct CodecAttributes codecAttributes = attribute->second;
+
+    int32_t maxSize = codecAttributes.blockCount.max * codecAttributes.blockSize.h * codecAttributes.blockSize.w;
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "%s name:%s  max size:%d", __func__, name,  maxSize);
+    /*Now only check max resolution defined from media_codec xml*/
+    if ((width * height) == maxSize) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s use Max Resolution.", name);
+        return true;
+    }
+
+
+    return false;
+}
+
+
 }

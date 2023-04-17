@@ -323,7 +323,7 @@ void VideoDecWraper::destroy() {
 }
 
 bool VideoDecWraper::postAndReplyMsg(AmlMessageBase *msg) {
-    C2VdecWraper_LOG(CODEC2_LOG_INFO, "postAndReplyMsg");
+    C2VdecWraper_LOG(CODEC2_LOG_DEBUG_LEVEL2, "postAndReplyMsg");
     if (mAmVideoDec) {
         return mAmVideoDec->postAndReplyMsg(msg);
     }
