@@ -337,7 +337,6 @@ void C2VdecComponent::Init(C2String compName) {
 C2VdecComponent::~C2VdecComponent() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "~C2VdecComponent start");
     mComponentState = ComponentState::DESTROYING;
-
     if (mThread.IsRunning()) {
         ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                    ::base::WaitableEvent::InitialState::NOT_SIGNALED);
@@ -346,7 +345,6 @@ C2VdecComponent::~C2VdecComponent() {
         done.Wait();
         mThread.Stop();
     }
-
     if (mDebugUtil) {
         mDebugUtil.reset();
         mDebugUtil = NULL;
@@ -1583,6 +1581,7 @@ void C2VdecComponent::onStopDone() {
         mBlockPoolUtil.reset();
         mBlockPoolUtil = NULL;
     }
+
     mComponentState = ComponentState::UNINITIALIZED;
     if (mStopDoneEvent != nullptr)
         mStopDoneEvent->Signal();
@@ -2895,7 +2894,16 @@ c2_status_t C2VdecComponent::reset() {
 
 c2_status_t C2VdecComponent::release() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
-    return reset();
+    reset();
+    if (mThread.IsRunning()) {
+        ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
+                                   ::base::WaitableEvent::InitialState::NOT_SIGNALED);
+        mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDestroy,
+                                ::base::Unretained(this), &done));
+        done.Wait();
+        mThread.Stop();
+    }
+    return C2_OK;
 }
 
 std::shared_ptr<C2ComponentInterface> C2VdecComponent::intf() {
