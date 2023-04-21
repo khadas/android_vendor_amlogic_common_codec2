@@ -1130,11 +1130,11 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
                 return C2_TIMED_OUT;
             }
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Drop this frame...");
-            sendOutputBufferToAccelerator(info, false /* ownByAccelerator */);
+            sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
             work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
         } else if ( ((int)nextBuffer.flags & (int)PictureFlag::PICTURE_FLAG_ERROR_FRAME) != 0) {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Drop error frame :%d", __FUNCTION__, __LINE__, nextBuffer.mBitstreamId);
-            sendOutputBufferToAccelerator(info, false /* ownByAccelerator */);
+            sendOutputBufferToAccelerator(info, true /* ownByAccelerator */);
             work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
         } else {
             // This buffer is ready to push into the corresponding work.
