@@ -288,6 +288,7 @@ private:
 
     void onReportError(c2_status_t error);
 
+    void updateOutputDelayBufCount();
     // Send input buffer to accelerator with specified bitstream id.
     void sendInputBufferToAccelerator(const C2ConstLinearBlock& input, int32_t bitstreamId,  uint64_t timestamp,int32_t flags,uint8_t *hdrbuf = nullptr,uint32_t hdrlen = 0);
     // Send output buffer to accelerator. If |passToAccelerator|, change the ownership to

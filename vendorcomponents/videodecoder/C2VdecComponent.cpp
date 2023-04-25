@@ -1801,10 +1801,41 @@ void C2VdecComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format)
             mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(DOUBLE_WRITE);
         }
     }
-
     CHECK(!mPendingOutputFormat);
     mPendingOutputFormat = std::move(format);
     tryChangeOutputFormat();
+}
+
+
+void C2VdecComponent::updateOutputDelayBufCount() {
+    uint32_t dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor;
+    if (!mUseBufferQueue) {
+        dequeueBufferNum = mOutputFormat.mMinNumBuffers;
+    }
+
+    C2Vdec_LOG(CODEC2_LOG_INFO, "Update dequeue buffer num: %d -> %d", mOutputFormat.mMinNumBuffers, dequeueBufferNum);
+
+    C2PortActualDelayTuning::output outputDelay(dequeueBufferNum);
+    std::vector<std::unique_ptr<C2SettingResult>> failures;
+    c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
+    if (outputDelayErr == OK) {
+        mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
+    } else {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "Update dequeueBufferNum %d error", dequeueBufferNum);
+    }
+    //update mOutputDelay
+    if (mOutputDelay != nullptr) {
+        std::unique_ptr<C2Work> work(new C2Work);
+        work->worklets.clear();
+        work->worklets.emplace_back(new C2Worklet);
+        work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
+        work->worklets.front()->output.buffers.clear();
+        work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mOutputDelay)));
+        reportWork(std::move(work));
+        mOutputDelay = nullptr;
+    } else {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "Update mOutputDelay is null dequeueBufferNum %d error", dequeueBufferNum);
+    }
 }
 
 void C2VdecComponent::tryChangeOutputFormat() {
@@ -1816,8 +1847,8 @@ void C2VdecComponent::tryChangeOutputFormat() {
     }
     CHECK(mPendingOutputFormat);
 
-    if (isNonTunnelMode() && !mPendingBuffersToWork.empty()) {
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Pending buffers has work, and wait...");
+    if (isNonTunnelMode() && (!mPendingBuffersToWork.empty() || mComponentState == ComponentState::FLUSHING)) {
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Pending buffers has work, or state is flushing and wait...");
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::tryChangeOutputFormat,
                                             ::base::Unretained(this)));
         return;
@@ -1866,30 +1897,7 @@ void C2VdecComponent::tryChangeOutputFormat() {
     }
 
     if (isNonTunnelMode()) {
-        uint32_t dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor;
-        if (!mUseBufferQueue) {
-            dequeueBufferNum = mOutputFormat.mMinNumBuffers;
-        }
-
-        C2Vdec_LOG(CODEC2_LOG_INFO, "Update dequeue buffer num: %d -> %d", mOutputFormat.mMinNumBuffers, dequeueBufferNum);
-
-        C2PortActualDelayTuning::output outputDelay(dequeueBufferNum);
-        std::vector<std::unique_ptr<C2SettingResult>> failures;
-        c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
-        if (outputDelayErr == OK) {
-            mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
-        }
-        //update mOutputDelay
-        if (mOutputDelay != nullptr) {
-            std::unique_ptr<C2Work> work(new C2Work);
-            work->worklets.clear();
-            work->worklets.emplace_back(new C2Worklet);
-            work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
-            work->worklets.front()->output.buffers.clear();
-            work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mOutputDelay)));
-            reportWork(std::move(work));
-            mOutputDelay = nullptr;
-        }
+      updateOutputDelayBufCount();
     }
 
     if (mBufferFirstAllocated) {
@@ -2331,7 +2339,8 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "initialize alloc outbuf index=%d", info->mBlockId);
         sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
     }
-
+    //
+    updateOutputDelayBufCount();
     mOutputFormat.mMinNumBuffers = bufferCount;
     int dequeueTaskCount = bufferCount - dequeue_buffer_num;
     float frameRate = mIntfImpl->getInputFrameRate();
