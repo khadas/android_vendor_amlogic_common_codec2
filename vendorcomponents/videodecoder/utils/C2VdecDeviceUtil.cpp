@@ -75,20 +75,10 @@ C2VdecComponent::DeviceUtil::DeviceUtil(bool secure) {
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     init(secure);
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
-
-    mUvmFd = amuvm_open();
-    if (mUvmFd < 0) {
-        CODEC2_LOG(CODEC2_LOG_ERR, "Open uvm device fail.");
-        mUvmFd = -1;
-    }
-
 }
 
 C2VdecComponent::DeviceUtil::~DeviceUtil() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
-    if (mUvmFd > 0) {
-        amuvm_close(mUvmFd);
-    }
 }
 
 void C2VdecComponent::DeviceUtil::init(bool secure) {
@@ -1201,24 +1191,31 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
 
 bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, int *size) {
     LockWeakPtrWithReturnVal(comp, mComp, false);
-    if (mUvmFd <= 0) {
-        mUvmFd = amuvm_open();
-        if (mUvmFd < 0) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR, "Open uvm device fail.");
-            return false;
+    if (data == NULL || fd < 0)
+        return false;
+
+    int32_t meta_size = 0;
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    std::shared_ptr<VideoDecWraper> videoWraper = comp->getCompVideoDecWraper();
+    if (msg != NULL && videoWraper != NULL) {
+        msg->setInt32("uvm", 1);
+        msg->setInt32("fd", fd);
+        msg->setInt32("getmetadata", 1);
+        msg->setPointer("data", (void*)data);
+        if (videoWraper->postAndReplyMsg(msg) == true) {
+            msg->findInt32("size", &meta_size);
+            *size = meta_size;
+            if (msg != NULL)
+                delete msg;
+            return true;
         }
     }
 
-    if (data == NULL)
-        return false;
+    if (msg != NULL)
+        delete msg;
 
-    int meta_size = amuvm_getmetadata(mUvmFd, fd, data);
-    if (meta_size < 0) {
-        return false;
-    }
-
-    *size = meta_size;
-    return true;
+    C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] get meta data from decoder failed!, please check", __func__, __LINE__);
+    return false;
 }
 
 bool C2VdecComponent::DeviceUtil::parseAndProcessDuration(unsigned char *data, int size) {

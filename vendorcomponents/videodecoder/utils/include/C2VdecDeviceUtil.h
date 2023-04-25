@@ -18,22 +18,54 @@
 #define _C2_Vdec__METADATA_UTIL_H_
 
 #include <mutex>
+#include <queue>
 
 #include <C2Config.h>
 #include <C2Enum.h>
 #include <C2Param.h>
 #include <C2ParamDef.h>
-
 #include <SimpleC2Interface.h>
+
 #include <util/C2InterfaceHelper.h>
 #include <cutils/native_handle.h>
 #include <C2VdecComponent.h>
-
 #include <VideoDecWraper.h>
-#include <amuvm.h>
-#include <queue>
 
 namespace android {
+
+#define CODEC_MODE(a, b, c, d)\
+	(((unsigned char)(a) << 24) | ((unsigned char)(b) << 16) | ((unsigned char)(c) << 8) | (unsigned char)(d))
+
+#define META_DATA_MAGIC CODEC_MODE('M', 'E', 'T', 'A')
+#define AML_META_HEAD_NUM  (8)
+#define AML_META_HEAD_SIZE (AML_META_HEAD_NUM * sizeof(uint32_t))
+#define UVM_META_DATA_VF_BASE_INFOS (1 << 0)
+#define UVM_META_DATA_HDR10P_DATA (1 << 1)
+#define META_DATA_SIZE 512
+
+struct aml_meta_head_s {
+    uint32_t magic;
+    uint32_t type;
+    uint32_t data_size;
+    uint32_t data[5];
+};
+
+struct aml_vf_base_info_s {
+    uint32_t width;
+    uint32_t height;
+    uint32_t duration;
+    uint32_t frame_type;
+    uint32_t type;
+    uint32_t data[12];
+};
+
+struct aml_meta_info_s {
+    union {
+        struct aml_meta_head_s head;
+        uint32_t buf[AML_META_HEAD_NUM];
+    };
+    unsigned char data[0];
+};
 
 class C2VdecComponent::DeviceUtil {
 public:

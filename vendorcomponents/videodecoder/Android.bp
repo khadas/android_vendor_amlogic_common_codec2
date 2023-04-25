@@ -28,7 +28,6 @@ cc_library_shared {
     vendor: true,
 
     srcs: [
-        "amuvm.cpp",
         "C2VdecComponent.cpp",
         "mediahalwraper/VideoDecWraper.cpp",
         "mediahalwraper/VideoTunnelRendererWraper.cpp",

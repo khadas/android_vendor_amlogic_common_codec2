@@ -54,7 +54,6 @@
 #include <C2VdecDebugUtil.h>
 #include <C2VendorProperty.h>
 #include <c2logdebug.h>
-#include <amuvm.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -75,6 +74,7 @@
 #define MAX_INSTANCE_DEFAULT 9
 #define MAX_INSTANCE_SECURE_LOW_RAM 1
 #define MAX_INSTANCE_SECURE_DEFAULT 2
+
 
 #define UNUSED(expr)  \
     do {              \
@@ -1100,17 +1100,17 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
         }
         work->input.ordinal.customOrdinal = nextBuffer.mMediaTimeUs;
         if (mHDR10PlusMeteDataNeedCheck) {
-            unsigned char  buffer[META_DATA_SIZE];
-            int buffer_size = 0;
+            unsigned char buffer[META_DATA_SIZE];
+            int bufferSize = 0;
             memset(buffer, 0, META_DATA_SIZE);
-            mDeviceUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
-            if (buffer_size > META_DATA_SIZE) {
+            mDeviceUtil->getUvmMetaData(info->mFd, buffer, &bufferSize);
+            if (bufferSize > META_DATA_SIZE) {
                 C2Vdec_LOG(CODEC2_LOG_ERR, "Uvm metadata size error, please check");
-            } else if (buffer_size <= 0)  {
+            } else if (bufferSize <= 0)  {
                 //Do not have meta data, do not need check more.
                 mHDR10PlusMeteDataNeedCheck = false;
             } else {
-                mDeviceUtil->parseAndProcessMetaData(buffer, buffer_size, *work);
+                mDeviceUtil->parseAndProcessMetaData(buffer, bufferSize, *work);
             }
             mUpdateDurationUsCount++;
         }
