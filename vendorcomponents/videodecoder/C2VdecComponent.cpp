@@ -337,6 +337,10 @@ void C2VdecComponent::Init(C2String compName) {
 C2VdecComponent::~C2VdecComponent() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "~C2VdecComponent start");
     mComponentState = ComponentState::DESTROYING;
+    if (mDebugUtil) {
+        mDebugUtil.reset();
+        mDebugUtil = NULL;
+    }
     if (mThread.IsRunning()) {
         ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                    ::base::WaitableEvent::InitialState::NOT_SIGNALED);
@@ -344,10 +348,6 @@ C2VdecComponent::~C2VdecComponent() {
                                 ::base::Unretained(this), &done));
         done.Wait();
         mThread.Stop();
-    }
-    if (mDebugUtil) {
-        mDebugUtil.reset();
-        mDebugUtil = NULL;
     }
 
     if (mSecureMode)
@@ -429,8 +429,8 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             C2Vdec_LOG(CODEC2_LOG_ERR, "setpriority error: %s", strerror(errno));
         }
     }
-
-    mDebugUtil->setComponent(shared_from_this());
+    if (mDebugUtil)
+        mDebugUtil->setComponent(shared_from_this());
     if (!isTunnerPassthroughMode()) {
         if (mVideoDecWraper) {
             mVideoDecWraper.reset();
@@ -2904,6 +2904,10 @@ c2_status_t C2VdecComponent::reset() {
 c2_status_t C2VdecComponent::release() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
     reset();
+    if (mDebugUtil) {
+        mDebugUtil.reset();
+        mDebugUtil = NULL;
+    }
     if (mThread.IsRunning()) {
         ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                    ::base::WaitableEvent::InitialState::NOT_SIGNALED);

@@ -37,6 +37,8 @@
 #include <C2VdecDebugUtil.h>
 #include <C2VdecInterfaceImpl.h>
 
+#include "base/memory/weak_ptr.h"
+
 #define DUMP_PROCESS_FDINFO_ENABLE (0)
 
 namespace android {
@@ -72,7 +74,7 @@ namespace android {
     }
 
 
-C2VdecComponent::DebugUtil::DebugUtil() {
+C2VdecComponent::DebugUtil::DebugUtil():mWeakFactory(this) {
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 }
@@ -118,7 +120,7 @@ void C2VdecComponent::DebugUtil::startShowPipeLineBuffer() {
             comp->mOutputWorkCount, comp->mPendingBuffersToWork.size());
 #endif
     taskRunner->PostDelayedTask(FROM_HERE,
-        ::base::Bind(&C2VdecComponent::DebugUtil::startShowPipeLineBuffer, ::base::Unretained(this)),
+        ::base::Bind(&C2VdecComponent::DebugUtil::startShowPipeLineBuffer, mWeakFactory.GetWeakPtr()),
         ::base::TimeDelta::FromMilliseconds(5000));
 }
 

@@ -152,6 +152,7 @@ public:
 private:
     std::weak_ptr<C2VdecComponent> mComp;
     std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
+    ::base::WeakPtrFactory<C2VdecComponent::DebugUtil> mWeakFactory;
 };
 }
 #endif
