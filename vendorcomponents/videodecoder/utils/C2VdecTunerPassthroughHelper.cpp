@@ -116,6 +116,11 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setComponent(std::shared_pt
         C2VdecTPH_LOG(CODEC2_LOG_ERR, "Invalid hwsyncid:0x%x", mSyncId);
     }
 
+    LockWeakPtrWithoutReturn(helper, mTunnelHelper);
+    if (helper->getTunnelRender()) {
+        helper->getTunnelRender()->init(mSyncId);
+    }
+
     int32_t filterid = intfImpl->mVendorTunerHalParam->videoFilterId;
     mTunerPassthroughParams.dmx_id = ((filterid >> 16) & 0x0000000F);
     mTunerPassthroughParams.video_pid = (filterid & 0x0000FFFF);
