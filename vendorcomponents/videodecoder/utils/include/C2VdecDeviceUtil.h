@@ -107,7 +107,8 @@ public:
     void updateDurationUs(unsigned char *data, int size);
     bool getHDR10PlusData(std::string &data);
     void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect);
-    uint32_t getDoubleWriteModeValue();
+    int32_t getDoubleWriteModeValue();
+    int32_t getTripleWriteModeValue();
 
     // bit depth
     void queryStreamBitDepth();
@@ -122,6 +123,7 @@ public:
     bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
 
     bool checkConfigInfoFromDecoderAndReconfig(int type);
+    bool checkIsYcbcRP010Stream(); /* 10bit */
 
     void setGameMode(bool enable);
 
@@ -138,15 +140,25 @@ private:
     // static
     static const uint32_t kOutPutPtsValidNum = 5;
 
+    // The hardware platform supports 10bit decoding,
+    // so use the triple write configuration parameter.
+    int32_t getPropertyTripleWrite();
+    uint64_t getUsageFromTripleWrite(int32_t triplewrite);
+
     int32_t getPropertyDoubleWrite();
-    uint64_t getUsageFromDoubleWrite(uint32_t doublewrite);
+    uint64_t getUsageFromDoubleWrite(int32_t doublewrite);
     bool checkDvProfileAndLayer();
     bool isYcrcb420Stream() const; /* 8bit */
-    bool isYcbcRP010Stream() const; /* 10bit */
+
+    // It used to check if the dw and tw values,
+    // are set to 10bit output.
+    bool mIsNeedUse10BitOutBuffer;
+
+    bool mIsYcbRP010Stream;
+    bool mHwSupportP010;
 
     int HDRInfoDataBLEndianInt(int value);
 
-    int mUvmFd;
     std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
     std::weak_ptr<VideoDecWraper> mVideoDecWraper;
     mediahal_cfg_parms* mConfigParam;

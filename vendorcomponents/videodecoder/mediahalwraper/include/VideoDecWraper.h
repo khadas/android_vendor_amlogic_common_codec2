@@ -117,7 +117,7 @@ enum {
     /* metadata_config_flag */
     VDEC_CFG_FLAG_DV_TWOLAYER = (1<<0),
     VDEC_CFG_FLAG_DV_NEGATIVE  = (1<<1),
-    VDEC_CFG_FLAG_SF_DECODE_ENABLE = (1<<8),
+    VDEC_CFG_FLAG_DISABLE_DECODE_VPP = (1<<8),
     VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI = (1<<10),
     VDEC_CFG_FLAG_DIS_ERR_POLICY = (1 << 11),
     VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE = (1<<14),
@@ -140,6 +140,7 @@ enum {
     INTERLACE = 1 << 0,
     DOUBLE_WRITE = 1 << 1,
     TUNNEL_UNDERFLOW = 1 << 2,
+    YCBCR_P010_STREAM = 1 << 3,
 };
 
 struct aml_vdec_cfg_infos {
@@ -153,8 +154,8 @@ struct aml_vdec_cfg_infos {
     uint32_t uvm_hook_type;
     uint32_t metadata_config_flag;
     uint32_t duration;
-    uint32_t data[4];
-
+    uint32_t triple_write_mode;
+    uint32_t data[3];
 };
 struct aml_vdec_ps_infos {
     uint32_t visible_width;

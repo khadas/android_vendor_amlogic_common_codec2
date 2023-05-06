@@ -1208,8 +1208,9 @@ void C2VdecComponent::IntfImpl::onLowLatencyDeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onPixelFormatDeclareParam() {
-    bool support_10bit = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
-    if (support_10bit) {
+    bool support_soft_10bit = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
+    bool support_hardware_10bit = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010, false);
+    if (support_soft_10bit || support_hardware_10bit) {
         std::vector<uint32_t> pixelFormats = { HAL_PIXEL_FORMAT_YCBCR_420_888 };
         if (isHalPixelFormatSupported((AHardwareBuffer_Format)HAL_PIXEL_FORMAT_YCBCR_P010)) {
            pixelFormats.push_back(HAL_PIXEL_FORMAT_YCBCR_P010);

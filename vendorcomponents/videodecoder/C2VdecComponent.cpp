@@ -45,6 +45,7 @@
 #include <C2Buffer.h>
 #include <C2AllocatorGralloc.h>
 #include <C2ComponentFactory.h>
+#include <C2Config.h>
 #include <C2PlatformSupport.h>
 #include <Codec2Mapper.h>
 #include <C2VdecInterfaceImpl.h>
@@ -76,8 +77,6 @@
 #define MAX_INSTANCE_SECURE_LOW_RAM 1
 #define MAX_INSTANCE_SECURE_DEFAULT 2
 #define MAX_INSTANCE_HIGH_RES_DEFAULT 2
-
-
 
 #define UNUSED(expr)  \
     do {              \
@@ -265,9 +264,12 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     //default 1min
     mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32(C2_PROPERTY_VDEC_RETRYBLOCK_TIMEOUT, DEFAULT_RETRYBLOCK_TIMEOUT_MS);
-    mFdInfoDebugEnable =  property_get_bool(C2_PROPERTY_VDEC_FD_INFO_DEBUG, false);
-    mSupport10BitDepth =  property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
+    mFdInfoDebugEnable = property_get_bool(C2_PROPERTY_VDEC_FD_INFO_DEBUG, false);
 
+    bool support_soft_10bit = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
+    bool support_hardware_10bit = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010, false);
+
+    mSupport10BitDepth = support_soft_10bit | support_hardware_10bit;
     mDebugUtil = std::make_shared<DebugUtil>();
     mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
 
@@ -1687,7 +1689,7 @@ void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inp
         reportError(C2_CORRUPTED);
         return;
     }
-    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s@%d]Decode bitstream ID: %d timestamp:%" PRId64 "offset: %u size: %d hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
+    CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s@%d]Decode bitstream ID: %d timestamp:%" PRId64 " offset: %u size: %d hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
             bitstreamId, timestamp, input.offset(), (int)input.size(), hdrlen, flags);
     if (mVideoDecWraper != NULL) {
         mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, hdrbuf, hdrlen, flags);
@@ -1873,8 +1875,8 @@ void C2VdecComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format)
 
     if (mDeviceUtil != nullptr) {
         mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(INTERLACE);
-        if (mSupport10BitDepth) {
-            mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(DOUBLE_WRITE);
+        if (mDeviceUtil->checkIsYcbcRP010Stream()) {
+            mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(YCBCR_P010_STREAM);
         }
     }
     CHECK(!mPendingOutputFormat);
@@ -1889,7 +1891,9 @@ void C2VdecComponent::updateOutputDelayBufCount() {
         dequeueBufferNum = mOutputFormat.mMinNumBuffers;
     }
 
-    C2Vdec_LOG(CODEC2_LOG_INFO, "Update dequeue buffer num: %d -> %d", mOutputFormat.mMinNumBuffers, dequeueBufferNum);
+    int32_t bufferNumAdd = property_get_int32(C2_PROPERTY_VDEC_OUT_ADD_DELAY, 0);
+    dequeueBufferNum += bufferNumAdd;
+    C2Vdec_LOG(CODEC2_LOG_INFO, "Update dequeue buffer num: %d -> %d out delay buffer margin:%d", mOutputFormat.mMinNumBuffers, dequeueBufferNum, bufferNumAdd);
 
     C2PortActualDelayTuning::output outputDelay(dequeueBufferNum);
     std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -3020,8 +3024,21 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     if (mBufferFirstAllocated && minNumBuffers < mOutputFormat.mMinNumBuffers)
         minNumBuffers = mOutputFormat.mMinNumBuffers;
 
+    int32_t douleWrite = mDeviceUtil->getDoubleWriteModeValue();
+    int32_t tripleWrite = mDeviceUtil->getTripleWriteModeValue();
+
+    if (douleWrite == 0 && tripleWrite == 0) {
+        width = 64;
+        height = 64;
+    }
+
     uint32_t max_width = width;
     uint32_t max_height = height;
+
+    if (mSupport10BitDepth) {
+        mDeviceUtil->queryStreamBitDepth();
+        mDeviceUtil->checkIsYcbcRP010Stream();
+    }
 
     if (!mDeviceUtil->needAllocWithMaxSize()) {
         mDeviceUtil->getMaxBufWidthAndHeight(max_width, max_height);
@@ -3031,11 +3048,6 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
 
     // Set mRequestedVisibleRect to default.
     mRequestedVisibleRect = media::Rect();
-
-    if (mSupport10BitDepth && mDeviceUtil != nullptr) {
-        mDeviceUtil->queryStreamBitDepth();
-    }
-
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputFormatChanged,
                                                   ::base::Unretained(this),
                                                   ::base::Passed(&format)));
