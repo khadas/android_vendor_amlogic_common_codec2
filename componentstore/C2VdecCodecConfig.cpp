@@ -442,6 +442,7 @@ bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool s
         struct CodecAttributes attributeItem;
         memset(&attributeItem, 0, sizeof(attributeItem));
         attributeItem.typeName = typemap->first.c_str();
+        attributeItem.isSupport8k = false;
 
         while (attributemap != typemap->second.end()) {
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %s %s -- %s", __func__, name, attributemap->first.c_str(), attributemap->second.c_str());
@@ -455,6 +456,9 @@ bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool s
                 sscanf(attributemap->second.c_str(), "%dx%d", &attributeItem.blockSize.w, &attributeItem.blockSize.h);
             } else if (strstr(attributemap->first.c_str(), "size") != NULL) {
                 sscanf(attributemap->second.c_str(),"%dx%d-%dx%d",&attributeItem.minSize.w, &attributeItem.minSize.h, &attributeItem.maxSize.w, &attributeItem.maxSize.h);
+                if ((attributeItem.maxSize.w*attributeItem.maxSize.h >= 7680*4320) && property_get_bool(PROPERTY_PLATFORM_SUPPORT_8K, true)) {
+                    attributeItem.isSupport8k = true;
+                }
             } else if (strstr(attributemap->first.c_str(), "blocks-per-second-range") != NULL) {
                 sscanf(attributemap->second.c_str(), "%d-%d", &attributeItem.blocksPerSecond.min, &attributeItem.blocksPerSecond.max);
             } else if (strstr(attributemap->first.c_str(), "feature-adaptive-playback") != NULL) {
@@ -471,12 +475,13 @@ bool C2VdecCodecConfig::codecSupportFromMediaCodecXml(C2VendorCodec type, bool s
         }
 
         mCodecAttributes.insert(std::pair<const char*, CodecAttributes>(name, attributeItem));
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] alignment(%d %d) blocksize-range(%d %d) minSize(%d %d) maxSize(%d %d)",
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] alignment(%d %d) blocksize-range(%d %d) minSize(%d %d) maxSize(%d %d) isSupport8k: %d",
                 name,
                 attributeItem.alignMent.w,attributeItem.alignMent.h,
                 attributeItem.blockSize.w,attributeItem.blockSize.h,
                 attributeItem.minSize.w,attributeItem.minSize.h,
-                attributeItem.maxSize.w,attributeItem.maxSize.h);
+                attributeItem.maxSize.w,attributeItem.maxSize.h,
+                attributeItem.isSupport8k);
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "blockCount(%d %d) blocksPerSecond(%d %d) bitRate(%d %d) adaptivePlayback(%d) tunnelPlayback(%d) lowLatency(%d) concurrentInstance(%d)",
                 attributeItem.blockCount.min, attributeItem.blockCount.max,
                 attributeItem.blocksPerSecond.min, attributeItem.blocksPerSecond.max,
@@ -559,10 +564,18 @@ bool C2VdecCodecConfig::isMaxResolutionFromXml(C2VendorCodec codec_type, bool se
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s use Max Resolution.", name);
         return true;
     }
-
-
     return false;
 }
 
+bool C2VdecCodecConfig::isCodecSupport8k(C2VendorCodec codec_type, bool secure) {
+    const char* name = nullptr;
+    GetCompName(codec_type, secure, name);
+    auto attribute = mCodecAttributes.find(name);
+    if (attribute == mCodecAttributes.end()) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"don't found %s.", name);
+        return false;
+    }
+    return attribute->second.isSupport8k;
+}
 
 }

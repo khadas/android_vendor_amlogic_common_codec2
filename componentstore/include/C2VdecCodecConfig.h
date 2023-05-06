@@ -61,6 +61,9 @@ public:
     bool isCodecSupportFrameRate(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height, float frameRate);
     bool isMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height);
 
+    // Checks whether the specified codec supports 8k on the current platform
+    bool isCodecSupport8k(C2VendorCodec codec_type, bool secure);
+
     enum ValType {
         TYPE_INVALID = 0,
         TYPE_INT,
@@ -70,6 +73,7 @@ public:
         TYPE_INT_ARRAY,
     };
 
+private:
     struct Feature {
         Feature(int32_t index_, std::string name_, int32_t val_):
             index(index_), name(name_), type(TYPE_INT), ival(val_) {}
@@ -117,9 +121,9 @@ public:
         Range blockCount;
         Range blocksPerSecond;
         Range bitRate;
+        bool isSupport8k;
     };
 
-private:
     char* getCodecFeatures();
     bool codecsMapToString();
     bool codecSupportFromMediaCodecXml(C2VendorCodec type, bool secure);

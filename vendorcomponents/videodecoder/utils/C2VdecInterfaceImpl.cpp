@@ -435,74 +435,151 @@ void C2VdecComponent::IntfImpl::onAvcDeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onHevcDeclareParam() {
-    addParameter(
-        DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-        .withDefault(new C2StreamProfileLevelInfo::input(
-                0u, C2Config::PROFILE_HEVC_MAIN, C2Config::LEVEL_HEVC_HIGH_5_1))
-        .withFields(
-            {
-                C2F(mProfileLevel, profile)
-                .oneOf({C2Config::PROFILE_HEVC_MAIN,
-                    C2Config::PROFILE_HEVC_MAIN_10,
-                    C2Config::PROFILE_HEVC_MAIN_STILL,
-                    C2Config::PROFILE_HEVC_MAIN_422_10}),
-                C2F(mProfileLevel, level)
-                .oneOf({C2Config::LEVEL_HEVC_MAIN_1,
-                    C2Config::LEVEL_HEVC_MAIN_2, C2Config::LEVEL_HEVC_MAIN_2_1,
-                    C2Config::LEVEL_HEVC_MAIN_3, C2Config::LEVEL_HEVC_MAIN_3_1,
-                    C2Config::LEVEL_HEVC_MAIN_4, C2Config::LEVEL_HEVC_MAIN_4_1,
-                    C2Config::LEVEL_HEVC_MAIN_5, C2Config::LEVEL_HEVC_MAIN_5_1,
-                    C2Config::LEVEL_HEVC_HIGH_4, C2Config::LEVEL_HEVC_HIGH_4_1,
-                    C2Config::LEVEL_HEVC_HIGH_5, C2Config::LEVEL_HEVC_HIGH_5_1})
-            })
-    .withSetter(ProfileLevelSetter)
-    .build());
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
+    if (!C2VdecCodecConfig::getInstance().isCodecSupport8k(vendorCodec, mSecureMode)) {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_HEVC_MAIN, C2Config::LEVEL_HEVC_HIGH_5_1))
+            .withFields(
+                {
+                    C2F(mProfileLevel, profile)
+                    .oneOf({C2Config::PROFILE_HEVC_MAIN,
+                        C2Config::PROFILE_HEVC_MAIN_10,
+                        C2Config::PROFILE_HEVC_MAIN_STILL,
+                        C2Config::PROFILE_HEVC_MAIN_422_10}),
+                    C2F(mProfileLevel, level)
+                    .oneOf({C2Config::LEVEL_HEVC_MAIN_1,
+                        C2Config::LEVEL_HEVC_MAIN_2, C2Config::LEVEL_HEVC_MAIN_2_1,
+                        C2Config::LEVEL_HEVC_MAIN_3, C2Config::LEVEL_HEVC_MAIN_3_1,
+                        C2Config::LEVEL_HEVC_MAIN_4, C2Config::LEVEL_HEVC_MAIN_4_1,
+                        C2Config::LEVEL_HEVC_MAIN_5, C2Config::LEVEL_HEVC_MAIN_5_1,
+                        C2Config::LEVEL_HEVC_HIGH_4, C2Config::LEVEL_HEVC_HIGH_4_1,
+                        C2Config::LEVEL_HEVC_HIGH_5, C2Config::LEVEL_HEVC_HIGH_5_1})
+                })
+        .withSetter(ProfileLevelSetter)
+        .build());
+    } else {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_HEVC_MAIN, C2Config::LEVEL_HEVC_HIGH_6_1))
+            .withFields(
+                {
+                    C2F(mProfileLevel, profile)
+                    .oneOf({C2Config::PROFILE_HEVC_MAIN,
+                        C2Config::PROFILE_HEVC_MAIN_10,
+                        C2Config::PROFILE_HEVC_MAIN_STILL,
+                        C2Config::PROFILE_HEVC_MAIN_422_10}),
+                    C2F(mProfileLevel, level)
+                    .oneOf({C2Config::LEVEL_HEVC_MAIN_1,
+                        C2Config::LEVEL_HEVC_MAIN_2, C2Config::LEVEL_HEVC_MAIN_2_1,
+                        C2Config::LEVEL_HEVC_MAIN_3, C2Config::LEVEL_HEVC_MAIN_3_1,
+                        C2Config::LEVEL_HEVC_MAIN_4, C2Config::LEVEL_HEVC_MAIN_4_1,
+                        C2Config::LEVEL_HEVC_MAIN_5, C2Config::LEVEL_HEVC_MAIN_5_1,
+                        C2Config::LEVEL_HEVC_HIGH_4, C2Config::LEVEL_HEVC_HIGH_4_1,
+                        C2Config::LEVEL_HEVC_HIGH_5, C2Config::LEVEL_HEVC_HIGH_5_1,
+                        C2Config::LEVEL_HEVC_HIGH_6, C2Config::LEVEL_HEVC_HIGH_6_1})
+                })
+        .withSetter(ProfileLevelSetter)
+        .build());
+    }
 }
 
 void C2VdecComponent::IntfImpl::onVp9DeclareParam() {
-    addParameter(
-        DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-        .withDefault(new C2StreamProfileLevelInfo::input(
-                0u, C2Config::PROFILE_VP9_0, C2Config::LEVEL_VP9_5_1))
-        .withFields(
-        {
-            C2F(mProfileLevel, profile)
-            .oneOf({C2Config::PROFILE_VP9_0,
-                C2Config::PROFILE_VP9_2,
-                C2Config::PROFILE_VP9_3}),
-            C2F(mProfileLevel, level)
-            .oneOf({C2Config::LEVEL_VP9_1, C2Config::LEVEL_VP9_1_1,
-                C2Config::LEVEL_VP9_2, C2Config::LEVEL_VP9_2_1,
-                C2Config::LEVEL_VP9_3, C2Config::LEVEL_VP9_3_1,
-                C2Config::LEVEL_VP9_4, C2Config::LEVEL_VP9_4_1,
-                C2Config::LEVEL_VP9_5, C2Config::LEVEL_VP9_5_1})
-        })
-    .withSetter(ProfileLevelSetter)
-    .build());
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
+    if (!C2VdecCodecConfig::getInstance().isCodecSupport8k(vendorCodec, mSecureMode)) {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_VP9_0, C2Config::LEVEL_VP9_5_1))
+            .withFields(
+            {
+                C2F(mProfileLevel, profile)
+                .oneOf({C2Config::PROFILE_VP9_0,
+                    C2Config::PROFILE_VP9_2,
+                    C2Config::PROFILE_VP9_3}),
+                C2F(mProfileLevel, level)
+                .oneOf({C2Config::LEVEL_VP9_1, C2Config::LEVEL_VP9_1_1,
+                    C2Config::LEVEL_VP9_2, C2Config::LEVEL_VP9_2_1,
+                    C2Config::LEVEL_VP9_3, C2Config::LEVEL_VP9_3_1,
+                    C2Config::LEVEL_VP9_4, C2Config::LEVEL_VP9_4_1,
+                    C2Config::LEVEL_VP9_5, C2Config::LEVEL_VP9_5_1})
+            })
+        .withSetter(ProfileLevelSetter)
+        .build());
+    } else {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_VP9_0, C2Config::LEVEL_VP9_6_1))
+            .withFields(
+            {
+                C2F(mProfileLevel, profile)
+                .oneOf({C2Config::PROFILE_VP9_0,
+                    C2Config::PROFILE_VP9_2,
+                    C2Config::PROFILE_VP9_3}),
+                C2F(mProfileLevel, level)
+                .oneOf({C2Config::LEVEL_VP9_1, C2Config::LEVEL_VP9_1_1,
+                    C2Config::LEVEL_VP9_2, C2Config::LEVEL_VP9_2_1,
+                    C2Config::LEVEL_VP9_3, C2Config::LEVEL_VP9_3_1,
+                    C2Config::LEVEL_VP9_4, C2Config::LEVEL_VP9_4_1,
+                    C2Config::LEVEL_VP9_5, C2Config::LEVEL_VP9_5_1,
+                    C2Config::LEVEL_VP9_6, C2Config::LEVEL_VP9_6_1})
+            })
+        .withSetter(ProfileLevelSetter)
+        .build());
+    }
 }
 
 void C2VdecComponent::IntfImpl::onAv1DeclareParam() {
-    addParameter(
-        DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
-        .withDefault(new C2StreamProfileLevelInfo::input(
-                0u, C2Config::PROFILE_AV1_0, C2Config::LEVEL_AV1_5))
-        .withFields(
-        {
-            C2F(mProfileLevel, profile)
-            .oneOf({C2Config::PROFILE_AV1_0,
-                C2Config::PROFILE_AV1_1,
-                C2Config::PROFILE_AV1_2}),
-            C2F(mProfileLevel, level)
-            .oneOf({C2Config::LEVEL_AV1_2, C2Config::LEVEL_AV1_2_1,
-                C2Config::LEVEL_AV1_2_2, C2Config::LEVEL_AV1_2_3,
-                C2Config::LEVEL_AV1_3, C2Config::LEVEL_AV1_3_1,
-                C2Config::LEVEL_AV1_3_2, C2Config::LEVEL_AV1_3_3,
-                C2Config::LEVEL_AV1_4, C2Config::LEVEL_AV1_4_1,
-                C2Config::LEVEL_AV1_4_2, C2Config::LEVEL_AV1_4_3,
-                C2Config::LEVEL_AV1_5, C2Config::LEVEL_AV1_5_1})
-        })
-    .withSetter(ProfileLevelSetter)
-    .build());
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
+    if (!C2VdecCodecConfig::getInstance().isCodecSupport8k(vendorCodec, mSecureMode)) {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_AV1_0, C2Config::LEVEL_AV1_5_1))
+            .withFields(
+            {
+                C2F(mProfileLevel, profile)
+                .oneOf({C2Config::PROFILE_AV1_0,
+                    C2Config::PROFILE_AV1_1,
+                    C2Config::PROFILE_AV1_2}),
+                C2F(mProfileLevel, level)
+                .oneOf({C2Config::LEVEL_AV1_2, C2Config::LEVEL_AV1_2_1,
+                    C2Config::LEVEL_AV1_2_2, C2Config::LEVEL_AV1_2_3,
+                    C2Config::LEVEL_AV1_3, C2Config::LEVEL_AV1_3_1,
+                    C2Config::LEVEL_AV1_3_2, C2Config::LEVEL_AV1_3_3,
+                    C2Config::LEVEL_AV1_4, C2Config::LEVEL_AV1_4_1,
+                    C2Config::LEVEL_AV1_4_2, C2Config::LEVEL_AV1_4_3,
+                    C2Config::LEVEL_AV1_5, C2Config::LEVEL_AV1_5_1})
+            })
+        .withSetter(ProfileLevelSetter)
+        .build());
+    } else {
+        addParameter(
+            DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
+            .withDefault(new C2StreamProfileLevelInfo::input(
+                    0u, C2Config::PROFILE_AV1_0, C2Config::LEVEL_AV1_6_1))
+            .withFields(
+            {
+                C2F(mProfileLevel, profile)
+                .oneOf({C2Config::PROFILE_AV1_0,
+                    C2Config::PROFILE_AV1_1,
+                    C2Config::PROFILE_AV1_2}),
+                C2F(mProfileLevel, level)
+                .oneOf({C2Config::LEVEL_AV1_2, C2Config::LEVEL_AV1_2_1,
+                    C2Config::LEVEL_AV1_2_2, C2Config::LEVEL_AV1_2_3,
+                    C2Config::LEVEL_AV1_3, C2Config::LEVEL_AV1_3_1,
+                    C2Config::LEVEL_AV1_3_2, C2Config::LEVEL_AV1_3_3,
+                    C2Config::LEVEL_AV1_4, C2Config::LEVEL_AV1_4_1,
+                    C2Config::LEVEL_AV1_4_2, C2Config::LEVEL_AV1_4_3,
+                    C2Config::LEVEL_AV1_5, C2Config::LEVEL_AV1_5_1,
+                    C2Config::LEVEL_AV1_6, C2Config::LEVEL_AV1_6_1})
+            })
+        .withSetter(ProfileLevelSetter)
+        .build());
+    }
 }
 
 void C2VdecComponent::IntfImpl::onDvheDeclareParam() {
@@ -1278,7 +1355,6 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
                             C2VdecComponent::mInstanceID, mComponent->mCurInstanceID,
                             mSize->width, mSize->height);
     bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
-    bool support_8k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_8K, true);
     int32_t bufferSize = mSize->width * mSize->height;
 
     c2_status_t ret = C2_OK;
@@ -1287,8 +1363,8 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
         C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
         ret = C2_BAD_VALUE;
     }
-
-    if ((bufferSize > (4096 * 2304)) && !support_8k) {
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
+    if ((bufferSize > (4096 * 2304)) && !C2VdecCodecConfig::getInstance().isCodecSupport8k(vendorCodec, mSecureMode)) {
         CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] not support 8K for non-8K platform, config failed",
         C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
         ret = C2_BAD_VALUE;
@@ -1303,7 +1379,6 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
     }
 
     /*Check if use max resolution*/
-    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
     bool isMaxRes = C2VdecCodecConfig::getInstance().isMaxResolutionFromXml(vendorCodec, mSecureMode, mSize->width, mSize->height);
 
     if (isMaxRes && !mComponent->mIsMaxResolution) {

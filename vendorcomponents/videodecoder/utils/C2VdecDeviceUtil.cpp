@@ -1478,12 +1478,12 @@ bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
         if (err != C2_OK)
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query PictureSize error for avc 4k mmu", __func__, __LINE__);
         else if(mUseSurfaceTexture || mNoSurface)
-            C2VdecMDU_LOG(CODEC2_LOG_INFO, "mUseSurfaceTexture = %d/mNoSurface = %d, DO NOT Enable MMU", mUseSurfaceTexture, mNoSurface);
+            C2VdecMDU_LOG(CODEC2_LOG_TAG_BUFFER, "mUseSurfaceTexture = %d/mNoSurface = %d, DO NOT Enable MMU", mUseSurfaceTexture, mNoSurface);
         else if (output.width * output.height >= 3840 * 2160) {
             if (mSecure) {
                 return false;
             }
-            C2VdecMDU_LOG(CODEC2_LOG_INFO, "4k H264 Stream use MMU, width:%d height:%d",
+            C2VdecMDU_LOG(CODEC2_LOG_TAG_BUFFER, "4k H264 Stream use MMU, width:%d height:%d",
                     output.width, output.height);
             return true;
         }
