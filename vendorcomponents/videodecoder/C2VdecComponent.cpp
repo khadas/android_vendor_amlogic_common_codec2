@@ -759,8 +759,11 @@ void C2VdecComponent::onDequeueWork() {
                 sendOutputBufferToAccelerator(&info, false);
             }
         }
+    } else if (mFlushDoneWithOutEosWork == true) {
+        //if putbuf is not allocated,we only send outbuf to decoder when
+        //allocate buf, no need send outbuf again.
+        mFlushDoneWithOutEosWork = false;
     }
-
     if (!mQueue.empty()) {
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDequeueWork,
                                                       ::base::Unretained(this)));
