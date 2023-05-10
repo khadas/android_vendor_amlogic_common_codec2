@@ -182,6 +182,8 @@ private:
 
     /* for hdr10 plus */
     std::queue<std::string> mHDR10PlusData;
+    std::unique_ptr<C2StreamHdrDynamicMetadataInfo::output> mHdr10PlusInfo = nullptr;
+    bool mHaveHdr10PlusInStream;
 
     uint32_t mSignalType;
     bool mEnableAdaptivePlayback;

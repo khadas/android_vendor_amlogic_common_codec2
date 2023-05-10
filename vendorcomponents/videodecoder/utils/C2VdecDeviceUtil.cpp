@@ -80,6 +80,9 @@ C2VdecComponent::DeviceUtil::DeviceUtil(bool secure) {
 
 C2VdecComponent::DeviceUtil::~DeviceUtil() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    if (mHdr10PlusInfo != nullptr) {
+        mHdr10PlusInfo.reset();
+    }
 }
 
 void C2VdecComponent::DeviceUtil::init(bool secure) {
@@ -113,6 +116,8 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     // HDR
     mHDRStaticInfoChanged = false;
     mHDR10PLusInfoChanged = false;
+    mHaveHdr10PlusInStream = false;
+
     mEnableAdaptivePlayback = false;
     mPlayerId = 0;
 
@@ -1271,6 +1276,7 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
         return;
     }
     meta_head = (struct aml_meta_head_s *)data;
+    bool haveUpdateHDR10Plus = false;
     while ((offset + AML_META_HEAD_SIZE) < size) {
         meta_magic = meta_head->magic;
         meta_type  = meta_head->type;
@@ -1297,7 +1303,14 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
             updateDurationUs(buf, meta_size);
         } else if (meta_type == UVM_META_DATA_HDR10P_DATA) {
             updateHDR10plusToWork(buf, meta_size, work);
+            haveUpdateHDR10Plus = true;
         }
+    }
+
+    if (mHaveHdr10PlusInStream && !haveUpdateHDR10Plus && (mHdr10PlusInfo != nullptr)) {
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "update Decoder HDR10+ info use last data, timestap:%lld ",
+                                    (unsigned long long)work.input.ordinal.customOrdinal.peekull());
+        work.worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mHdr10PlusInfo.get()));
     }
 }
 
@@ -1305,8 +1318,11 @@ void C2VdecComponent::DeviceUtil::updateHDR10plusToWork(unsigned char *data, int
     std::lock_guard<std::mutex> lock(mMutex);
     LockWeakPtrWithReturnVoid(comp, mComp);
     LockWeakPtrWithReturnVoid(intfImpl, mIntfImpl);
+    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "update Decoder HDR10+ info timestap:%lld size:%d data:",
+                                (unsigned long long)work.input.ordinal.customOrdinal.peekull(), size);
     if (size > 0) {
         mHDR10PLusInfoChanged = true;
+        mHaveHdr10PlusInStream = true;
         std::unique_ptr<C2StreamHdrDynamicMetadataInfo::output> hdr10PlusInfo =
             C2StreamHdrDynamicMetadataInfo::output::AllocUnique(size);
         hdr10PlusInfo->m.type_ = C2Config::HDR_DYNAMIC_METADATA_TYPE_SMPTE_2094_40;
@@ -1315,12 +1331,16 @@ void C2VdecComponent::DeviceUtil::updateHDR10plusToWork(unsigned char *data, int
         if (gloglevel & CODEC2_LOG_DEBUG_LEVEL2) {
             AString tmp;
             hexdump(data, size, 4, &tmp);
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL2, "update Decoder HDR10+ info timestap:%lld size:%d data:",
-                                (unsigned long long)work.input.ordinal.customOrdinal.peekull(), size);
             ALOGD("%s", tmp.c_str());
         }
-        work.worklets.front()->output.configUpdate.push_back(std::move(hdr10PlusInfo));
+        if (nullptr == mHdr10PlusInfo || !(*hdr10PlusInfo == *mHdr10PlusInfo)) {
+            if (mHdr10PlusInfo != nullptr) {
+                mHdr10PlusInfo.reset();
+            }
+            mHdr10PlusInfo = std::move(hdr10PlusInfo);
+        }
     }
+    work.worklets.front()->output.configUpdate.push_back(C2Param::Copy(*mHdr10PlusInfo.get()));
 }
 bool C2VdecComponent::DeviceUtil::getHDR10PlusData(std::string &data)
 {
