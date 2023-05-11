@@ -446,9 +446,12 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             C2Vdec_LOG(CODEC2_LOG_ERR, "set sched_priority error: %s", strerror(errno));
         }
     } else {
-        int niceval = -20;
+        int niceval = -10;
+        int priorityval = 0;
+        propGetInt(C2_PROPERTY_VDEC_DEBUG_PRIORITY, &priorityval);
+        niceval = ((priorityval > 0) ? (priorityval - 120) : (-10));
         if (setpriority(PRIO_PROCESS, 0, niceval) != 0) {
-            C2Vdec_LOG(CODEC2_LOG_ERR, "setpriority error: %s", strerror(errno));
+            C2Vdec_LOG(CODEC2_LOG_ERR, "setpriority error: %s, niceval:%d", strerror(errno), niceval);
         }
     }
     if (mDebugUtil)

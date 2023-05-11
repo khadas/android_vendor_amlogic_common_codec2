@@ -28,6 +28,8 @@
 #include <algorithm>
 #include <rect.h>
 #include <size.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include <base/bind.h>
 #include <base/bind_helpers.h>
@@ -127,6 +129,10 @@ bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, u
     mMinFetchBlockInterval = mStreamDurationUs / 4;
 
     C2VdecDQ_LOG(CODEC2_LOG_INFO,"%s task loop:%d alloc loop:%d duration:%d minfetchinterval:%d", __func__, mRunTaskLoop.load(), mAllocBufferLoop.load(), mStreamDurationUs, mMinFetchBlockInterval);
+
+    mDequeueTaskRunner->PostTask(
+                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onInitTask, ::base::Unretained(this)));
+
     return true;
 }
 
@@ -147,6 +153,29 @@ void C2VdecComponent::DequeueThreadUtil::StopAllocBuffer() {
 
 bool C2VdecComponent::DequeueThreadUtil::getAllocBufferLoopState() {
     return mAllocBufferLoop.load();
+}
+
+void C2VdecComponent::DequeueThreadUtil::onInitTask() {
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    DCHECK(mDequeueTaskRunner->BelongsToCurrentThread());
+
+    // set priority
+    bool disableRC = property_get_bool(C2_PROPERTY_VDEC_DISABLE_RC, true);
+    if (!disableRC) {
+        struct sched_param param = {0};
+        param.sched_priority = 1;
+        if (sched_setscheduler(0, SCHED_RR, &param) != 0) {
+            C2VdecDQ_LOG(CODEC2_LOG_ERR, "set sched_priority error: %s", strerror(errno));
+        }
+    } else {
+        int niceval = -10;
+        int priorityval = 0;
+        propGetInt(C2_PROPERTY_VDEC_DEBUG_PRIORITY, &priorityval);
+        niceval = ((priorityval > 0) ? (priorityval - 120) : (-10));
+        if (setpriority(PRIO_PROCESS, 0, niceval) != 0) {
+            C2VdecDQ_LOG(CODEC2_LOG_ERR, "setpriority error: %s, niceval:%d", strerror(errno), niceval);
+        }
+    }
 }
 
 void C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask(media::Size size, uint32_t pixelFormat, bool waitRunning, uint32_t delayTimeUs) {

@@ -62,6 +62,7 @@
 #define C2_PROPERTY_VDEC_FD_INFO_DEBUG              "debug.vendor.media.c2.vdec.fd_info_debug"
 #define C2_PROPERTY_VDEC_SUPPORT_10BIT              "debug.vendor.media.c2.vdec.support_10bit"
 #define C2_PROPERTY_VDEC_DISABLE_RC                 "debug.vendor.media.c2.vdec.disable-rc"
+#define C2_PROPERTY_VDEC_DEBUG_PRIORITY             "debug.vendor.media.c2.vdec.priority"
 
 /* soft vdec */
 #define C2_PROPERTY_SOFTVDEC_INST_MAX_NUM           "vendor.media.c2.softvdec.inst.max_num"

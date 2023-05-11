@@ -45,6 +45,7 @@ public:
 private:
     void onAllocBufferTask(media::Size size, uint32_t pixelFormat);
     int32_t getFetchGraphicBlockDelayTimeUs(c2_status_t err);
+    void onInitTask();
 
     std::weak_ptr<C2VdecComponent> mComp;
     std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
