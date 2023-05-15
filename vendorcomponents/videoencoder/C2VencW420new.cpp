@@ -409,6 +409,9 @@ public:
         if (!me.F(me.v.profile).supportsAtAll(me.v.profile)) {
             me.set().profile = PROFILE_HEVC_MAIN;
         }
+        if (!me.F(me.v.level).supportsAtAll(me.v.level)) {
+            me.set().level = LEVEL_HEVC_MAIN_5;
+        }
 
         struct LevelLimits {
             C2Config::level_t level;
@@ -916,6 +919,12 @@ c2_status_t C2VencW420New::Init() {
         initParam.vui_info_present = true;
         initParam.video_signal_type = true;
         initParam.color_description = true;
+        /*if (initParam.width > 1280 && initParam.height > 720) {
+            mCodedColorAspects->matrix = MATRIX_BT709;
+            initParam.primaries = true;
+            initParam.transfer = true;
+            initParam.matrix = mCodedColorAspects->matrix;
+        }*/
 
         C2W420_LOG(CODEC2_VENC_LOG_INFO,"enable vui info");
     }
