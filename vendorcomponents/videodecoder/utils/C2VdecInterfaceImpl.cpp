@@ -623,7 +623,8 @@ void C2VdecComponent::IntfImpl::onMp2vDeclareParam() {
                     .oneOf({C2Config::LEVEL_MP2V_LOW,
                         C2Config::LEVEL_MP2V_MAIN,
                         C2Config::LEVEL_MP2V_HIGH_1440,
-                        C2Config::LEVEL_MP2V_HIGH})
+                        C2Config::LEVEL_MP2V_HIGH,
+                        C2Config::LEVEL_MP2V_HIGHP})
             })
     .withSetter(ProfileLevelSetter)
     .build());
