@@ -1472,7 +1472,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
 bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
     LockWeakPtrWithReturnVal(comp, mComp, false);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
-    if ((intfImpl->getInputCodec() == InputCodec::H264) && mEnableAvc4kMMU) {
+    if ((intfImpl->getInputCodec() == InputCodec::H264) && mEnableAvc4kMMU && (!mIsInterlaced)) {
         C2StreamPictureSizeInfo::output output = {0};
         c2_status_t err = intfImpl->query({&output}, {}, C2_MAY_BLOCK, nullptr);
         if (err != C2_OK)
