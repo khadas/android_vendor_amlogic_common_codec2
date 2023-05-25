@@ -206,6 +206,8 @@ private:
     Mutex mInputQueueLock;
     bool mDumpYuvEnable;
     bool mDumpEsEnable;
+    Mutex mProcessDoneLock;
+    Condition mProcessDoneCond;
 };
 
 }

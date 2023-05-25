@@ -196,7 +196,10 @@ C2VencComponent::~C2VencComponent() {
      * This is the logic, no need to modify, ignore coverity weak cryptor report.
     */
     /*coverity[exn_spec_violation:SUPPRESS]*/
-
+    if (mComponentState != ComponentState::UNINITIALIZED) {
+        stop();
+        release();
+    }
     ALOGD("C2VencComponent destructor!");
 }
 
@@ -308,6 +311,14 @@ c2_status_t C2VencComponent::stop() {
     }
     if (mthread.isRunning()) {
         mthread.stop();
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread to exit!");
+        AutoMutex l(mProcessDoneLock);
+        if (mProcessDoneCond.waitRelative(mProcessDoneLock,500000000ll) == ETIMEDOUT) {
+            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"wait for thread timeout!!!!");
+        }
+        else {
+            C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread exit done!!!!");
+        }
     }
     if (mfdDumpInput >= 0) {
         close(mfdDumpInput);
@@ -322,6 +333,7 @@ c2_status_t C2VencComponent::stop() {
     }
     Close();
     mComponentState = ComponentState::UNINITIALIZED;
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"stop done,set state to UNINITIALIZED");
     return C2_OK;
 }
 
@@ -1000,6 +1012,7 @@ void C2VencComponent::ProcessData()
             WorkDone(work);
             return;
         }
+
     }
     OutputFrameInfo_t OutInfo;
     memset(&OutInfo,0,sizeof(OutInfo));
@@ -1132,6 +1145,9 @@ void *C2VencComponent::threadLoop() {
 
         usleep(100);
     }
+    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"threadLoop exit done!");
+    AutoMutex l(mProcessDoneLock);
+    mProcessDoneCond.signal();
     return NULL;
 }
 
