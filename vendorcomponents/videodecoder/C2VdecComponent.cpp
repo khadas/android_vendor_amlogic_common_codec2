@@ -547,6 +547,10 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
+
+    if (mFlushDoneWithOutEosWork == true)
+        mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onReusedOutBuf, ::base::Unretained(this)));
+
     uint32_t drainMode = NO_DRAIN;
     bool isEosWork = false;
     if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
@@ -612,6 +616,44 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
         // }
     }
 }
+
+
+void C2VdecComponent::onReusedOutBuf() {
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] into.", __func__);
+    if (mFlushDoneWithOutEosWork == true && mBufferFirstAllocated == true) {
+        mFlushDoneWithOutEosWork = false;
+        while (!mFlushDoneBufferOwnedByComp.empty()) {
+            auto ite = mFlushDoneBufferOwnedByComp.front();
+            GraphicBlockInfo* info = getGraphicBlockById(ite);
+            if (info == NULL) {
+                mFlushDoneBufferOwnedByComp.pop_front();
+                C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] info is null, please check it.", __func__);
+                continue;
+            }
+
+            if (info->mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
+                GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_ACCELERATOR);
+                BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "[%s] index=%d", __func__, info->mBlockId);
+            }
+            mFlushDoneBufferOwnedByComp.pop_front();
+        }
+
+        //after flush we need reuse the buffer which owned by accelerator
+        for (auto& info : mGraphicBlocks) {
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Index:%d,graphic block status:%s count:%ld", __func__,
+                    info.mBlockId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
+            if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
+                sendOutputBufferToAccelerator(&info, false);
+            }
+        }
+    } else if (mFlushDoneWithOutEosWork == true) {
+        //if putbuf is not allocated,we only send outbuf to decoder when
+        //allocate buf, no need send outbuf again.
+        mFlushDoneWithOutEosWork = false;
+    }
+    C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] end.", __func__);
+}
+
 
 void C2VdecComponent::onDequeueWork() {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
@@ -743,38 +785,6 @@ void C2VdecComponent::onDequeueWork() {
         // Directly report the empty CSD work as finished.
         C2Vdec_LOG(CODEC2_LOG_INFO, "OnDequeueWork empty csd work, bitId:%d\n", bitstreamId);
         reportWorkIfFinished(bitstreamId, 0, isEmptyWork);
-    }
-
-    if (mFlushDoneWithOutEosWork == true && mBufferFirstAllocated == true) {
-        mFlushDoneWithOutEosWork = false;
-        while (!mFlushDoneBufferOwnedByComp.empty()) {
-            auto ite = mFlushDoneBufferOwnedByComp.front();
-            GraphicBlockInfo* info = getGraphicBlockById(ite);
-            if (info == NULL) {
-                mFlushDoneBufferOwnedByComp.pop_front();
-                C2Vdec_LOG(CODEC2_LOG_ERR, "[%s] info is null, please check it.", __func__);
-                continue;
-            }
-
-            if (info->mState == GraphicBlockInfo::State::OWNED_BY_COMPONENT) {
-                GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_ACCELERATOR);
-                BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "[%s] index=%d", __func__, info->mBlockId);
-            }
-            mFlushDoneBufferOwnedByComp.pop_front();
-        }
-
-        //after flush we need reuse the buffer which owned by accelerator
-        for (auto& info : mGraphicBlocks) {
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Index:%d,graphic block status:%s count:%ld", __func__,
-                    info.mBlockId, GraphicBlockState(info.mState), info.mGraphicBlock.use_count());
-            if (info.mState == GraphicBlockInfo::State::OWNED_BY_ACCELERATOR) {
-                sendOutputBufferToAccelerator(&info, false);
-            }
-        }
-    } else if (mFlushDoneWithOutEosWork == true) {
-        //if putbuf is not allocated,we only send outbuf to decoder when
-        //allocate buf, no need send outbuf again.
-        mFlushDoneWithOutEosWork = false;
     }
     if (!mQueue.empty()) {
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDequeueWork,
@@ -1912,9 +1922,9 @@ void C2VdecComponent::tryChangeOutputFormat() {
         return;
     }
     CHECK(mPendingOutputFormat);
-
-    if (isNonTunnelMode() && (!mPendingBuffersToWork.empty() || mComponentState == ComponentState::FLUSHING)) {
-        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Pending buffers has work, or state is flushing and wait...");
+    // || mComponentState == ComponentState::FLUSHING
+    if (isNonTunnelMode() && (!mPendingBuffersToWork.empty())) {
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Pending buffers has work, and wait...");
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::tryChangeOutputFormat,
                                             ::base::Unretained(this)));
         return;
@@ -2965,15 +2975,21 @@ c2_status_t C2VdecComponent::stop() {
 
 c2_status_t C2VdecComponent::reset() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
+    c2_status_t ret = C2_OK;
     mVdecComponentStopDone = false;
-    return stop();
+    ret = stop();
+    if (ret == C2_CANNOT_DO) {
+        ret = C2_OK;
+    }
+    return ret;
     //  TODO: reset is different than stop that it could be called in any state.
     //  TODO: when reset is called, set ComponentInterface to default values.
 }
 
 c2_status_t C2VdecComponent::release() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
-    reset();
+    c2_status_t ret = C2_OK;
+    ret = reset();
     if (mDebugUtil) {
         mDebugUtil.reset();
         mDebugUtil = NULL;
@@ -2986,7 +3002,7 @@ c2_status_t C2VdecComponent::release() {
         done.Wait();
         mThread.Stop();
     }
-    return C2_OK;
+    return ret;
 }
 
 std::shared_ptr<C2ComponentInterface> C2VdecComponent::intf() {
