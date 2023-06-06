@@ -158,6 +158,10 @@ private:
     bool mIsYcbRP010Stream;
     bool mHwSupportP010;
 
+    //di post
+    bool needDecoderReplaceBufferForDiPost();
+    bool isUseVdecCore();
+
     int HDRInfoDataBLEndianInt(int value);
 
     std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
@@ -171,12 +175,14 @@ private:
     bool mColorAspectsChanged;
     bool mSecure;
     bool mEnableNR;
+    bool mDiPost;
     bool mForceDIPermission;
     bool mEnableDILocalBuf;
     bool mIs8k;
     bool mEnable8kNR;
     bool mDisableErrPolicy;
     bool mForceFullUsage;
+    int  mBufMode;
 
     /* for low-latency mode */
     bool mUseLowLatencyMode;

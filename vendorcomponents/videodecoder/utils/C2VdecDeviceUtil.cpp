@@ -103,6 +103,7 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mIsNeedUse10BitOutBuffer = false;
     mHwSupportP010 = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010, false);
 
+    mDiPost = property_get_bool(C2_PROPERTY_VDEC_DI_POST, false);
     // 8K
     mIs8k = false;
     mEnable8kNR = false;
@@ -171,7 +172,8 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
                 doubleWriteValue = 3;
                 CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s-%d] surfaceuse dw:%d", __func__, __LINE__, doubleWriteValue);
             } else if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
-                    mIsInterlaced || !mEnableNR || !mEnableDILocalBuf) {
+                    mIsInterlaced || !mEnableNR || !mEnableDILocalBuf ||
+                    mDiPost) {
                 doubleWriteValue = 0x10;
                 CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "texture/nosurface or interlaced or no di/nr video use dw 0x10");
             } else {
@@ -336,7 +338,8 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     uint32_t bufheight = 0;
     uint32_t margin = default_margin;
     bool dvUseTwoLayer = false;
-
+    //default buf mode is dma
+    mBufMode = DMA_BUF_MODE;
     if (configParam == NULL) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] codec config param error, please check.", __func__, __LINE__);
         return;
@@ -471,6 +474,18 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     if (mEnableDILocalBuf) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Enable DILocalBuf");
         pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_LOCALBUF_ENABLE;
+    }
+    if (mDiPost) {
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Enable DIPOST");
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DI_POST;
+    }
+
+    if (mBufMode == DMA_BUF_MODE) {
+        pAmlDecParam->cfg.metadata_config_flag &= ~VDEC_CFG_FLAG_BUF_MODE;
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Buf dma mode 0x%x", pAmlDecParam->cfg.metadata_config_flag);
+    } else {
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Ion dma mode");
+        pAmlDecParam->cfg.metadata_config_flag |= VDEC_CFG_FLAG_BUF_MODE;
     }
 
     C2ErrorPolicy::input errorPolicy;
@@ -1213,9 +1228,44 @@ bool C2VdecComponent::DeviceUtil::checkIsYcbcRP010Stream() {
     return mIsYcbRP010Stream;
 }
 
+bool C2VdecComponent::DeviceUtil::isUseVdecCore() {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
+    bool isUseVdec = false;
+    switch (intfImpl->getInputCodec()) {
+            case InputCodec::MJPG:
+            case InputCodec::H264:
+            case InputCodec::MP2V:
+            case InputCodec::MP4V:
+            case InputCodec::AVS:
+                isUseVdec = true;
+                break;
+            default:
+                isUseVdec = false;
+                break;
+    }
+    return isUseVdec;
+}
+
+bool C2VdecComponent::DeviceUtil::needDecoderReplaceBufferForDiPost() {
+    if (mIsInterlaced && mDiPost && isUseVdecCore() &&
+        !(mUseSurfaceTexture || mNoSurface))
+        return true;
+    return false;
+ }
+
 uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
     uint64_t usage = 0;
     LockWeakPtrWithReturnVal(comp, mComp, usage);
+
+    if (needDecoderReplaceBufferForDiPost()) {
+#ifdef SUPPORT_GRALLOC_REPLACE_BUFFER_USAGE
+        usage =  am_gralloc_get_video_decoder_replace_buffer_usage();
+        return usage & C2MemoryUsage::PLATFORM_MASK;
+#else
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "do not support am_gralloc_get_video_decoder_replace_buffer_usage");
+#endif
+    }
 
     if (mIsYcbRP010Stream) {
         if (mHwSupportP010) { // hardware support 10bit, use triple write.
@@ -1628,7 +1678,8 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
         if (codec == InputCodec::H265 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
            params->cfg.double_write_mode = 1;
            configChanged = true;
-        } else if (codec == InputCodec::H264 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
+        } else if ((codec == InputCodec::H264 && mIsInterlaced && params->cfg.double_write_mode == 0x03) ||
+            needDecoderReplaceBufferForDiPost()) {
            params->cfg.double_write_mode = 0x10;
            configChanged = true;
         }

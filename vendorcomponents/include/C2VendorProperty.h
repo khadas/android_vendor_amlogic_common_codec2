@@ -60,6 +60,7 @@
 #define C2_PROPERTY_VDEC_FORCE_DI_PERMISSION        "vendor.media.c2.vdec.force_di_permission"
 #define C2_PROPERTY_VDEC_GAME_LOW_LATENCY           "vendor.media.c2.vdec.game_low_latency"
 #define C2_PROPERTY_VDEC_FIXED_BUFF_SLICE           "vendor.media.common.fixed_buffer_slice"
+#define C2_PROPERTY_VDEC_DI_POST                     "vendor.media.c2.vdec.di.post"
 
 /* debug */
 #define C2_PROPERTY_VDEC_FD_INFO_DEBUG              "debug.vendor.media.c2.vdec.fd_info_debug"

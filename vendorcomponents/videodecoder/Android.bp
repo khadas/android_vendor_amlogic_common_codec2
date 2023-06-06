@@ -19,11 +19,36 @@ package {
     default_applicable_licenses: ["vendor_amlogic_common_license"],
 }
 
+bootstrap_go_package {
+    name: "c2_component_aml",
+    pkgPath: "android/soong/c2_component_aml",
+    deps: [
+        "blueprint",
+        "soong",
+        "soong-android",
+        "soong-cc",
+        "soong-genrule",
+        "blueprint-bootstrap",
+        "soong-cc-config"
+    ],
+    srcs: [
+        "c2_component_aml.go",
+    ],
+
+    pluginFor: ["soong_build"],
+}
+
+c2_component_aml_go_defaults {
+    name: "c2_component_aml_go_defaults",
+}
+
+
 cc_library_shared {
     name: "libcodec2_aml_video_decoder",
     defaults: [
         "libchrome-defaults",
         "libcodec2-impl-defaults",
+	"c2_component_aml_go_defaults"
     ],
     vendor: true,
 

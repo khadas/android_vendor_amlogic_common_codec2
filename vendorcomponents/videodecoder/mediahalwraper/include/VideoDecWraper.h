@@ -125,7 +125,16 @@ enum {
     VDEC_CFG_FLAG_FORCE_DI     = (1<<17),
     VDEC_CFG_FLAG_RELEASE_VPP_EARLY = (1<<18),
     VDEC_CFG_FLAG_UNUSE_AVBC_OUT = (1<<19),
+    VDEC_CFG_FLAG_DI_POST      = (1<<20),
+    VDEC_CFG_FLAG_BUF_MODE      = (1<<21),
 };
+
+enum {
+    /* buf mode */
+    DMA_BUF_MODE = 0,
+    ION_BUF_MODE = 1,
+};
+
 
 enum {
     /* low_latency_mode */
