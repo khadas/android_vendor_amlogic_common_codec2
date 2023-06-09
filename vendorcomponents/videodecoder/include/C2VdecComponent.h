@@ -176,6 +176,13 @@ public:
     void onConfigureTunerPassthroughInstanceNo();
     void onConfigureTunerPassthroughEventMask();
     void onConfigureEsModeHwAvsyncId(int32_t avSyncId);
+    void onConfigureTunerPassthroughMute();
+    void onConfigureTunerPassthroughScreenColor();
+    void onConfigureTunerPassthroughTransitionModeBefore();
+    void onConfigureTunerPassthroughTransitionModeAfter();
+    void onConfigureTunerPassthroughTransitionPrerollRate();
+    void onConfigureTunerPassthroughTransitionPrerollAVTolerance();
+    void onConfigureTunerPassthroughPlaybackStatus();
     //for out use
     bool isAmDolbyVision() {return mIsDolbyVision;}
     bool isSecureMode() {return mSecureMode;}

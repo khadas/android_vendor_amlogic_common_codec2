@@ -48,6 +48,13 @@ public:
     c2_status_t setWorkMode();
     c2_status_t setInstanceNo();
     c2_status_t setRenderCallBackEventFlag();
+    c2_status_t setMute();
+    c2_status_t setScreenColor();
+    c2_status_t setTransitionModeBefore();
+    c2_status_t setTransitionModeAfter();
+    c2_status_t setTransitionPrerollRate();
+    c2_status_t setTransitionPrerollAVTolerance();
+    c2_status_t setPlaybackStatus();
 
 private:
     static int notifyTunerPassthroughRenderTimeCallback(void* obj, void* args);

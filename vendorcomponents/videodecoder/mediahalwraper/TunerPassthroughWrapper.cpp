@@ -169,8 +169,13 @@ int TunerPassthroughWrapper::SetRenderCallBackEventFlag(int64_t eventflag) {
     return 0;
 }
 
+int TunerPassthroughWrapper::SetPassthroughParams(int32_t type, passthroughParams* params) {
+    ALOGD("[%s/%d]", __FUNCTION__, __LINE__);
 
+    if (mTunerPassthrough) {
+        mTunerPassthrough->SetPassthroughParams(type, params);
+    }
+    return 0;
 }
 
-
-
+}

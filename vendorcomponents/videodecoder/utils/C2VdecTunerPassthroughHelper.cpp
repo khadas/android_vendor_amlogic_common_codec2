@@ -238,6 +238,113 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setRenderCallBackEventFlag(
     return C2_OK;
 }
 
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setMute() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int64_t mMute = intfImpl->mVendorTunerPassthroughMute->mMute;
+
+    passthroughParams configParam;
+    memset(&configParam, 0, sizeof(passthroughParams));
+
+    configParam.param1 = mMute;
+    mTunerPassthrough->SetPassthroughParams(AM_PASSTHROUGH_PARAM_MUTE, &configParam);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setScreenColor() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int32_t screenColor = intfImpl->mVendorTunerPassthroughScreenColor->screenColor;
+    int32_t screenMode = intfImpl->mVendorTunerPassthroughScreenColor->screenMode;
+
+    passthroughParams configParam;
+    memset(&configParam, 0, sizeof(passthroughParams));
+
+    configParam.param1 = screenColor;
+    configParam.param2 = screenMode;
+    mTunerPassthrough->SetPassthroughParams(AM_PASSTHROUGH_PARAM_SCREEN_COLOR, &configParam);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setTransitionModeBefore() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int64_t transitionModeBefore = intfImpl->mVendorTunerPassthroughTransitionModeBefore->transitionModeBefore;
+
+    passthroughParams configParam;
+    memset(&configParam, 0, sizeof(passthroughParams));
+
+    configParam.param1 = transitionModeBefore;
+    mTunerPassthrough->SetPassthroughParams(AM_PASSTHROUGH_PARAM_TRANSITION_MODE_BEFORE, &configParam);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setTransitionModeAfter() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int64_t transitionModeAfter = intfImpl->mVendorTunerPassthroughTransitionModeAfter->transitionModeAfter;
+
+    passthroughParams configParam;
+    memset(&configParam, 0, sizeof(passthroughParams));
+
+    configParam.param1 = transitionModeAfter;
+    mTunerPassthrough->SetPassthroughParams(AM_PASSTHROUGH_PARAM_TRANSITION_MODE_AFTER, &configParam);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setTransitionPrerollRate() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int64_t transitionPrerollRate = intfImpl->mVendorTunerPassthroughTransitionPrerollRate->transitionPrerollRate;
+
+    passthroughParams configParam;
+    memset(&configParam, 0, sizeof(passthroughParams));
+
+    configParam.param1 = transitionPrerollRate;
+    mTunerPassthrough->SetPassthroughParams(AM_PASSTHROUGH_PARAM_TRANSITION_PREROLL_RATE, &configParam);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setTransitionPrerollAVTolerance() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int64_t transitionPrerollAVTolerance = intfImpl->mVendorTunerPassthroughPrerollAVTolerance->transitionPrerollAVTolerance;
+
+    passthroughParams configParam;
+    memset(&configParam, 0, sizeof(passthroughParams));
+
+    configParam.param1 = transitionPrerollAVTolerance;
+    mTunerPassthrough->SetPassthroughParams(AM_PASSTHROUGH_PARAM_TRANSITION_PREROLL_AV_TOLERANCE, &configParam);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setPlaybackStatus() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int64_t mPlaybackStatus = intfImpl->mVendorTunerPassthroughPlaybackStatus->playbackStatus;
+
+    passthroughParams configParam;
+    memset(&configParam, 0, sizeof(passthroughParams));
+
+    configParam.param1 = mPlaybackStatus;
+    mTunerPassthrough->SetPassthroughParams(AM_PASSTHROUGH_PARAM_PLAYBACK_STATUS, &configParam);
+
+    return C2_OK;
+}
+
 void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough(struct renderTime rendertime) {
     LockWeakPtrWithReturnVoid(comp, mComp);
     scoped_refptr<::base::SingleThreadTaskRunner> taskRunner = comp->GetTaskRunner();

@@ -40,7 +40,13 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorTunerPassthroughEventMask,
     kParamIndexVendorStreammodeHwAvSyncID,
     kParamIndexVendorGameModeLatency,
-
+    kParamIndexVendorTunerPassthroughMute,
+    kParamIndexVendorTunerPassthroughScreenColor,
+    kParamIndexVendorTunerPassthroughTransitionModeBefore,
+    kParamIndexVendorTunerPassthroughTransitionModeAfter,
+    kParamIndexVendorTunerPassthroughTransitionPrerollRate,
+    kParamIndexVendorTunerPassthroughTransitionPrerollAVTolerance,
+    kParamIndexVendorTunerPassthroughPlaybackStatus,
     /*these are Audio Decoder config parameters.*/
     kParamIndexVendorAdecCodecId = C2Param:: TYPE_INDEX_VENDOR_START + 0x200,
     kParamIndexVendorAdecExtraDataSize,
@@ -106,7 +112,7 @@ struct C2VendorTunerPassthroughTrickModeStruct {
 };
 
 typedef C2PortParam<C2Setting, C2VendorTunerPassthroughTrickModeStruct, kParamIndexVendorTunerPassthroughTrickMode> C2VendorTunerPassthroughTrickMode;
-constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughTrickMode[] = "tunerhal.passthrough";
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_TRICKMODE[] = "tunerhal.passthrough";
 constexpr char KEY_VENDOR_TRAICKMODE[] = "vendor.tunerhal.passthrough.trick-mode";
 constexpr char KEY_VENDOR_TRICKSPEED[] = "vendor.tunerhal.passthrough.trick-speed";
 constexpr char KEY_VENDOR_FRAMEADVANCE[] = "vendor.tunerhal.passthrough.frame-advance";
@@ -121,7 +127,7 @@ struct C2VendorTunerPassthroughWorkModeStruct {
 };
 
 typedef C2PortParam<C2Setting, C2VendorTunerPassthroughWorkModeStruct, kParamIndexVendorTunerPassthroughWorkMode> C2VendorTunerPassthroughWorkMode;
-constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughWorkMode[] = "tunerhal.passthrough";
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGHWORKMODE[] = "tunerhal.passthrough";
 constexpr char KEY_VENDOR_WORKMODE[] = "vendor.tunerhal.passthrough.work-mode";
 
 struct C2VendorTunerPassthroughInstanceNoStruct {
@@ -134,7 +140,7 @@ struct C2VendorTunerPassthroughInstanceNoStruct {
 };
 
 typedef C2PortParam<C2Setting, C2VendorTunerPassthroughInstanceNoStruct, kParamIndexVendorTunerPassthroughInstanceNo> C2VendorTunerPassthroughInstanceNo;
-constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughInstanceNo[] = "tunerhal.passthrough";
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGHINSTANCENO[] = "tunerhal.passthrough";
 constexpr char KEY_VENDOR_INSTANCE_NO[] = "vendor.tunerhal.passthrough.instance-no";
 
 struct C2VendorTunerPassthroughEventMaskStruct {
@@ -147,8 +153,102 @@ struct C2VendorTunerPassthroughEventMaskStruct {
 };
 
 typedef C2PortParam<C2Setting, C2VendorTunerPassthroughEventMaskStruct, kParamIndexVendorTunerPassthroughEventMask> C2VendorTunerPassthroughEventMask;
-constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughEventMask[] = "tunerhal.passthrough";
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_EVENTMASK[] = "tunerhal.passthrough";
 constexpr char KEY_VENDOR_EVENTMASK[] = "vendor.tunerhal.passthrough.event-mask";
+
+struct C2VendorTunerPassthroughMuteStruct {
+    inline C2VendorTunerPassthroughMuteStruct() = default;
+    inline C2VendorTunerPassthroughMuteStruct(int32_t mute)
+        :mMute(mute) {}
+    int32_t mMute;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughMute)
+    C2FIELD(mMute, "mute")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughMuteStruct, kParamIndexVendorTunerPassthroughMute> C2VendorTunerPassthroughMute;
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_MUTE[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_MUTE[] = "vendor.tunerhal.passthrough.mute";
+
+struct C2VendorTunerPassthroughScreenColorStruct {
+    inline C2VendorTunerPassthroughScreenColorStruct() = default;
+    inline C2VendorTunerPassthroughScreenColorStruct(int32_t screen_color, int32_t screen_mode)
+       :screenColor(screen_color), screenMode(screen_mode) {}
+    int32_t screenColor;
+    int32_t screenMode;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughScreenColor)
+    C2FIELD(screenColor, "screencolor-color")
+    C2FIELD(screenMode, "screencolor-mode")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughScreenColorStruct, kParamIndexVendorTunerPassthroughScreenColor> C2VendorTunerPassthroughScreenColor;
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_SCREEN_COLOR[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_SCREENCOLOR_COLOR[] = "vendor.tunerhal.passthrough.screencolor-color";
+constexpr char KEY_VENDOR_SCREENCOLOR_MODE[] = "vendor.tunerhal.passthrough.screencolor-mode";
+
+struct C2VendorTunerPassthroughTransitionModeBeforeStruct {
+    inline C2VendorTunerPassthroughTransitionModeBeforeStruct() = default;
+    inline C2VendorTunerPassthroughTransitionModeBeforeStruct(int32_t transitionmode_before)
+        :transitionModeBefore(transitionmode_before) {}
+    int32_t transitionModeBefore;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughTransitionModeBefore)
+    C2FIELD(transitionModeBefore, "transition-mode-before")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughTransitionModeBeforeStruct, kParamIndexVendorTunerPassthroughTransitionModeBefore> C2VendorTunerPassthroughTransitionModeBefore;
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_TRANSITION_MODE_BEFORE[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_TRANSITION_MODE_BEFORE[] = "vendor.tunerhal.passthrough.transition-mode-before";
+
+struct C2VendorTunerPassthroughTransitionModeAfterStruct {
+    inline C2VendorTunerPassthroughTransitionModeAfterStruct() = default;
+    inline C2VendorTunerPassthroughTransitionModeAfterStruct(int32_t transitionmode_after)
+        :transitionModeAfter(transitionmode_after) {}
+    int32_t transitionModeAfter;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughTransitionModeAfter)
+    C2FIELD(transitionModeAfter, "transition-mode-after")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughTransitionModeAfterStruct, kParamIndexVendorTunerPassthroughTransitionModeAfter> C2VendorTunerPassthroughTransitionModeAfter;
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_TRANSITION_MODE_AFTER[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_TRANSITION_MODE_AFTER[] = "vendor.tunerhal.passthrough.transition-mode-after";
+
+struct C2VendorTunerPassthroughTransitionPrerollRateStruct {
+    inline C2VendorTunerPassthroughTransitionPrerollRateStruct() = default;
+    inline C2VendorTunerPassthroughTransitionPrerollRateStruct(int32_t transition_preroll_rate)
+        :transitionPrerollRate(transition_preroll_rate) {}
+    int32_t transitionPrerollRate;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughTransitionPrerollRate)
+    C2FIELD(transitionPrerollRate, "transition-preroll-rate")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughTransitionPrerollRateStruct, kParamIndexVendorTunerPassthroughTransitionPrerollRate> C2VendorTunerPassthroughTransitionPrerollRate;
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_TRANSITION_PREROLL_RATE[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_TRANSITION_PREROLL_RATE[] = "vendor.tunerhal.passthrough.transition-preroll-rate";
+
+struct C2VendorTunerPassthroughTransitionPrerollAVToleranceStruct {
+    inline C2VendorTunerPassthroughTransitionPrerollAVToleranceStruct() = default;
+    inline C2VendorTunerPassthroughTransitionPrerollAVToleranceStruct(int32_t transition_preroll_AVTolerance)
+        :transitionPrerollAVTolerance(transition_preroll_AVTolerance) {}
+    int32_t transitionPrerollAVTolerance;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughTransitionPrerollAVTolerance)
+    C2FIELD(transitionPrerollAVTolerance, "transition-preroll-av-tolerance")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughTransitionPrerollAVToleranceStruct, kParamIndexVendorTunerPassthroughTransitionPrerollAVTolerance> C2VendorTunerPassthroughTransitionPrerollAVTolerance;
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_TRANSITION_PREROLL_AVTOLERANCE[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_TRANSITION_PREROLL_AVTOLERANCE[] = "vendor.tunerhal.passthrough.transition-preroll-av-tolerance";
+
+struct C2VendorTunerPassthroughPlaybackStatusStruct {
+    inline C2VendorTunerPassthroughPlaybackStatusStruct() = default;
+    inline C2VendorTunerPassthroughPlaybackStatusStruct(int32_t status)
+       :playbackStatus(status) {}
+    int32_t playbackStatus;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughPlaybackStatus)
+    C2FIELD(playbackStatus, "status")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughPlaybackStatusStruct, kParamIndexVendorTunerPassthroughPlaybackStatus> C2VendorTunerPassthroughPlaybackStatus;
+constexpr char C2_PARAMKEY_VENDOR_TUNERPASSTHROUGH_PLAYBACK_STATUS[] = "tunerhal.passthrough.playback";
+constexpr char KEY_VENDOR_PLAYBACK_STATUS[] = "vendor.tunerhal.passthrough.playback.status";
 
 enum VDEC_WORKMODE {
     VDEC_FRAMEMODE,

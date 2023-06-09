@@ -39,6 +39,7 @@ public:
     int SetTrickSpeed(float speed);
     int SetWorkMode(int mode);
     int SetRenderCallBackEventFlag(int64_t eventflag);
+    int SetPassthroughParams(int32_t type, passthroughParams* params);
 
 private:
     static uint32_t gInstanceCnt;

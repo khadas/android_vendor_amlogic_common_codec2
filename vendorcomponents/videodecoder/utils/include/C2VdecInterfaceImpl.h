@@ -87,6 +87,13 @@ private:
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::output, HdrDynamicInfoOutput);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughEventMask::input, VendorTunerPassthroughEventMask);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorGameModeLatency::input, VendorGameModeLatency);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughMute::input, VendorTunerPassthroughMute);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughScreenColor::input, VendorTunerPassthroughScreenColor);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTransitionModeBefore::input, VendorTunerPassthroughTransitionModeBefore);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTransitionModeAfter::input, VendorTunerPassthroughTransitionModeAfter);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTransitionPrerollRate::input, VendorTunerPassthroughTransitionPrerollRate);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTransitionPrerollAVTolerance::input, VendorTunerPassthroughTransitionPrerollAVTolerance);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughPlaybackStatus::input, VendorTunerPassthroughPlaybackStatus);
 
     std::shared_ptr<C2ApiLevelSetting> mApiLevel;
     std::shared_ptr<C2ApiFeaturesSetting> mApiFeatures;
@@ -168,6 +175,13 @@ private:
     std::shared_ptr<C2VendorTunerPassthroughInstanceNo::input> mVendorTunerPassthroughInstanceNo;
     std::shared_ptr<C2VendorNetflixVPeek::input> mVendorNetflixVPeek;
     std::shared_ptr<C2VendorTunerPassthroughEventMask::input> mVendorTunerPassthroughEventMask;
+    std::shared_ptr<C2VendorTunerPassthroughMute::input> mVendorTunerPassthroughMute;
+    std::shared_ptr<C2VendorTunerPassthroughScreenColor::input> mVendorTunerPassthroughScreenColor;
+    std::shared_ptr<C2VendorTunerPassthroughTransitionModeBefore::input> mVendorTunerPassthroughTransitionModeBefore;
+    std::shared_ptr<C2VendorTunerPassthroughTransitionModeAfter::input> mVendorTunerPassthroughTransitionModeAfter;
+    std::shared_ptr<C2VendorTunerPassthroughTransitionPrerollRate::input> mVendorTunerPassthroughTransitionPrerollRate;
+    std::shared_ptr<C2VendorTunerPassthroughTransitionPrerollAVTolerance::input> mVendorTunerPassthroughPrerollAVTolerance;
+    std::shared_ptr<C2VendorTunerPassthroughPlaybackStatus::input> mVendorTunerPassthroughPlaybackStatus;
 
     std::shared_ptr<C2SecureModeTuning> mSecureBufferMode;
     std::shared_ptr<C2GlobalLowLatencyModeTuning> mLowLatencyMode;
@@ -226,6 +240,13 @@ private:
     void onTunerPassthroughWorkModeConfigParam();
     void onTunerPassthroughInstanceNoConfigParam();
     void onTunerPassthroughEventMaskConfigParam();
+    void onTunerPassthroughMuteConfigParam();
+    void onTunerPassthroughScreenColorConfigParam();
+    void onTunerPassthroughTransitionModeBeforeConfigParam();
+    void onTunerPassthroughTransitionModeAfterConfigParam();
+    void onTunerPassthroughTransitionPrerollRateConfigParam();
+    void onTunerPassthroughTransitionPrerollAVToleranceConfigParam();
+    void onTunerPassthroughPlaybackStatusConfigParam();
     void onVdecWorkModeConfigParam();
     void onDataSourceTypeConfigParam();
     void onStreamModeInputDelayConfigParam();

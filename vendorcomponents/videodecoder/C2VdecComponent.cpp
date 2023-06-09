@@ -3838,6 +3838,34 @@ void C2VdecComponent::onConfigureTunerPassthroughEventMask() {
    mTunerPassthroughHelper->setRenderCallBackEventFlag();
 }
 
+void C2VdecComponent::onConfigureTunerPassthroughMute() {
+   mTunerPassthroughHelper->setMute();
+}
+
+void C2VdecComponent::onConfigureTunerPassthroughScreenColor() {
+   mTunerPassthroughHelper->setScreenColor();
+}
+
+void C2VdecComponent::onConfigureTunerPassthroughTransitionModeBefore() {
+   mTunerPassthroughHelper->setTransitionModeBefore();
+}
+
+void C2VdecComponent::onConfigureTunerPassthroughTransitionModeAfter() {
+   mTunerPassthroughHelper->setTransitionModeAfter();
+}
+
+void C2VdecComponent::onConfigureTunerPassthroughTransitionPrerollRate() {
+   mTunerPassthroughHelper->setTransitionPrerollRate();
+}
+
+void C2VdecComponent::onConfigureTunerPassthroughTransitionPrerollAVTolerance() {
+   mTunerPassthroughHelper->setTransitionPrerollAVTolerance();
+}
+
+void C2VdecComponent::onConfigureTunerPassthroughPlaybackStatus() {
+   mTunerPassthroughHelper->setPlaybackStatus();
+}
+
 void C2VdecComponent::onConfigureEsModeHwAvsyncId(int32_t avSyncId){
     if (mTunnelHelper) {
         if ((avSyncId & 0x0000FF00) == 0xFF00 || avSyncId == 0x0) {
