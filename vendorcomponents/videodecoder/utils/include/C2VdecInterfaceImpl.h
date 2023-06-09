@@ -193,6 +193,7 @@ private:
     void onAvsDeclareParam();
     void onAvs2DeclareParam();
     void onAvs3DeclareParam();
+    void onVc1DeclareParam();
 
     // Declare the configuration parameters before playback.
     void onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper);

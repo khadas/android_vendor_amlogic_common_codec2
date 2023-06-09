@@ -403,6 +403,7 @@ private:
     static std::atomic<int32_t> sConcurrentInstances;
     static std::atomic<int32_t> sConcurrentInstanceSecures;
     static std::atomic<int32_t> sConcurrentMaxResolutionInstance;
+    static std::atomic<int32_t> sConcurrentVc1Instance;
 
     // The pointer of component interface implementation.
     std::shared_ptr<IntfImpl> mIntfImpl;

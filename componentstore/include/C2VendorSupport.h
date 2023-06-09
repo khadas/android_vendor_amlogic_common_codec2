@@ -42,7 +42,8 @@ enum class C2VendorCodec {
     VDEC_AVS3,
     VDEC_AVS2,
     VDEC_AVS,
-    VDEC_TYPE_MAX = VDEC_AVS,
+    VDEC_HW_VC1,
+    VDEC_TYPE_MAX = VDEC_HW_VC1,
 #ifdef SUPPORT_SOFT_VDEC
     VDEC_VP6A,
     VDEC_VP6F,

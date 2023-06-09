@@ -53,7 +53,8 @@ constexpr static size_t kMaxInputBufferSize = 8 * 1024 * 1024;
 
 constexpr char MEDIA_MIMETYPE_VIDEO_AVS[] = "video/avs";
 constexpr char MEDIA_MIMETYPE_VIDEO_AVS2[] = "video/avs2";
- constexpr char MEDIA_MIMETYPE_VIDEO_AVS3[] = "video/avs3";
+constexpr char MEDIA_MIMETYPE_VIDEO_AVS3[] = "video/avs3";
+constexpr char MEDIA_MIMETYPE_VIDEO_VC1[] = "video/vc1";
 
 #define DEFINE_C2_DEFAULT_UNSTRICT_SETTER(s, n) \
     C2R C2VdecComponent::IntfImpl::n##Setter(bool mayBlock, C2P<s> &me) {\
@@ -356,6 +357,10 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
         case InputCodec::AVS:
             inputMime = MEDIA_MIMETYPE_VIDEO_AVS;
             onAvsDeclareParam();
+        break;
+        case InputCodec::VC1:
+            inputMime = MEDIA_MIMETYPE_VIDEO_VC1;
+            onVc1DeclareParam();
         break;
         default:
             CODEC2_LOG(CODEC2_LOG_ERR, "Invalid component name: %s", name.c_str());
@@ -784,6 +789,9 @@ void C2VdecComponent::IntfImpl::onAvs2DeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onAvs3DeclareParam() {
+}
+
+void C2VdecComponent::IntfImpl::onVc1DeclareParam() {
 }
 
 void C2VdecComponent::IntfImpl::onHdrDeclareParam(const std::shared_ptr<C2ReflectorHelper>& helper) {

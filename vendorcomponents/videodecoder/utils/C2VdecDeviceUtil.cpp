@@ -222,6 +222,9 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::AVS3:
             doubleWriteValue = 3;
             break;
+        case InputCodec::VC1:
+            doubleWriteValue = 0x10;
+            break;
         default:
             doubleWriteValue = 3;
             break;

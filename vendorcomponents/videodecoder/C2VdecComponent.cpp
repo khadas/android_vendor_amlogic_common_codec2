@@ -167,6 +167,7 @@ C2VdecComponent::VideoFormat::VideoFormat(HalPixelFormat pixelFormat, uint32_t m
 std::atomic<int32_t> C2VdecComponent::sConcurrentInstances = 0;
 std::atomic<int32_t> C2VdecComponent::sConcurrentInstanceSecures = 0;
 std::atomic<int32_t> C2VdecComponent::sConcurrentMaxResolutionInstance = 0;
+std::atomic<int32_t> C2VdecComponent::sConcurrentVc1Instance = 0;
 
 
 
@@ -202,6 +203,13 @@ std::shared_ptr<C2Component> C2VdecComponent::create(
         if (kMaxConcurrentInstances >= 0 &&
             ((sConcurrentInstances.load() + sConcurrentInstanceSecures.load()) >= kMaxConcurrentInstances)) {
             ALOGW("Reject to Initialize() due to too many instances: %d", sConcurrentInstances.load());
+            return nullptr;
+        }
+        //since vc1 use single mode in decoder now, so only 1 instance can be used
+        if (sConcurrentVc1Instance.load() > 0 || ((sConcurrentInstances.load() + sConcurrentInstanceSecures.load()) > 0
+            && name.find(".vc1") != std::string::npos)) {
+            ALOGW("Reject to Initialize() due to vc1 can only create one instance or can't paly with other vdec, sConcurrentVc1Instance:%d",
+                sConcurrentVc1Instance.load());
             return nullptr;
         }
     }
@@ -353,6 +361,9 @@ void C2VdecComponent::Init(C2String compName) {
         sConcurrentInstanceSecures.fetch_add(1, std::memory_order_relaxed);
     else
         sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
+    if (compName.find(".vc1") != std::string::npos) {
+        sConcurrentVc1Instance.fetch_add(1, std::memory_order_relaxed);
+    }
 
     mIsDolbyVision = compName.find(".dolby-vision") != std::string::npos;
     mIsReleasing = false;
@@ -381,6 +392,9 @@ C2VdecComponent::~C2VdecComponent() {
 
     if (mIsMaxResolution)
         sConcurrentMaxResolutionInstance.fetch_sub(1, std::memory_order_relaxed);
+    if (mIntfImpl->getInputCodec() == InputCodec::VC1) {
+        sConcurrentVc1Instance.fetch_sub(1, std::memory_order_relaxed);
+    }
 
     C2Vdec_LOG(CODEC2_LOG_INFO, "~C2VdecComponent done");
     --mInstanceNum;
@@ -3700,6 +3714,8 @@ const char* C2VdecComponent::VideoCodecProfileToMime(media::VideoCodecProfile pr
         return "video/avs2";
     } else if (profile == media::AVS_PROFILE) {
         return "video/avs";
+    } else if (profile == media::VC1_PROFILE) {
+        return "video/vc1";
     }
     return "";
 }
@@ -3824,6 +3840,7 @@ CreateC2VdecClearFactory(MJPG)
 CreateC2VdecClearFactory(AVS3)
 CreateC2VdecClearFactory(AVS2)
 CreateC2VdecClearFactory(AVS)
+CreateC2VdecClearFactory(HWVC1)
 
 DestroyC2VdecFactory(H264)
 DestroyC2VdecFactory(H265)
@@ -3838,3 +3855,4 @@ DestroyC2VdecFactory(MJPG)
 DestroyC2VdecFactory(AVS3)
 DestroyC2VdecFactory(AVS2)
 DestroyC2VdecFactory(AVS)
+DestroyC2VdecFactory(HWVC1)

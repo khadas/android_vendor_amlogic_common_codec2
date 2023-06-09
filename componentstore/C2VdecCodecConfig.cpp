@@ -85,6 +85,7 @@ const char* kMJPGModuleName = "ammvdec_mjpeg_v4l";
 const char* kAVS3ModuleName = "ammvdec_avs3_v4l";
 const char* kAVS2ModuleName = "ammvdec_avs2_v4l";
 const char* kAVSModuleName = "ammvdec_avs_v4l";
+const char* kVC1ModuleName = "ammvdec_vc1_v4l";
 
 //decoder feature name
 const char* kFeatureCCSubtitle = "CC subtitle";
@@ -153,6 +154,7 @@ static struct {
 #ifdef  SUPPORT_VDEC_AVS
     {C2VendorCodec::VDEC_AVS, kAVSDecoderName, kAVSModuleName},
 #endif
+    {C2VendorCodec::VDEC_HW_VC1, kHWVC1DecoderName, kVC1ModuleName}
 };
 
 static struct {
@@ -261,6 +263,8 @@ C2VendorCodec C2VdecCodecConfig::adaptorInputCodecToVendorCodec(InputCodec codec
         case InputCodec::AVS:
             return C2VendorCodec::VDEC_AVS;
 #endif
+        case InputCodec::VC1:
+            return C2VendorCodec::VDEC_HW_VC1;
         case InputCodec::UNKNOWN:
             return C2VendorCodec::UNKNOWN;
         default:
