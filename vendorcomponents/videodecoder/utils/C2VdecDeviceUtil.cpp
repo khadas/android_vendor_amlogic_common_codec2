@@ -170,7 +170,11 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
                 doubleWriteValue = 0x10;
                 CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "texture/nosurface or interlaced or no di/nr video use dw 0x10");
             } else {
-                doubleWriteValue = 3;
+                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                    doubleWriteValue = 0x200;
+                } else {
+                    doubleWriteValue = 3;
+                }
             }
             break;
         case InputCodec::MP2V:
@@ -195,7 +199,11 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             } else if (codec == InputCodec::H265 && mIsInterlaced) {
                 doubleWriteValue = 1;
             } else {
-                doubleWriteValue = 3;
+                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                    doubleWriteValue = 0x200;
+                } else {
+                    doubleWriteValue = 3;
+                }
             }
             break;
         case InputCodec::AVS2:
@@ -1050,11 +1058,11 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(int32_t doublewrit
             break;
         case 2:
         case 3:
+        case 0x200:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             break;
         case 4:
         case 0x100:
-        case 0x200:
         case 0x300:
             usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
             break;
