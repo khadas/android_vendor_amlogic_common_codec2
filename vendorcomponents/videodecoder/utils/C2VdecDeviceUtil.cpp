@@ -1070,7 +1070,7 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(int32_t doublewrit
             mIsNeedUse10BitOutBuffer = true;
             break;
         case 0x10008:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
+            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
             break;
         default:
@@ -1109,7 +1109,7 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromTripleWrite(int32_t triplewrit
             mIsNeedUse10BitOutBuffer = true;
         break;
         case 0x10008:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
+            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
         break;
         default:
@@ -1398,7 +1398,7 @@ bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, in
     if (msg != NULL)
         delete msg;
 
-    C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] get meta data from decoder failed!, please check", __func__, __LINE__);
+    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get meta data from decoder error, please check.", __func__, __LINE__);
     return false;
 }
 
@@ -1409,7 +1409,7 @@ bool C2VdecComponent::DeviceUtil::parseAndProcessDuration(unsigned char *data, i
     uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
     bool ret = false;
     if (data == NULL || size <= 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR,"Parse and process meta data failed");
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"parse and process meta data failed, please check.");
         return ret;
     }
     meta_head = (struct aml_meta_head_s *)data;
@@ -1420,13 +1420,13 @@ bool C2VdecComponent::DeviceUtil::parseAndProcessDuration(unsigned char *data, i
         if (meta_magic != META_DATA_MAGIC ||
             (meta_size > META_DATA_SIZE) ||
             (meta_size <= 0)) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Get mate head error");
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "meta head size error, please check.");
             break;
         }
         unsigned char buf[meta_size];
         memset(buf, 0, meta_size);
         if ((offset + AML_META_HEAD_SIZE + meta_size) > size) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Metadata oversize %u > %u, please check",
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "meta size oversize %u > %u, please check.",
                     (unsigned int)(offset + AML_META_HEAD_SIZE + meta_size), (unsigned int)size);
             break;
         }
@@ -1450,7 +1450,7 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
     uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
 
     if (data == NULL || size <= 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR,"Parse and process meta data failed");
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "parse and process meta data failed, please check.");
         return;
     }
     meta_head = (struct aml_meta_head_s *)data;
@@ -1462,13 +1462,13 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
         if (meta_magic != META_DATA_MAGIC ||
             (meta_size > META_DATA_SIZE) ||
             (meta_size <= 0)) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Get mate head error");
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "meta head size error, please check.");
             break;
         }
         unsigned char buf[meta_size];
         memset(buf, 0, meta_size);
         if ((offset + AML_META_HEAD_SIZE + meta_size) > size) {
-            C2VdecMDU_LOG(CODEC2_LOG_ERR,"Metadata oversize %u > %u, please check",
+            C2VdecMDU_LOG(CODEC2_LOG_ERR, "meta data oversize %u > %u, please check",
                     (unsigned int)(offset + AML_META_HEAD_SIZE + meta_size), (unsigned int)size);
             break;
         }
