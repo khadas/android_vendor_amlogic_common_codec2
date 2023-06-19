@@ -102,7 +102,6 @@ private:
     uint32_t mPixelFormat;
     bool mReallocWhenResChange;
 
-    bool mAndroidPeekFrameReady;
 };
 }
 #endif

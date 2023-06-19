@@ -63,7 +63,6 @@ C2VdecComponent::TunnelHelper::TunnelHelper(bool secure) {
     mSecure = secure;
     mReallocWhenResChange = false;
     mReallocWhenResChange = property_get_bool(C2_PROPERTY_VDEC_REALLOC_TUNNEL_RESCHANGE, mReallocWhenResChange);
-    mAndroidPeekFrameReady = false;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     mPixelFormat = 0;
     mOutBufferCount = 0;
@@ -134,7 +133,6 @@ c2_status_t C2VdecComponent::TunnelHelper::stop() {
         }
     }
     mOutBufferFdMap.clear();
-    mAndroidPeekFrameReady = false;
 
     if (mVideoTunnelRenderer) {
         mVideoTunnelRenderer->regFillVideoFrameCallBack(NULL, NULL);
@@ -383,20 +381,40 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
 
 
     // implement Android Video Peek
-    if (!mAndroidPeekFrameReady) {
-        mAndroidPeekFrameReady = true;
+    {
         C2Work* work = comp->getPendingWorkByBitstreamId(bitstreamId);
         if (!work) {
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, pts:%" PRId64"", __func__, __LINE__, info->mFd, timestamp);
             return C2_CORRUPTED;
         }
-        work = comp->cloneWork(work);
-        if (work != NULL) {
-            std::unique_ptr<C2StreamTunnelHoldRender::output> frameReady = std::make_unique<C2StreamTunnelHoldRender::output>();
-            frameReady->value = C2_TRUE;
-            work->worklets.front()->output.configUpdate.push_back(std::move(frameReady));
-            comp->sendClonedWork(work, 0);
-            C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Send cloned work for FirstFrameReady", __func__, __LINE__);
+
+        bool frameHoldRender = false;
+        for (const std::unique_ptr<C2Param> &param : work->input.configUpdate) {
+            switch (param->coreIndex().coreIndex()) {
+                case C2StreamTunnelHoldRender::CORE_INDEX:
+                    {
+                        C2StreamTunnelHoldRender::input firstTunnelFrameHoldRender;
+                        if (!firstTunnelFrameHoldRender.updateFrom(*param)) break;
+                        if (firstTunnelFrameHoldRender.value == C2_TRUE) {
+                            frameHoldRender = true;
+                            C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] work has frameHoldRender", __func__, __LINE__);
+                            break;
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (frameHoldRender == true) {
+            work = comp->cloneWork(work);
+            if (work != NULL) {
+                std::unique_ptr<C2StreamTunnelHoldRender::output> frameReady = std::make_unique<C2StreamTunnelHoldRender::output>();
+                frameReady->value = C2_TRUE;
+                work->worklets.front()->output.configUpdate.push_back(std::move(frameReady));
+                comp->sendClonedWork(work, 0);
+                C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Send cloned work for FirstFrameReady", __func__, __LINE__);
+            }
         }
     }
 
