@@ -16,6 +16,8 @@ namespace android {
 typedef vl_codec_handle_t (*fn_vl_video_encoder_init)(vl_codec_id_t codec_id, vl_init_params_t initParam);
 typedef int (*fn_vl_video_encode_header)(vl_codec_handle_t codec_handle, vl_vui_params_t vui, int in_size, unsigned char *out);
 typedef vl_enc_result_e (*fn_vl_video_encoder_encode_frame)(vl_codec_handle_t codec_handle, vl_frame_info_t frame_info, unsigned char *out,int *out_size,vl_frame_type_t *frame_type);
+typedef vl_enc_result_e (*fn_vl_video_encoder_getavgqp)(vl_codec_handle_t codec_handle, float *avg_qp);
+
 typedef int (*fn_vl_video_encoder_destroy)(vl_codec_handle_t handle);
 
 class C2VencHCodec:public C2VencComponent {
@@ -53,6 +55,8 @@ private:
     void codec2ProfileLevelTrans(vl_h_enc_profile_e *profile,vl_h_enc_level_e *level);
     c2_status_t getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min);
     void ParseGop(const C2StreamGopTuning::output &gop,uint32_t *syncInterval, uint32_t *iInterval, uint32_t *maxBframes);
+    void getAverageQp(int value);
+    void getPictureType(C2Config::picture_type_t type);
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamIntraRefreshTuning::output> mIntraRefresh;
     std::shared_ptr<C2StreamFrameRateInfo::output> mFrameRate;
@@ -66,11 +70,14 @@ private:
     std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> mSyncFramePeriod;
     std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
     std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
+    std::shared_ptr<C2AndroidStreamAverageBlockQuantizationInfo::output> mAverageBlockQuantization;
+    std::shared_ptr<C2StreamPictureTypeInfo::output> mPictureType;
 
     std::shared_ptr<IntfImpl> mIntfImpl;
     fn_vl_video_encoder_init mInitFunc;
     fn_vl_video_encode_header mEncHeaderFunc;
     fn_vl_video_encoder_encode_frame mEncFrameFunc;
+    fn_vl_video_encoder_getavgqp mEncFrameQpFunc;
     fn_vl_video_encoder_destroy mDestroyFunc;
 
     vl_codec_handle_t mCodecHandle;

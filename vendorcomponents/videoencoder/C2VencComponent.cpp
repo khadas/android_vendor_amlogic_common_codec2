@@ -1045,6 +1045,21 @@ void C2VencComponent::WorkDone(std::unique_ptr<C2Work> &work) {
     }
 }
 
+void C2VencComponent::ConfigParam(std::unique_ptr<C2Work> &work) {
+    C2AndroidStreamAverageBlockQuantizationInfo::output mAverageBlockQuantization(0u,0);
+    C2StreamPictureTypeInfo::output mPictureType(0u,C2Config::SYNC_FRAME);
+    c2_status_t err = mIntf->query_vb({&mAverageBlockQuantization,&mPictureType},{},C2_DONT_BLOCK,nullptr);
+    if (err == C2_OK) {
+        work->worklets.front()->output.configUpdate.push_back(
+                C2Param::Copy(mAverageBlockQuantization));
+        work->worklets.front()->output.configUpdate.push_back(
+                C2Param::Copy(mPictureType));
+        }
+    else {
+        ALOGE("Cannot set avg_qp");
+        return;
+    }
+}
 
 void C2VencComponent::finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &work,
                               OutputFrameInfo_t OutFrameInfo) {
@@ -1053,6 +1068,7 @@ void C2VencComponent::finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &wo
         C2Venc_LOG(CODEC2_VENC_LOG_INFO,"IDR frame produced");
         buffer->setInfo(std::make_shared<C2StreamPictureTypeMaskInfo::output>(0u /* stream id */, C2Config::SYNC_FRAME));
     }
+    ConfigParam(work);
     mOutBlock = nullptr;
     auto fillWork = [buffer,this](std::unique_ptr<C2Work> &work) {
         work->worklets.front()->output.flags = (C2FrameData::flags_t)0;
