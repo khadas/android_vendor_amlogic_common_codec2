@@ -25,6 +25,7 @@ typedef encoding_metadata_t (*fn_vl_multi_encode_frame)(vl_codec_handle_t handle
 typedef int (*fn_vl_multi_change_bitrate)(vl_codec_handle_t handle, int bitRate);
 typedef int (*fn_vl_multi_encoder_destroy)(vl_codec_handle_t handle);
 
+typedef int (*fn_vl_multi_encoder_getavgqp)(vl_codec_handle_t handle, int *avg_qp);
 class C2VencMulti:public C2VencComponent {
 public:
     class IntfImpl;
@@ -61,6 +62,8 @@ private:
     void codec2InitQpTbl(qp_param_t *qp_tbl);
     c2_status_t getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min,int32_t *b_qp_max,int32_t *b_qp_min);
     void ParseGop(const C2StreamGopTuning::output &gop,uint32_t *syncInterval, uint32_t *iInterval, uint32_t *maxBframes);
+    void getAverageQp(int value);
+    void getPictureType(C2Config::picture_type_t type);
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamIntraRefreshTuning::output> mIntraRefresh;
     std::shared_ptr<C2StreamFrameRateInfo::output> mFrameRate;
@@ -75,11 +78,14 @@ private:
     std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
     std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
     std::shared_ptr<C2StreamTemporalLayeringTuning::output> mLayerCount;
+    std::shared_ptr<C2AndroidStreamAverageBlockQuantizationInfo::output> mAverageBlockQuantization;
+    std::shared_ptr<C2StreamPictureTypeInfo::output> mPictureType;
 
     std::shared_ptr<IntfImpl> mIntfImpl;
     fn_vl_multi_encoder_init mInitFunc;
     fn_vl_multi_generate_header mEncHeaderFunc;
     fn_vl_multi_encode_frame mEncFrameFunc;
+    fn_vl_multi_encoder_getavgqp mEncFrameQpFunc;
     fn_vl_multi_change_bitrate mEncBitrateChangeFunc;
     fn_vl_multi_encoder_destroy mDestroyFunc;
 

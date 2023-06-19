@@ -297,6 +297,20 @@ public:
     }
 
     addParameter(
+            DefineParam(mPictureType, C2_PARAMKEY_PICTURE_TYPE)
+            .withDefault(new C2StreamPictureTypeInfo::output(0u,C2Config::picture_type_t(SYNC_FRAME)))
+            .withFields({C2F(mPictureType, value).oneOf({C2Config::SYNC_FRAME, C2Config::I_FRAME, C2Config::P_FRAME, C2Config::B_FRAME })})
+            .withSetter(Setter<decltype(*mPictureType)>::StrictValueWithNoDeps)
+            .build());
+
+    addParameter(
+            DefineParam(mAverageBlockQuantization, C2_PARAMKEY_AVERAGE_QP)
+            .withDefault(new C2AndroidStreamAverageBlockQuantizationInfo::output(0u, 0))
+            .withFields({C2F(mAverageBlockQuantization, value).any()})
+            .withSetter(Setter<decltype(*mAverageBlockQuantization)>::StrictValueWithNoDeps)
+            .build());
+
+    addParameter(
             DefineParam(mRequestSync, C2_PARAMKEY_REQUEST_SYNC_FRAME)
             .withDefault(new C2StreamRequestSyncFrameTuning::output(0u, C2_FALSE))
             .withFields({C2F(mRequestSync, value).oneOf({ C2_FALSE, C2_TRUE }) })
@@ -448,6 +462,7 @@ public:
             .withSetter(HevcProfileLevelSetter, mSize, mFrameRate, mBitrate)
             .build());
     }
+
     static C2R SizeSetter(bool mayBlock, const C2P<C2StreamPictureSizeInfo::input> &oldMe,
         C2P<C2StreamPictureSizeInfo::input> &me) {
         (void)mayBlock;
@@ -791,6 +806,8 @@ public:
     std::shared_ptr<C2VencCanvasMode::input> getCanvasMode() const{return mVencCanvasMode; };
     std::shared_ptr<C2PrependHeaderModeSetting> getPrependHeader() const {return mPrependHeader; }
     std::shared_ptr<C2StreamTemporalLayeringTuning::output> getLayerCount() const {return mLayerCount; }
+    void getAverageQp(int value){mAverageBlockQuantization->value = value;}
+    void getPictureType(C2Config::picture_type_t type){mPictureType->value = type;}
 private:
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamUsageTuning::input> mUsage;
@@ -809,8 +826,8 @@ private:
     std::shared_ptr<C2VencCanvasMode::input> mVencCanvasMode;
     std::shared_ptr<C2PrependHeaderModeSetting> mPrependHeader;
     std::shared_ptr<C2StreamTemporalLayeringTuning::output> mLayerCount;
-
-
+    std::shared_ptr<C2AndroidStreamAverageBlockQuantizationInfo::output> mAverageBlockQuantization;
+    std::shared_ptr<C2StreamPictureTypeInfo::output> mPictureType;
 };
 
 
@@ -841,6 +858,7 @@ C2VencMulti::C2VencMulti(const char *name, c2_node_id_t id, const std::shared_pt
               mInitFunc(NULL),
               mEncHeaderFunc(NULL),
               mEncFrameFunc(NULL),
+              mEncFrameQpFunc(NULL),
               mEncBitrateChangeFunc(NULL),
               mDestroyFunc(NULL),
               mCodecHandle(0),
@@ -900,6 +918,13 @@ bool C2VencMulti::LoadModule() {
         mEncHeaderFunc = (fn_vl_multi_generate_header)dlsym(handle, "vl_multi_encoder_generate_header");
         if (mEncHeaderFunc == NULL) {
             ALOGE("dlsym for vl_multi_encoder_generate_header failed");
+            dlclose(handle);
+            return false;
+        }
+        mEncFrameQpFunc =NULL;
+        mEncFrameQpFunc = (fn_vl_multi_encoder_getavgqp)dlsym(handle,"vl_video_encoder_getavgqp");
+        if (mEncFrameQpFunc == NULL) {
+            ALOGE("dlsym for vl_video_encoder_getavgqp failed");
             dlclose(handle);
             return false;
         }
@@ -1255,7 +1280,7 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
     vl_buffer_info_t inputInfo;
     vl_buffer_info_t retbuf;
     vl_frame_type_t frameType = FRAME_TYPE_NONE;
-
+    int32_t avg_qp = 0;
     if (!pOutFrameInfo) {
         C2MULTI_LOG(CODEC2_VENC_LOG_ERR,"ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
@@ -1334,11 +1359,21 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
         C2MULTI_LOG(CODEC2_VENC_LOG_ERR,"multi encode frame failed,errcode:%d",ret.err_cod);
         return C2_CORRUPTED;
     }
+    int re = 0;
+    re = mEncFrameQpFunc(mCodecHandle,&avg_qp);
+    if (re != 1) {
+        C2MULTI_LOG(CODEC2_VENC_LOG_ERR,"get avg_qp failed,re:%d",re);
+    }
+    C2MULTI_LOG(CODEC2_VENC_LOG_DEBUG,"per frame avg_qp=%d",avg_qp);
+
 
     pOutFrameInfo->FrameType = FRAMETYPE_P;
     if (ret.is_key_frame) {
         pOutFrameInfo->FrameType = FRAMETYPE_IDR;
+    mIntfImpl->getPictureType(C2Config::SYNC_FRAME);
     }
+    mIntfImpl->getPictureType(C2Config::P_FRAME);
+    mIntfImpl->getAverageQp(avg_qp);
     return C2_OK;
 }
 
