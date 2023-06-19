@@ -347,6 +347,21 @@ public:
             .withSetter(CodedColorAspectsSetter, mColorAspects)
             .build());
 
+    addParameter(
+            DefineParam(mPictureType, C2_PARAMKEY_PICTURE_TYPE)
+            .withDefault(new C2StreamPictureTypeInfo::output(0u,C2Config::picture_type_t(SYNC_FRAME)))
+            .withFields({C2F(mPictureType, value).oneOf({C2Config::SYNC_FRAME, C2Config::I_FRAME, C2Config::P_FRAME, C2Config::B_FRAME })})
+            .withSetter(Setter<decltype(*mPictureType)>::StrictValueWithNoDeps)
+            .build());
+
+    addParameter(
+            DefineParam(mAverageBlockQuantization, C2_PARAMKEY_AVERAGE_QP)
+            .withDefault(new C2AndroidStreamAverageBlockQuantizationInfo::output(0u, 0))
+            .withFields({C2F(mAverageBlockQuantization, value).any()})
+            .withSetter(Setter<decltype(*mAverageBlockQuantization)>::StrictValueWithNoDeps)
+            .build());
+
+
     // TODO: support more formats?
     std::vector<uint32_t> pixelFormats;
     for (int i = 0;i < sizeof(W420ColorFormatSupprt) / sizeof(int);i++)
@@ -612,6 +627,8 @@ public:
     std::shared_ptr<C2StreamPixelFormatInfo::input> getCodedPixelFormat() const { return mPixelFormat; }
     std::shared_ptr<C2StreamProfileLevelInfo::output> getProfileInfo() const { return mProfileLevel; }
     std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> getIFrameInterval() const {return mSyncFramePeriod; }
+    void getAverageQp(int value){mAverageBlockQuantization->value = value;}
+    void getPictureType(C2Config::picture_type_t type){mPictureType->value = type;}
 private:
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamUsageTuning::input> mUsage;
@@ -626,6 +643,8 @@ private:
     std::shared_ptr<C2StreamColorAspectsInfo::input> mColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> mCodedColorAspects;
     std::shared_ptr<C2StreamPixelFormatInfo::input> mPixelFormat;
+    std::shared_ptr<C2AndroidStreamAverageBlockQuantizationInfo::output> mAverageBlockQuantization;
+    std::shared_ptr<C2StreamPictureTypeInfo::output> mPictureType;
 
 };
 
@@ -652,6 +671,7 @@ C2VencW420New::C2VencW420New(const char *name, c2_node_id_t id, const std::share
               mInitFunc(NULL),
               mEncHeaderFunc(NULL),
               mEncFrameFunc(NULL),
+              mEncFrameQpFunc(NULL),
               mEncBitrateChangeFunc(NULL),
               mEncFrameRateChangeFunc(NULL),
               mDestroyFunc(NULL),
@@ -753,6 +773,15 @@ bool C2VencW420New::LoadModule() {
             dlclose(handle);
             return false;
         }
+
+        mEncFrameQpFunc =NULL;
+        mEncFrameQpFunc = (fn_vl_video_encoder_getavgqp)dlsym(handle,"vl_video_encoder_getavgqp");
+        if (mEncFrameQpFunc == NULL) {
+            C2W420_LOG(CODEC2_VENC_LOG_ERR,"dlsym for vl_video_encoder_getavgqp failed");
+            dlclose(handle);
+            return false;
+        }
+
 
         mEncBitrateChangeFunc = NULL;
         mEncBitrateChangeFunc = (fn_vl_change_bitrate)dlsym(handle, "vl_video_encoder_change_bitrate_hevc");
@@ -1049,7 +1078,7 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
     uint32_t curFrameRate = 0;
     vl_frame_type_hevc_t frameType = FRAME_TYPE_NONE;
     int32_t bitRateNeedChangeTo = 0;
-
+    int32_t avg_qp = 0;
     if (!InputFrameInfo.yPlane || !InputFrameInfo.uPlane || !InputFrameInfo.vPlane || !pOutFrameInfo) {
         ALOGE("ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
@@ -1144,12 +1173,21 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
         ALOGE("multi encode frame failed,errcode:%d",ret.err_cod);
         return C2_CORRUPTED;
     }
+    int re = 0;
+    re = mEncFrameQpFunc(mCodecHandle,&avg_qp);
+    if (re != 1) {
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"get avg_qp failed,re:%d",re);
+    }
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"per frame avg_qp=%d",avg_qp);
 
     pOutFrameInfo->FrameType = FRAMETYPE_P;
     if (ret.is_key_frame) {
         ALOGD("is_key_frame:%d",ret.is_key_frame);
         pOutFrameInfo->FrameType = FRAMETYPE_IDR;
+    mIntfImpl->getPictureType(C2Config::SYNC_FRAME);
     }
+    mIntfImpl->getPictureType(C2Config::P_FRAME);
+    mIntfImpl->getAverageQp(avg_qp);
     return C2_OK;
 }
 

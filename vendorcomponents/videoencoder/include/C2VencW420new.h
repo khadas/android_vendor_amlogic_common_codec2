@@ -17,6 +17,7 @@ typedef encoding_metadata_hevc_t (*fn_hevc_video_encoder_encode)(vl_codec_handle
 typedef int (*fn_vl_change_bitrate)(vl_codec_handle_hevc_t codec_handle,int bitRate);
 typedef int (*fn_vl_change_framerate_hevc)(vl_codec_handle_hevc_t codec_handle,int frameRate,int bitRate);
 
+typedef int (*fn_vl_video_encoder_getavgqp)(vl_codec_handle_hevc_t codec_handle,int *avg_qp);
 
 typedef int (*fn_hevc_video_encoder_destroy)(vl_codec_handle_hevc_t handle);
 
@@ -54,6 +55,8 @@ private:
     c2_status_t getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min);
     void ParseGop(const C2StreamGopTuning::output &gop,uint32_t *syncInterval, uint32_t *iInterval, uint32_t *maxBframes);
     int getFrameRate(int32_t frameIndex,int64_t timestamp);
+    void getAverageQp(int value);
+    void getPictureType(C2Config::picture_type_t type);
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamIntraRefreshTuning::output> mIntraRefresh;
     std::shared_ptr<C2StreamFrameRateInfo::output> mFrameRate;
@@ -66,11 +69,14 @@ private:
     std::shared_ptr<C2StreamProfileLevelInfo::output> mProfileLevel;
     std::shared_ptr<C2StreamSyncFrameIntervalTuning::output> mSyncFramePeriod;
 
+    std::shared_ptr<C2AndroidStreamAverageBlockQuantizationInfo::output> mAverageBlockQuantization;
+    std::shared_ptr<C2StreamPictureTypeInfo::output> mPictureType;
     std::shared_ptr<IntfImpl> mIntfImpl;
 
     fn_hevc_video_encoder_init mInitFunc;
     fn_hevc_video_encode_header mEncHeaderFunc;
     fn_hevc_video_encoder_encode mEncFrameFunc;
+    fn_vl_video_encoder_getavgqp mEncFrameQpFunc;
     fn_vl_change_bitrate mEncBitrateChangeFunc;
     fn_vl_change_framerate_hevc mEncFrameRateChangeFunc;
     fn_hevc_video_encoder_destroy mDestroyFunc;
