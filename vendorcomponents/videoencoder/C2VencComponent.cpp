@@ -908,7 +908,7 @@ void C2VencComponent::ProcessData()
     InputFrameInfo.frameIndex = work->input.ordinal.frameIndex.peekull();
     InputFrameInfo.timeStamp = work->input.ordinal.timestamp.peekull();
 
-    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"inputbuffer type:%d",type);
+    C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"inputbuffer type:%d",type);
 
     if (C2BufferData::GRAPHIC == type) {
         if (C2_OK != GraphicDataProc(inputBuffer,&InputFrameInfo)) {
