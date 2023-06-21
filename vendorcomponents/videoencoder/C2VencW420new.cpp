@@ -923,7 +923,11 @@ c2_status_t C2VencW420New::Init() {
         C2StreamPictureSizeInfo::output Size(0u, 256, mSize->height);
         std::vector<std::unique_ptr<C2SettingResult>> failures;
         mIntfImpl->config({ &Size }, C2_MAY_BLOCK, &failures);
+        initParam.crop_enable = true;
+        initParam.crop.right = mSize->width;
+        initParam.crop.bottom = mSize->height;
     }
+
     initParam.height = mSize->height;//(mSize->height + 7) & ~7; //temprory modify
     initParam.frame_rate = mFrameRate->value;
     initParam.bit_rate = mBitrate->value;
