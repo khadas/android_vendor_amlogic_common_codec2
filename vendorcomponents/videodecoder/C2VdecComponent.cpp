@@ -551,7 +551,7 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
 
 
     if (mFlushDoneWithOutEosWork == true)
-        mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onReusedOutBuf, ::base::Unretained(this)));
+        onReusedOutBuf();
 
     uint32_t drainMode = NO_DRAIN;
     bool isEosWork = false;
@@ -598,20 +598,7 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
         mReportEosWork = false;
         mHaveDrainDone = false;
         mHaveFlushDone = false;
-        if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
-            int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] %d buffer in client and post dequeue task [%s][%d]", __func__, bufferInClient, mCurrentBlockSize.ToString().c_str() , mCurrentPixelFormat);
-            uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
-            if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
-                    C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
-            }
-            mDequeueThreadUtil->StartAllocBuffer();
-            if (mBufferFirstAllocated == true) {
-                for (int i = 1; i <= bufferInClient; i++) {
-                    mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, static_cast<uint32_t>(i * frameDur));
-                }
-            }
-        }
+        reStartAllocTask();
         // mDequeueThreadUtil->StartAllocBuffer();
         // if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
         //     C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
@@ -619,6 +606,29 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
     }
 }
 
+void C2VdecComponent::reStartAllocTask() {
+    if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
+        int bufferInClient = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT];
+        int bufferInAcc = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_ACCELERATOR];
+        int bufferInCom = mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_COMPONENT];
+        //we need check stopped task count.we used total count - alloced buf count.
+        //we start post task to alloc outbuf if stopCount and bufferInClient is not eq 0.
+        int stopCount =   mOutputFormat.mMinNumBuffers - bufferInClient - bufferInAcc - bufferInCom;
+        if (stopCount > 0)
+            bufferInClient = bufferInClient + stopCount;
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] stop[%d]all[%d]client[%d] hal[%d]com[%d]buffer in client and post dequeue task [%s][%d]", __func__,stopCount,mOutputFormat.mMinNumBuffers, bufferInClient,bufferInAcc, bufferInCom, mCurrentBlockSize.ToString().c_str() , mCurrentPixelFormat);
+        uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
+        if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
+                C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] StartDequeueThread Failed", __func__, __LINE__);
+        }
+        mDequeueThreadUtil->StartAllocBuffer();
+        if (mBufferFirstAllocated == true) {
+            for (int i = 1; i <= bufferInClient; i++) {
+                mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, static_cast<uint32_t>(i * frameDur));
+            }
+        }
+    }
+}
 
 void C2VdecComponent::onReusedOutBuf() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] into.", __func__);
@@ -672,6 +682,15 @@ void C2VdecComponent::onDequeueWork() {
     if (mComponentState != ComponentState::STARTED) {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Work queue should be empty if the component is not in STARTED state.");
         return;
+    }
+
+    if (mFlushDoneWithOutEosWork == true) {
+        onReusedOutBuf();
+    }
+
+    if (mHaveFlushDone == true) {
+        mHaveFlushDone = false;
+        reStartAllocTask();
     }
 
     // Dequeue a work from mQueue.

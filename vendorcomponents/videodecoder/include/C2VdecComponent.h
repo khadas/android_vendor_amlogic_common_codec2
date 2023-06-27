@@ -274,6 +274,7 @@ private:
     void onDestroy(::base::WaitableEvent* done);
     void onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done);
     void onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> info);
+    void reStartAllocTask();
     void onReusedOutBuf();
     void onDequeueWork();
     void onInputBufferDone(int32_t bitstreamId);
