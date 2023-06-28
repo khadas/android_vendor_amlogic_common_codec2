@@ -3687,6 +3687,10 @@ void C2VdecComponent::onConfigureTunerPassthroughTrickMode() {
    mTunerPassthroughHelper->setTrickMode();
 }
 
+void C2VdecComponent::onConfigureTunerPassthroughWorkMode() {
+   mTunerPassthroughHelper->setWorkMode();
+}
+
 void C2VdecComponent::onConfigureTunerPassthroughEventMask() {
    mTunerPassthroughHelper->setRenderCallBackEventFlag();
 }

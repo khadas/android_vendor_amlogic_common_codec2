@@ -45,6 +45,7 @@ public:
     c2_status_t stop();
     c2_status_t flush();
     c2_status_t setTrickMode();
+    c2_status_t setWorkMode();
     c2_status_t setRenderCallBackEventFlag();
 
 private:
@@ -56,6 +57,7 @@ private:
     std::weak_ptr<C2VdecComponent::TunnelHelper> mTunnelHelper;
     std::weak_ptr<C2VdecComponent::IntfImpl> mIntfImpl;
     int32_t mSyncId;
+    int32_t mWorkMode;
     passthroughInitParams mTunerPassthroughParams;
     std::shared_ptr<TunerPassthroughWrapper> mTunerPassthrough;
 };

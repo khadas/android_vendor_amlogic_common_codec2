@@ -36,6 +36,7 @@ public:
     int getSyncInstansNo(int *no);
     int SetTrickMode(int mode);
     int SetTrickSpeed(float speed);
+    int SetWorkMode(int mode);
     int SetRenderCallBackEventFlag(int64_t eventflag);
 
 private:

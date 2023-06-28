@@ -29,6 +29,7 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorVdecWorkMode,
     kParamIndexVendorDataSourceType,
     kParamIndexVendorTunerPassthroughTrickMode,
+    kParamIndexVendorTunerPassthroughWorkMode,
     kParamIndexVendorNetflixVPeek,
     kParamIndexVendorSetAvc4kMMU,
     kParamIndexVendorStreammodeInputdelay,
@@ -103,6 +104,19 @@ constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughTrickMode[] = "tunerhal.passth
 constexpr char KEY_VENDOR_TRAICKMODE[] = "vendor.tunerhal.passthrough.trick-mode";
 constexpr char KEY_VENDOR_TRICKSPEED[] = "vendor.tunerhal.passthrough.trick-speed";
 constexpr char KEY_VENDOR_FRAMEADVANCE[] = "vendor.tunerhal.passthrough.frame-advance";
+
+struct C2VendorTunerPassthroughWorkModeStruct {
+    inline C2VendorTunerPassthroughWorkModeStruct() = default;
+    inline C2VendorTunerPassthroughWorkModeStruct(int32_t work_mode)
+       :workMode(work_mode) {}
+    int32_t workMode;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughWorkMode)
+    C2FIELD(workMode, "work-mode")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughWorkModeStruct, kParamIndexVendorTunerPassthroughWorkMode> C2VendorTunerPassthroughWorkMode;
+constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughWorkMode[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_WORKMODE[] = "vendor.tunerhal.passthrough.work-mode";
 
 struct C2VendorTunerPassthroughEventMaskStruct {
     inline C2VendorTunerPassthroughEventMaskStruct() = default;

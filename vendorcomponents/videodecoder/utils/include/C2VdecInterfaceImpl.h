@@ -80,6 +80,7 @@ private:
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalParam);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode);
+    DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughWorkMode::input, VendorTunerPassthroughWorkMode);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorNetflixVPeek::input, VendorNetflixVPeek);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::input, HdrDynamicInfoInput);
     DECLARE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamHdrDynamicMetadataInfo::output, HdrDynamicInfoOutput);
@@ -160,6 +161,7 @@ private:
     std::shared_ptr<C2VendorTunerHalParam::input> mVendorTunerHalParam;
     std::shared_ptr<C2StreamTunnelStartRender::output> mTunnelStartRender;
     std::shared_ptr<C2VendorTunerPassthroughTrickMode::input> mVendorTunerPassthroughTrickMode;
+    std::shared_ptr<C2VendorTunerPassthroughWorkMode::input> mVendorTunerPassthroughWorkMode;
     std::shared_ptr<C2VendorNetflixVPeek::input> mVendorNetflixVPeek;
     std::shared_ptr<C2VendorTunerPassthroughEventMask::input> mVendorTunerPassthroughEventMask;
 
@@ -216,6 +218,7 @@ private:
     void onTunneledModeTuningConfigParam();
     void onVendorTunerHalConfigParam();
     void onTunerPassthroughTrickModeConfigParam();
+    void onTunerPassthroughWorkModeConfigParam();
     void onTunerPassthroughEventMaskConfigParam();
     void onVdecWorkModeConfigParam();
     void onDataSourceTypeConfigParam();

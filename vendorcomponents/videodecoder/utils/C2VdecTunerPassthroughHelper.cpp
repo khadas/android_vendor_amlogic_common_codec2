@@ -74,6 +74,19 @@ enum {
     TRICK_MODE_IONLY = 3          // Decoding and Out I frame only
 };
 
+enum WORK_MODE {
+    WORKMODE_NORMAL = 0, //playback in normal mode
+    WORKMODE_CACHE, //playback in cache mode (used in fcc function)
+    WORKMODE_MAX,
+};
+
+enum {
+    WORK_MODE_NORMAL = 0,             // Normal mode
+    WORK_MODE_CACHING_ONLY = 1,       // Only caching data, do not decode. Used in FCC
+    WORK_MODE_DECODE_ONLY = 2         // Decode data but do not output
+};
+
+
 namespace android {
 
 C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(bool secure,
@@ -92,6 +105,7 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(bool secure,
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 
     mSyncId = 0;
+    mWorkMode = WORKMODE_NORMAL;
 }
 
 C2VdecComponent::TunerPassthroughHelper::~TunerPassthroughHelper() {
@@ -126,16 +140,25 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setComponent(std::shared_pt
     mTunerPassthroughParams.video_pid = (filterid & 0x0000FFFF);
     mTunerPassthroughParams.hw_sync_id = mSyncId;
 
-    mTunerPassthrough = std::make_shared<TunerPassthroughWrapper>();
-    mTunerPassthrough->initialize(&mTunerPassthroughParams);
-    mTunerPassthrough->regNotifyTunnelRenderTimeCallBack(notifyTunerPassthroughRenderTimeCallback, this);
+    if (!mTunerPassthrough) {
+        mTunerPassthrough = std::make_shared<TunerPassthroughWrapper>();
+        mTunerPassthrough->initialize(&mTunerPassthroughParams);
+        mTunerPassthrough->regNotifyTunnelRenderTimeCallBack(notifyTunerPassthroughRenderTimeCallback, this);
+        mTunerPassthrough->SetWorkMode(mWorkMode);
 
-    C2VdecTPH_LOG(CODEC2_LOG_INFO, "[%s] passthrough mVideoFilterId:%x,dmxid:%d,vpid:%d,syncid:%0xx",
-        __func__,
-        filterid,
-        mTunerPassthroughParams.dmx_id,
-        mTunerPassthroughParams.video_pid,
-        mTunerPassthroughParams.hw_sync_id);
+        C2VdecTPH_LOG(CODEC2_LOG_INFO, "[%s] passthrough work mode mVideoFilterId:%x,dmxid:%d,vpid:%d,syncid:%0xx",
+            __func__,
+            filterid,
+            mTunerPassthroughParams.dmx_id,
+            mTunerPassthroughParams.video_pid,
+            mTunerPassthroughParams.hw_sync_id);
+    } else {
+        mTunerPassthrough->SetWorkMode(mWorkMode);
+        C2VdecTPH_LOG(CODEC2_LOG_INFO, "[%s] passthrough Cache mode not init again",
+            __func__);
+    }
+
+
     return C2_OK;
 }
 
@@ -191,6 +214,27 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
 
     mTunerPassthrough->SetTrickMode(mode);
     mTunerPassthrough->SetTrickSpeed(trickSpeed);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setWorkMode() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int mode = intfImpl->mVendorTunerPassthroughWorkMode->workMode;
+
+    if (mode  == WORKMODE_NORMAL) {
+        mWorkMode = WORK_MODE_NORMAL;
+    } else if (mode == WORKMODE_CACHE) {
+        mWorkMode = WORK_MODE_CACHING_ONLY;
+    } else {
+        mWorkMode = WORK_MODE_NORMAL;
+    }
+
+    C2VdecTPH_LOG(CODEC2_LOG_INFO, "passthrough workmode:%d", mWorkMode);
+
+    // mTunerPassthrough->SetWorkMode(mode);
 
     return C2_OK;
 }

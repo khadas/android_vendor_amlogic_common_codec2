@@ -137,6 +137,12 @@ int TunerPassthroughWrapper::SetTrickMode(int mode) {
         mTunerPassthrough->SetTrickMode(mode);
     return 0;
 }
+int TunerPassthroughWrapper::SetWorkMode(int mode) {
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetWorkMode");
+    if (mTunerPassthrough)
+        mTunerPassthrough->SetWorkMode(mode);
+    return 0;
+}
 int TunerPassthroughWrapper::SetTrickSpeed(float speed) {
     C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetTrickSpeed");
     if (mTunerPassthrough)
