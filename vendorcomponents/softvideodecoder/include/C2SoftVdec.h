@@ -45,6 +45,30 @@ public:
     C2SoftVdec(C2String name, c2_node_id_t id,
                                const std::shared_ptr<IntfImpl> &intfImpl);
     virtual ~C2SoftVdec();
+    // For FFmpeg decoder
+    typedef struct VIDEO_FRAME_WRAPPER {
+        #define NUM_DATA_POINTERS 8
+        uint8_t * data[NUM_DATA_POINTERS];
+        int32_t linesize[NUM_DATA_POINTERS];
+        int32_t width;
+        int32_t height;
+        int32_t format;
+        int64_t pts;
+    }VIDEO_FRAME_WRAPPER_T;
+
+    typedef struct VIDEO_INFO {
+        uint8_t *extra_data;
+        int32_t extra_data_size;
+        int32_t width;
+        int32_t height;
+    }VIDEO_INFO_T;
+    typedef int (*ffmpeg_video_decoder_init_fn)(const char *codeMime, VIDEO_INFO_T *vinfo , AmVideoCodec **mCodec);
+    typedef int (*ffmpeg_video_decoder_process_fn)(uint8_t *input_buffer,
+                               int input_size,
+                               VIDEO_FRAME_WRAPPER_T *outPic,
+                               AmVideoCodec *mCodec);
+    typedef int (*ffmpeg_video_decoder_free_frame_fn)(AmVideoCodec *mCodec);
+    typedef int (*ffmpeg_video_decoder_close_fn)(AmVideoCodec *mCodec);
 
 private:
     /**
@@ -114,31 +138,7 @@ private:
     void resetPlugin();
     status_t deleteDecoder();
 
-    // For FFmpeg decoder
-    typedef struct VIDEO_FRAME_WRAPPER {
-        #define NUM_DATA_POINTERS 8
-        uint8_t * data[NUM_DATA_POINTERS];
-        int32_t linesize[NUM_DATA_POINTERS];
-        int32_t width;
-        int32_t height;
-        int32_t format;
-        int64_t pts;
-    }VIDEO_FRAME_WRAPPER_T;
 
-    typedef struct VIDEO_INFO {
-        uint8_t *extra_data;
-        int32_t extra_data_size;
-        int32_t width;
-        int32_t height;
-    }VIDEO_INFO_T;
-
-    typedef int (*ffmpeg_video_decoder_init_fn)(const char *codeMime, VIDEO_INFO_T *vinfo , AmVideoCodec **mCodec);
-    typedef int (*ffmpeg_video_decoder_process_fn)(uint8_t *input_buffer,
-                               int input_size,
-                               VIDEO_FRAME_WRAPPER_T *outPic,
-                               AmVideoCodec *mCodec);
-    typedef int (*ffmpeg_video_decoder_free_frame_fn)(AmVideoCodec *mCodec);
-    typedef int (*ffmpeg_video_decoder_close_fn)(AmVideoCodec *mCodec);
 
     bool load_ffmpeg_decoder_lib();
     bool unload_ffmpeg_decoder_lib();
@@ -170,11 +170,7 @@ private:
     bool mDecInit;
     VIDEO_FRAME_WRAPPER_T *mPic;
     VIDEO_INFO_T mVideoInfo;
-    void *mFFmpegCodecLibHandler;
-    ffmpeg_video_decoder_init_fn mFFmpegVideoDecoderInitFunc;
-    ffmpeg_video_decoder_process_fn mFFmpegVideoDecoderProcessFunc;
-    ffmpeg_video_decoder_free_frame_fn mFFmpegVideoDecoderFreeFrameFunc;
-    ffmpeg_video_decoder_close_fn mFFmpegVideoDecoderCloseFunc;
+
     AmVideoCodec *mCodec;
     uint8_t* mExtraData;
 

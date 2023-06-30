@@ -45,6 +45,12 @@ namespace android {
 // static
 std::atomic<int32_t> C2SoftVdec::sConcurrentInstances = 0;
 
+void *mFFmpegCodecLibHandler = NULL;
+C2SoftVdec::ffmpeg_video_decoder_init_fn mFFmpegVideoDecoderInitFunc = NULL;
+C2SoftVdec::ffmpeg_video_decoder_process_fn mFFmpegVideoDecoderProcessFunc = NULL;
+C2SoftVdec::ffmpeg_video_decoder_free_frame_fn mFFmpegVideoDecoderFreeFrameFunc = NULL;
+C2SoftVdec::ffmpeg_video_decoder_close_fn mFFmpegVideoDecoderCloseFunc = NULL;
+
 // static
 std::shared_ptr<C2Component> C2SoftVdec::create(
         const std::string& name, c2_node_id_t id, const std::shared_ptr<IntfImpl> &intfImpl) {
@@ -74,11 +80,6 @@ C2SoftVdec::C2SoftVdec(C2String name, c2_node_id_t id,
         mFirstPictureReviced(false),
         mDecInit(false),
         mPic(NULL),
-        mFFmpegCodecLibHandler(NULL),
-        mFFmpegVideoDecoderInitFunc(NULL),
-        mFFmpegVideoDecoderProcessFunc(NULL),
-        mFFmpegVideoDecoderFreeFrameFunc(NULL),
-        mFFmpegVideoDecoderCloseFunc(NULL),
         mCodec(NULL),
         mExtraData(NULL),
         mDumpYuvFp(NULL) {
@@ -179,28 +180,24 @@ bool C2SoftVdec::load_ffmpeg_decoder_lib(){
         goto Error;
     }
 
-    mFFmpegVideoDecoderInitFunc = NULL;
     mFFmpegVideoDecoderInitFunc = (ffmpeg_video_decoder_init_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_init");
     if (mFFmpegVideoDecoderInitFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err:,%s", dlerror());
         goto Error;
     }
 
-    mFFmpegVideoDecoderProcessFunc = NULL;
     mFFmpegVideoDecoderProcessFunc = (ffmpeg_video_decoder_process_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_process");
     if (mFFmpegVideoDecoderProcessFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err,%s", dlerror());
         goto Error;
     }
 
-    mFFmpegVideoDecoderFreeFrameFunc = NULL;
     mFFmpegVideoDecoderFreeFrameFunc = (ffmpeg_video_decoder_free_frame_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_free_frame");
     if (mFFmpegVideoDecoderFreeFrameFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err,%s", dlerror());
         goto Error;
     }
 
-    mFFmpegVideoDecoderCloseFunc = NULL;
     mFFmpegVideoDecoderCloseFunc = (ffmpeg_video_decoder_close_fn)dlsym(mFFmpegCodecLibHandler, "ffmpeg_video_decoder_close");
     if (mFFmpegVideoDecoderCloseFunc == NULL) {
         CODEC2_LOG(CODEC2_LOG_ERR, "Find lib err:%s", dlerror());
@@ -218,14 +215,6 @@ bool C2SoftVdec::unload_ffmpeg_decoder_lib(){
         mFFmpegVideoDecoderCloseFunc(mCodec);
 
     mCodec = NULL;
-    mFFmpegVideoDecoderInitFunc = NULL;
-    mFFmpegVideoDecoderProcessFunc = NULL;
-    mFFmpegVideoDecoderFreeFrameFunc = NULL;
-    mFFmpegVideoDecoderCloseFunc = NULL;
-    if (mFFmpegCodecLibHandler != NULL) {
-        dlclose(mFFmpegCodecLibHandler);
-        mFFmpegCodecLibHandler = NULL;
-    }
     return true;
 }
 
@@ -336,7 +325,7 @@ void C2SoftVdec::finishWork(uint64_t index, const std::unique_ptr<C2Work> &work)
 c2_status_t C2SoftVdec::ensureDecoderState(const std::shared_ptr<C2BlockPool> &pool) {
     if (!mFFmpegVideoDecoderInitFunc || !mFFmpegVideoDecoderProcessFunc || !mFFmpegVideoDecoderFreeFrameFunc) {
         ALOGE("not supposed to be here, invalid decoder context");
-        return C2_CORRUPTED;
+        //return C2_CORRUPTED;
     }
     if (mOutBlock &&
             (mOutBlock->width() != ALIGN16(mWidth) || mOutBlock->height() != mHeight)) {
