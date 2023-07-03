@@ -1905,7 +1905,13 @@ void C2VdecComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format)
 
 
 void C2VdecComponent::updateOutputDelayBufCount() {
-    uint32_t dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor;
+    uint32_t dequeueBufferNum = 0;
+    if (mOutputFormat.mMinNumBuffers > kDefaultSmoothnessFactor) {
+        dequeueBufferNum = mOutputFormat.mMinNumBuffers - kDefaultSmoothnessFactor;
+    } else {
+        //default add one buf for output delay count
+        dequeueBufferNum = 1;
+    }
     if (!mUseBufferQueue) {
         dequeueBufferNum = mOutputFormat.mMinNumBuffers;
     }
@@ -2116,7 +2122,7 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
             size_t inc_buf_num = mOutputFormat.mMinNumBuffers - mLastOutputFormat.mMinNumBuffers;
             size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Increase buffer num:%d graphic blocks size:%d buffer count:%d", (int)inc_buf_num, (int)mGraphicBlocks.size(), (int)bufferCount);
-            auto err = mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount - kDefaultSmoothnessFactor));
+            auto err = mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount));
             if (err != C2_OK) {
                 C2Vdec_LOG(CODEC2_LOG_ERR, "Failed to request new buffer set to block pool: %d", err);
                 reportError(err);
@@ -2349,7 +2355,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     size_t minBuffersForDisplay = 0;
     C2BlockPool::local_id_t poolId = -1;
 
-    mBlockPoolUtil->requestNewBufferSet(bufferCount - kDefaultSmoothnessFactor);
+    mBlockPoolUtil->requestNewBufferSet(static_cast<int32_t>(bufferCount));
     c2_status_t err = mBlockPoolUtil->getMinBuffersForDisplay(&minBuffersForDisplay);
     if (err != C2_OK) {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Graphic block allocator is invalid");
@@ -2373,9 +2379,16 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     //out buf release is slow at surface mode,
     //we cannot get out buf so fast.
     if (mDeviceUtil->isInterlaced() &&
-        !(mIntfImpl->getCodecProfile() == media::MPEG2_PROFILE && mBlockPoolUtil->isBufferQueue()))
-        dequeue_buffer_num = mOutBufferCount - kDefaultSmoothnessFactor;
+        !(mIntfImpl->getCodecProfile() == media::MPEG2_PROFILE && mBlockPoolUtil->isBufferQueue())) {
+        if (mOutBufferCount > kDefaultSmoothnessFactor)
+            dequeue_buffer_num = mOutBufferCount - kDefaultSmoothnessFactor;
+    }
 
+    if (dequeue_buffer_num > bufferCount) {
+        //first alloc count can not > total count,this occur decoder need
+        //too few buffer count.
+        dequeue_buffer_num = bufferCount;
+    }
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %" PRId64"",
                 minBuffersForDisplay, (int)bufferCount, dequeue_buffer_num, usage.expected);
     for (int i = 0; i < dequeue_buffer_num; ++i) {

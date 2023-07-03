@@ -254,14 +254,15 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
 
 c2_status_t C2VdecBlockPoolUtil::requestNewBufferSet(int32_t bufferCount) {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (bufferCount <= 0) {
-        CODEC2_LOG(CODEC2_LOG_ERR, "Invalid requested buffer count:%d", bufferCount);
-        return C2_BAD_VALUE;
+    if (bufferCount <= kDefaultFetchGraphicBlockDelay - 2) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "Invalid requested buffer count:%d, used default count", bufferCount);
+        bufferCount = kDefaultFetchGraphicBlockDelay - 2;
     }
+
     if (mUseSurface) {
-        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay;
+        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + 2;
     } else {
-        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount) + kDefaultFetchGraphicBlockDelay - 2;
+        mMaxDequeuedBufferNum = static_cast<size_t>(bufferCount);
     }
 
     CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "Block pool deque buffer number max:%d", mMaxDequeuedBufferNum);
