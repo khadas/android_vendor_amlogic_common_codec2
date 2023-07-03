@@ -747,7 +747,7 @@ C2VencHCodec::~C2VencHCodec() {
      * This is the logic, no need to modify, ignore coverity weak cryptor report.
     */
     /*coverity[exn_spec_violation:SUPPRESS]*/
-
+    Close();
     ALOGD("C2VencHCodec destructor!");
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     mInstanceID--;

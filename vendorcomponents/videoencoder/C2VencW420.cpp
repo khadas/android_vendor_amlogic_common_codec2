@@ -674,6 +674,7 @@ C2VencW420::~C2VencW420() {
     /*coverity[exn_spec_violation:SUPPRESS]*/
 
     ALOGD("C2VencW420 destructor!");
+    Close();
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     mInstanceID--;
 }

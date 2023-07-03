@@ -134,11 +134,11 @@ protected:
     virtual c2_status_t Init() = 0;
     virtual c2_status_t ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputFrameInfo_t *pOutFrameInfo) = 0;
     virtual c2_status_t GenerateHeader(uint8_t *pHeaderData,uint32_t *pSize) = 0;
-    virtual void Close() = 0;
     virtual void getResolution(int *pWidth,int *pHeight) = 0;
     virtual void getCodecDumpFileName(std::string &strName,DumpFileType_e type) = 0;
     virtual bool isSupportDMA() = 0;
     virtual bool isSupportCanvas() = 0;
+    virtual void Close() = 0;
     // The pointer of component listener.
 private:
     std::shared_ptr<C2Buffer> createLinearBuffer(
@@ -151,6 +151,7 @@ private:
     uint32_t dumpDataToFile(int fd,uint8_t *data,uint32_t size);
     bool doSomeInit();
     void ProcessData();
+    c2_status_t stop_process();
     c2_status_t CanvasDataProc(DataModeInfo_t *pDataMode,InputFrameInfo *pFrameInfo);
     c2_status_t DMAProc(const private_handle_t *priv_handle,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);
     c2_status_t ViewDataProc(std::shared_ptr<const C2GraphicView> view,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);

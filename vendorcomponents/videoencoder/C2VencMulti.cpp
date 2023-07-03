@@ -884,8 +884,8 @@ C2VencMulti::~C2VencMulti() {
      * This is the logic, no need to modify, ignore coverity weak cryptor report.
     */
     /*coverity[exn_spec_violation:SUPPRESS]*/
-
     ALOGD("C2VencMulti destructor!");
+    Close();
     sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
 }
 
@@ -1381,6 +1381,7 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
 
 
 void C2VencMulti::Close()  {
+    ALOGE("C2VencMulti::Close!!!");
     if (!mCodecHandle) {
         return;
     }
