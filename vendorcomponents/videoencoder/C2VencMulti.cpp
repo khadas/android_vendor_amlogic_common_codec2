@@ -806,8 +806,8 @@ public:
     std::shared_ptr<C2VencCanvasMode::input> getCanvasMode() const{return mVencCanvasMode; };
     std::shared_ptr<C2PrependHeaderModeSetting> getPrependHeader() const {return mPrependHeader; }
     std::shared_ptr<C2StreamTemporalLayeringTuning::output> getLayerCount() const {return mLayerCount; }
-    void getAverageQp(int value){mAverageBlockQuantization->value = value;}
-    void getPictureType(C2Config::picture_type_t type){mPictureType->value = type;}
+    void setAverageQp(int value){mAverageBlockQuantization->value = value;}
+    void setPictureType(C2Config::picture_type_t type){mPictureType->value = type;}
 private:
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamUsageTuning::input> mUsage;
@@ -1370,10 +1370,12 @@ c2_status_t C2VencMulti::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,OutputF
     pOutFrameInfo->FrameType = FRAMETYPE_P;
     if (ret.is_key_frame) {
         pOutFrameInfo->FrameType = FRAMETYPE_IDR;
-    mIntfImpl->getPictureType(C2Config::SYNC_FRAME);
+        mIntfImpl->setPictureType(C2Config::SYNC_FRAME);
     }
-    mIntfImpl->getPictureType(C2Config::P_FRAME);
-    mIntfImpl->getAverageQp(avg_qp);
+    else {
+        mIntfImpl->setPictureType(C2Config::P_FRAME);
+    }
+    mIntfImpl->setAverageQp(avg_qp);
     return C2_OK;
 }
 

@@ -62,8 +62,6 @@ private:
     void codec2InitQpTbl(qp_param_t *qp_tbl);
     c2_status_t getQp(int32_t *i_qp_max,int32_t *i_qp_min,int32_t *p_qp_max,int32_t *p_qp_min,int32_t *b_qp_max,int32_t *b_qp_min);
     void ParseGop(const C2StreamGopTuning::output &gop,uint32_t *syncInterval, uint32_t *iInterval, uint32_t *maxBframes);
-    void getAverageQp(int value);
-    void getPictureType(C2Config::picture_type_t type);
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamIntraRefreshTuning::output> mIntraRefresh;
     std::shared_ptr<C2StreamFrameRateInfo::output> mFrameRate;
