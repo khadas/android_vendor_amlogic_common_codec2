@@ -381,13 +381,8 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
 
 
     // implement Android Video Peek
-    {
-        C2Work* work = comp->getPendingWorkByBitstreamId(bitstreamId);
-        if (!work) {
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, pts:%" PRId64"", __func__, __LINE__, info->mFd, timestamp);
-            return C2_CORRUPTED;
-        }
-
+    C2Work* work = comp->getPendingWorkByBitstreamId(bitstreamId);
+    if (work) {
         bool frameHoldRender = false;
         for (const std::unique_ptr<C2Param> &param : work->input.configUpdate) {
             switch (param->coreIndex().coreIndex()) {
