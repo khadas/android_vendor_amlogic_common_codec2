@@ -24,7 +24,7 @@
 //#include <util/C2InterfaceHelper.h>
 #include "ThreadWorker.h"
 #include <media/stagefright/foundation/Mutexed.h>
-#include <buffer.h>
+#include <am_gralloc_ext.h>
 
 //#include <base/macros.h>
 //#include <base/memory/ref_counted.h>
@@ -153,7 +153,7 @@ private:
     void ProcessData();
     c2_status_t stop_process();
     c2_status_t CanvasDataProc(DataModeInfo_t *pDataMode,InputFrameInfo *pFrameInfo);
-    c2_status_t DMAProc(const private_handle_t *priv_handle,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);
+    c2_status_t DMAProc(const native_handle_t*priv_handle,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);
     c2_status_t ViewDataProc(std::shared_ptr<const C2GraphicView> view,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize);
     c2_status_t LinearDataProc(std::shared_ptr<const C2ReadView> view,InputFrameInfo *pFrameInfo);
     c2_status_t GraphicDataProc(std::shared_ptr<C2Buffer> inputBuffer,InputFrameInfo *pFrameInfo);

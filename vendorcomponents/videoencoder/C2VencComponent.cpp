@@ -47,7 +47,7 @@ namespace android {
 #define ENABLE_DUMP_RAW       (1 << 1)
 #define ENCODER_PROP_DUMP_DATA        "debug.vendor.media.c2.venc.dump_data"
 
-#define USE_CONTINUES_PHYBUFF(h) ((h->consumer_usage | h->producer_usage) & GRALLOC_USAGE_HW_VIDEO_ENCODER)
+#define USE_CONTINUES_PHYBUFF(h) (am_gralloc_get_usage(h) & GRALLOC_USAGE_HW_VIDEO_ENCODER)
 #define align_32(x)  ((((x)+31)>>5)<<5)
 
 #define C2Venc_LOG(level, fmt, str...) CODEC2_LOG(level, fmt, ##str)
@@ -559,7 +559,7 @@ c2_status_t C2VencComponent::LinearDataProc(std::shared_ptr<const C2ReadView> vi
 }
 
 
-c2_status_t C2VencComponent::DMAProc(const private_handle_t *priv_handle,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize) {
+c2_status_t C2VencComponent::DMAProc(const native_handle_t*priv_handle,InputFrameInfo *pFrameInfo,uint32_t *dumpFileSize) {
     if (NULL == priv_handle || NULL == pFrameInfo || NULL == dumpFileSize) {
         return C2_BAD_VALUE;
     }
@@ -579,21 +579,21 @@ c2_status_t C2VencComponent::DMAProc(const private_handle_t *priv_handle,InputFr
     }
 
     pFrameInfo->bufType = DMA;
-    pFrameInfo->shareFd[0] = priv_handle->share_fd;
+    pFrameInfo->shareFd[0] = am_gralloc_get_buffer_fd(priv_handle);
     pFrameInfo->shareFd[1] = -1;
     pFrameInfo->shareFd[2] = -1;
     pFrameInfo->planeNum = 1;
-    pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride;
-    pFrameInfo->uStride = priv_handle->plane_info[1].byte_stride;
-    pFrameInfo->vStride = priv_handle->plane_info[2].byte_stride;
-    pFrameInfo->HStride = priv_handle->plane_info[0].alloc_height;
+    pFrameInfo->yStride = am_gralloc_get_stride_in_byte(priv_handle);
+    pFrameInfo->uStride = am_gralloc_get_stride_in_byte(priv_handle);
+    pFrameInfo->vStride = am_gralloc_get_stride_in_byte(priv_handle);
+    pFrameInfo->HStride = am_gralloc_get_aligned_height(priv_handle);
     C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"actual height:%d",pFrameInfo->HStride);
-    int format = priv_handle->format;
+    int format = am_gralloc_get_format(priv_handle);
     switch (format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
         case HAL_PIXEL_FORMAT_RGB_888:
             pFrameInfo->colorFmt = C2_ENC_FMT_RGBA8888;
-            pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride / 4;
+            pFrameInfo->yStride = am_gralloc_get_stride_in_byte(priv_handle) / 4;
             (*dumpFileSize) = pFrameInfo->yStride * PicSize.height * 4;
             break;
         case HAL_PIXEL_FORMAT_YCbCr_420_888:
@@ -724,71 +724,19 @@ c2_status_t C2VencComponent::ViewDataProc(std::shared_ptr<const C2GraphicView> v
 c2_status_t C2VencComponent::GraphicDataProc(std::shared_ptr<C2Buffer> inputBuffer,InputFrameInfo *pFrameInfo) {
     std::shared_ptr<const C2GraphicView> view;
     uint32_t dumpFileSize = 0;
-    const private_handle_t *priv_handle = NULL;
     c2_status_t res = C2_OK;
 
     if (nullptr == inputBuffer.get() || nullptr == pFrameInfo ) {
         C2Venc_LOG(CODEC2_VENC_LOG_ERR,"GraphicDataProc bad parameter!!");
         return C2_BAD_VALUE;
     }
-
     const native_handle_t* c2Handle = inputBuffer->data().graphicBlocks().front().handle();
-    priv_handle = (private_handle_t *)UnwrapNativeCodec2GrallocHandle(c2Handle);
+    native_handle_t *handle = UnwrapNativeCodec2GrallocHandle(c2Handle);
 
-    if (priv_handle && priv_handle->share_fd && USE_CONTINUES_PHYBUFF(priv_handle) && isSupportDMA()) {
-        if (1) {
-            res = DMAProc(priv_handle,pFrameInfo,&dumpFileSize);
-            if (C2_OK != res) {
-                return res;
-            }
-        }
-        else {
-            pFrameInfo->bufType = VMALLOC;
-            pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride;
-            pFrameInfo->uStride = priv_handle->plane_info[1].byte_stride;
-            pFrameInfo->vStride = priv_handle->plane_info[2].byte_stride;
-            pFrameInfo->size = priv_handle->size;
-            void *mapaddr = mmap(NULL, priv_handle->size, PROT_READ | PROT_WRITE, MAP_SHARED, priv_handle->share_fd, 0);
-            if (NULL  == mapaddr)
-            {
-                C2Venc_LOG(CODEC2_VENC_LOG_ERR,"mmap(share_fd = %d) failed: %s", priv_handle->share_fd, strerror(errno));
-                return C2_BAD_VALUE;
-            }
-            pFrameInfo->needunmap = true;
-            (dumpFileSize) = priv_handle->size;
-            int format = priv_handle->format;
-            switch (format) {
-                case HAL_PIXEL_FORMAT_RGBA_8888:
-                case HAL_PIXEL_FORMAT_RGB_888:
-                    pFrameInfo->colorFmt = C2_ENC_FMT_RGBA8888;
-                    pFrameInfo->yStride = priv_handle->plane_info[0].byte_stride / 4;
-                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
-                    pFrameInfo->uPlane = (uint8_t *)mapaddr;
-                    pFrameInfo->vPlane = (uint8_t *)mapaddr;
-                    break;
-                case HAL_PIXEL_FORMAT_YCbCr_420_888:
-                case HAL_PIXEL_FORMAT_YCrCb_420_SP:
-                    pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
-                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
-                    pFrameInfo->uPlane = (uint8_t *)mapaddr + pFrameInfo->yStride * priv_handle->height;
-                    pFrameInfo->vPlane = (uint8_t *)pFrameInfo->uPlane;
-                    break;
-                case HAL_PIXEL_FORMAT_YV12:
-                    pFrameInfo->colorFmt = C2_ENC_FMT_YV12;
-                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
-                    pFrameInfo->uPlane = (uint8_t *)mapaddr + pFrameInfo->yStride * priv_handle->height;
-                    pFrameInfo->vPlane = (uint8_t *)pFrameInfo->uPlane;
-                    break;
-                default:
-                    pFrameInfo->colorFmt = C2_ENC_FMT_NV21;
-                    pFrameInfo->yPlane = (uint8_t *)mapaddr;
-                    pFrameInfo->uPlane = (uint8_t *)mapaddr + pFrameInfo->yStride * priv_handle->height;
-                    pFrameInfo->vPlane = (uint8_t *)pFrameInfo->uPlane;
-                    C2Venc_LOG(CODEC2_VENC_LOG_ERR,"cannot find support fmt,default:%d",pFrameInfo->colorFmt);
-                    break;
-            }
-            C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"dma in vmalloc mode:yStride:%d,uStride:%d,vStride:%d,view->width():%d,view->height():%d,plane num:%d",
-            pFrameInfo->yStride,pFrameInfo->uStride,pFrameInfo->vStride,priv_handle->width,priv_handle->height,pFrameInfo->planeNum);
+    if (handle && am_gralloc_get_buffer_fd(handle) && USE_CONTINUES_PHYBUFF(handle) && isSupportDMA()) {
+        res = DMAProc(handle,pFrameInfo,&dumpFileSize);
+        if (C2_OK != res) {
+            goto fail_process;
         }
     }
     else {
@@ -799,7 +747,8 @@ c2_status_t C2VencComponent::GraphicDataProc(std::shared_ptr<C2Buffer> inputBuff
             */
             /*coverity[leaked_storage:SUPPRESS]*/
             C2Venc_LOG(CODEC2_VENC_LOG_ERR,"graphic view map err = %d or view is null", view->error());
-            return C2_BAD_VALUE;
+            res = C2_BAD_VALUE;
+            goto fail_process;
         }
 
         C2VencCanvasMode::input CanvasInput(0u);
@@ -812,25 +761,24 @@ c2_status_t C2VencComponent::GraphicDataProc(std::shared_ptr<C2Buffer> inputBuff
                 res = CanvasDataProc(pDataMode,pFrameInfo);
                 if (C2_OK != res) {
                     C2Venc_LOG(CODEC2_VENC_LOG_INFO,"CanvasDataProc failed!!!");
-                    return res;
+                    goto fail_process;
                 }
             }
             else {
                 C2Venc_LOG(CODEC2_VENC_LOG_ERR,"canvas mode,but the data is not right!!!,type:%lx,canvas:%lx",pDataMode->type,pDataMode->canvas);
-                return C2_BAD_VALUE;
+                res = C2_BAD_VALUE;
+                goto fail_process;
             }
         }
         else {
             res = ViewDataProc(view,pFrameInfo,&dumpFileSize);
             if (C2_OK != res) {
                 C2Venc_LOG(CODEC2_VENC_LOG_ERR,"ViewDataProc failed!!!");
-                return res;
+                goto fail_process;
             }
         }
     }
 
-    //native_handle_close((native_handle_t*)priv_handle);
-    //native_handle_delete((native_handle_t*)priv_handle);
     if (mDumpYuvEnable) {
         if (pFrameInfo->bufType == DMA) {
             uint8_t *pVirAddr = NULL;
@@ -845,7 +793,14 @@ c2_status_t C2VencComponent::GraphicDataProc(std::shared_ptr<C2Buffer> inputBuff
             dumpDataToFile(mfdDumpInput,pFrameInfo->yPlane,dumpFileSize);
         }
     }
+
     return C2_OK;
+fail_process:
+    if (handle) {
+        native_handle_delete(handle);
+    }
+
+    return res;
 }
 
 
