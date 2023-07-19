@@ -30,6 +30,7 @@
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <am_gralloc_ext.h>
+#include <hardware/gralloc1.h>
 #include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2VendorConfig.h>
