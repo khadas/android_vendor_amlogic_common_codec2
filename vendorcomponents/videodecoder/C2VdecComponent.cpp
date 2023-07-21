@@ -1924,6 +1924,7 @@ void C2VdecComponent::updateOutputDelayBufCount() {
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     c2_status_t outputDelayErr = mIntfImpl->config({&outputDelay}, C2_MAY_BLOCK, &failures);
     if (outputDelayErr == OK) {
+        outputDelay.value = dequeueBufferNum;
         mOutputDelay = std::make_shared<C2PortActualDelayTuning::output>(std::move(outputDelay));
     } else {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Update dequeueBufferNum %d error", dequeueBufferNum);
@@ -2389,6 +2390,10 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         //too few buffer count.
         dequeue_buffer_num = bufferCount;
     }
+    if (dequeue_buffer_num < 2 * mOutBufferCount / 3) {
+        dequeue_buffer_num = 2 * mOutBufferCount / 3;
+    }
+
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %" PRId64"",
                 minBuffersForDisplay, (int)bufferCount, dequeue_buffer_num, usage.expected);
     for (int i = 0; i < dequeue_buffer_num; ++i) {
@@ -2463,6 +2468,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         reportError(C2_CORRUPTED);
         return C2_CORRUPTED;
     }
+    mDequeueThreadUtil->StartAllocBuffer();
 
     for (int i = 1; i <= dequeueTaskCount; i++) {
         mDequeueThreadUtil->postDelayedAllocTask(size, pixelFormat, true, static_cast<uint32_t>(i * frameDur + 10000));

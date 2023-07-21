@@ -39,7 +39,7 @@ const C2BlockPool::local_id_t kDefaultOutputBlockPool = C2PlatformAllocatorStore
 //No-Tunnel Mode
 constexpr uint32_t kDefaultOutputDelay = 3;             // The output buffer margin during initialization.
                                                         // Will be updated during playback.
-constexpr uint32_t kMaxOutputDelay = 32;                // Max output delay.
+constexpr uint32_t kMaxOutputDelay = 64;                // Max output delay.
 constexpr uint32_t kMaxInputDelay = 4;                // Max input delay for no-secure.
 constexpr uint32_t kMaxInputDelaySecure = 4;          // Max input delay for secure.
 constexpr uint32_t kMaxInputDelayStreamMode = 256;    // Max input delay for stream mode.
