@@ -119,6 +119,9 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mColorAspectsChanged = false;
     mDisableErrPolicy = true;
 
+    // low-latency mode
+    mUseLowLatencyMode = false;
+
     // HDR
     mHDRStaticInfoChanged = false;
     mHDR10PLusInfoChanged = false;
@@ -376,7 +379,10 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
     if (lowLatency.value) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Config low latency mode to v4l2 decoder.");
-        pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_NORMAL;
+        pAmlDecParam->cfg.low_latency_mode |= (LOWLATENCY_NORMAL|LOWLATENCY_FENCE);
+        mUseLowLatencyMode = true;
+        mEnableNR = false;
+        mEnableDILocalBuf = false;
     } else {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Disable low latency mode to v4l2 decoder.");
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABLE;
@@ -385,6 +391,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     if (intfImpl->mVendorGameModeLatency->enable) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Config game latency mode to v4l2 decoder.");
         pAmlDecParam->cfg.low_latency_mode |= (LOWLATENCY_NORMAL|LOWLATENCY_FENCE);
+        mUseLowLatencyMode = true;
         mEnableNR = false;
         mEnableDILocalBuf = false;
     }
@@ -1715,4 +1722,9 @@ void C2VdecComponent::DeviceUtil::setGameMode(bool enable) {
     }
 }
 
+bool C2VdecComponent::DeviceUtil::isLowLatencyMode() {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
+    return mUseLowLatencyMode;
+}
 }

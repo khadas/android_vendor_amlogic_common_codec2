@@ -126,7 +126,7 @@ public:
     bool checkIsYcbcRP010Stream(); /* 10bit */
 
     void setGameMode(bool enable);
-
+    bool isLowLatencyMode();
 private:
     void init(bool secure);
     /* set hdr static to decoder */
@@ -176,6 +176,9 @@ private:
     bool mEnable8kNR;
     bool mDisableErrPolicy;
     bool mForceFullUsage;
+
+    /* for low-latency mode */
+    bool mUseLowLatencyMode;
 
     /* for check pts */
     bool mIsInterlaced;

@@ -500,6 +500,9 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
                 vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
         }
+        if (mDeviceUtil->isLowLatencyMode()) {
+            vdecflags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
+        }
         char mInstanceName[32];
         snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
@@ -2808,8 +2811,11 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
                 if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
                     vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
             }
-        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
-        mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
+            if (mDeviceUtil->isLowLatencyMode()) {
+                vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
+            }
+            snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
+            mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                         (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecFlags, mInstanceName, QuitEventFunc, (void *)this);
             //set some decoder config
             //set unstable state and duration to vdec
@@ -2833,6 +2839,9 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
                 vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
             if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
                 vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
+        }
+        if (mDeviceUtil->isLowLatencyMode()) {
+            vdecflags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
         }
         snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
