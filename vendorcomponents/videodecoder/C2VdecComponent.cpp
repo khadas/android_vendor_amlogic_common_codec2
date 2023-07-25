@@ -2781,7 +2781,11 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
                 mVideoDecWraper = std::make_shared<VideoDecWraper>();
                 mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
             }
-            mDeviceUtil->setUseSurfaceTexture(usersurfacetexture);
+            //check again
+            usage = mBlockPoolUtil->getConsumerUsage();
+            if (!(usage & GRALLOC_USAGE_HW_COMPOSER)) {
+                mDeviceUtil->setUseSurfaceTexture(usersurfacetexture);
+            }
             mDeviceUtil->codecConfig(&mConfigParam);
             uint32_t vdecFlags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
             if (mIntfImpl) {
