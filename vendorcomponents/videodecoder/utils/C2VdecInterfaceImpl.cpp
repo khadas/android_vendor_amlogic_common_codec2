@@ -1404,23 +1404,15 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config picture w:%d h:%d",
                             C2VdecComponent::mInstanceID, mComponent->mSessionID,
                             mSize->width, mSize->height);
-    bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    c2_status_t ret = C2_OK;
     int32_t bufferSize = mSize->width * mSize->height;
 
-    c2_status_t ret = C2_OK;
-    if ((bufferSize > (1920 * 1088)) && !support_4k) {
-        CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] not support 4K for non-4K platform, config failed",
-        C2VdecComponent::mInstanceID, mComponent->mSessionID);
-        ret = C2_BAD_VALUE;
-    }
     C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
-    if ((bufferSize > (4096 * 2304)) && !C2VdecCodecConfig::getInstance().isCodecSupport8k(vendorCodec, mSecureMode)) {
-        CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] not support 8K for non-8K platform, config failed",
-        C2VdecComponent::mInstanceID, mComponent->mSessionID);
-        ret = C2_BAD_VALUE;
-    }
+    ret = C2VdecCodecConfig::getInstance().isCodecSupportResolutionRatio(mInputCodec, mSecureMode, bufferSize);
 
     if (ret != C2_OK) {
+        CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] not support 8K for non-8K platform or 4K for non-4K platform, config failed",
+                C2VdecComponent::mInstanceID, mComponent->mSessionID);
         std::unique_ptr<C2SettingResult> result = std::unique_ptr<C2SettingResult>(new C2SettingResult {
             .field = C2ParamFieldValues(C2ParamField(param)),
             .failure = C2SettingResult::Failure::BAD_VALUE,

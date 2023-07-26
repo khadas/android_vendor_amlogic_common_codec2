@@ -581,4 +581,23 @@ bool C2VdecCodecConfig::isCodecSupport8k(C2VendorCodec codec_type, bool secure) 
     return attribute->second.isSupport8k;
 }
 
+c2_status_t C2VdecCodecConfig::isCodecSupportResolutionRatio(InputCodec codec, bool secure, int32_t bufferSize) {
+    bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    bool support_8k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_8K, true);
+
+    c2_status_t ret = C2_OK;
+    if ((bufferSize > (1920 * 1088)) && !support_4k) {
+        CODEC2_LOG(CODEC2_LOG_ERR,"%s:%d not support 4K for non-4K platform, config failed, please check", __func__, __LINE__);
+        ret = C2_BAD_VALUE;
+    }
+    C2VendorCodec vendorCodec = adaptorInputCodecToVendorCodec(codec);
+    if ((bufferSize > (4096 * 2304)) &&
+        (!isCodecSupport8k(vendorCodec, secure) && !support_8k)) {
+        CODEC2_LOG(CODEC2_LOG_ERR,"%s:%d not support 8K for non-8K platform, config failed, please check", __func__, __LINE__);
+        ret = C2_BAD_VALUE;
+    }
+    return ret;
+}
+
+
 }
