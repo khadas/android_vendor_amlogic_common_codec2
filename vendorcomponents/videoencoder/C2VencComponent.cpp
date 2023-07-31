@@ -339,45 +339,11 @@ c2_status_t C2VencComponent::stop_process() {
 
 
 c2_status_t C2VencComponent::stop() {
-    stop_process();
-    Close();
-    return C2_OK;
-/*    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"C2VencComponent stop!");
-    if (mComponentState == ComponentState::UNINITIALIZED) {
-        C2Venc_LOG(CODEC2_VENC_LOG_ERR,"this component has already stopped");
-        return C2_NO_INIT;
-    }
-    mComponentState = ComponentState::STOPPING;
-    {
-        AutoMutex l(mInputQueueLock);
-        mQueue.clear();
-    }
-    if (mthread.isRunning()) {
-        mthread.stop();
-        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread to exit!");
-        AutoMutex l(mProcessDoneLock);
-        if (mProcessDoneCond.waitRelative(mProcessDoneLock,500000000ll) == ETIMEDOUT) {
-            C2Venc_LOG(CODEC2_VENC_LOG_ERR,"wait for thread timeout!!!!");
-        }
-        else {
-            C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread exit done!!!!");
-        }
-    }
-    if (mfdDumpInput >= 0) {
-        close(mfdDumpInput);
-        mfdDumpInput = -1;
-        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Dump raw File finish!");
-    }
+    c2_status_t ret = C2_OK;
 
-    if (mfdDumpOutput >= 0) {
-        close(mfdDumpOutput);
-        mfdDumpOutput = -1;
-        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Dump raw File finish!");
-    }
+    ret = stop_process();
     Close();
-    mComponentState = ComponentState::UNINITIALIZED;
-    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"stop done,set state to UNINITIALIZED");
-    return C2_OK;*/
+    return ret;
 }
 
 c2_status_t C2VencComponent::reset() {
