@@ -566,6 +566,7 @@ private:
     C2Work *mLastOutputReportWork;
     int32_t mPlayerId;
     int32_t mUnstable;
+    bool mIsReleasing;
     DISALLOW_COPY_AND_ASSIGN(C2VdecComponent);
 };
 

@@ -353,6 +353,7 @@ void C2VdecComponent::Init(C2String compName) {
         sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
 
     mIsDolbyVision = compName.find(".dolby-vision") != std::string::npos;
+    mIsReleasing = false;
 }
 
 C2VdecComponent::~C2VdecComponent() {
@@ -2402,6 +2403,8 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
+            if (mIsReleasing)
+                return C2_OK;
             auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                             mDeviceUtil->getOutAlignedSize(size.height()),
@@ -3035,6 +3038,7 @@ c2_status_t C2VdecComponent::reset() {
 c2_status_t C2VdecComponent::release() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]",__func__);
     c2_status_t ret = C2_OK;
+    mIsReleasing = true;
     ret = reset();
     if (mDebugUtil) {
         mDebugUtil.reset();
@@ -3048,6 +3052,7 @@ c2_status_t C2VdecComponent::release() {
         done.Wait();
         mThread.Stop();
     }
+    mIsReleasing = false;
     return ret;
 }
 
