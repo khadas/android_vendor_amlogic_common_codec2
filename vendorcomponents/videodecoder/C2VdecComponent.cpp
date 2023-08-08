@@ -2421,6 +2421,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
             } else if (err == EAGAIN) {
                 C2Vdec_LOG(CODEC2_LOG_INFO, "Failed to allocate buffer: %d retry i = %d", err, i);
                 ::usleep(kDequeueRetryDelayUs);
+                break;
             } else if (err != C2_OK) {
                 C2Vdec_LOG(CODEC2_LOG_INFO, "[%s@%d] Failed to allocate buffer, state: %d", __func__, __LINE__, err);
                 ::usleep(kDequeueRetryDelayUs);
@@ -2428,6 +2429,10 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
                 //return err;
                 //break;
             }
+        }
+        if (err == EAGAIN) {
+            dequeue_buffer_num = i;
+            break;
         }
 
         poolId = -1;
