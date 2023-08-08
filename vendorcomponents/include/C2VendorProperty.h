@@ -77,6 +77,7 @@
 
 /* platform */
 #define PROPERTY_PLATFORM_SUPPORT_4K                "ro.vendor.platform.support.4k"
+#define PROPERTY_PLATFORM_SUPPORT_4K_FPS_MAX        "ro.vendor.platform.support.4k_fps_max"
 #define PROPERTY_PLATFORM_SUPPORT_8K                "ro.vendor.platform.support.8k"
 #define PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010     "ro.vendor.platform.support.hardware_10bit"
 

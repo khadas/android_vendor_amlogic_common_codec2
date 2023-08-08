@@ -510,6 +510,7 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
     GetCompName(codec_type, secure, name);
     int32_t size = width * height;
     bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    int32_t support_4k_fps_max = property_get_int32(PROPERTY_PLATFORM_SUPPORT_4K_FPS_MAX, 0);
 
     if (name == NULL) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"codecname is null and return.");
@@ -528,6 +529,8 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
         float supportFrameRate = (float)codecAttributes.blocksPerSecond.max / (float)codecAttributes.blockCount.max;
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported framerate:%f framerate:%f blocksPerSecond:%d blockCount:%d", __func__, supportFrameRate, frameRate,
             codecAttributes.blocksPerSecond.max, codecAttributes.blockCount.max);
+        if (frameRate <= support_4k_fps_max)
+            return true;
 
         if (frameRate <= supportFrameRate) {
             return true;
