@@ -142,6 +142,7 @@ VideoDecWraper::VideoDecWraper() :
     mDecoderCallback(NULL) {
     mSessionID = -1;
     mDecoderID = -1;
+    mPipeLineWorkNum = 256;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     C2VdecWraper_LOG(CODEC2_LOG_INFO, "VideoDecWraper");
 }
@@ -195,10 +196,12 @@ int VideoDecWraper::initialize(
     setSessionID2Hal();
 
     bool stream_mode = ((flags & AM_VIDEO_DEC_INIT_FLAG_STREAMMODE) ? true : false);
-    if (stream_mode)
+    if (stream_mode) {
         mAmVideoDec->setQueueCount(1023);
-    else
+        setPipelineWorkNumber2Hal();
+    } else {
         mAmVideoDec->setQueueCount(64);
+    }
 
     if (client)
         mDecoderCallback = client;
@@ -401,6 +404,10 @@ void VideoDecWraper::setSessionID(int32_t id) {
     mSessionID = id;
 }
 
+void VideoDecWraper::setPipeLineWorkNumber(uint32_t number) {
+    mPipeLineWorkNum = number;
+}
+
 void VideoDecWraper::setSessionID2Hal() {
     AmlMessageBase * msg = AmVideoDec_getAmlMessage();
     if (msg == NULL) {
@@ -429,6 +436,18 @@ int32_t VideoDecWraper::getDecoderID() {
         delete msg;
     }
     return decoderID;
+}
+
+void VideoDecWraper::setPipelineWorkNumber2Hal() {
+
+    AmlMessageBase * msg = AmVideoDec_getAmlMessage();
+    if (msg == NULL) {
+        ALOGW("VideoDecWraper::setPipelineWorkNumber %d, msg == NULL",mPipeLineWorkNum);
+        return ;
+    }
+    msg->setInt32("pipelineworknumber", mPipeLineWorkNum);
+    postAndReplyMsg(msg);
+    delete msg;
 }
 
 }

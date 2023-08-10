@@ -504,8 +504,10 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         }
         uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
         if (mIntfImpl) {
-            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
+            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
                 vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+                mVideoDecWraper->setPipeLineWorkNumber(mIntfImpl->mStreamModePipeLineDelay->value + mIntfImpl->mActualOutputDelay->value);
+            }
             if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
                 vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
         }

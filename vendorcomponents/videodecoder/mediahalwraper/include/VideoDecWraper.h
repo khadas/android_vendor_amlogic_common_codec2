@@ -85,6 +85,7 @@ public:
     bool postAndReplyMsg(AmlMessageBase *msg);
     void setSessionID(int32_t id);
     int32_t getDecoderID();
+    void setPipeLineWorkNumber(uint32_t number);
     //media::VideoDecodeAccelerator::SupportedProfiles GetSupportedProfiles(InputCodec inputCodec);
 
     // Implementation of the media::VideoDecodeAcceleratorAdaptor::Client interface.
@@ -105,11 +106,14 @@ public:
     virtual void onEvent(uint32_t event, void* param, uint32_t paramsize);
 
 private:
+
     void setSessionID2Hal();
+    void setPipelineWorkNumber2Hal();
     AmVideoDecBase* mAmVideoDec;
     VideoDecWraperCallback* mDecoderCallback;
     int32_t mSessionID;
     int32_t mDecoderID;
+    uint32_t mPipeLineWorkNum;
 };
 
 enum {
