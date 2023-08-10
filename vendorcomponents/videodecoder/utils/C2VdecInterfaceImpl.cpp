@@ -1074,17 +1074,25 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
     // This value is the default maximum of linear buffer size (kLinearBufferSize) in
     // CCodecBufferChannel.cpp.
     constexpr static size_t kLinearBufferSize = 1 * 1024 * 1024;
+    static size_t kLinearPaddingBufferSize = 0;
+
+    if (mSecureMode)
+        kLinearPaddingBufferSize = 0;
+    else
+        kLinearPaddingBufferSize = 65536; // 64k
+
     struct LocalCalculator {
         static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
                                         const C2P<C2StreamPictureSizeInfo::output>& size) {
             (void)mayBlock;
             size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, 6291456);
-            size_t paddingSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_PADDINGSIZE, 262144);
+            size_t paddingSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_PADDINGSIZE, kLinearPaddingBufferSize);
             size_t defaultSize = me.get().value;
             if (defaultSize > kMaxInputBufferSize) {
                CODEC2_LOG(CODEC2_LOG_INFO,"The current input buffer size %zu is too large, limit its number", (size_t)me.set().value);
                return C2R::Ok();
             }
+
             if (defaultSize > 0)
                defaultSize += paddingSize;
             else
@@ -1102,6 +1110,7 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
                 && (me.set().value < (4 * kLinearBufferSize))) {
                 me.set().value = 4 * kLinearBufferSize;
             }
+
             return C2R::Ok();
         }
     };
