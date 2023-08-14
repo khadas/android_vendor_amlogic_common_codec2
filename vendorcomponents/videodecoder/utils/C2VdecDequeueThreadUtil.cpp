@@ -30,6 +30,7 @@
 #include <size.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
 
 #include <base/bind.h>
 #include <base/bind_helpers.h>
@@ -43,7 +44,7 @@
 
 namespace android {
 
-#define C2VdecDQ_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
+#define C2VdecDQ_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mSessionID, comp->mDecoderID, ##str)
 
 #define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
 #define DEFAULT_START_OPTIMIZE_FRAME_NUMBER_MIN (100)
@@ -102,7 +103,6 @@ c2_status_t C2VdecComponent::DequeueThreadUtil::setComponent(std::shared_ptr<C2V
     LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
     mIntfImpl = comp->GetIntfImpl();
     C2VdecDQ_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
-    TRACE_NAME_FETCH_BLOCK << comp->getPlayerId() << "-" << comp->getInstanceId() << "-c2DqFetchBuffer";
     return C2_OK;
 }
 
@@ -176,6 +176,9 @@ void C2VdecComponent::DequeueThreadUtil::onInitTask() {
             C2VdecDQ_LOG(CODEC2_LOG_ERR, "setpriority error: %s, niceval:%d", strerror(errno), niceval);
         }
     }
+    TRACE_NAME_C2VDEC_DEQUEUE_THREAD.str("");
+    TRACE_NAME_C2VDEC_DEQUEUE_THREAD << comp->getSessionID() << "-" << comp->getDecoderID() << "-C2VdecDequeueThreadUtil";
+    prctl(PR_SET_NAME, (unsigned long)TRACE_NAME_C2VDEC_DEQUEUE_THREAD.str().c_str());
 }
 
 void C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask(media::Size size, uint32_t pixelFormat, bool waitRunning, uint32_t delayTimeUs) {
@@ -269,7 +272,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         blockPoolUtil->getPoolId(&poolId);
         auto format = deviceUtil->getStreamPixelFormat(pixelFormat);
 
-        CODEC2_ATRACE_BEGIN(TRACE_NAME_FETCH_BLOCK.str().c_str());
+        CODEC2_ATRACE_BEGIN("fetchGraphicBlock");
         err = blockPoolUtil->fetchGraphicBlock(deviceUtil->getOutAlignedSize(size.width()),
                                         deviceUtil->getOutAlignedSize(size.height()),
                                         format, usage, &block);

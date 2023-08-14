@@ -63,7 +63,7 @@ private:
     int64_t mLastAllocBufferRetryTimeUs;
     int64_t mLastAllocBufferSuccessTimeUs;
     media::Size mCurrentBlockSize;
-    std::ostringstream TRACE_NAME_FETCH_BLOCK;
+    std::ostringstream TRACE_NAME_C2VDEC_DEQUEUE_THREAD;
 };
 
 }

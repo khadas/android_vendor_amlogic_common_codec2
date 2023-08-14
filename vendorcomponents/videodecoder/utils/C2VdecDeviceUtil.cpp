@@ -38,7 +38,7 @@
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
 
-#define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d##%d]"#fmt, mPlayerId, comp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
+#define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d]"#fmt, comp->mSessionID, comp->mDecoderID, ##str)
 
 #define OUTPUT_BUFS_ALIGN_SIZE (64)
 #define min(a, b) (((a) > (b))? (b):(a))
@@ -143,6 +143,8 @@ c2_status_t C2VdecComponent::DeviceUtil::setComponent(std::shared_ptr<C2VdecComp
     LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
     mIntfImpl = comp->GetIntfImpl();
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+
+    paramsPreCheck();
 
     return C2_OK;
 }
@@ -308,6 +310,22 @@ uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat)
     return format;
 }
 
+bool C2VdecComponent::DeviceUtil::paramsPreCheck() {
+    LockWeakPtrWithReturnVal(comp, mComp, false);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
+
+    c2_status_t err = C2_OK;
+    C2VendorPlayerId::input playerId = {0};
+    err = intfImpl->query({&playerId}, {}, C2_MAY_BLOCK, nullptr);
+    if (err != C2_OK) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2VendorPlayerId message error", __func__, __LINE__);
+    } else {
+        mPlayerId = playerId.value;
+    }
+
+    return true;
+}
+
 void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     LockWeakPtrWithReturnVoid(comp, mComp);
     LockWeakPtrWithReturnVoid(intfImpl, mIntfImpl);
@@ -354,14 +372,6 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2StreamUnstablePts message error", __func__, __LINE__);
     } else {
         mUnstablePts = unstablePts.enable;
-    }
-
-    C2VendorPlayerId::input playerId = {0};
-    err = intfImpl->query({&playerId}, {}, C2_MAY_BLOCK, nullptr);
-    if (err != C2_OK) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query C2VendorPlayerId message error", __func__, __LINE__);
-    } else {
-        mPlayerId = playerId.value;
     }
 
     if (inputFrameRateInfo.value != 0) {

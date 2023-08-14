@@ -85,6 +85,7 @@ public:
     void setForceFullUsage(bool isFullUsage) { mForceFullUsage = isFullUsage;}
     void setUseSurfaceTexture(bool userSurfaceTexture) { mUseSurfaceTexture = userSurfaceTexture;}
 
+    bool paramsPreCheck();
     int32_t getPlayerId() {return mPlayerId;}
     uint32_t getVideoDurationUs() {return mDurationUs;}
     int32_t getMarginBufferNum() {return mMarginBufferNum;}

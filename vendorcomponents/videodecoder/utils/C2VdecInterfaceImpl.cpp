@@ -222,7 +222,7 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 break;
             case C2VendorGameModeLatency::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config game mode latency",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+                    mComponent->mSessionID, mComponent->mDecoderID);
                 break;
             case C2VdecWorkMode::CORE_INDEX:
                 onVdecWorkModeConfigParam();
@@ -238,7 +238,7 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 break;
               case C2StreamModeHwAvSyncId::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode hwavsyncid  :%d",
-                    mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModeHwAvSyncId->value);
+                    mComponent->mSessionID, mComponent->mDecoderID, mStreamModeHwAvSyncId->value);
                 if (mComponent) {
                     mComponent->onConfigureEsModeHwAvsyncId(mStreamModeHwAvSyncId->value);
                 }
@@ -1320,7 +1320,7 @@ void C2VdecComponent::IntfImpl::onAvc4kMMUEnable() {
 // config param
 void C2VdecComponent::IntfImpl::onTunneledModeTuningConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tunnel mode config",
-            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+            mComponent->mSessionID, mComponent->mDecoderID);
     mComponent->onConfigureTunnelMode();
     // change to bufferpool
     mOutputSurfaceAllocatorId->value = C2PlatformAllocatorStore::GRALLOC;
@@ -1330,64 +1330,64 @@ void C2VdecComponent::IntfImpl::onTunneledModeTuningConfigParam() {
 
 void C2VdecComponent::IntfImpl::onVendorTunerHalConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]passthrough mode config",
-            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+            mComponent->mSessionID, mComponent->mDecoderID);
     mComponent->onConfigureTunerPassthroughMode();
 }
 
 
 void C2VdecComponent::IntfImpl::onTunerPassthroughTrickModeConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough trick mode config",
-            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+            mComponent->mSessionID, mComponent->mDecoderID);
     mComponent->onConfigureTunerPassthroughTrickMode();
 }
 
 void C2VdecComponent::IntfImpl::onTunerPassthroughWorkModeConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough work mode config",
-            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+            mComponent->mSessionID, mComponent->mDecoderID);
     mComponent->onConfigureTunerPassthroughWorkMode();
 }
 
 void C2VdecComponent::IntfImpl::onTunerPassthroughEventMaskConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough event mask config",
-            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+            mComponent->mSessionID, mComponent->mDecoderID);
     mComponent->onConfigureTunerPassthroughEventMask();
 }
 
 void C2VdecComponent::IntfImpl::onVdecWorkModeConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config vdec work mode:%d",
-            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mVdecWorkMode->value);
+            mComponent->mSessionID, mComponent->mDecoderID, mVdecWorkMode->value);
 }
 
 void C2VdecComponent::IntfImpl::onDataSourceTypeConfigParam() {
-    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d", mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mDataSourceType->value);
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config datasource type:%d", mComponent->mSessionID, mComponent->mDecoderID, mDataSourceType->value);
 }
 
 void C2VdecComponent::IntfImpl::onStreamModeInputDelayConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode input delay :%d",
-        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModeInputDelay->value);
+        mComponent->mSessionID, mComponent->mDecoderID, mStreamModeInputDelay->value);
     mActualInputDelay->value = mStreamModeInputDelay->value;
 }
 
 void C2VdecComponent::IntfImpl::onStreamModePipeLineDelayConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config stream mode pipeline delay :%d",
-        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mStreamModePipeLineDelay->value);
+        mComponent->mSessionID, mComponent->mDecoderID, mStreamModePipeLineDelay->value);
     mActualPipelineDelay->value = mStreamModePipeLineDelay->value;
 }
 
 void C2VdecComponent::IntfImpl::onStreamTunnelStartRenderConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config tunnel startRender",
-        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+        mComponent->mSessionID, mComponent->mDecoderID);
     mComponent->onAndroidVideoPeek();
 }
 
 void C2VdecComponent::IntfImpl::onStreamHdr10PlusInfoConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config HDR10PlusInfo",
-        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+        mComponent->mSessionID, mComponent->mDecoderID);
 }
 
 void C2VdecComponent::IntfImpl::onStreamMaxBufferSizeInfoConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config C2StreamMaxBufferSizeInfo",
-            mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum);
+            mComponent->mSessionID, mComponent->mDecoderID);
 
     bool isLowMemDevice = !property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
     size_t maxInputSize = property_get_int32(C2_PROPERTY_VDEC_INPUT_MAX_SIZE, kMaxInputBufferSize);
@@ -1402,7 +1402,7 @@ void C2VdecComponent::IntfImpl::onStreamMaxBufferSizeInfoConfigParam() {
 c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
         std::vector<std::unique_ptr<C2SettingResult>>* const failures, C2Param* const param) {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config picture w:%d h:%d",
-                            C2VdecComponent::mInstanceID, mComponent->mCurInstanceID,
+                            C2VdecComponent::mInstanceID, mComponent->mSessionID,
                             mSize->width, mSize->height);
     bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
     int32_t bufferSize = mSize->width * mSize->height;
@@ -1410,13 +1410,13 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
     c2_status_t ret = C2_OK;
     if ((bufferSize > (1920 * 1088)) && !support_4k) {
         CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] not support 4K for non-4K platform, config failed",
-        C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+        C2VdecComponent::mInstanceID, mComponent->mSessionID);
         ret = C2_BAD_VALUE;
     }
     C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
     if ((bufferSize > (4096 * 2304)) && !C2VdecCodecConfig::getInstance().isCodecSupport8k(vendorCodec, mSecureMode)) {
         CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] not support 8K for non-8K platform, config failed",
-        C2VdecComponent::mInstanceID, mComponent->mCurInstanceID);
+        C2VdecComponent::mInstanceID, mComponent->mSessionID);
         ret = C2_BAD_VALUE;
     }
 
@@ -1435,7 +1435,7 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
         C2VdecComponent::sConcurrentMaxResolutionInstance.fetch_add(1, std::memory_order_relaxed);
         mComponent->mIsMaxResolution = true;
         CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] use max res, ins:%d",
-            C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, C2VdecComponent::sConcurrentMaxResolutionInstance.load());
+            C2VdecComponent::mInstanceID, mComponent->mSessionID, C2VdecComponent::sConcurrentMaxResolutionInstance.load());
     }
 
     return ret;
@@ -1444,7 +1444,7 @@ c2_status_t C2VdecComponent::IntfImpl::onStreamPictureSizeConfigParam(
 bool C2VdecComponent::IntfImpl::onStreamFrameRateConfigParam(
         std::vector<std::unique_ptr<C2SettingResult>>* const failures, C2Param* const param) {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config frame rate:%f",
-                            C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mFrameRateInfo->value);
+                            C2VdecComponent::mInstanceID, mComponent->mSessionID, mFrameRateInfo->value);
 
     C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
     bool ret = C2VdecCodecConfig::getInstance().isCodecSupportFrameRate(vendorCodec, mSecureMode, mSize->width, mSize->height, mFrameRateInfo->value);
@@ -1461,12 +1461,12 @@ bool C2VdecComponent::IntfImpl::onStreamFrameRateConfigParam(
 
 void C2VdecComponent::IntfImpl::onNetflixVPeekConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config netflix vpeek:%d",
-        C2VdecComponent::mInstanceID, mComponent->mCurInstanceID, mVendorNetflixVPeek->vpeek);
+        C2VdecComponent::mInstanceID, mComponent->mSessionID, mVendorNetflixVPeek->vpeek);
 }
 
 void C2VdecComponent::IntfImpl::onErrorPolicyConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d] config error policy :%d",
-                        mComponent->mCurInstanceID, C2VdecComponent::mInstanceNum, mErrorPolicy->value);
+                        mComponent->mSessionID, mComponent->mDecoderID, mErrorPolicy->value);
 }
 
 }

@@ -59,6 +59,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
 
 
 #ifdef ATRACE_TAG
@@ -83,7 +84,7 @@
         (void)(expr); \
     } while (0)
 
-#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d##%d]"#fmt, mPlayerId, mCurInstanceID, mInstanceNum, ##str)
+#define C2Vdec_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mSessionID, mDecoderID, ##str)
 
 #define CODEC2_VDEC_ATRACE(tag_name, num) \
 do { \
@@ -231,7 +232,7 @@ bool C2VdecComponent::Preempting()
 void QuitEventFunc(void *classptr)
 {
     C2VdecComponent *comp = (C2VdecComponent*)classptr;
-    ALOGW("CODEC2-%d was preempted", comp->mCurInstanceID);
+    ALOGW("CODEC2-%d was preempted", comp->mSessionID);
     comp->Preempted();
 }
 
@@ -338,7 +339,8 @@ void C2VdecComponent::Init(C2String compName) {
     mSyncId = 0;
     mInstanceNum ++;
     mInstanceID ++;
-    mCurInstanceID = mInstanceID;
+    mSessionID = -1;
+    mDecoderID = -1;
     mStopDoneEvent = nullptr;
 
     mIsMaxResolution = false;
@@ -466,7 +468,7 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             mVideoDecWraper = NULL;
         }
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
-        mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
+
         if (mDeviceUtil) {
             mDeviceUtil.reset();
             mDeviceUtil = NULL;
@@ -474,6 +476,13 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         mDeviceUtil = std::make_shared<DeviceUtil>(mSecureMode);
         mDeviceUtil->setComponent(shared_from_this());
         mDeviceUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
+        // set session id
+        mPlayerId = mDeviceUtil->getPlayerId();
+        mSessionID = mInstanceID;
+        if (mPlayerId > 0) {
+            mSessionID = mPlayerId;
+        }
+        mVideoDecWraper->setSessionID((uint32_t)mSessionID);
         mDeviceUtil->codecConfig(&mConfigParam);
 
         //update profile for DolbyVision
@@ -503,21 +512,18 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         if (mDeviceUtil->isLowLatencyMode()) {
             vdecflags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
         }
+
         char mInstanceName[32];
-        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
+        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mSessionID);
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(profile),
                 (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags, mInstanceName, QuitEventFunc, (void *)this);
         //set some decoder config
         //set unstable state and duration to vdec
         mDeviceUtil->setUnstable();
         mDeviceUtil->setDuration();
-        mPlayerId = mDeviceUtil->getPlayerId();
-        TRACE_NAME_IN_PTS << mCurInstanceID << "-" << mPlayerId << "-c2InPTS";
-        TRACE_NAME_BITSTREAM_ID << mCurInstanceID << "-" << mPlayerId << "-c2InBitStreamID";
-        TRACE_NAME_OUT_PTS << mCurInstanceID << "-" << mPlayerId << "-c2OutPts";
-        TRACE_NAME_FETCH_OUT_BLOCK_ID << mCurInstanceID << "-" << mPlayerId << "-c2FetchOutBlockId";
-        TRACE_NAME_FINISHED_WORK_PTS << mCurInstanceID << "-" << mPlayerId << "-c2FinishedWorkPTS";
-        TRACE_NAME_SEND_OUTPUT_BUFFER << mCurInstanceID << "-" << mPlayerId << "-c2SendOutPutBuffer";
+        mDecoderID = mVideoDecWraper->getDecoderID();
+        TraceInit();
+        prctl(PR_SET_NAME, (unsigned long) TRACE_NAME_VDEC_COMPONENT_THREAD.str().c_str());
     } else {
         mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::SUCCESS;
     }
@@ -549,11 +555,30 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     done->Signal();
 }
 
+
+void C2VdecComponent::TraceInit() {
+    TRACE_NAME_IN_PTS.str("");
+    TRACE_NAME_BITSTREAM_ID.str("");
+    TRACE_NAME_OUT_PTS.str("");
+    TRACE_NAME_FETCH_OUT_BLOCK_ID.str("");
+    TRACE_NAME_FINISHED_WORK_PTS.str("");
+    TRACE_NAME_SEND_OUTPUT_BUFFER.str("");
+    TRACE_NAME_VDEC_COMPONENT_THREAD.str("");
+
+    TRACE_NAME_IN_PTS << mSessionID << "-" << mDecoderID << "-c2InPTS";
+    TRACE_NAME_BITSTREAM_ID << mSessionID << "-" << mDecoderID << "-c2InBitStreamID";
+    TRACE_NAME_OUT_PTS << mSessionID << "-" << mDecoderID << "-c2OutPts";
+    TRACE_NAME_FETCH_OUT_BLOCK_ID << mSessionID << "-" << mDecoderID << "-c2FetchOutBlockId";
+    TRACE_NAME_FINISHED_WORK_PTS << mSessionID << "-" << mDecoderID << "-c2FinishedWorkPTS";
+    TRACE_NAME_SEND_OUTPUT_BUFFER << mSessionID << "-" << mDecoderID << "-c2SendOutPutBuffer";
+    TRACE_NAME_VDEC_COMPONENT_THREAD << mSessionID << "-" << mDecoderID << "-C2VdecComponentThread";
+}
+
 void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> info) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
 
-
+    CODEC2_ATRACE_CALL();
     if (mFlushDoneWithOutEosWork == true)
         onReusedOutBuf();
 
@@ -571,8 +596,6 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
 
     CODEC2_VDEC_ATRACE(TRACE_NAME_IN_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
     CODEC2_VDEC_ATRACE(TRACE_NAME_BITSTREAM_ID.str().c_str(), work->input.ordinal.frameIndex.peekull());
-    CODEC2_VDEC_ATRACE(TRACE_NAME_IN_PTS.str().c_str(), 0);
-    CODEC2_VDEC_ATRACE(TRACE_NAME_BITSTREAM_ID.str().c_str(), 0);
 
     if (mIntfImpl->mVendorGameModeLatency->enable) {
         uint64_t now = systemTime();
@@ -755,7 +778,7 @@ void C2VdecComponent::onDequeueWork() {
                     }
                     break;
                 case C2StreamHdrDynamicMetadataInfo::CORE_INDEX:
-                    C2Vdec_LOG(CODEC2_LOG_INFO, "[%d##%d] Config Update hdrDynamicMetadateInfo", mInstanceID, mCurInstanceID);
+                    C2Vdec_LOG(CODEC2_LOG_INFO, "Config Update hdrDynamicMetadateInfo");
                     break;
                 default:
                     break;
@@ -779,8 +802,7 @@ void C2VdecComponent::onDequeueWork() {
         if (gloglevel & CODEC2_LOG_DEBUG_LEVEL2 && (hdr10plusLen > 0)) {
             AString tmp;
             hexdump(hdr10plusBuf, hdr10plusLen, 4, &tmp);
-            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%d##%d] update Container HDR10+ info ID:%d, timestamp:%lld size:%d, data:",
-                                            mInstanceID, mCurInstanceID, bitstreamId, (long long)timestamp, hdr10plusLen);
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "update Container HDR10+ info ID:%d, timestamp:%lld size:%d, data:", bitstreamId, (long long)timestamp, hdr10plusLen);
             ALOGD("%s", tmp.c_str());
         }
         sendInputBufferToAccelerator(linearBlock, bitstreamId, timestamp, work->input.flags, (unsigned char *)hdr10plusBuf, hdr10plusLen);
@@ -921,7 +943,6 @@ void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> blo
     GraphicBlockStateChange(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
     CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), info->mBlockId);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf return index=%d", info->mBlockId);
-    CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), 0);
 
     if (mPendingOutputFormat) {
         tryChangeOutputFormat();
@@ -967,7 +988,6 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
             CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), info->mBlockId);
             BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%u", info->mBlockId);
-            CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), 0);
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
         } else {
             C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Fetch current block(%d*%d) is pending and reset it.", block->width(), block->height());
@@ -989,7 +1009,6 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
             GraphicBlockStateInit(this, info, GraphicBlockInfo::State::OWNED_BY_COMPONENT);
             CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), info->mBlockId);
             BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "fetch new outbuf index=%d", info->mBlockId);
-            CODEC2_VDEC_ATRACE(TRACE_NAME_FETCH_OUT_BLOCK_ID.str().c_str(), 0);
             sendOutputBufferToAccelerator(info, true /*ownByAccelerator*/);
         } else {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Fetch current block(%d*%d) is pending", block->width(), block->height());
@@ -1046,7 +1065,6 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     CODEC2_VDEC_ATRACE(TRACE_NAME_OUT_PTS.str().c_str(), timestamp);
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "outbuf from videodec index=%" PRId64 ", pictureid=%d, fags:%d pending size=%zu",
             bitstreamId, pictureBufferId, flags, mPendingBuffersToWork.size());
-    CODEC2_VDEC_ATRACE(TRACE_NAME_OUT_PTS.str().c_str(), 0);
 
     mLastOutputBitstreamId = bitstreamId;
     if (isNonTunnelMode()) {
@@ -2601,7 +2619,6 @@ void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool
     BufferStatus(this, CODEC2_LOG_TAG_BUFFER, "send to videodec index=%d, ownByAccelerator=%d, blocksize(%dx%d) formatsize(%dx%d)",
                 info->mBlockId, ownByAccelerator, width, height,
                 mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height());
-    CODEC2_VDEC_ATRACE(TRACE_NAME_SEND_OUTPUT_BUFFER.str().c_str(), 0);
 
     // mHandles is not empty for the first time the buffer is passed to Vdec. In that case, Vdec needs
     // to import the buffer first.
@@ -2614,7 +2631,7 @@ void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool
             const native_handle_t* c2Handle = info->mGraphicBlock->handle();
             const native_handle_t* handle = UnwrapNativeCodec2GrallocHandle(c2Handle);
             if (handle != nullptr)
-                mDeviceUtil->updateDisplayInfoToGralloc(handle, mDeviceUtil->getVideoType(), mCurInstanceID);
+                mDeviceUtil->updateDisplayInfoToGralloc(handle, mDeviceUtil->getVideoType(), mSessionID);
         }
         if (mVideoDecWraper) {
             mVideoDecWraper->importBufferForPicture(info->mBlockId, info->mFd,
@@ -2796,7 +2813,7 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
                 mVideoDecWraper->destroy();
             } else {
                 mVideoDecWraper = std::make_shared<VideoDecWraper>();
-                mVideoDecWraper->setInstanceId((uint32_t)mCurInstanceID);
+                mVideoDecWraper->setSessionID((uint32_t)mSessionID);
             }
             //check again
             usage = mBlockPoolUtil->getConsumerUsage();
@@ -2814,13 +2831,15 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
             if (mDeviceUtil->isLowLatencyMode()) {
                 vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
             }
-            snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
+            snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mSessionID);
             mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                         (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecFlags, mInstanceName, QuitEventFunc, (void *)this);
             //set some decoder config
             //set unstable state and duration to vdec
             mDeviceUtil->setUnstable();
             mDeviceUtil->setDuration();
+            mDecoderID = mVideoDecWraper->getDecoderID();
+            TraceInit();
         }
     } else {
         //use BUFFERPOOL, no surface
@@ -2828,6 +2847,7 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
             mVideoDecWraper->destroy();
         } else {
             mVideoDecWraper = std::make_shared<VideoDecWraper>();
+            mVideoDecWraper->setSessionID((uint32_t)mSessionID);
         }
         if (isNonTunnelMode()) {
             mDeviceUtil->setNoSurface(true);
@@ -2843,13 +2863,16 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
         if (mDeviceUtil->isLowLatencyMode()) {
             vdecflags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
         }
-        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mCurInstanceID);
+        snprintf(mInstanceName, sizeof(mInstanceName), "CODEC2-%d", mSessionID);
         mVdecInitResult = (VideoDecodeAcceleratorAdaptor::Result)mVideoDecWraper->initialize(VideoCodecProfileToMime(mIntfImpl->getCodecProfile()),
                   (uint8_t*)&mConfigParam, sizeof(mConfigParam), mSecureMode, this, vdecflags, mInstanceName, QuitEventFunc, (void *)this);
         //set some decoder config
         //set unstable state and duration to vdec
         mDeviceUtil->setUnstable();
         mDeviceUtil->setDuration();
+        mDecoderID = mVideoDecWraper->getDecoderID();
+        TraceInit();
+        prctl(PR_SET_NAME, (unsigned long) TRACE_NAME_VDEC_COMPONENT_THREAD.str().c_str());
     }
 
     mSurfaceUsageGot = true;
@@ -2868,6 +2891,7 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
     }
 
     while (!items->empty()) {
+        CODEC2_ATRACE_CALL();
         mHasQueuedWork = true;
         std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> info((mIntfImpl->getHdr10PlusInfo()));
         mTaskRunner->PostTask(FROM_HERE,
@@ -3233,10 +3257,10 @@ void C2VdecComponent::onReportNoOutFrameFinished() {
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(*workIter));
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s:%d] Reported finished work index=%llu",__func__,__LINE__, work->input.ordinal.frameIndex.peekull());
-        mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
         CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
+        mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
+        CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);;
         mPendingWorks.erase(workIter);
-        CODEC2_VDEC_ATRACE(TRACE_NAME_FINISHED_WORK_PTS.str().c_str(), 0);
         mOutputFinishedWorkCount++;
         mNoOutFrameWorkQueue.pop_front();
     }
@@ -3405,6 +3429,7 @@ c2_status_t C2VdecComponent::reportWorkIfFinished(int32_t bitstreamId, int32_t f
     // EOS work will not be reported here. reportEOSWork() does it.
     auto work = workIter->get();
     if (isEmptyWork || isWorkDone(work)) {
+        CODEC2_ATRACE_CALL();
         if (work->worklets.front()->output.flags & C2FrameData::FLAG_DROP_FRAME) {
             // A work with neither flags nor output buffer would be treated as no-corresponding
             // output by C2 framework, and regain pipeline capacity immediately.

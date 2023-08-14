@@ -133,8 +133,9 @@ public:
     media::Size GetCurrentVideoSize() {return mOutputFormat.mCodedSize;}
     scoped_refptr<::base::SingleThreadTaskRunner> GetTaskRunner() {return mTaskRunner;}
     std::shared_ptr<VideoDecWraper> getCompVideoDecWraper() {return mVideoDecWraper;}
-    int32_t getPlayerId() {return mPlayerId;}
-    uint32_t getInstanceId() {return mInstanceID;}
+    int32_t getSessionID() { return mSessionID;}
+    int32_t getDecoderID() { return mDecoderID;}
+    void TraceInit();
 
     //for multi-instance trace
     std::ostringstream TRACE_NAME_IN_PTS;
@@ -143,13 +144,15 @@ public:
     std::ostringstream TRACE_NAME_OUT_PTS;
     std::ostringstream TRACE_NAME_FINISHED_WORK_PTS;
     std::ostringstream TRACE_NAME_SEND_OUTPUT_BUFFER;
+    std::ostringstream TRACE_NAME_VDEC_COMPONENT_THREAD;
 
     void Preempted();
     bool Preempting();
     void checkPreempting();
     static uint32_t mInstanceNum;
     static uint32_t mInstanceID;
-    uint32_t mCurInstanceID;
+    int32_t mSessionID;
+    int32_t mDecoderID;
     bool mIsMaxResolution;
 
     static const uint32_t kUpdateDurationFramesNumMax = 10;

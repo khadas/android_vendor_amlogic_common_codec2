@@ -27,12 +27,7 @@ namespace android {
 
 void* gMediaHal = NULL;
 
-/*static*/
-uint32_t VideoDecWraper::gInstanceNum = 0;
-uint32_t VideoDecWraper::gInstanceCnt = 0;
-
-
-#define C2VdecWraper_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mInstanceCnt, VideoDecWraper::gInstanceNum, ##str)
+#define C2VdecWraper_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mSessionID, mDecoderID, ##str)
 
 bool VideoDecWraper::loadMediaHalLibrary(void) {
     if (!gMediaHal) {
@@ -145,10 +140,8 @@ AmlMessageBase* VideoDecWraper::AmVideoDec_getAmlMessage() {
 VideoDecWraper::VideoDecWraper() :
     mAmVideoDec(NULL),
     mDecoderCallback(NULL) {
-    mInstanceId = -1;
-    gInstanceCnt++;
-    gInstanceNum++;
-    mInstanceCnt = gInstanceCnt;
+    mSessionID = -1;
+    mDecoderID = -1;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     C2VdecWraper_LOG(CODEC2_LOG_INFO, "VideoDecWraper");
 }
@@ -159,7 +152,6 @@ VideoDecWraper::~VideoDecWraper() {
         delete mAmVideoDec;
         mAmVideoDec = NULL;
     }
-    gInstanceNum--;
 }
 
 int VideoDecWraper::initialize(
@@ -200,7 +192,7 @@ int VideoDecWraper::initialize(
         mAmVideoDec = NULL;
         return -1;
     }
-    setInstanceId2Hal();
+    setSessionID2Hal();
 
     bool stream_mode = ((flags & AM_VIDEO_DEC_INIT_FLAG_STREAMMODE) ? true : false);
     if (stream_mode)
@@ -323,7 +315,7 @@ void VideoDecWraper::destroy() {
 }
 
 bool VideoDecWraper::postAndReplyMsg(AmlMessageBase *msg) {
-    C2VdecWraper_LOG(CODEC2_LOG_DEBUG_LEVEL2, "postAndReplyMsg");
+    //C2VdecWraper_LOG(CODEC2_LOG_DEBUG_LEVEL2, "postAndReplyMsg");
     if (mAmVideoDec) {
         return mAmVideoDec->postAndReplyMsg(msg);
     }
@@ -405,27 +397,38 @@ void VideoDecWraper::onEvent(uint32_t event, void* param, uint32_t paramsize) {
         mDecoderCallback->NotifyEvent(event, param, paramsize);
 }
 
-void VideoDecWraper::setInstanceId(int32_t id) {
-    mInstanceId = id;
+void VideoDecWraper::setSessionID(int32_t id) {
+    mSessionID = id;
 }
 
-void VideoDecWraper::setInstanceId2Hal() {
-    typedef AmlMessageBase* (*fGetAmlMessage)();
-    fGetAmlMessage getAmlMessage = (fGetAmlMessage)dlsym(gMediaHal, "AmVideoDec_getAmlMessage");
-
-    if (getAmlMessage == NULL) {
-        ALOGW("VideoDecWraper::setInstanceId %d, getAmlMessage == NULL",mInstanceId);
-        return ;
-    }
-
-    AmlMessageBase* msg = getAmlMessage();
+void VideoDecWraper::setSessionID2Hal() {
+    AmlMessageBase * msg = AmVideoDec_getAmlMessage();
     if (msg == NULL) {
-        ALOGW("VideoDecWraper::setInstanceId %d, msg == NULL",mInstanceId);
-        return ;
+        C2VdecWraper_LOG(CODEC2_LOG_ERR, "%s %d, msg == NULL",__func__, mSessionID);
+        return;
     }
-    msg->setInt32("callerinstanceid", mInstanceId);
+    msg->setInt32("callerinstanceid", mSessionID);
     postAndReplyMsg(msg);
     delete msg;
+}
+
+int32_t VideoDecWraper::getDecoderID() {
+    int32_t decoderID = -1;
+
+    AmlMessageBase * msg = AmVideoDec_getAmlMessage();
+    if (msg != NULL) {
+        msg->setInt32("decoderID", decoderID);
+        postAndReplyMsg(msg);
+        msg->findInt32("decoderID", &decoderID);
+        if (decoderID != -1) {
+            C2VdecWraper_LOG(CODEC2_LOG_INFO, "Query decoderID(%d) success.", decoderID);
+            mDecoderID = decoderID;
+        } else {
+            C2VdecWraper_LOG(CODEC2_LOG_ERR, "Query decoderID failed.");
+        }
+        delete msg;
+    }
+    return decoderID;
 }
 
 }

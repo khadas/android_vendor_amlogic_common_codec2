@@ -51,7 +51,7 @@ namespace android {
             return;                                                        \
     } while (0)
 
-#define C2VdecDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mCurInstanceID, C2VdecComponent::mInstanceNum, ##str)
+#define C2VdecDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mSessionID, comp->mDecoderID, ##str)
 
 #define LockWeakPtrWithReturnVal(name, weak, retval) \
     auto name = weak.lock(); \

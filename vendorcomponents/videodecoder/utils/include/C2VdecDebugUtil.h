@@ -108,8 +108,8 @@ const int kSmoothnessFactor = 4;
         } \
         if (comp->isNonTunnelMode() && comp->mGraphicBlocks.empty() == false) \
             CODEC2_LOG(level, "[%d##%d]" fmt " {IN=%d/%d, OUT=%d/%zu[%s(%d) %s(%d) %s(%d)]}",\
-                    comp->mCurInstanceID, \
-                    mInstanceNum, \
+                    comp->mSessionID,\
+                    comp->mDecoderID, \
                     ##str, \
                     comp->mInputQueueNum,\
                     comp->mIntfImpl->mActualInputDelay->value + kSmoothnessFactor,\
@@ -123,8 +123,8 @@ const int kSmoothnessFactor = 4;
                     comp->mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNED_BY_CLIENT]);\
         else if (comp->isTunnelMode() && comp->mGraphicBlocks.empty() == false)\
             CODEC2_LOG(level, "[%d##%d]" fmt " {IN=%d/%d, OUT=%d/%zu[%s(%d) %s(%d) %s(%d)]}",\
-                    comp->mCurInstanceID, \
-                    mInstanceNum, \
+                    comp->mSessionID, \
+                    comp->mDecoderID, \
                     ##str, \
                     comp->mInputQueueNum,\
                     comp->mIntfImpl->mActualInputDelay->value + kSmoothnessFactor,\

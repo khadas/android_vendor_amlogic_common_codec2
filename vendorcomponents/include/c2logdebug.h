@@ -77,6 +77,13 @@ do { \
     } \
 } while(0)
 
+#define CODEC2_ATRACE_CALL() \
+do { \
+    if (gloglevel & CODEC2_LOG_TRACE) {\
+        ATRACE_CALL(); \
+    } \
+} while(0)
+
 #define CODEC2_ATRACE_END() \
 do { \
     if (gloglevel & CODEC2_LOG_TRACE) {\
