@@ -1079,7 +1079,7 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
     if (mSecureMode)
         kLinearPaddingBufferSize = 0;
     else
-        kLinearPaddingBufferSize = 65536; // 64k
+        kLinearPaddingBufferSize = 262144; // 256KB exoplayer 264/265/vp9
 
     struct LocalCalculator {
         static C2R MaxSizeCalculator(bool mayBlock, C2P<C2StreamMaxBufferSizeInfo::input>& me,
@@ -1093,10 +1093,14 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
                return C2R::Ok();
             }
 
-            if (defaultSize > 0)
-               defaultSize += paddingSize;
-            else
-               defaultSize = kLinearBufferSize;
+            if (defaultSize > 0) {
+                if (paddingSize == 0 && defaultSize < 2 * kLinearBufferSize)
+                    defaultSize = 2 * kLinearBufferSize;
+                else
+                    defaultSize += paddingSize;
+            } else {
+                defaultSize = kLinearBufferSize;
+            }
 
             if (defaultSize > maxInputSize) {
                 me.set().value = maxInputSize;
