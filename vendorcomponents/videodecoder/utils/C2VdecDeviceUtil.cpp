@@ -618,7 +618,7 @@ uint64_t C2VdecComponent::DeviceUtil::getLastOutputPts() {
 }
 
 int C2VdecComponent::DeviceUtil::HDRInfoDataBLEndianInt(int value) {
-    bool enable = property_get_bool(C2_PROPERTY_VDEC_HDR_LITTLE_ENDIAN_ENABLE, false);
+    bool enable = property_get_bool(C2_PROPERTY_VDEC_HDR_LITTLE_ENDIAN_ENABLE, true);
     if (enable)
         return value;
     else
@@ -631,6 +631,7 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
 
     std::vector<std::unique_ptr<C2Param>> params;
     C2StreamHdrStaticInfo::output hdr = {0};
+    bool hasHDRStaticInfo = false;
     bool isPresent = true;
     int32_t matrixCoeffs = 0;
     int32_t transfer = 0;
@@ -647,143 +648,121 @@ int C2VdecComponent::DeviceUtil::setHDRStaticInfo() {
         return 0;
     }
 
-    if (((int32_t)(hdr.mastering.red.x * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.red.y * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.green.x * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.green.y * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.blue.x * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.blue.y * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.white.x * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.white.y * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.maxLuminance * 1000) == 0) &&
-        ((int32_t)(hdr.mastering.minLuminance * 1000) == 0) &&
-        ((int32_t)(hdr.maxCll * 1000) == 0) &&
-        ((int32_t)(hdr.maxFall * 1000) == 0)) { /* default val */
+    if (((int32_t)(hdr.mastering.red.x) == 0) &&
+        ((int32_t)(hdr.mastering.red.y) == 0) &&
+        ((int32_t)(hdr.mastering.green.x) == 0) &&
+        ((int32_t)(hdr.mastering.green.y) == 0) &&
+        ((int32_t)(hdr.mastering.blue.x) == 0) &&
+        ((int32_t)(hdr.mastering.blue.y) == 0) &&
+        ((int32_t)(hdr.mastering.white.x) == 0) &&
+        ((int32_t)(hdr.mastering.white.y) == 0) &&
+        ((int32_t)(hdr.mastering.maxLuminance) == 0) &&
+        ((int32_t)(hdr.mastering.minLuminance) == 0) &&
+        ((int32_t)(hdr.maxCll) == 0) &&
+        ((int32_t)(hdr.maxFall) == 0)) { /* default val */
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "No hdr static info set");
+    } else {
+        hasHDRStaticInfo = true;
+    }
+
+
+    if (!mHDRStaticInfoColorAspects && !hasHDRStaticInfo)  {
         return 0;
     }
 
     struct aml_dec_params *pAmlDecParam = &mConfigParam->aml_dec_cfg;
-    pAmlDecParam->hdr.color_parms.present_flag = 1;
-
-    if ((intfImpl->getInputCodec() == InputCodec::VP9)) {
-        pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
-        pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
-        pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
-        pAmlDecParam->hdr.color_parms.primaries[1][1] = HDRInfoDataBLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
-        pAmlDecParam->hdr.color_parms.primaries[2][0] = HDRInfoDataBLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
-        pAmlDecParam->hdr.color_parms.primaries[2][1] = HDRInfoDataBLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
-        pAmlDecParam->hdr.color_parms.white_point[0]  = HDRInfoDataBLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
-        pAmlDecParam->hdr.color_parms.white_point[1]  = HDRInfoDataBLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
-        pAmlDecParam->hdr.color_parms.luminance[0]    = HDRInfoDataBLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-        pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
-    } else if ((intfImpl->getInputCodec() == InputCodec::AV1)) {
-        //see 6.7.4. Metadata high dynamic range mastering display color volume
-        //semantics
-        //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
-        //so we will shift left 16bit change to int farmat value.
-        //The increase of 0.5 is to ensure that data will not be lost downward
-        pAmlDecParam->hdr.color_parms.primaries[0][0] = (int32_t)(hdr.mastering.red.x * 65536.0 + 0.5);//info.sType1.mR.x;
-        pAmlDecParam->hdr.color_parms.primaries[0][1] = (int32_t)(hdr.mastering.red.y * 65536.0 + 0.5);//info.sType1.mR.y;
-        pAmlDecParam->hdr.color_parms.primaries[1][0] = (int32_t)(hdr.mastering.green.x * 65536.0 + 0.5);//info.sType1.mG.x;
-        pAmlDecParam->hdr.color_parms.primaries[1][1] = (int32_t)(hdr.mastering.green.y * 65536.0 + 0.5);//info.sType1.mG.y;
-        pAmlDecParam->hdr.color_parms.primaries[2][0] = (int32_t)(hdr.mastering.blue.x * 65536.0 + 0.5);//info.sType1.mB.x;
-        pAmlDecParam->hdr.color_parms.primaries[2][1] = (int32_t)(hdr.mastering.blue.y * 65536.0 + 0.5);//info.sType1.mB.y;
-        pAmlDecParam->hdr.color_parms.white_point[0]  = (int32_t)(hdr.mastering.white.x * 65536.0 + 0.5);//info.sType1.mW.x;
-        pAmlDecParam->hdr.color_parms.white_point[1]  = (int32_t)(hdr.mastering.white.y * 65536.0 + 0.5);//info.sType1.mW.y;
-        // hdr_mdcv.luminance_max is in 24.8 fixed-point format.
-        //so we will shift left 8bit change to int farmat value.
-        //The increase of 0.5 is to ensure that data will not be lost downward
-        pAmlDecParam->hdr.color_parms.luminance[0]    = (((int32_t)(hdr.mastering.maxLuminance * 256.0 + 0.5)));//info.sType1.mMaxDisplayLuminance * 1000;
-        // hdr_mdcv.luminance_min is in 18.14 format.
-        //so we will shift left 14bit change to int farmat value.
-        //The increase of 0.5 is to ensure that data will not be lost downward
-        pAmlDecParam->hdr.color_parms.luminance[1]    = (int32_t)(hdr.mastering.minLuminance * 16384.0 + 0.5);//info.sType1.mMinDisplayLuminance;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  (int32_t)(hdr.maxCll);//info.sType1.mMaxContentLightLevel;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  (int32_t)(hdr.maxFall);//info.sType1.mMaxFrameAverageLightLevel;
-    } else if ((intfImpl->getInputCodec() == InputCodec::H265)) {
-        pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
-        pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
-        pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
-        pAmlDecParam->hdr.color_parms.primaries[1][1] = HDRInfoDataBLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
-        pAmlDecParam->hdr.color_parms.primaries[2][0] = HDRInfoDataBLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
-        pAmlDecParam->hdr.color_parms.primaries[2][1] = HDRInfoDataBLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
-        pAmlDecParam->hdr.color_parms.white_point[0]  = HDRInfoDataBLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
-        pAmlDecParam->hdr.color_parms.white_point[1]  = HDRInfoDataBLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
-        pAmlDecParam->hdr.color_parms.luminance[0]    = HDRInfoDataBLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-        pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
-    } else {
-        pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
-        pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
-        pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
-        pAmlDecParam->hdr.color_parms.primaries[1][1] = HDRInfoDataBLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
-        pAmlDecParam->hdr.color_parms.primaries[2][0] = HDRInfoDataBLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
-        pAmlDecParam->hdr.color_parms.primaries[2][1] = HDRInfoDataBLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
-        pAmlDecParam->hdr.color_parms.white_point[0]  = HDRInfoDataBLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
-        pAmlDecParam->hdr.color_parms.white_point[1]  = HDRInfoDataBLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
-        pAmlDecParam->hdr.color_parms.luminance[0]    = HDRInfoDataBLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5))) * 1000;//info.sType1.mMaxDisplayLuminance * 1000;
-        pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
-        pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+    if (hasHDRStaticInfo) {
+        pAmlDecParam->hdr.color_parms.present_flag = 1;
+        if ((intfImpl->getInputCodec() == InputCodec::AV1)) {
+            //see 6.7.4. Metadata high dynamic range mastering display color volume
+            //semantics
+            //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
+            //so we will shift left 16bit change to int farmat value.
+            //The increase of 0.5 is to ensure that data will not be lost downward
+            pAmlDecParam->hdr.color_parms.primaries[0][0] = (int32_t)(hdr.mastering.red.x * 65536.0 + 0.5);//info.sType1.mR.x;
+            pAmlDecParam->hdr.color_parms.primaries[0][1] = (int32_t)(hdr.mastering.red.y * 65536.0 + 0.5);//info.sType1.mR.y;
+            pAmlDecParam->hdr.color_parms.primaries[1][0] = (int32_t)(hdr.mastering.green.x * 65536.0 + 0.5);//info.sType1.mG.x;
+            pAmlDecParam->hdr.color_parms.primaries[1][1] = (int32_t)(hdr.mastering.green.y * 65536.0 + 0.5);//info.sType1.mG.y;
+            pAmlDecParam->hdr.color_parms.primaries[2][0] = (int32_t)(hdr.mastering.blue.x * 65536.0 + 0.5);//info.sType1.mB.x;
+            pAmlDecParam->hdr.color_parms.primaries[2][1] = (int32_t)(hdr.mastering.blue.y * 65536.0 + 0.5);//info.sType1.mB.y;
+            pAmlDecParam->hdr.color_parms.white_point[0]  = (int32_t)(hdr.mastering.white.x * 65536.0 + 0.5);//info.sType1.mW.x;
+            pAmlDecParam->hdr.color_parms.white_point[1]  = (int32_t)(hdr.mastering.white.y * 65536.0 + 0.5);//info.sType1.mW.y;
+            // hdr_mdcv.luminance_max is in 24.8 fixed-point format.
+            //so we will shift left 8bit change to int farmat value.
+            //The increase of 0.5 is to ensure that data will not be lost downward
+            pAmlDecParam->hdr.color_parms.luminance[0]    = (((int32_t)(hdr.mastering.maxLuminance * 256.0 + 0.5)));//info.sType1.mMaxDisplayLuminance
+            // hdr_mdcv.luminance_min is in 18.14 format.
+            //so we will shift left 14bit change to int farmat value.
+            //The increase of 0.5 is to ensure that data will not be lost downward
+            pAmlDecParam->hdr.color_parms.luminance[1]    = (int32_t)(hdr.mastering.minLuminance * 16384.0 + 0.5);//info.sType1.mMinDisplayLuminance;
+            pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  (int32_t)(hdr.maxCll);//info.sType1.mMaxContentLightLevel;
+            pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  (int32_t)(hdr.maxFall);//info.sType1.mMaxFrameAverageLightLevel;
+        } else {
+            pAmlDecParam->hdr.color_parms.primaries[0][0] = HDRInfoDataBLEndianInt(hdr.mastering.green.x / 0.00002 + 0.5);//info.sType1.mG.x;
+            pAmlDecParam->hdr.color_parms.primaries[0][1] = HDRInfoDataBLEndianInt(hdr.mastering.green.y / 0.00002 + 0.5);//info.sType1.mG.y;
+            pAmlDecParam->hdr.color_parms.primaries[1][0] = HDRInfoDataBLEndianInt(hdr.mastering.blue.x / 0.00002 + 0.5);//info.sType1.mB.x;
+            pAmlDecParam->hdr.color_parms.primaries[1][1] = HDRInfoDataBLEndianInt(hdr.mastering.blue.y / 0.00002 + 0.5);//info.sType1.mB.y;
+            pAmlDecParam->hdr.color_parms.primaries[2][0] = HDRInfoDataBLEndianInt(hdr.mastering.red.x / 0.00002 + 0.5);//info.sType1.mR.x;
+            pAmlDecParam->hdr.color_parms.primaries[2][1] = HDRInfoDataBLEndianInt(hdr.mastering.red.y / 0.00002 + 0.5);//info.sType1.mR.y;
+            pAmlDecParam->hdr.color_parms.white_point[0]  = HDRInfoDataBLEndianInt(hdr.mastering.white.x / 0.00002 + 0.5);//info.sType1.mW.x;
+            pAmlDecParam->hdr.color_parms.white_point[1]  = HDRInfoDataBLEndianInt(hdr.mastering.white.y / 0.00002 + 0.5);//info.sType1.mW.y;
+            pAmlDecParam->hdr.color_parms.luminance[0]    = HDRInfoDataBLEndianInt(((int32_t)(hdr.mastering.maxLuminance + 0.5)));//info.sType1.mMaxDisplayLuminance;
+            pAmlDecParam->hdr.color_parms.luminance[1]    = HDRInfoDataBLEndianInt(hdr.mastering.minLuminance / 0.0001 + 0.5);//info.sType1.mMinDisplayLuminance;
+            pAmlDecParam->hdr.color_parms.content_light_level.max_content     =  HDRInfoDataBLEndianInt(hdr.maxCll + 0.5);//info.sType1.mMaxContentLightLevel;
+            pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average =  HDRInfoDataBLEndianInt(hdr.maxFall + 0.5);//info.sType1.mMaxFrameAverageLightLevel;
+        }
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicAVG:%d, %f %f %f %f %f %f %f %f %f %f %f %f",
+                pAmlDecParam->hdr.color_parms.primaries[0][0],
+                pAmlDecParam->hdr.color_parms.primaries[0][1],
+                pAmlDecParam->hdr.color_parms.primaries[1][0],
+                pAmlDecParam->hdr.color_parms.primaries[1][1],
+                pAmlDecParam->hdr.color_parms.primaries[2][0],
+                pAmlDecParam->hdr.color_parms.primaries[2][1],
+                pAmlDecParam->hdr.color_parms.white_point[0],
+                pAmlDecParam->hdr.color_parms.white_point[1],
+                pAmlDecParam->hdr.color_parms.luminance[0],
+                pAmlDecParam->hdr.color_parms.luminance[1],
+                pAmlDecParam->hdr.color_parms.content_light_level.max_content,
+                pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average,
+                hdr.mastering.green.x,
+                hdr.mastering.green.y,
+                hdr.mastering.blue.x,
+                hdr.mastering.blue.y,
+                hdr.mastering.red.x,
+                hdr.mastering.red.y,
+                hdr.mastering.white.x,
+                hdr.mastering.white.y,
+                hdr.mastering.maxLuminance,
+                hdr.mastering.minLuminance,
+                hdr.maxCll,
+                hdr.maxFall);
     }
-
+    if (mHDRStaticInfoColorAspects) {
+        ColorAspects sfAspects;
+        memset(&sfAspects, 0, sizeof(sfAspects));
+        if (!C2Mapper::map(mHDRStaticInfoColorAspects->primaries, &sfAspects.mPrimaries)) {
+            sfAspects.mPrimaries = android::ColorAspects::PrimariesUnspecified;
+        }
+        if (!C2Mapper::map(mHDRStaticInfoColorAspects->range, &sfAspects.mRange)) {
+            sfAspects.mRange = android::ColorAspects::RangeUnspecified;
+        }
+        if (!C2Mapper::map(mHDRStaticInfoColorAspects->matrix, &sfAspects.mMatrixCoeffs)) {
+            sfAspects.mMatrixCoeffs = android::ColorAspects::MatrixUnspecified;
+        }
+        if (!C2Mapper::map(mHDRStaticInfoColorAspects->transfer, &sfAspects.mTransfer)) {
+            sfAspects.mTransfer = android::ColorAspects::TransferUnspecified;
+        }
+        ColorUtils::convertCodecColorAspectsToIsoAspects(sfAspects, &primaries, &transfer, &matrixCoeffs, &range);
+        pAmlDecParam->hdr.signal_type = (isPresent << 29)
+                                        | (5 << 26)
+                                        | (range << 25)
+                                        | (1 << 24)
+                                        | (primaries << 16)
+                                        | (transfer << 8)
+                                        | matrixCoeffs;
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "hdr.signal_type: 0x%x", pAmlDecParam->hdr.signal_type);
+    }
     pAmlDecParam->parms_status |= V4L2_CONFIG_PARM_DECODE_HDRINFO;
-
-    ColorAspects sfAspects;
-    memset(&sfAspects, 0, sizeof(sfAspects));
-    if (!C2Mapper::map(mHDRStaticInfoColorAspects->primaries, &sfAspects.mPrimaries)) {
-        sfAspects.mPrimaries = android::ColorAspects::PrimariesUnspecified;
-    }
-    if (!C2Mapper::map(mHDRStaticInfoColorAspects->range, &sfAspects.mRange)) {
-        sfAspects.mRange = android::ColorAspects::RangeUnspecified;
-    }
-    if (!C2Mapper::map(mHDRStaticInfoColorAspects->matrix, &sfAspects.mMatrixCoeffs)) {
-        sfAspects.mMatrixCoeffs = android::ColorAspects::MatrixUnspecified;
-    }
-    if (!C2Mapper::map(mHDRStaticInfoColorAspects->transfer, &sfAspects.mTransfer)) {
-        sfAspects.mTransfer = android::ColorAspects::TransferUnspecified;
-    }
-
-    ColorUtils::convertCodecColorAspectsToIsoAspects(sfAspects, &primaries, &transfer, &matrixCoeffs, &range);
-
-    pAmlDecParam->hdr.signal_type = (isPresent << 29)
-                                    | (5 << 26)
-                                    | (range << 25)
-                                    | (1 << 24)
-                                    | (primaries << 16)
-                                    | (transfer << 8)
-                                    | matrixCoeffs;
-
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "Set hdrstaticinfo: gx:%d gy:%d bx:%d by:%d rx:%d,ry:%d wx:%d wy:%d maxlum:%d minlum:%d maxcontent:%d maxpicAVG:%d signaltype:%x, %f %f %f %f %f %f %f %f %f %f %f %f",
-            pAmlDecParam->hdr.color_parms.primaries[0][0],
-            pAmlDecParam->hdr.color_parms.primaries[0][1],
-            pAmlDecParam->hdr.color_parms.primaries[1][0],
-            pAmlDecParam->hdr.color_parms.primaries[1][1],
-            pAmlDecParam->hdr.color_parms.primaries[2][0],
-            pAmlDecParam->hdr.color_parms.primaries[2][1],
-            pAmlDecParam->hdr.color_parms.white_point[0],
-            pAmlDecParam->hdr.color_parms.white_point[1],
-            pAmlDecParam->hdr.color_parms.luminance[0],
-            pAmlDecParam->hdr.color_parms.luminance[1],
-            pAmlDecParam->hdr.color_parms.content_light_level.max_content,
-            pAmlDecParam->hdr.color_parms.content_light_level.max_pic_average,
-            pAmlDecParam->hdr.signal_type,
-            hdr.mastering.green.x,
-            hdr.mastering.green.y,
-            hdr.mastering.blue.x,
-            hdr.mastering.blue.y,
-            hdr.mastering.red.x,
-            hdr.mastering.red.y,
-            hdr.mastering.white.x,
-            hdr.mastering.white.y,
-            hdr.mastering.maxLuminance,
-            hdr.mastering.minLuminance,
-            hdr.maxCll,
-            hdr.maxFall);
 
     return 0;
 }
@@ -828,9 +807,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
             hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
 
-            int32_t MaxDisplayLuminance = 0;
-            MaxDisplayLuminance = phdr->color_parms.luminance[0];
-            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
+            hdr.mastering.maxLuminance = phdr->color_parms.luminance[0];
 
             hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
             hdr.maxCll =
@@ -880,7 +857,6 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             int32_t MaxDisplayLuminance = 0;
             MaxDisplayLuminance = min(50 * ((phdr->color_parms.luminance[0] + 250000) / 500000), 10000);
             hdr.mastering.maxLuminance = (float)MaxDisplayLuminance;
-
             hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
             hdr.maxCll =
                 phdr->color_parms.content_light_level.max_content;
@@ -896,10 +872,7 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
             hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
 
-            int32_t MaxDisplayLuminance = 0;
-            MaxDisplayLuminance = phdr->color_parms.luminance[0];
-            hdr.mastering.maxLuminance = (float)MaxDisplayLuminance / 1000;
-
+            hdr.mastering.maxLuminance = phdr->color_parms.luminance[0];
             hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
             hdr.maxCll =
                 phdr->color_parms.content_light_level.max_content;
@@ -1607,7 +1580,16 @@ bool C2VdecComponent::DeviceUtil::getHDR10PlusData(std::string &data)
 }
 
 void C2VdecComponent::DeviceUtil::setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
-    mHDRStaticInfoColorAspects = coloraspect;
+    LockWeakPtrWithReturnVoid(comp, mComp);
+    mHDRStaticInfoColorAspects = NULL;
+    if ((coloraspect->primaries == C2Color::PRIMARIES_BT2020)
+        && (coloraspect->transfer == C2Color::TRANSFER_ST2084)
+        && ((coloraspect->matrix == C2Color::MATRIX_BT2020) || (coloraspect->matrix == C2Color::MATRIX_BT2020_CONSTANT))) {
+        mHDRStaticInfoColorAspects = coloraspect;
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "mHDRStaticInfoColorAspects set");
+    } else {
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "No hdr ColorAspects set");
+    }
 }
 
 void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size) {
