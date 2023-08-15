@@ -262,8 +262,8 @@ c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec
     ALOGV("selectEncoder");
     if (C2VendorCodec::VENC_H264 == codectype) {
         if (access("/dev/amvenc_multi", F_OK ) != -1) {
-            strFactoryName = "CreateC2VencMultiH264Factory";
-            strDestroyFactoryName = "DestroyC2VencMultiH264Factory";
+            strFactoryName = "CreateC2VencH264Factory";
+            strDestroyFactoryName = "DestroyC2VencH264Factory";
             ALOGD("amvenc_multi h264 present");
         }
         else if (access("/dev/amvenc_avc", F_OK ) != -1) {
@@ -279,8 +279,8 @@ c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec
 
     if (C2VendorCodec::VENC_H265 == codectype) {
         if (access("/dev/amvenc_multi", F_OK ) != -1) {
-            strFactoryName = "CreateC2VencMultiH265Factory";
-            strDestroyFactoryName = "DestroyC2VencMultiH265Factory";
+            strFactoryName = "CreateC2VencH265Factory";
+            strDestroyFactoryName = "DestroyC2VencH265Factory";
             ALOGD("amvenc_multi h265 present");
         }
         else if (access("/dev/HevcEnc", F_OK ) != -1) {

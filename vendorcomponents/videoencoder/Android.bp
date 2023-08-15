@@ -31,6 +31,8 @@ cc_library_shared {
         "C2VencW420new.cpp",//"C2VencW420.cpp",
         "C2VencMulti.cpp",
         "ThreadWorker.cpp",
+        "C2VencComp.cpp",
+        "C2VencIntfImpl.cpp",
     ],
 
     local_include_dirs: [
@@ -59,6 +61,7 @@ cc_library_shared {
         "libevent",
         "libvendor_c2componentstore",
         "libamgralloc_ext",
+        "lib_encoder_media_process",
     ],
 
     header_libs: [
