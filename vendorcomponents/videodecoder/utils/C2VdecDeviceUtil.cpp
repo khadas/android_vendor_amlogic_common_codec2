@@ -1092,6 +1092,11 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(int32_t doublewrit
             break;
     }
 
+    if (mIsYcbRP010Stream && mHwSupportP010) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d is 10bit stream dw:%d usage use full usage", __func__, __LINE__, doublewrite);
+        usage = am_gralloc_get_video_decoder_full_buffer_usage();
+    }
+
     return usage;
 }
 
@@ -1130,6 +1135,12 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromTripleWrite(int32_t triplewrit
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
         break;
     }
+
+    if (mIsYcbRP010Stream && mHwSupportP010) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d is 10bit stream tw:%d usage use full usage", __func__, __LINE__, triplewrite);
+        usage = am_gralloc_get_video_decoder_full_buffer_usage();
+    }
+
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] triplewrite:0x%llx usage:0x%llx",__func__, __LINE__, (unsigned long long)triplewrite, (unsigned long long)usage);
     return usage;
 }
@@ -1240,25 +1251,31 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
 #endif
     }
 
+    struct aml_dec_params *params = &mConfigParam->aml_dec_cfg;
+    int32_t doubleWrite = params->cfg.double_write_mode;
+    int32_t tripleWrite = params->cfg.triple_write_mode;
+
+    auto getUsage = [=] (int32_t dw, int32_t tw) -> uint64_t {
+          uint64_t ret = 0;
+          int32_t defaultDw = getPropertyDoubleWrite();
+          int32_t doubleWriteValue = (defaultDw >= 0) ? defaultDw : dw;
+
+          int32_t defaultTw = getPropertyTripleWrite();
+          int32_t tripleWriteValue = (defaultTw >= 0) ? defaultTw : tw;
+
+          if (doubleWriteValue == 0 && tripleWriteValue != 0)
+              ret = getUsageFromTripleWrite(tripleWriteValue);
+          else if (doubleWriteValue != 0 && tripleWriteValue == 0)
+              ret = getUsageFromDoubleWrite(doubleWriteValue);
+          else
+              ret = getUsageFromDoubleWrite(doubleWriteValue);
+
+          return ret;
+    };
+
     if (mIsYcbRP010Stream) {
         if (mHwSupportP010) { // hardware support 10bit, use triple write.
-            struct aml_dec_params *params = &mConfigParam->aml_dec_cfg;
-            int32_t doubleWrite = params->cfg.double_write_mode;
-            int32_t tripleWrite = params->cfg.triple_write_mode;
-
-            int32_t defaultDoubleWrite = getPropertyDoubleWrite();
-            doubleWrite = (defaultDoubleWrite >= 0) ? defaultDoubleWrite : doubleWrite;
-
-            int32_t defaultTripleWrite = getPropertyTripleWrite();
-            tripleWrite = (defaultTripleWrite >= 0) ? defaultTripleWrite : tripleWrite;
-
-            if (doubleWrite == 0 && tripleWrite != 0) {
-                usage = getUsageFromTripleWrite(tripleWrite);
-            } else if (doubleWrite != 0 && tripleWrite == 0) {
-                usage = getUsageFromDoubleWrite(doubleWrite);
-            } else {
-                usage = getUsageFromDoubleWrite(doubleWrite);
-            }
+            usage = getUsage(doubleWrite, tripleWrite);
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] doubleWrite:0x%llx triplewrite:0x%llx usage:%llx",__func__, __LINE__,
                             (unsigned long long)doubleWrite, (unsigned long long)tripleWrite, (unsigned long long)usage);
         } else { // soft support 10 bit, use double write.
@@ -1278,12 +1295,8 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
             usage = am_gralloc_get_video_decoder_full_buffer_usage();
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
         } else {
-            usage = getUsageFromDoubleWrite(doubleWrite);
-            int32_t tripleWrite = getPropertyTripleWrite();
-            if (tripleWrite >= 0) {
-                usage = getUsageFromTripleWrite(tripleWrite);
-            }
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get usage:%llx doule write:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite);
+            usage = getUsage(doubleWrite, tripleWrite);
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get usage:%llx dw:%d tw:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite, tripleWrite);
         }
     }
     return usage & C2MemoryUsage::PLATFORM_MASK;
