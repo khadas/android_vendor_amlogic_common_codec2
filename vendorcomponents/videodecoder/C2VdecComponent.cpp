@@ -645,6 +645,9 @@ void C2VdecComponent::reStartAllocTask() {
         int stopCount =   mOutputFormat.mMinNumBuffers - bufferInClient - bufferInAcc - bufferInCom;
         if (stopCount > 0)
             bufferInClient = bufferInClient + stopCount;
+        //flush will clear dalay count info, we need update delay count when flush done.
+        //so we add update delay count when we restart alloc task.
+        updateOutputDelayBufCount();
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] stop[%d]all[%d]client[%d] hal[%d]com[%d]buffer in client and post dequeue task [%s][%d]", __func__,stopCount,mOutputFormat.mMinNumBuffers, bufferInClient,bufferInAcc, bufferInCom, mCurrentBlockSize.ToString().c_str() , mCurrentPixelFormat);
         uint32_t frameDur = mDeviceUtil->getVideoDurationUs();
         if (!mDequeueThreadUtil->StartRunDequeueTask(mOutputFormat.mCodedSize, static_cast<uint32_t>(mOutputFormat.mPixelFormat))) {
