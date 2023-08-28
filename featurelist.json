@@ -17,7 +17,11 @@
             "Support AVC 4K MMU",
             "Netflix Video Peek",
             "Support DmA Canvas",
-            "Resman"
+            "Resman",
+            "LowLatency",
+            "DecoderOnly",
+            "Hardware P010",
+            "8k"
         ]
     },
     "softvdec": {

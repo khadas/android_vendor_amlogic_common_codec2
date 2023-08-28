@@ -3,7 +3,92 @@ Minor_V=0
 BaseCommitId=1e90ddfe404075ca24cf146b0a8d184f180550f5
 
 #history version
-#Release_ChangeId_V2_0=Icfa143d3857ba87667abb9dc9438308b512ea364
+#Release_ChangeId_V2_0=Ib5b20f7645a57f496f4afa2c065e26fcfc021494
+#CommitId:cc6e04db4074c8b09ca635a0c7d052b98daad698
+#V2.0.71-gcc6e04d ReleaseNote
+#What's New
+# Common
+#  Align License&Copyright - Apache License v2
+#  Use ProcessCapacityHigh and HighPerformance for codec2 service
+# Video Decoder
+#  Support DI back end use replace buffer usage?
+#  Support? Android 14/Ninja10 Low-Latency Video
+#  Support hardware P010
+#  Optimize cloud game latency
+#  Support config to limit video instances number of maximum resolution
+#  Pretty format logcat & trace tag using sessionID-decoderID
+#  Use amuvm_getmetadata_v2 to get metadata
+#  Discard error frames when use stream mode in tunnel mode?
+#  Support MPEG2 HIGHP profile
+#  Support HDR10+ info data for "Decode-to-Buffer"
+#  Support Hardware 8K decoding
+#  Support 3-field Interlaced stream
+#  Support non-standard HDR video (Only color-aspects without HDR info)
+#  Support HDR endianness transfer by setting property vendor.media.c2.vdec.hdr.little_endian_enable.
+#  Support adjust priority for codec2 process
+#  Support get PTS duration by decoder driver API
+#  Support new usages from gralloc interface.
+#  Support hevc/vp9 4KP75
+#  Support set pipeline work number to Mediahal for stream mode
+# Video Encoder
+#  Support return result of stop process
+#  Support cropper info for w420.?
+#  Support video encoding statistics:
+#   hevc
+#   wave521
+#   hcodec
+#  Support protection for stop process
+# Audio Decoder
+#  Support ffmpeg/mp2 Google-Cert-VTS
+# Tuner Framework
+#  Support FCC
+#Bug Fixes
+# Video Decoder
+#  Usage error of picture buffer for 10-bits stream.
+#  10-bits stream picture buffer size error.
+#  'Unsupport' issue when playing 8K24fps with Amplayer.
+#  Framework predicted input size too small
+#  No input buffer padding for secure stream.
+#  PQ issue when multi-instance playback.
+#  Video freeze when flush at start
+#  Failed to release component while resolution too large
+#  SurfaceTexture play error.
+#  Solution: Check usage again before setting surfacetexture mode.
+#  H264 Video playback stuck of stream mode.
+#  Google Certs Issues (Android 14):
+#   CtsVideoCodecTestCases error
+#   GtsExoPlayerTestCases error
+#   DecodeOnlyTest error
+#   CtsMediaV2TestCases error
+#   CtsMediaDecoderTestCases module crash and reboot
+#   CtsVideoTestCases 3fails
+#   CtsMediaV2TestCases 1 fail
+#   Gts media have 3 fail
+#  Some HDR10Plus streams have no data
+#  Wrong buffer number when reported error frames
+#  Playing 2 channels 1080i video is not smooth
+#  Video freeze for 4k 60fps stream.
+#  Issue of 10bit info from stream and framework is not aligned.
+#  Build error due to gralloc usage.
+#  Wrong usage of mmu for interlaced stream.
+#  Wrong double write mode for 4K H264 when "Decode-to-Buffer"
+#  Tunnel mode doesn't need check reconfiguration
+#  mPreempting not initialized
+# Video Encoder:
+#  Add process for not stop.
+#  mediacodec spams message error.
+#  encoder code logic problem?
+#  Fix hevc level match problem.
+#  Fix avc profile match problem.
+#  Adjust output buffer size.
+#  Adjust frame check for cts.
+#  Add height pitch for gralloc fbc buffer.
+# Soft Decoder
+#  Fix soft decoder so dlclose crash.
+# Tuner Framework
+#  Fix av not sync when cpu loading too high.
+
+#Release_ChangeId_V1_5=Icfa143d3857ba87667abb9dc9438308b512ea364
 #CommitId:1e90ddfe404075ca24cf146b0a8d184f180550f5
 #V1.5.45-g1e90ddf ReleaseNote
 # AC4 decoder compatibility for ms12 and none ms12 version.
