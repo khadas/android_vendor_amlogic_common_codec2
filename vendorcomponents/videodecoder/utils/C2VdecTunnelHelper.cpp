@@ -630,6 +630,10 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
             }
             comp->mGraphicBlocks.clear();
             resetBlockPoolBuffers();
+            blockPoolUtil = mBlockPoolUtil.lock();
+            if (blockPoolUtil == nullptr) {
+                C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__);
+            }
             if (bufferNumEnlarged) {
                 alloc_first += comp->mOutputFormat.mMinNumBuffers - comp->mLastOutputFormat.mMinNumBuffers;
                 mOutBufferCount = comp->mOutputFormat.mMinNumBuffers;
