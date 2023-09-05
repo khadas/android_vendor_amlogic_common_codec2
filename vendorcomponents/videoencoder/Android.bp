@@ -61,7 +61,6 @@ cc_library_shared {
         "libevent",
         "libvendor_c2componentstore",
         "libamgralloc_ext",
-        "lib_encoder_media_process",
     ],
 
     header_libs: [

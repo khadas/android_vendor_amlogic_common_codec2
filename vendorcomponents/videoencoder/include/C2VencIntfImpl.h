@@ -10,6 +10,11 @@
 namespace android {
 
 
+
+typedef IAmlVencParam* (*C2VencParamCreateInstance)();
+typedef void (*C2VencParamDestroyInstance)(IAmlVencParam*);
+
+
 class C2VencComp::IntfImpl : public SimpleInterface<void>::BaseParams{
 public:
     explicit IntfImpl(C2String name,C2String mimetype,const std::shared_ptr<C2ReflectorHelper> &helper);
@@ -101,6 +106,11 @@ private:
 
 private:
     IAmlVencParam *mAmlVencParam;
+    void* mLibHandle;
+    C2VencParamCreateInstance mCreateMethod;
+    C2VencParamDestroyInstance mDestroyMethod;
+    bool Load();
+    void unLoad();
 public:
     void ParamUpdate();
     static bool VencParamChangeListener(void *pInst,stParamChangeIndex Index,void *pParam);

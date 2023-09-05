@@ -29,6 +29,9 @@
 
 namespace android {
 
+typedef IAmlVencInst* (*C2VencCreateInstance)();
+typedef void (*C2VencDestroyInstance)(IAmlVencInst*);
+
 class C2VencComp : public C2Component ,
                                  public std::enable_shared_from_this<C2VencComp> {
 public:
@@ -87,6 +90,8 @@ private:
     void finishWork(uint64_t workIndex, std::unique_ptr<C2Work> &work,stOutputFrame OutFrameInfo);
     void finish(uint64_t frameIndex, std::function<void(std::unique_ptr<C2Work> &)> fillWork);
     void WorkDone(std::unique_ptr<C2Work> &work);
+    bool Load();
+    void unLoad();
     // The state machine enumeration on component thread.
     enum class ComponentState : int32_t {
         // This is the initial state until VDA initialization returns successfully.
@@ -128,6 +133,10 @@ private:
     Mutex mProcessDoneLock;
     Condition mProcessDoneCond;
     IAmlVencInst *mAmlVencInst;
+    void* mLibHandle;
+    C2VencCreateInstance CreateMethod;
+    C2VencDestroyInstance DestroyMethod;
+    Mutex mDestroyQueueLock;
 };
 
 }

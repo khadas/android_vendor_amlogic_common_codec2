@@ -18,8 +18,13 @@
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
 #include "C2VencIntfImpl.h"
+#include <dlfcn.h>
+
 
 namespace android {
+
+
+const C2String kComponentLoadMediaProcessLibrary = "lib_encoder_media_process.so";
 
 
 #define C2Venc_IntfImpl_Log(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
@@ -120,6 +125,53 @@ int ColorFormatSupprt[] = {
 };
 
 
+bool C2VencComp::IntfImpl::Load() {
+    mLibHandle = dlopen(kComponentLoadMediaProcessLibrary.c_str(), RTLD_NOW | RTLD_NODELETE);
+    if (mLibHandle == nullptr) {
+        ALOGD("Could not dlopen %s: %s", kComponentLoadMediaProcessLibrary.c_str(), dlerror());
+        return false;
+    }
+    ALOGE("IntfImpl::mLibHandle:%p",mLibHandle);
+    mCreateMethod = (C2VencParamCreateInstance)dlsym(
+                mLibHandle, "_ZN7android13IAmlVencParam11GetInstanceEv");
+
+    mDestroyMethod = (C2VencParamDestroyInstance)dlsym(
+                mLibHandle, "_ZN7android13IAmlVencParam11DelInstanceEPS0_");
+
+    if (mCreateMethod) {
+        mAmlVencParam = mCreateMethod();
+        if (NULL == mAmlVencParam) {
+            ALOGE("mAmlVencParam is null");
+            return false;
+        }
+    }
+    else {
+        ALOGE("mCreateMethod is null");
+        return false;
+    }
+
+    if (!mDestroyMethod) {
+        ALOGE("mDestroyMethod is null");
+        return false;
+    }
+    return true;
+}
+
+
+void C2VencComp::IntfImpl::unLoad() {
+    if (mDestroyMethod) {
+        ALOGE("Destroy mAmlVencParam");
+        mDestroyMethod(mAmlVencParam);
+    }
+
+    if (mLibHandle) {
+        ALOGE("Unloading dll");
+        dlclose(mLibHandle);
+    }
+}
+
+
+
 C2VencComp::IntfImpl::IntfImpl(C2String name,C2String mimetype,const std::shared_ptr<C2ReflectorHelper> &helper)
     : SimpleInterface<void>::BaseParams(
             helper,
@@ -127,9 +179,13 @@ C2VencComp::IntfImpl::IntfImpl(C2String name,C2String mimetype,const std::shared
             C2Component::KIND_ENCODER,
             C2Component::DOMAIN_VIDEO,
             mimetype),
-      mAmlVencParam(NULL) {
+      mAmlVencParam(NULL),
+      mLibHandle(NULL),
+      mCreateMethod(NULL),
+      mDestroyMethod(NULL) {
 
-    mAmlVencParam = IAmlVencParam::GetInstance();
+    //mAmlVencParam = IAmlVencParam::GetInstance();
+    Load();
     mAmlVencParam->RegisterChangeNotify(C2VencComp::IntfImpl::VencParamChangeListener,this);
     ALOGE("mimetype:%s",mimetype.c_str());
     mAmlVencParam->SetCodecType((std::string::npos != mimetype.find("hevc")) ? H265 : H264);
@@ -314,7 +370,8 @@ C2VencComp::IntfImpl::IntfImpl(C2String name,C2String mimetype,const std::shared
 
 
 C2VencComp::IntfImpl::~IntfImpl() {
-    IAmlVencParam::DelInstance(mAmlVencParam);
+    //IAmlVencParam::DelInstance(mAmlVencParam);
+    unLoad();
 }
 
 

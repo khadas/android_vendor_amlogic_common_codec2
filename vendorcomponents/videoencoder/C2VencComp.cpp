@@ -38,6 +38,8 @@
 #include <algorithm>
 #include <string>
 #include <stdio.h>
+#include <dlfcn.h>
+
 
 namespace android {
 
@@ -46,6 +48,8 @@ namespace android {
 
 constexpr char COMPONENT_NAME_AVC[] = "c2.amlogic.avc.encoder";
 constexpr char COMPONENT_NAME_HEVC[] = "c2.amlogic.hevc.encoder";
+
+const C2String kComponentLoadMediaProcessLibrary = "lib_encoder_media_process.so";
 
 #define OUTPUT_BUFFERSIZE_MIN (5 * 1024 * 1024)
 
@@ -130,12 +134,16 @@ C2VencComp::C2VencComp(const char *name, c2_node_id_t id, const std::shared_ptr<
                   mSpsPpsHeaderReceived(false),
                   mOutBufferSize(OUTPUT_BUFFERSIZE_MIN),
                   mSawInputEOS(false),
-                  mAmlVencInst(NULL) {
+                  mAmlVencInst(NULL),
+                  mLibHandle(NULL),
+                  CreateMethod(NULL),
+                  DestroyMethod(NULL) {
     ALOGD("C2VencComponent constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
     ALOGD("mOutBufferSize:%d",mOutBufferSize);
-    mAmlVencInst = IAmlVencInst::GetInstance();
+    //mAmlVencInst = IAmlVencInst::GetInstance();
+    Load();
     mAmlVencInst->SetVencParamInst(mIntfImpl->GetVencParam());
 }
 
@@ -148,7 +156,8 @@ C2VencComp::~C2VencComp() {
         ALOGD("C2VencComponent client process exit,but not stop!now stop process!!!");
         stop_process();
     }
-    IAmlVencInst::DelInstance(mAmlVencInst);
+    unLoad();
+    //IAmlVencInst::DelInstance(mAmlVencInst);
     ALOGD("C2VencComponent destructor!");
 }
 
@@ -203,6 +212,53 @@ c2_status_t C2VencComp::drain_nb(drain_mode_t mode) {
 
     return C2_OK;
 }
+
+
+bool C2VencComp::Load() {
+     mLibHandle = dlopen(kComponentLoadMediaProcessLibrary.c_str(), RTLD_NOW | RTLD_NODELETE);
+    if (mLibHandle == nullptr) {
+        ALOGD("Could not dlopen %s: %s", kComponentLoadMediaProcessLibrary.c_str(), dlerror());
+        return false;
+    }
+    ALOGE("C2VencComp::mLibHandle:%p",mLibHandle);
+    CreateMethod = (C2VencCreateInstance)dlsym(
+                mLibHandle, "_ZN7android12IAmlVencInst11GetInstanceEv");
+
+    DestroyMethod = (C2VencDestroyInstance)dlsym(
+                mLibHandle, "_ZN7android12IAmlVencInst11DelInstanceEPS0_");
+
+    if (CreateMethod) {
+        mAmlVencInst = CreateMethod();
+        if (NULL == mAmlVencInst) {
+            ALOGE("mAmlVencInst is null");
+            return false;
+        }
+    }
+    else {
+        ALOGE("CreateMethod is null");
+        return false;
+    }
+
+    if (!DestroyMethod) {
+        ALOGE("DestroyMethod is null");
+        return false;
+    }
+    return true;
+}
+
+
+void C2VencComp::unLoad() {
+    if (DestroyMethod) {
+        ALOGE("Destroy mAmlVencInst");
+        DestroyMethod(mAmlVencInst);
+    }
+
+    if (mLibHandle) {
+        ALOGV("Unloading dll");
+        dlclose(mLibHandle);
+    }
+}
+
 
 c2_status_t C2VencComp::start() {
     std::string strFileName;
@@ -259,8 +315,14 @@ c2_status_t C2VencComp::stop() {
     c2_status_t ret = C2_OK;
 
     ret = stop_process();
-    C2Venc_LOG(CODEC2_VENC_LOG_INFO,"mAmlVencInst:%p",mAmlVencInst);
-    mAmlVencInst->Destroy();
+    {
+        AutoMutex l(mDestroyQueueLock); //for kill user process upper than 1 time,need lock to protect
+        if (mAmlVencInst) {
+            C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Destroy process,mAmlVencInst:%p",mAmlVencInst);
+            mAmlVencInst->Destroy();
+            mAmlVencInst = NULL;
+        }
+    }
     return ret;
 }
 
