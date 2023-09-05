@@ -45,7 +45,7 @@ constexpr char COMPONENT_NAME[] = "c2.amlogic.hevc.encoder";
 #define C2W420_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
 #define true 1
 uint32_t C2VencW420New::mInstanceID = 0;
-
+#define SUPPORT_DMA 1
 
 #define MAX_INPUT_BUFFER_HEADERS 4
 #define MAX_CONVERSION_BUFFERS   4
@@ -207,7 +207,7 @@ public:
     addParameter(
                 DefineParam(mUsage, C2_PARAMKEY_INPUT_STREAM_USAGE)
                 .withConstValue(new C2StreamUsageTuning::input(
-                        0u, (uint64_t)C2MemoryUsage::CPU_READ))
+                        0u, SUPPORT_DMA ? 0 : (uint64_t)C2MemoryUsage::CPU_READ))
                 .build());
 
     addParameter(
@@ -735,8 +735,8 @@ int C2VencW420New::getFrameRate(int32_t frameIndex,int64_t timestamp) {
 }
 
 bool C2VencW420New::isSupportDMA() {
-    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"w420 support dma mode:%d!",0);
-    return false;
+    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"w420 support dma mode:%d!",SUPPORT_DMA);
+    return SUPPORT_DMA;
 }
 
 bool C2VencW420New::isSupportCanvas() {
@@ -1084,11 +1084,17 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
     vl_frame_type_hevc_t frameType = FRAME_TYPE_NONE;
     int32_t bitRateNeedChangeTo = 0;
     int32_t avg_qp = 0;
-    if (!InputFrameInfo.yPlane || !InputFrameInfo.uPlane || !InputFrameInfo.vPlane || !pOutFrameInfo) {
-        ALOGE("ProcessOneFrame parameter bad value,pls check!");
+//    if (!InputFrameInfo.yPlane || !InputFrameInfo.uPlane || !InputFrameInfo.vPlane || !pOutFrameInfo) {
+//        ALOGE("ProcessOneFrame parameter bad value,pls check!");
+//        return C2_BAD_VALUE;
+//    }
+//    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"y1:%d,y2:%d,y3:%d",InputFrameInfo.yPlane[0],InputFrameInfo.yPlane[1],InputFrameInfo.yPlane[2]);
+
+    if (!pOutFrameInfo) {
+        C2W420_LOG(CODEC2_VENC_LOG_ERR,"ProcessOneFrame parameter bad value,pls check!");
         return C2_BAD_VALUE;
     }
-    C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"y1:%d,y2:%d,y3:%d",InputFrameInfo.yPlane[0],InputFrameInfo.yPlane[1],InputFrameInfo.yPlane[2]);
+
     memset(&inputInfo,0,sizeof(inputInfo));
     IntfImpl::Lock lock = mIntfImpl->lock();
     //std::shared_ptr<C2StreamIntraRefreshTuning::output> intraRefresh = mIntfImpl->getIntraRefresh();
@@ -1110,31 +1116,53 @@ c2_status_t C2VencW420New::ProcessOneFrame(InputFrameInfo_t InputFrameInfo,Outpu
         }
         mRequestSync = requestSync;
     }
-    inputInfo.buf_type = VMALLOC_TYPE;
+//    inputInfo.buf_type = VMALLOC_TYPE;
     C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"mPixelFormat->value:0x%x,InputFrameInfo.colorFmt:%x",mPixelFormat->value,InputFrameInfo.colorFmt);
     codec2TypeTrans(InputFrameInfo.colorFmt,&inputInfo.buf_fmt);
 
 
-    if (IMG_FMT_RGBA8888 == inputInfo.buf_fmt) {
-        inputInfo.buf_info.in_ptr[0] = (unsigned long)InputFrameInfo.yPlane;
-        inputInfo.buf_info.in_ptr[1] = (unsigned long)InputFrameInfo.uPlane;
+    if (DMA == InputFrameInfo.bufType) {
+        inputInfo.buf_type = DMA_TYPE;
+        inputInfo.buf_stride = InputFrameInfo.yStride;
+        inputInfo.buf_info.dma_info.shared_fd[0] = InputFrameInfo.shareFd[0];
+        inputInfo.buf_info.dma_info.shared_fd[1] = 0;//InputFrameInfo.shareFd[1];
+        inputInfo.buf_info.dma_info.shared_fd[2] = 0;//InputFrameInfo.shareFd[2];
+        inputInfo.buf_info.dma_info.num_planes = InputFrameInfo.planeNum;
+        C2W420_LOG(CODEC2_VENC_LOG_DEBUG,"dma mode,plan num:%d,fd[%d %d %d]",InputFrameInfo.planeNum,InputFrameInfo.shareFd[0],
+                                                  InputFrameInfo.shareFd[1],
+                                                  InputFrameInfo.shareFd[2]);
+    }
+    else if (CANVAS == InputFrameInfo.bufType) {
+        inputInfo.buf_type = CANVAS_TYPE;
+        inputInfo.buf_info.canvas = InputFrameInfo.canvas;
+    }
+    else {
+        inputInfo.buf_type = VMALLOC_TYPE;
+        if (IMG_FMT_RGBA8888 == inputInfo.buf_fmt) {
+            inputInfo.buf_info.in_ptr[0] = (unsigned long)InputFrameInfo.yPlane;
+            inputInfo.buf_info.in_ptr[1] = (unsigned long)InputFrameInfo.uPlane;
     /*
      * This is the logic, no need to modify, ignore coverity weak cryptor report.
     */
     /*coverity[copy_paste_error:SUPPRESS]*/
-        inputInfo.buf_info.in_ptr[2] = (unsigned long)InputFrameInfo.vPlane;
+            inputInfo.buf_info.in_ptr[2] = (unsigned long)InputFrameInfo.vPlane;
+            inputInfo.buf_stride = InputFrameInfo.yStride / 4;
+        }
+        else {
+            inputInfo.buf_info.in_ptr[0] = (unsigned long)InputFrameInfo.yPlane;
+            inputInfo.buf_info.in_ptr[1] = (unsigned long)InputFrameInfo.vPlane;//inputInfo.YCbCr[0] + mSize->width * mSize->height;//(unsigned long)uPlane;
+            inputInfo.buf_info.in_ptr[2] = (unsigned long)InputFrameInfo.vPlane;//(unsigned long)vPlane;
+            inputInfo.buf_stride = InputFrameInfo.yStride;
+        }
+//        inputInfo.buf_stride = InputFrameInfo.yStride;
     }
-    else {
-        inputInfo.buf_info.in_ptr[0] = (unsigned long)InputFrameInfo.yPlane;
-        inputInfo.buf_info.in_ptr[1] = (unsigned long)InputFrameInfo.vPlane;//inputInfo.YCbCr[0] + mSize->width * mSize->height;//(unsigned long)uPlane;
-        inputInfo.buf_info.in_ptr[2] = (unsigned long)InputFrameInfo.vPlane;//(unsigned long)vPlane;
-    }
-    if (IMG_FMT_RGBA8888 != inputInfo.buf_fmt) {
-        inputInfo.buf_stride = InputFrameInfo.yStride;//mSize->width;//pitch,need modify,fix me ????
-    }
-    else {
-        inputInfo.buf_stride = InputFrameInfo.yStride / 4;
-    }
+
+//    if (IMG_FMT_RGBA8888 != inputInfo.buf_fmt) {
+//        inputInfo.buf_stride = InputFrameInfo.yStride;//mSize->width;//pitch,need modify,fix me ????
+//    }
+//    else {
+//        inputInfo.buf_stride = InputFrameInfo.yStride / 4;
+//    }
 
     int frame_rate = 0;
     int64_t mElapsedTime = 0;

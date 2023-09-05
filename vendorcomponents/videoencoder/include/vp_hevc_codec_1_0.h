@@ -128,6 +128,7 @@ typedef struct vl_dma_info_hevc {
 typedef union {
   vl_dma_info_hevc_t dma_info;
   unsigned long in_ptr[3];
+  uint32_t canvas;
 } vl_buf_info_hevc_u;
 
 /* input buffer info
