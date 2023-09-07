@@ -167,7 +167,8 @@ struct aml_vdec_cfg_infos {
     uint32_t metadata_config_flag;
     uint32_t duration;
     uint32_t triple_write_mode;
-    uint32_t data[3];
+    uint32_t dv_profile;
+    uint32_t data[2];
 };
 struct aml_vdec_ps_infos {
     uint32_t visible_width;
