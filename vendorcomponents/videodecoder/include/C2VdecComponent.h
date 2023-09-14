@@ -120,6 +120,7 @@ public:
     void onConfigureTunerPassthroughMode();
     void onConfigureTunerPassthroughTrickMode();
     void onConfigureTunerPassthroughWorkMode();
+    void onConfigureTunerPassthroughInstanceNo();
     void onConfigureTunerPassthroughEventMask();
     void onConfigureEsModeHwAvsyncId(int32_t avSyncId);
     //for out use

@@ -186,6 +186,7 @@ DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerHalParam::input, VendorTunerHalPa
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2StreamTunnelStartRender::output, TunnelStartRender)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughTrickMode::input, VendorTunerPassthroughTrickMode)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughWorkMode::input, VendorTunerPassthroughWorkMode)
+DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughInstanceNo::input, VendorTunerPassthroughInstanceNo)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorNetflixVPeek::input, VendorNetflixVPeek)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorTunerPassthroughEventMask::input, VendorTunerPassthroughEventMask)
 DEFINE_C2_DEFAULT_UNSTRICT_SETTER(C2VendorGameModeLatency::input, VendorGameModeLatency)
@@ -217,6 +218,9 @@ c2_status_t C2VdecComponent::IntfImpl::config(
                 break;
             case C2VendorTunerPassthroughWorkMode::CORE_INDEX:
                 onTunerPassthroughWorkModeConfigParam();
+                break;
+            case C2VendorTunerPassthroughInstanceNo::CORE_INDEX:
+                onTunerPassthroughInstanceNoConfigParam();
                 break;
             case C2VendorTunerPassthroughEventMask::CORE_INDEX:
                 onTunerPassthroughEventMaskConfigParam();
@@ -1003,6 +1007,14 @@ void C2VdecComponent::IntfImpl::onTunerPassthroughDeclareParam() {
     .build());
 
     addParameter(
+        DefineParam(mVendorTunerPassthroughInstanceNo, C2_PARAMKEY_VENDOR_TunerPassthroughInstanceNo)
+        .withDefault(new C2VendorTunerPassthroughInstanceNo::input(-1))
+        .withFields({
+            C2F(mVendorTunerPassthroughInstanceNo, instanceNo).any()})
+    .withSetter(C2_DEFAULT_UNSTRICT_SETTER(VendorTunerPassthroughInstanceNo))
+    .build());
+
+    addParameter(
         DefineParam(mVendorTunerPassthroughEventMask, C2_PARAMKEY_VENDOR_TunerPassthroughEventMask)
         .withDefault(new C2VendorTunerPassthroughEventMask::input(0))
         .withFields({
@@ -1353,6 +1365,12 @@ void C2VdecComponent::IntfImpl::onTunerPassthroughWorkModeConfigParam() {
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough work mode config",
             mComponent->mSessionID, mComponent->mDecoderID);
     mComponent->onConfigureTunerPassthroughWorkMode();
+}
+
+void C2VdecComponent::IntfImpl::onTunerPassthroughInstanceNoConfigParam() {
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]tuner passthrough instance no config",
+            mComponent->mSessionID, mComponent->mDecoderID);
+    mComponent->onConfigureTunerPassthroughInstanceNo();
 }
 
 void C2VdecComponent::IntfImpl::onTunerPassthroughEventMaskConfigParam() {

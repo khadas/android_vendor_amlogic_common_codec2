@@ -34,6 +34,7 @@ public:
     int stop();
     int flush();
     int getSyncInstansNo(int *no);
+    int setInstanceNo(int32_t numb);
     int SetTrickMode(int mode);
     int SetTrickSpeed(float speed);
     int SetWorkMode(int mode);
@@ -42,7 +43,7 @@ public:
 private:
     static uint32_t gInstanceCnt;
     static uint32_t gInstanceNum;
-    uint32_t mInstanceCnt;
+    int32_t mPassthroughSyncNum;
     TunerPassthroughBase* mTunerPassthrough;
 };
 

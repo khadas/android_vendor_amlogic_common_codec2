@@ -30,6 +30,7 @@ enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexVendorDataSourceType,
     kParamIndexVendorTunerPassthroughTrickMode,
     kParamIndexVendorTunerPassthroughWorkMode,
+    kParamIndexVendorTunerPassthroughInstanceNo,
     kParamIndexVendorNetflixVPeek,
     kParamIndexVendorSetAvc4kMMU,
     kParamIndexVendorStreammodeInputdelay,
@@ -117,6 +118,19 @@ struct C2VendorTunerPassthroughWorkModeStruct {
 typedef C2PortParam<C2Setting, C2VendorTunerPassthroughWorkModeStruct, kParamIndexVendorTunerPassthroughWorkMode> C2VendorTunerPassthroughWorkMode;
 constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughWorkMode[] = "tunerhal.passthrough";
 constexpr char KEY_VENDOR_WORKMODE[] = "vendor.tunerhal.passthrough.work-mode";
+
+struct C2VendorTunerPassthroughInstanceNoStruct {
+    inline C2VendorTunerPassthroughInstanceNoStruct() = default;
+    inline C2VendorTunerPassthroughInstanceNoStruct(int32_t instance_no)
+       :instanceNo(instance_no) {}
+    int32_t instanceNo;
+    DEFINE_AND_DESCRIBE_C2STRUCT(VendorTunerPassthroughInstanceNo)
+    C2FIELD(instanceNo, "instance-no")
+};
+
+typedef C2PortParam<C2Setting, C2VendorTunerPassthroughInstanceNoStruct, kParamIndexVendorTunerPassthroughInstanceNo> C2VendorTunerPassthroughInstanceNo;
+constexpr char C2_PARAMKEY_VENDOR_TunerPassthroughInstanceNo[] = "tunerhal.passthrough";
+constexpr char KEY_VENDOR_INSTANCE_NO[] = "vendor.tunerhal.passthrough.instance-no";
 
 struct C2VendorTunerPassthroughEventMaskStruct {
     inline C2VendorTunerPassthroughEventMaskStruct() = default;

@@ -31,7 +31,7 @@
 
 #define HWSYNCID_PASSTHROUGH_FLAG (1u << 16)
 
-#define C2VdecTPH_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mSessionID, comp->mDecoderID, ##str)
+#define C2VdecTPH_LOG(level, fmt, str...) CODEC2_LOG(level, "[NO-%d]-[%d]"#fmt, mPlayerSyncNum, C2VdecComponent::mInstanceNum, ##str)
 #define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
     do {                                                                   \
         if (comp->mHasError \
@@ -104,6 +104,7 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(bool secure,
     mTunerPassthroughParams.hw_sync_id = -1;
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 
+    mPlayerSyncNum = -1;
     mSyncId = 0;
     mWorkMode = WORKMODE_NORMAL;
 }
@@ -139,9 +140,16 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setComponent(std::shared_pt
     mTunerPassthroughParams.dmx_id = ((filterid >> 16) & 0x0000000F);
     mTunerPassthroughParams.video_pid = (filterid & 0x0000FFFF);
     mTunerPassthroughParams.hw_sync_id = mSyncId;
+    mWorkMode = intfImpl->mVendorTunerPassthroughWorkMode->workMode;
+    int32_t playerInstanceNo = intfImpl->mVendorTunerPassthroughInstanceNo->instanceNo;
+
+    mPlayerSyncNum = mSyncId & 0x00FF;
 
     if (!mTunerPassthrough) {
         mTunerPassthrough = std::make_shared<TunerPassthroughWrapper>();
+        if (playerInstanceNo >= 0) {
+            mTunerPassthrough->setInstanceNo(playerInstanceNo);
+        }
         mTunerPassthrough->initialize(&mTunerPassthroughParams);
         mTunerPassthrough->regNotifyTunnelRenderTimeCallBack(notifyTunerPassthroughRenderTimeCallback, this);
         mTunerPassthrough->SetWorkMode(mWorkMode);
@@ -235,6 +243,17 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setWorkMode() {
     C2VdecTPH_LOG(CODEC2_LOG_INFO, "passthrough workmode:%d", mWorkMode);
 
     // mTunerPassthrough->SetWorkMode(mode);
+
+    return C2_OK;
+}
+
+c2_status_t C2VdecComponent::TunerPassthroughHelper::setInstanceNo() {
+    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+
+    int32_t instanceNo = intfImpl->mVendorTunerPassthroughInstanceNo->instanceNo;
+
+    C2VdecTPH_LOG(CODEC2_LOG_INFO, "passthrough instanceNo:%d", instanceNo);
 
     return C2_OK;
 }

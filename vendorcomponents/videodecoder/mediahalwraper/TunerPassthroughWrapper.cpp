@@ -32,7 +32,7 @@ static void *gMediaHal = NULL;
 uint32_t TunerPassthroughWrapper::gInstanceNum = 0;
 uint32_t TunerPassthroughWrapper::gInstanceCnt = 0;
 
-#define C2VdecTPWraper_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, mInstanceCnt, TunerPassthroughWrapper::gInstanceNum, ##str)
+#define C2VdecTPWraper_LOG(level, fmt, str...) CODEC2_LOG(level, "[NO-%d]-[%d]"#fmt, mPassthroughSyncNum, TunerPassthroughWrapper::gInstanceNum, ##str)
 
 
 static TunerPassthroughBase* getTunerPassthrough() {
@@ -70,7 +70,7 @@ TunerPassthroughWrapper::TunerPassthroughWrapper() {
     mTunerPassthrough = getTunerPassthrough();
     gInstanceCnt++;
     gInstanceNum++;
-    mInstanceCnt = gInstanceCnt;
+    mPassthroughSyncNum = -1;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     C2VdecTPWraper_LOG(CODEC2_LOG_INFO, "Create");
 }
@@ -94,6 +94,9 @@ int TunerPassthroughWrapper::initialize(passthroughInitParams* params) {
         C2VdecTPWraper_LOG(CODEC2_LOG_ERR,"init tuner passthrough error!\n");
         return -1;
     }
+
+    mTunerPassthrough->GetSyncInstansNo(&mPassthroughSyncNum);
+
     return 0;
 }
 
@@ -131,6 +134,15 @@ int TunerPassthroughWrapper::getSyncInstansNo(int *no) {
         mTunerPassthrough->GetSyncInstansNo(no);
     return 0;
 }
+
+int TunerPassthroughWrapper::setInstanceNo(int32_t numb) {
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"setInstanceNo: %d", numb);
+    if (mTunerPassthrough) {
+        mTunerPassthrough->SetInstanceNo(numb);
+    }
+    return 0;
+}
+
 int TunerPassthroughWrapper::SetTrickMode(int mode) {
     C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetTrickMode");
     if (mTunerPassthrough)
@@ -138,7 +150,7 @@ int TunerPassthroughWrapper::SetTrickMode(int mode) {
     return 0;
 }
 int TunerPassthroughWrapper::SetWorkMode(int mode) {
-    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetWorkMode");
+    C2VdecTPWraper_LOG(CODEC2_LOG_INFO,"SetWorkMode: %d", mode);
     if (mTunerPassthrough)
         mTunerPassthrough->SetWorkMode(mode);
     return 0;
