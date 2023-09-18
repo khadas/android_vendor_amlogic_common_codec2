@@ -530,12 +530,22 @@ void C2SoftVdec::process(
                                        srcVStride, dstYStride, dstUVStride, mWidth, mHeight);
             // Set out pts
             work->input.ordinal.customOrdinal = mPic->pts;
+            uint8_t *data = NULL;
 
             // For yuv dump
             if (mDumpYuvFp) {
-                const uint8_t* const* data = wView.data();
+             /* const uint8_t* const* data = wView.data();
                 int size = mOutBlock->width() * mOutBlock->height() * 3 / 2;
-                fwrite(data[0], 1, size, mDumpYuvFp);
+                fwrite(data[0], size, 1, mDumpYuvFp); */
+                int shift;
+                for (int i = 0; i < 3; i++) {
+                     shift = i>0 ? 1 : 0;
+                     data = (uint8_t *)mPic->data[i];
+                     for (int j = 0; j < mOutBlock->height()>>shift; j++) {
+                          fwrite(data, sizeof(char), mOutBlock->width()>>shift, mDumpYuvFp);
+                           data += mPic->linesize[i];
+                     }
+                }
             }
 
             // Free pic after yuv data filled.
