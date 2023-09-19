@@ -1199,7 +1199,7 @@ bool C2VdecComponent::DeviceUtil::checkIsYcbcRP010Stream() {
 
     //Use soft decoder support P010.
     if ((mStreamBitDepth == 10) && (mBufferWidth <= kMaxWidthP010 && mBufferHeight <= kMaxHeightP010)
-        && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888)) {
+        && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888) && !mSecure) {
         mIsYcbRP010Stream = true;
     }
 
