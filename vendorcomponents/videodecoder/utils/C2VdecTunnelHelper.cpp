@@ -531,8 +531,9 @@ c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffer(const media::Size& 
     int fd = -1;
     std::shared_ptr<C2GraphicBlock> c2Block;
 
+    C2Fence fence;
     blockPoolUtil->getPoolId(&poolId);
-    auto err = blockPoolUtil->fetchGraphicBlock(size.width(), size.height(), pixelFormat, usage, &c2Block);
+    auto err = blockPoolUtil->fetchGraphicBlock(size.width(), size.height(), pixelFormat, usage, &c2Block, &fence);
     if (err != C2_OK) {
         C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] alloc buffer failed, please check!", __func__);
     } else {

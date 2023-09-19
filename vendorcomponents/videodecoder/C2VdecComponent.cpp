@@ -2320,10 +2320,11 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
         int32_t retries_left = kAllocateBufferMaxRetries;
         err = C2_NO_INIT;
         while (err != C2_OK) {
+            C2Fence fence;
             auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                                mDeviceUtil->getOutAlignedSize(size.height()),
-                                               format, usage, &block);
+                                               format, usage, &block, &fence);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Allocate buffer timeout, %d retry time(s) left...", retries_left);
                 retries_left--;
@@ -2448,9 +2449,10 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
             if (mIsReleasing)
                 return C2_OK;
             auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
+            C2Fence fence;
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
                                             mDeviceUtil->getOutAlignedSize(size.height()),
-                                            format, usage, &block);
+                                            format, usage, &block, &fence);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Allocate buffer timeout, %d retry time(s) left...", retries_left);
                 if (retries_left == kAllocateBufferMaxRetries && mUseBufferQueue) {

@@ -125,6 +125,14 @@ public:
                                             block);
     }
 
+    c2_status_t fetchGraphicBlock(
+        uint32_t width, uint32_t height, uint32_t format,
+        C2MemoryUsage usage,
+        std::shared_ptr<C2GraphicBlock> *block, C2Fence* fence) {
+        return mBase->fetchGraphicBlock(width, height, format, usage,
+                                            block, fence);
+    }
+
     uint64_t getConsumerUsage() {
         uint64_t usage = 0;
         auto bq = std::static_pointer_cast<C2BufferQueueBlockPool>(mBase);
@@ -189,7 +197,7 @@ C2VdecBlockPoolUtil::~C2VdecBlockPoolUtil() {
 
 c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t height, uint32_t format,
         C2MemoryUsage usage,
-        std::shared_ptr<C2GraphicBlock> *block /* nonnull */) {
+        std::shared_ptr<C2GraphicBlock> *block , C2Fence *fence) {
     ALOG_ASSERT(block != nullptr);
     ALOG_ASSERT(mBlockingPool != nullptr);
     std::lock_guard<std::mutex> lock(mMutex);
@@ -200,7 +208,12 @@ c2_status_t C2VdecBlockPoolUtil::fetchGraphicBlock(uint32_t width, uint32_t heig
         return C2_BLOCKING;
     }
     mFetchBlockCount ++;
-    c2_status_t err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock);
+
+    c2_status_t err = C2_OK;
+    if (mUseSurface)
+        err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock, fence);
+    else
+        err = mBlockingPool->fetchGraphicBlock(width, height, format, usage, &fetchBlock);
     if (err == C2_OK) {
         ALOG_ASSERT(fetchBlock != nullptr);
         uint64_t inode = 0;

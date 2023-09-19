@@ -271,11 +271,12 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
     if (!resolutionchanging) {
         blockPoolUtil->getPoolId(&poolId);
         auto format = deviceUtil->getStreamPixelFormat(pixelFormat);
+        C2Fence fence;
 
         CODEC2_ATRACE_BEGIN("fetchGraphicBlock");
         err = blockPoolUtil->fetchGraphicBlock(deviceUtil->getOutAlignedSize(size.width()),
                                         deviceUtil->getOutAlignedSize(size.height()),
-                                        format, usage, &block);
+                                        format, usage, &block,&fence);
         CODEC2_ATRACE_END();
     }
     if (err == C2_OK) {
