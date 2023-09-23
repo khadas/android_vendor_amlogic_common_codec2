@@ -310,15 +310,17 @@ c2_status_t C2VencComponent::stop_process() {
         mQueue.clear();
     }
     if (mthread.isRunning()) {
-        mthread.stop();
-        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread to exit!");
+        //mthread.stop();
         AutoMutex l(mProcessDoneLock);
+        mthread.requestExit();
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread to exit!");
         if (mProcessDoneCond.waitRelative(mProcessDoneLock,500000000ll) == ETIMEDOUT) {
             C2Venc_LOG(CODEC2_VENC_LOG_ERR,"wait for thread timeout!!!!");
         }
         else {
             C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread exit done!!!!");
         }
+        mthread.stop();
     }
     if (mfdDumpInput >= 0) {
         close(mfdDumpInput);
@@ -1123,7 +1125,7 @@ void *C2VencComponent::threadLoop() {
         */
         /*coverity[side_effect_free:SUPPRESS]*/
 
-        usleep(100);
+        usleep(1);
     }
     C2Venc_LOG(CODEC2_VENC_LOG_INFO,"threadLoop exit done!");
     AutoMutex l(mProcessDoneLock);
