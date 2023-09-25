@@ -380,6 +380,7 @@ private:
     bool isTunnelMode() const;
     bool isTunnerPassthroughMode() const;
     void onAndroidVideoPeek();
+    bool checkIsSentId(int64_t bitstreamId);
 
     C2Work* cloneWork(C2Work* ori);
     void sendClonedWork(C2Work* work, int32_t flags);
@@ -559,6 +560,8 @@ private:
     std::deque<int32_t> mFlushDoneBufferOwnedByComp;
     //no correspond outframe work
     std::deque<int64_t> mNoOutFrameWorkQueue;
+    //send out bitStreamid list
+    std::list<int64_t> mSentOutBitStreamIdList;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
     Mutex mFlushDoneLock;

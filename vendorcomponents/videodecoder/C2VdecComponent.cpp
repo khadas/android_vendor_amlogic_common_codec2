@@ -412,6 +412,7 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
 
     mPendingOutputFormat.reset();
     mPendingBuffersToWork.clear();
+    mSentOutBitStreamIdList.clear();
     mNoOutFrameWorkQueue.clear();
 
     if (mVideoDecWraper) {
@@ -1035,6 +1036,18 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
     }
 }
 
+bool C2VdecComponent::checkIsSentId(int64_t bitstreamId) {
+    std::list<int64_t>::iterator iter;
+    bool send = false;
+    for (iter = mSentOutBitStreamIdList.begin(); iter != mSentOutBitStreamIdList.end(); iter++) {
+        if (*iter == bitstreamId) {
+            send = true;
+            break;
+        }
+    }
+    return send;
+}
+
 void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags, uint64_t timestamp) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
@@ -1064,12 +1077,13 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     C2Work* work = NULL;
     if (mLastOutputBitstreamId != bitstreamId) {
         work = getPendingWorkByBitstreamId(bitstreamId);
-        if (!work) {
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] Can't found bitstreamId,should have been flushed or dropped:%" PRId64 "", __LINE__,bitstreamId);
+        if (!work && checkIsSentId(bitstreamId) == false) {
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] Can't found bitstreamId at pending and sent list,should have been flushed or dropped:%" PRId64 "", __LINE__,bitstreamId);
             sendOutputBufferToAccelerator(info, true);
             return;
         }
-        if (!mDropFrameForLatency.empty() && (mDropFrameForLatency.front() == bitstreamId)) {
+
+        if (work != NULL && !mDropFrameForLatency.empty() && (mDropFrameForLatency.front() == bitstreamId)) {
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%d]gamemode frame dropped:%" PRId64 "", __LINE__, bitstreamId);
             mDropFrameForLatency.pop();
             work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
@@ -1078,7 +1092,14 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
             return;
         }
     }
-
+    //work is nullptr or this work input flag is not drop frame
+    if (((work == NULL)
+            || ((work->input.flags & C2FrameData::FLAG_DROP_FRAME) == 0))) {
+        mSentOutBitStreamIdList.push_front(bitstreamId);
+    }
+    if (mSentOutBitStreamIdList.size() > 20) {
+        mSentOutBitStreamIdList.pop_back();
+    }
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
     mOutputWorkCount ++;
     CODEC2_VDEC_ATRACE(TRACE_NAME_OUT_PTS.str().c_str(), timestamp);
@@ -1231,10 +1252,12 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
                 continue;
            }
         }
-        mLastFinishedBitstreamId = nextBuffer.mBitstreamId;
-        if (mLastOutputReportWork != NULL) {
-            delete mLastOutputReportWork;
-            mLastOutputReportWork = NULL;
+        if (isSendCloneWork == false) {
+            mLastFinishedBitstreamId = nextBuffer.mBitstreamId;
+            if (mLastOutputReportWork != NULL) {
+                delete mLastOutputReportWork;
+                mLastOutputReportWork = NULL;
+            }
         }
         work->input.ordinal.customOrdinal = nextBuffer.mMediaTimeUs;
         if (mHDR10PlusMeteDataNeedCheck) {
@@ -1252,8 +1275,8 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             }
             mUpdateDurationUsCount++;
         }
-
-        mLastOutputReportWork = cloneWork(work);
+        if (mLastOutputReportWork == NULL)
+            mLastOutputReportWork = cloneWork(work);
         if (mLastOutputReportWork == NULL) {
             C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Last work is null, malloc memory Failed.");
             return C2_BAD_VALUE;
@@ -1657,6 +1680,7 @@ void C2VdecComponent::onFlushDone() {
             mDeviceUtil->setUnstable();
             mDeviceUtil->setDuration();
         }
+        mSentOutBitStreamIdList.clear();
     }
 
     mComponentState = ComponentState::STARTED;
@@ -1681,6 +1705,7 @@ void C2VdecComponent::onStopDone() {
     mPendingOutputFormat.reset();
     mPendingBuffersToWork.clear();
     mNoOutFrameWorkQueue.clear();
+    mSentOutBitStreamIdList.clear();
     mHasQueuedWork = false;
 
 
