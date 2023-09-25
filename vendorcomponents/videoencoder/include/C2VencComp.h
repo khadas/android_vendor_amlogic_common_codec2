@@ -24,7 +24,7 @@
 //#include <util/C2InterfaceHelper.h>
 #include "ThreadWorker.h"
 #include <media/stagefright/foundation/Mutexed.h>
-#include <buffer.h>
+//#include <buffer.h>
 #include "AmlVencInstIntf.h"
 
 namespace android {
