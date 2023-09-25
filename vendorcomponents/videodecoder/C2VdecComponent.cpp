@@ -1959,15 +1959,14 @@ void C2VdecComponent::updateOutputDelayBufCount() {
     //update mOutputDelay
     if (mOutputDelay != nullptr) {
         std::unique_ptr<C2Work> work(new C2Work);
-        work->result = C2_NOT_FOUND;
+        work->result = C2_OK;
+        work->input.flags =  (C2FrameData::flags_t)0;
         work->worklets.clear();
         work->worklets.emplace_back(new C2Worklet);
         work->worklets.front()->output.flags = C2FrameData::FLAG_INCOMPLETE;
         work->worklets.front()->output.buffers.clear();
         work->worklets.front()->output.configUpdate.push_back(C2Param::Copy(*(mOutputDelay)));
-        std::list<std::unique_ptr<C2Work>> finishedWorks;
-        finishedWorks.emplace_back(std::move(work));
-        mListener->onWorkDone_nb(shared_from_this(), std::move(finishedWorks));
+        reportWork(std::move(work));
         mOutputDelay = nullptr;
     } else {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Update mOutputDelay is null dequeueBufferNum %d error", dequeueBufferNum);
