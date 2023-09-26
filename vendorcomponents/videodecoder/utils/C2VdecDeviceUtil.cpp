@@ -1283,7 +1283,14 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
                             (unsigned long long)doubleWrite, (unsigned long long)tripleWrite, (unsigned long long)usage);
         } else { // soft support 10 bit, use double write.
             int32_t doubleWrite = getDoubleWriteModeValue();
-            usage = getUsageFromDoubleWrite(doubleWrite)| GRALLOC1_PRODUCER_USAGE_PRIVATE_3;
+            usage = getUsageFromDoubleWrite(doubleWrite);
+            if (mUseSurfaceTexture || mNoSurface) {
+                // surfacetext or no surface alloc real 10bit buf
+                // surface mode need alloc small buf, so we need not set 'GRALLOC1_PRODUCER_USAGE_PRIVATE_3' usage,
+                // because if we set GRALLOC1_PRODUCER_USAGE_PRIVATE_3 usage value,the dma buf we alloced is real
+                // 10bit buf with the setting w h value.
+                usage = usage | GRALLOC1_PRODUCER_USAGE_PRIVATE_3;
+            }
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] doublewrite:0x%llx usage:%llx",__func__, __LINE__, (unsigned long long)doubleWrite, (unsigned long long)usage);
         }
     } else if (mUseSurfaceTexture || mNoSurface) {
