@@ -3,6 +3,38 @@ Minor_V=1
 BaseCommitId=dc7cdd6ea924e60f8ad3d2483ba27cbf7a20dc76
 
 #history version
+#Release_ChangeId_V2_1=I4c614c9ee0c49b159f2df8fcb08a3515fb116829
+#CommitId:3188a84ed8d465240820fb1a166414f59adaa2d5
+#V2.1.16-g3188a84 ReleaseNote
+#What's New
+# Common
+#  Codec2 support 2 new platform use Android U kernel 5.15
+#   G12A
+#   SM1
+# Video Decoder
+#  Support new format VC1?
+#  Support set dolby vision profile to decoder
+# Video Encoder
+#  Support wave420 dma mode
+# Soft Decoder
+#  Support ?decode dump yuv method
+# Tuner Framework
+#  Support set Instance number
+#Bug Fixes
+# Video Decoder
+#  Add fetch buffer use fence to fix some timeout
+#  Google Certs Issues (Android 14):
+#   CtsMediaDecoderTestCases 2 failure
+#   GTS/WVTS Vp9 10bit Vp9 Profile2 10bit failed
+#   WVTS Vp9 10bit crash
+#  Tunnel use new blockpoolutil when realloc buffer
+# Video Encoder:
+#  Remove buffer header including
+#  Add dynamic load method for adaptor
+#  Add encoder hal adapter for codec2 encoder
+# Tuner Framework
+#  Fix trick speed not working when speed < 1
+
 #Release_ChangeId_V2_0=Ib5b20f7645a57f496f4afa2c065e26fcfc021494
 #CommitId:cc6e04db4074c8b09ca635a0c7d052b98daad698
 #V2.0.71-gcc6e04d ReleaseNote

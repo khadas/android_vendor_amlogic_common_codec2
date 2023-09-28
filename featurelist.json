@@ -21,7 +21,8 @@
             "LowLatency",
             "DecoderOnly",
             "Hardware P010",
-            "8k"
+            "8k",
+            "vc1"
         ]
     },
     "softvdec": {
