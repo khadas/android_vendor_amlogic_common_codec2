@@ -60,6 +60,8 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/prctl.h>
+#include <linux/videodev2.h>
+
 
 
 #ifdef ATRACE_TAG
@@ -1970,7 +1972,7 @@ void C2VdecComponent::onOutputFormatChanged(std::unique_ptr<VideoFormat> format)
 
     if (mDeviceUtil != nullptr) {
         mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(INTERLACE);
-        if (mDeviceUtil->checkIsYcbcRP010Stream()) {
+        if (mDeviceUtil->checkUseP010Mode() != kUnUseP010) {
             mDeviceUtil->checkConfigInfoFromDecoderAndReconfig(YCBCR_P010_STREAM);
         }
     }
@@ -2529,6 +2531,10 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         if (i == 0) {
             // Allocate the output buffers.
             if (mVideoDecWraper) {
+                if (mDeviceUtil->checkUseP010Mode() == kUseHardwareP010) {
+                    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Hardware p010 use NV12", __func__);
+                    mVideoDecWraper->setOutputFormat(V4L2_PIX_FMT_NV12);
+                }
                 mVideoDecWraper->assignPictureBuffers(bufferCount);
             }
             mCanQueueOutBuffer = true;
@@ -2692,6 +2698,10 @@ void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool
                 mDeviceUtil->updateDisplayInfoToGralloc(handle, mDeviceUtil->getVideoType(), mSessionID);
         }
         if (mVideoDecWraper) {
+            if (mDeviceUtil->checkUseP010Mode() == kUseHardwareP010) {
+                isNV21 = false;
+                C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] isNV21:%d", __func__, isNV21);
+            }
             mVideoDecWraper->importBufferForPicture(info->mBlockId, info->mFd,
                     metaFd, vaddr, size, isNV21);
             info->mFdHaveSet = true;
@@ -3191,7 +3201,7 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
 
     if (mSupport10BitDepth) {
         mDeviceUtil->queryStreamBitDepth();
-        mDeviceUtil->checkIsYcbcRP010Stream();
+        mDeviceUtil->checkUseP010Mode();
     }
 
     if (!mDeviceUtil->needAllocWithMaxSize()) {

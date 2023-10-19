@@ -67,6 +67,12 @@ struct aml_meta_info_s {
     unsigned char data[0];
 };
 
+enum useP010Mode_t {
+    kUnUseP010 = 0,
+    kUseSoftwareP010,
+    kUseHardwareP010,
+};
+
 class C2VdecComponent::DeviceUtil {
 public:
     DeviceUtil(bool secure);
@@ -124,7 +130,7 @@ public:
     bool updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum);
 
     bool checkConfigInfoFromDecoderAndReconfig(int type);
-    bool checkIsYcbcRP010Stream(); /* 10bit */
+    uint32_t checkUseP010Mode(); /* 10bit */
 
     void setGameMode(bool enable);
     bool isLowLatencyMode();

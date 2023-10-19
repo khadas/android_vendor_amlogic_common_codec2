@@ -86,6 +86,7 @@ public:
     void setSessionID(int32_t id);
     int32_t getDecoderID();
     void setPipeLineWorkNumber(uint32_t number);
+    void setOutputFormat(int32_t output_format);
     //media::VideoDecodeAccelerator::SupportedProfiles GetSupportedProfiles(InputCodec inputCodec);
 
     // Implementation of the media::VideoDecodeAcceleratorAdaptor::Client interface.

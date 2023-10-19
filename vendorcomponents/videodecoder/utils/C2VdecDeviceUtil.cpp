@@ -1201,25 +1201,29 @@ bool C2VdecComponent::DeviceUtil::isYcrcb420Stream() const {
     return (mStreamBitDepth == 0 || mStreamBitDepth == 8);
 }
 
-bool C2VdecComponent::DeviceUtil::checkIsYcbcRP010Stream() {
+uint32_t C2VdecComponent::DeviceUtil::checkUseP010Mode() {
     //The current component supports the maximum size of 720*576 of 10 bit streams.
     //If the size exceeds this size, 8 bit buffer format will be used by default.
     LockWeakPtrWithReturnVal(comp, mComp, false);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
 
+    uint32_t useP010Mode = kUnUseP010;
+
     //Use soft decoder support P010.
     if ((mStreamBitDepth == 10) && (mBufferWidth <= kMaxWidthP010 && mBufferHeight <= kMaxHeightP010)
         && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888) && !mSecure) {
         mIsYcbRP010Stream = true;
+        useP010Mode = kUseSoftwareP010;
     }
 
     //Use hardware decoder support P010.
     if ((mStreamBitDepth == 10) && mHwSupportP010
         && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888)) {
         mIsYcbRP010Stream = true;
+        useP010Mode = kUseHardwareP010;
     }
 
-    return mIsYcbRP010Stream;
+    return useP010Mode;
 }
 
 bool C2VdecComponent::DeviceUtil::isUseVdecCore() {

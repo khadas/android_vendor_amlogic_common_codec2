@@ -450,6 +450,20 @@ void VideoDecWraper::setPipelineWorkNumber2Hal() {
     delete msg;
 }
 
+
+void VideoDecWraper::setOutputFormat(int32_t output_format) {
+    AmlMessageBase * msg = AmVideoDec_getAmlMessage();
+    if (msg == NULL) {
+        ALOGW("VideoDecWraper::setPipelineWorkNumber %d, msg == NULL",mPipeLineWorkNum);
+        return ;
+    }
+
+    msg->setInt32("setoutformat", output_format);
+    postAndReplyMsg(msg);
+    delete msg;
+}
+
+
 }
 
 
