@@ -1639,7 +1639,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             mCredibleDuration = true;
 
             float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
-            if (intfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
+            if (intfImpl->mVdecWorkMode->value == VDEC_STREAMMODE || mUnstablePts) {
                 mDurationUs = dur;
                 if (oldDur != mDurationUs) {
                     setDuration();
