@@ -1051,9 +1051,8 @@ bool C2VdecComponent::checkIsSentId(int64_t bitstreamId) {
 void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstreamId, int32_t flags, uint64_t timestamp) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
-    if (isResolutionChanging()) {
-        C2Vdec_LOG(CODEC2_LOG_INFO, "onOutputBufferDone :%d mResolutionChanging true,ignore this buf", pictureBufferId);
-        return;
+    if (mResChStat == C2_RESOLUTION_CHANGING) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "onOutputBufferDone :%d mResChStat C2_RESOLUTION_CHANGING,ignore this buf", pictureBufferId);
     }
 
     if (mComponentState == ComponentState::FLUSHING) {
@@ -3224,10 +3223,6 @@ void C2VdecComponent::PictureReady(output_buf_param_t* params) {
                                                       ::base::Unretained(this), media::Rect(x, y, w, h)));
     }
 
-    if (isResolutionChanging()) {
-        C2Vdec_LOG(CODEC2_LOG_INFO, "PictureReady :%d mResolutionChanging true, ignore this buf", pictureBufferId);
-        return;
-    }
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferDone,
                                                    ::base::Unretained(this),
                                                    pictureBufferId, bitstreamId, flags, timestamp));
