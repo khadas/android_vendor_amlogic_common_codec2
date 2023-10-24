@@ -172,7 +172,11 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             break;
         case InputCodec::H264:
             if (mHwSupportP010 && mIsYcbRP010Stream) {
-                doubleWriteValue = 3;
+                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                    doubleWriteValue = 0x10200;
+                } else {
+                    doubleWriteValue = 3;
+                }
                 CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s-%d] surfaceuse dw:%d", __func__, __LINE__, doubleWriteValue);
             } else if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
                     mIsInterlaced || !mEnableNR || !mEnableDILocalBuf ||
@@ -198,7 +202,12 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::DVAV1:
         case InputCodec::DVHE:
             if (mHwSupportP010 && mIsYcbRP010Stream) {
-                doubleWriteValue = 3;
+                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                    doubleWriteValue = 0x10200;
+                } else {
+                    doubleWriteValue = 3;
+                }
+
                 CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s-%d] surfaceuse dw:%d", __func__, __LINE__, doubleWriteValue);
             } else if (comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) {
                 doubleWriteValue = 1;
@@ -1097,16 +1106,20 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(int32_t doublewrit
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
             break;
+        case 0x10200:
+            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+            mIsNeedUse10BitOutBuffer = true;
+            break;
         default:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             break;
     }
-
+/*
     if (mIsYcbRP010Stream && mHwSupportP010) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d is 10bit stream dw:%d usage use full usage", __func__, __LINE__, doublewrite);
         usage = am_gralloc_get_video_decoder_full_buffer_usage();
     }
-
+*/
     return usage;
 }
 
@@ -1140,17 +1153,20 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromTripleWrite(int32_t triplewrit
         case 0x10008:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
+        case 0x10200:
+            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
+            mIsNeedUse10BitOutBuffer = true;
         break;
         default:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
         break;
     }
-
+/*
     if (mIsYcbRP010Stream && mHwSupportP010) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d is 10bit stream tw:%d usage use full usage", __func__, __LINE__, triplewrite);
         usage = am_gralloc_get_video_decoder_full_buffer_usage();
     }
-
+*/
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] triplewrite:0x%llx usage:0x%llx",__func__, __LINE__, (unsigned long long)triplewrite, (unsigned long long)usage);
     return usage;
 }
@@ -1310,10 +1326,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
         C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] usage:%llx",__func__, __LINE__, (unsigned long long)usage);
     } else {
         int32_t doubleWrite = getDoubleWriteModeValue();
-        if (mIs8k) {
-            usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Is 8k use 1/4 usage:%llx",__func__, __LINE__, (unsigned long long)usage);
-        } else if (mForceFullUsage) {
+         if (mForceFullUsage) {
             usage = am_gralloc_get_video_decoder_full_buffer_usage();
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
         } else {
@@ -1330,7 +1343,7 @@ uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forc
     if ((mSecure && intfImpl->getInputCodec() == InputCodec::H264) || forceAlign)
         return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
 
-    if (mNoSurface && (mIsYcbRP010Stream && mHwSupportP010)) {
+    if (mNoSurface) {
         return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
     }
 
@@ -1346,11 +1359,6 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
 
     if (debugrealloc)
         return true;
-
-    if (mHwSupportP010 && mIsYcbRP010Stream) {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] it is a 10bit stream with a 1:1 allocation of buffers.",__func__, __LINE__);
-        return true;
-    }
 
     if (mUseSurfaceTexture|| mNoSurface) {
         realloc = true;
@@ -1423,6 +1431,7 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
         if (mIs8k) {
             width = kMaxWidth8k;
             height = kMaxHeight8k;
+            return true;
         }
         //mpeg2 and mpeg4 default size is 1080p
         if ((intfImpl->getInputCodec() == InputCodec::MP2V ||
@@ -1727,7 +1736,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
         }
     } else if (type & YCBCR_P010_STREAM) {
         if (mHwSupportP010) {
-            int32_t doubleWrite = 0x10001;
+            int32_t doubleWrite = getDoubleWriteModeValue();
             int32_t tripleWrite = 0;
 
             int32_t defaultDoubleWrite = getPropertyDoubleWrite();
