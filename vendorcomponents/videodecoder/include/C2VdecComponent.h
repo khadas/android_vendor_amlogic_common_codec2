@@ -152,6 +152,7 @@ public:
     void checkPreempting();
     static uint32_t mInstanceNum;
     static uint32_t mInstanceID;
+    C2String mName;
     int32_t mSessionID;
     int32_t mDecoderID;
     bool mIsMaxResolution;

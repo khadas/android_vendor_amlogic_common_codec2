@@ -349,6 +349,7 @@ void C2VdecComponent::Init(C2String compName) {
     mInstanceID ++;
     mSessionID = -1;
     mDecoderID = -1;
+    mName = compName;
     mStopDoneEvent = nullptr;
 
     mIsMaxResolution = false;
@@ -475,8 +476,10 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             C2Vdec_LOG(CODEC2_LOG_ERR, "setpriority error: %s, niceval:%d", strerror(errno), niceval);
         }
     }
-    if (mDebugUtil)
+    if (mDebugUtil) {
         mDebugUtil->setComponent(shared_from_this());
+        mDebugUtil->start();
+    }
     if (!isTunnerPassthroughMode()) {
         if (mVideoDecWraper) {
             mVideoDecWraper.reset();
@@ -1099,6 +1102,9 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     if (mSentOutBitStreamIdList.size() > 20) {
         mSentOutBitStreamIdList.pop_back();
     }
+    if (mDebugUtil) {
+        mDebugUtil->fillBufferDone(info, flags, mOutputWorkCount, timestamp, bitstreamId, pictureBufferId);
+    }
     mPendingBuffersToWork.push_back({(int32_t)bitstreamId, pictureBufferId, timestamp, flags, false});
     mOutputWorkCount ++;
     CODEC2_VDEC_ATRACE(TRACE_NAME_OUT_PTS.str().c_str(), timestamp);
@@ -1553,6 +1559,8 @@ void C2VdecComponent::onStop(::base::WaitableEvent* done) {
             mVideoDecWraper->stop(flags|RESET_FLAG_NOWAIT);
         }
     }
+    if (mDebugUtil)
+        mDebugUtil->stop();
 }
 
 void C2VdecComponent::resetInputAndOutputBufInfo() {
@@ -1775,6 +1783,9 @@ void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inp
     }
     CODEC2_LOG(CODEC2_LOG_TAG_BUFFER, "[%s@%d]Decode bitstream ID: %d timestamp:%" PRId64 " offset: %u size: %d hdrlen:%d flags 0x%x", __FUNCTION__,__LINE__,
             bitstreamId, timestamp, input.offset(), (int)input.size(), hdrlen, flags);
+    if (mDebugUtil) {
+        mDebugUtil->emptyBuffer((void*) input.handle(), timestamp, flags, input.size());
+    }
     if (mVideoDecWraper != NULL) {
         mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, hdrbuf, hdrlen, flags);
         if (mIntfImpl) {
@@ -3126,6 +3137,7 @@ c2_status_t C2VdecComponent::release() {
     mIsReleasing = true;
     ret = reset();
     if (mDebugUtil) {
+        mDebugUtil->dtor();
         mDebugUtil.reset();
         mDebugUtil = NULL;
     }

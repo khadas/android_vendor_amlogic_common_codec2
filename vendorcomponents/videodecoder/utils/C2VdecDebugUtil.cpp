@@ -18,15 +18,18 @@
 #define LOG_TAG "DebugUtil"
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <iostream>
+#include <limits>
+#include <dlfcn.h>
 #include <dirent.h>
 #include <fstream>
 #include <inttypes.h>
 #include <string.h>
 #include <algorithm>
-
 #include <utils/Log.h>
 #include <cutils/properties.h>
 #include <base/bind.h>
@@ -40,6 +43,15 @@
 #include "base/memory/weak_ptr.h"
 
 #define DUMP_PROCESS_FDINFO_ENABLE (0)
+#ifndef UNUSED
+#define UNUSED(x) (void)(x)
+#endif
+
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
+using namespace std;
+using namespace android;
 
 namespace android {
 #define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
@@ -89,6 +101,17 @@ c2_status_t C2VdecComponent::DebugUtil::setComponent(std::shared_ptr<C2VdecCompo
     mIntfImpl = comp->GetIntfImpl();
     C2VdecDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
 
+    mServer = &AmlDiagnosticServer::getInstance();
+    sprintf(mName, "%s", comp->mName.c_str());
+    mCreatedAt = kInvalidTimestamp;
+    mStartedAt = kInvalidTimestamp;
+    mStoppedAt = kInvalidTimestamp;
+    mDestroyedAt = kInvalidTimestamp;
+    mInputQtyStats = make_shared<AmlDiagnosticStatsQty>();
+    mOutputQtyStats = make_shared<AmlDiagnosticStatsQty>();
+    resetStats();
+    ctor();
+    mServer->addClient(comp->mDebugUtil);
     return C2_OK;
 }
 
@@ -161,6 +184,278 @@ void C2VdecComponent::DebugUtil::showCurrentProcessFdInfo() {
     }
     closedir(dir);
 #endif
+}
+
+nsecs_t C2VdecComponent::DebugUtil::getNowUs() {
+    return (systemTime(SYSTEM_TIME_MONOTONIC) / 1000LL);
+}
+
+void C2VdecComponent::DebugUtil::resetStats() {
+    mInputQtyStats->resetStats();
+    mOutputQtyStats->resetStats();
+}
+
+void C2VdecComponent::DebugUtil::dump() {
+    nsecs_t now = getNowUs();
+    ALOGI("%s\n"
+          "%s %" PRIi64 "(secs ago)\n"
+          "%s %" PRIi64 "(secs ago)\n"
+          "%s %" PRIi64 "(secs ago)\n"
+          "%s %" PRIi64 "(secs ago)\n",
+          mName,
+          kCreatedAt, (mCreatedAt != kInvalidTimestamp ? ((now - mCreatedAt)/Sec) : kInvalidTimestamp),
+          kStartedAt, (mStartedAt != kInvalidTimestamp ? ((now - mStartedAt)/Sec) : kInvalidTimestamp),
+          kStoppedAt, (mStoppedAt != kInvalidTimestamp ? ((now - mStoppedAt)/Sec) : kInvalidTimestamp),
+          kDestroyedAt, (mDestroyedAt != kInvalidTimestamp ? ((now - mDestroyedAt)/Sec) : kInvalidTimestamp));
+    ALOGI("%s\n", kInputStats);
+    mInputQtyStats->dump();
+    ALOGI("%s\n", kOutputStats);
+    mOutputQtyStats->dump();
+}
+
+void C2VdecComponent::DebugUtil::ctor() {
+    mCreatedAt = getNowUs();
+}
+
+void C2VdecComponent::DebugUtil::start() {
+    mStartedAt = getNowUs();
+}
+
+void C2VdecComponent::DebugUtil::stop() {
+    mStoppedAt = getNowUs();
+}
+
+void C2VdecComponent::DebugUtil::dtor() {
+    mDestroyedAt = getNowUs();
+}
+
+void C2VdecComponent::DebugUtil::emptyBuffer(void* buffHdr, int64_t timestamp, uint32_t flags, uint32_t size) {
+    UNUSED(buffHdr);
+    UNUSED(timestamp);
+    UNUSED(flags);
+    UNUSED(size);
+    mInputQtyStats->put(timestamp);
+}
+
+void C2VdecComponent::DebugUtil::emptyBufferDone(void* buffHdr, void* buffer, int64_t bitstreamId) {
+    UNUSED(buffHdr);
+    UNUSED(buffer);
+    UNUSED(bitstreamId);
+    //TODO: doing nothing now
+}
+
+void C2VdecComponent::DebugUtil::fillBuffer(void* buffHdr) {
+    UNUSED(buffHdr);
+    //TODO: doing nothing now
+}
+
+void C2VdecComponent::DebugUtil::fillBufferDone(void *buffHdr, uint32_t flags, uint32_t index, int64_t timestamp,
+                                         int64_t bitstreamId, int64_t pictureBufferId) {
+    UNUSED(buffHdr);
+    UNUSED(flags);
+    UNUSED(index);
+    UNUSED(timestamp);
+    UNUSED(bitstreamId);
+    UNUSED(pictureBufferId);
+    if (pictureBufferId != -1 && bitstreamId != -1) {
+        mOutputQtyStats->put(timestamp);
+    }
+}
+
+ResmanHandler::ResmanHandler():
+        mResmanLibHandle(nullptr) {
+    if (mResmanLibHandle == NULL) {
+        mResmanLibHandle = dlopen("libmediahal_resman.so", RTLD_NOW);
+        if (mResmanLibHandle) {
+            Resman_init = (DResman_init) dlsym(mResmanLibHandle, "resman_init");
+            Resman_close = (DResman_close) dlsym(mResmanLibHandle, "resman_close");
+            Resman_add_handler_and_resreports = (DResman_add_handler_and_resreports) dlsym(mResmanLibHandle, "resman_add_handler_and_resreports");
+
+            if (!Resman_init || !Resman_close || !Resman_add_handler_and_resreports) {
+                ALOGE("dlsym error:%s", dlerror());
+                dlclose(mResmanLibHandle);
+                mResmanLibHandle = NULL;
+            }
+        } else
+            ALOGW("dlopen libmediahal_resman.so error:%s", dlerror());
+    }
+}
+
+ResmanHandler::~ResmanHandler()
+{
+    if (mResmanLibHandle)
+        dlclose(mResmanLibHandle);
+}
+
+ANDROID_SINGLETON_STATIC_INSTANCE(AmlDiagnosticServer);
+
+void onDumpboardCallback(void *instance) {
+    AmlDiagnosticServer *dumpboard = (AmlDiagnosticServer*)instance;
+    dumpboard->dump();
+}
+
+AmlDiagnosticServer::AmlDiagnosticServer() {
+    mResmanHandler = new ResmanHandler();
+    if (mResmanHandler && mResmanHandler->isValid()) {
+        mfd = mResmanHandler->Resman_init("DumpState", RESMAN_APP_DIAGNOSTICS);
+        mResmanHandler->Resman_add_handler_and_resreports(mfd, onDumpboardCallback, onDumpboardCallback, (void *)this);
+    }
+}
+
+AmlDiagnosticServer::~AmlDiagnosticServer() {
+    if (isValid()) {
+        ALOGD("%s fd = %d", __FUNCTION__, mfd);
+        mResmanHandler->Resman_close(mfd);
+        mfd = -1;
+        delete mResmanHandler;
+        mResmanHandler = nullptr;
+    }
+}
+
+void AmlDiagnosticServer::dump() {
+#ifdef HAVE_VERSION_INFO
+    static const char* c2Features = (char*)MEDIA_MODULE_FEATURES;
+#endif
+    ALOGI("DUMPING DIAGNOSTICS DATABASE START");
+#ifdef HAVE_VERSION_INFO
+    ALOGI("\n--------------------------------\n"
+        "ARCH = %s\n"
+        "Version:%s\n"
+        "%s\n"
+        "%s\n"
+        "Change-Id:%s\n"
+        "CommitID:%s\n"
+        "--------------------------------\n",
+#if defined(__aarch64__)
+        "arm64",
+#else
+        "arm",
+#endif
+        VERSION,
+        GIT_COMMITMSG,
+        GIT_PD,
+        GIT_CHANGEID,
+        GIT_COMMITID);
+ALOGI("%s", c2Features);
+#endif
+    {
+        AutoMutex l(mLock);
+        for (auto client: mClients) {
+            client->dump();
+            ALOGI("\n--------------------------------\n");
+        }
+    }
+    ALOGI("DUMPING DIAGNOSTICS DATABASE END");
+}
+
+void AmlDiagnosticServer::addClient(std::shared_ptr<C2VdecComponent::DebugUtil> client) {
+    AutoMutex l(mLock);
+    while (mClients.size() >= kMaxClients) {
+        mClients.pop_front();
+    }
+    mClients.push_back(client);
+}
+
+AmlDiagnosticStatsQty::AmlDiagnosticStatsQty() {
+    resetStats();
+}
+
+AmlDiagnosticStatsQty::~AmlDiagnosticStatsQty() {
+}
+
+void AmlDiagnosticStatsQty::put(int64_t val) {
+    if (val < mMinVal) {
+        mMinVal = val;
+    }
+    if (val > mMaxVal) {
+        mMaxVal = val;
+    }
+
+    mQtyTotal++;
+    nsecs_t now = getNowUs();
+    if (mLastAt != kInvalidTimestamp) {
+        nsecs_t distance = now - mLastAt;
+        if (distance > kDistance1S) {
+            mQty1S++;
+        } else if (distance >  kDistance500ms)  {
+            mQty500ms++;
+        } else if (distance > kDistance100ms) {
+            mQty100ms++;
+        } else if (distance > kDistance50ms) {
+            mQty50ms++;
+        } else if (distance > kDistance40ms) {
+            mQty40ms++;
+        } else if (distance > kDistance30ms) {
+            mQty30ms++;
+        } else if (distance > kDistance20ms) {
+            mQty20ms++;
+        } else if (distance > kDistance10ms) {
+            mQty10ms++;
+        } else if (distance > kDistance5ms) {
+            mQty5ms++;
+        } else if (distance > kDistance1ms) {
+            mQty1ms++;
+        } else {
+            mQty0ms++;
+        }
+        mAvgDistanceMs = (now - mFirstAt)/(mQtyTotal - 1)/MS;
+    } else {
+        mFirstAt = now;
+    }
+    mLastAt = now;
+}
+
+nsecs_t AmlDiagnosticStatsQty::getNowUs() {
+    return (systemTime(SYSTEM_TIME_MONOTONIC) / 1000LL);
+}
+
+void AmlDiagnosticStatsQty::resetStats() {
+    mMinVal = numeric_limits<int64_t>::max();
+    mMaxVal = numeric_limits<int64_t>::min();
+    mFirstAt = kInvalidTimestamp;
+    mLastAt = kInvalidTimestamp;
+    mAvgDistanceMs = kInvalidTimestamp;
+    mQtyTotal = 0;
+    mQty1S = 0;
+    mQty500ms = 0;
+    mQty100ms = 0;
+    mQty50ms = 0;
+    mQty40ms = 0;
+    mQty30ms = 0;
+    mQty20ms = 0;
+    mQty10ms = 0;
+    mQty5ms = 0;
+    mQty1ms = 0;
+    mQty0ms = 0;
+}
+
+void AmlDiagnosticStatsQty::dump() {
+    ALOGI("  %s%" PRIu64 "\n"
+          "  %s%" PRIi64 "ms\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n"
+          "    %s %" PRIu64 "\n",
+          kTotal, mQtyTotal,
+          kAvgms, mAvgDistanceMs,
+          k1S, mQty1S,
+          k500ms, mQty500ms,
+          k100ms, mQty100ms,
+          k50ms, mQty50ms,
+          k40ms, mQty40ms,
+          k30ms, mQty30ms,
+          k20ms, mQty20ms,
+          k10ms, mQty10ms,
+          k5ms, mQty5ms,
+          k1ms, mQty1ms,
+          k0ms, mQty0ms);
 }
 
 }
