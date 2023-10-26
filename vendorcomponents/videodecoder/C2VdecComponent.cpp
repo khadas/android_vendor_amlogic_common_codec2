@@ -2244,12 +2244,12 @@ c2_status_t C2VdecComponent::videoResolutionChange() {
         mDequeueThreadUtil->postDelayedAllocTask(mCurrentBlockSize, mCurrentPixelFormat, true, i * frameDur);
     }
     //update picture size
-    C2StreamPictureSizeInfo::output videoSize(0u, mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height());
+    C2StreamPictureSizeInfo::output videoSize(0u, mOutputFormat.mVisibleRect.width(), mOutputFormat.mVisibleRect.height());
     std::vector<std::unique_ptr<C2SettingResult>> failures;
     c2_status_t err = mIntfImpl->config({&videoSize}, C2_MAY_BLOCK, &failures);
     mPictureSizeChanged = true;
-    mCurrentSize = std::make_shared<C2StreamPictureSizeInfo::output>(0u, mOutputFormat.mCodedSize.width(),
-            mOutputFormat.mCodedSize.height());
+    mCurrentSize = std::make_shared<C2StreamPictureSizeInfo::output>(0u, mOutputFormat.mVisibleRect.width(),
+            mOutputFormat.mVisibleRect.height());
     if (err != OK) {
        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Video size changed, update to params fail");
     }
@@ -2821,6 +2821,16 @@ void C2VdecComponent::onVisibleRectChanged(const media::Rect& cropRect) {
     // corresponding to current output format.
     CHECK(mPendingOutputFormat == nullptr);
     setOutputFormatCrop(cropRect);
+    //update picture size
+    C2StreamPictureSizeInfo::output videoSize(0u, mOutputFormat.mVisibleRect.width(), mOutputFormat.mVisibleRect.height());
+    std::vector<std::unique_ptr<C2SettingResult>> failures;
+    c2_status_t err = mIntfImpl->config({&videoSize}, C2_MAY_BLOCK, &failures);
+    mPictureSizeChanged = true;
+    mCurrentSize = std::make_shared<C2StreamPictureSizeInfo::output>(0u, mOutputFormat.mVisibleRect.width(),
+            mOutputFormat.mVisibleRect.height());
+    if (err != OK) {
+       C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Video size changed, update to params fail");
+    }
 }
 
 void C2VdecComponent::setOutputFormatCrop(const media::Rect& cropRect) {
