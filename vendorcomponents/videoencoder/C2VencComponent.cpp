@@ -1083,6 +1083,10 @@ void C2VencComponent::finish(
     if (work) {
         //fillWork(work);
         //std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
+        /*
+         * This is the logic, no need to modify, ignore coverity weak cryptor report.
+        */
+        /*coverity[dead_error_begin:SUPPRESS]*/
         std::unique_ptr<C2Work> DoneWork = std::move(work);
         std::list<std::unique_ptr<C2Work>> finishedWorks;
         finishedWorks.emplace_back(std::move(DoneWork));

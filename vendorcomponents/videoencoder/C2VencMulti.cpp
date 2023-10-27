@@ -960,7 +960,6 @@ bool C2VencMulti::LoadModule() {
     * This is the logic, no need to modify, ignore coverity weak cryptor report.
     */
     /*coverity[leaked_storage:SUPPRESS]*/
-
     return true;
 }
 
