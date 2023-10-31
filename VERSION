@@ -2,7 +2,23 @@ Major_V=2
 Minor_V=2
 BaseCommitId=d1fa38967154f01d43fac57893de7b00dbc2f930
 
+#Release_ChangeId_V2_2=Ief3df3f0c883ddb8804834ff6018850926981521
+#CommitId:348317d25ac3e14e30fad450eb9fb26224160095
+#V2.2.6-g348317d ReleaseNote
 #history version
+#What's New
+#Video Decoder
+# Codec2 bugreport debug integration
+#Bug Fixes
+#Video Decoder
+# Video will be fastfoward when play the specific mpeg4.
+# Used the framerate from driver at unstable pts mode.
+# Do not drop output buffer at video format changing.
+#Video Encoder:
+# Google Certs Issues (Android 14):
+#  CtsMediaMiscTestCases ?testHEVCVideoCodecReclaimLowResolution
+#   Decrease time to exit
+
 #Release_ChangeId_V2_1=I4c614c9ee0c49b159f2df8fcb08a3515fb116829
 #CommitId:3188a84ed8d465240820fb1a166414f59adaa2d5
 #V2.1.16-g3188a84 ReleaseNote
