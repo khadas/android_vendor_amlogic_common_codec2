@@ -1314,6 +1314,13 @@ void C2VdecComponent::IntfImpl::onVendorExtendParam() {
     .build());
 
     addParameter(
+    DefineParam(mVideoBitrate, C2_PARAMKEY_VIDEO_BITRATE)
+           .withDefault(new C2VendorVideoBitrate::input(162543))
+           .withFields({C2F(mVideoBitrate, value).any()})
+           .withSetter(Setter<decltype(*mVideoBitrate)>::StrictValueWithNoDeps)
+    .build());
+
+    addParameter(
     DefineParam(mPlayerId,C2_PARAMKEY_PLAYER_ID)
            .withDefault(new C2VendorPlayerId::input(0))
            .withFields({C2F(mPlayerId,value).any()})

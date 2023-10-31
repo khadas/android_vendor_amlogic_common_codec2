@@ -136,6 +136,8 @@ private:
 
     //frame rate
     std::shared_ptr<C2StreamFrameRateInfo::input> mFrameRateInfo;
+    //video bitrate
+    std::shared_ptr<C2VendorVideoBitrate::input> mVideoBitrate;
     //unstable pts
     std::shared_ptr<C2StreamUnstablePts::input> mUnstablePts;
     //player id

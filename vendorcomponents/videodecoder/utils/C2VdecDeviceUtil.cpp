@@ -1689,6 +1689,20 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
            params->cfg.double_write_mode = 0x10;
            configChanged = true;
         }
+
+        int32_t disableVppThreshold = 0;
+        propGetInt(C2_PROPERTY_VDEC_DIABLE_VPP_THRES, &disableVppThreshold);
+        LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
+        C2VendorVideoBitrate::input bitrate = {0};
+        c2_status_t err = intfImpl->query({&bitrate}, {}, C2_MAY_BLOCK, nullptr);
+        int32_t nBitrate = err == C2_OK ? nBitrate = bitrate.value : 0;
+        if (disableVppThreshold > 0 && nBitrate > 0 && nBitrate/1024/1024 > disableVppThreshold) {
+            // High bitrate interlaced stream, bypass vpp to reduce bandwidth to avoid drop frames
+            params->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DISABLE_DECODE_VPP;
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s#%d] high bitrate interlaced stream, DISABLE_VPP[%X], bitrate:%d, threshold:%d",
+                    __func__, __LINE__, params->cfg.metadata_config_flag, nBitrate/1024/1024, disableVppThreshold);
+            configChanged = true;
+        }
     } else if (type & TUNNEL_UNDERFLOW) {
         if (!(params->cfg.metadata_config_flag & VDEC_CFG_FLAG_DYNAMIC_BYPASS_DI) &&
             comp->mTunnelUnderflow) {

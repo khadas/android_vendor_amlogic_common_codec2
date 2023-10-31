@@ -25,6 +25,7 @@
 enum C2AmlParamIndexKind : C2Param::type_index_t {
     kParamIndexStreamPtsUnstable = C2Param::TYPE_INDEX_VENDOR_START,
     kParamIndexVendorPlayerId,
+    kParamIndexVendorVideoBitrate,
     kParamIndexVendorTunerHal,
     kParamIndexVendorVdecWorkMode,
     kParamIndexVendorDataSourceType,
@@ -67,6 +68,10 @@ constexpr char C2_PARAMKEY_UNSTABLE_PTS[] = "unstable-pts";//"vendor.unstable-pt
 typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorPlayerId> C2VendorPlayerId;
 constexpr char C2_PARAMKEY_PLAYER_ID[] = "player-id";//"vendor.player-id.value"
 constexpr char KEY_VENDOR_PLAYER_ID[] = "vendor.player-id.value";
+
+typedef C2PortParam<C2Setting, C2Int32Value, kParamIndexVendorVideoBitrate> C2VendorVideoBitrate;
+constexpr char C2_PARAMKEY_VIDEO_BITRATE[] = "Bitrate";
+constexpr char KEY_VENDOR_VIDEO_BITRATE[] = "vendor.Bitrate.value";
 
 struct C2VendorTunerHalStruct {
     inline C2VendorTunerHalStruct() = default;
