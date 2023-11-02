@@ -1289,6 +1289,7 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
                 // surface mode need alloc small buf, so we need not set 'GRALLOC1_PRODUCER_USAGE_PRIVATE_3' usage,
                 // because if we set GRALLOC1_PRODUCER_USAGE_PRIVATE_3 usage value,the dma buf we alloced is real
                 // 10bit buf with the setting w h value.
+                usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
                 usage = usage | GRALLOC1_PRODUCER_USAGE_PRIVATE_3;
             }
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] doublewrite:0x%llx usage:%llx",__func__, __LINE__, (unsigned long long)doubleWrite, (unsigned long long)usage);
