@@ -190,6 +190,8 @@ private:
     /* for check pts */
     bool mIsInterlaced;
     bool mEnableAvc4kMMU;
+    uint32_t mAVCMMUWidth;
+    uint32_t mAVCMMUHeight;
 
     uint32_t mDurationUs;
     uint32_t mDurationUsFromApp;

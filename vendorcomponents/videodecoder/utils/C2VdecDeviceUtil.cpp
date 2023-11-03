@@ -113,6 +113,8 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mNoSurface = false;
     mIsInterlaced = false;
     mEnableAvc4kMMU = false;
+    mAVCMMUWidth = 2560;
+    mAVCMMUHeight = 2160;
     mForceFullUsage = false;
     mEnableDILocalBuf = false;
     mUseSurfaceTexture = false;
@@ -415,9 +417,11 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     if (intfImpl->mAvc4kMMUMode->value ||
            property_get_bool(C2_PROPERTY_VDEC_ENABLE_AVC_4K_MMU, false)) {
         mEnableAvc4kMMU = true;
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "mEnableAvc4kMMU = %d", mEnableAvc4kMMU);
+        propGetInt(C2_PROPERTY_VDEC_AVC_MMU_WIDTH, &mAVCMMUWidth);
+        propGetInt(C2_PROPERTY_VDEC_AVC_MMU_HEIGHT, &mAVCMMUHeight);
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "mEnableAvc4kMMU = %d, mmu open width:%d, height:%d", mEnableAvc4kMMU, mAVCMMUWidth, mAVCMMUHeight);
     } else {
-         mEnableAvc4kMMU = false;
+        mEnableAvc4kMMU = false;
     }
 
     if (comp->isAmDolbyVision()) {
@@ -1776,11 +1780,11 @@ bool C2VdecComponent::DeviceUtil::shouldEnableMMU() {
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] Query PictureSize error for avc 4k mmu", __func__, __LINE__);
         else if(mUseSurfaceTexture || mNoSurface)
             C2VdecMDU_LOG(CODEC2_LOG_TAG_BUFFER, "mUseSurfaceTexture = %d/mNoSurface = %d, DO NOT Enable MMU", mUseSurfaceTexture, mNoSurface);
-        else if (output.width * output.height >= 3840 * 2160) {
+        else if (output.width * output.height >= mAVCMMUWidth * mAVCMMUHeight) {
             if (mSecure) {
                 return false;
             }
-            C2VdecMDU_LOG(CODEC2_LOG_TAG_BUFFER, "4k H264 Stream use MMU, width:%d height:%d",
+            C2VdecMDU_LOG(CODEC2_LOG_TAG_BUFFER, "Large H264 Stream use MMU, width:%d height:%d",
                     output.width, output.height);
             return true;
         }
