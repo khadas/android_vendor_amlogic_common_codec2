@@ -69,6 +69,7 @@ enum class C2VendorCodec {
     ADEC_DTSHD,
     ADEC_DTSE,
     ADEC_AC4,
+    ADEC_DTSUHD,
 };
 
 struct C2VendorComponent {
