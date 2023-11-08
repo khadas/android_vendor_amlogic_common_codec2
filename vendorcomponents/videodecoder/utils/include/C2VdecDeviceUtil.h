@@ -195,6 +195,7 @@ private:
 
     uint32_t mDurationUs;
     uint32_t mDurationUsFromApp;
+    float    mFramerate;
     bool     mCredibleDuration;
     int32_t  mUnstablePts;
     int32_t  mPlayerId;

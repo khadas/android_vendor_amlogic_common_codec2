@@ -136,6 +136,7 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     // PTS
     mLastOutPts = 0;
     mDurationUs = 0;
+    mFramerate = 0.0f;
     mUnstablePts = 0;
     mCredibleDuration = 0;
     mMarginBufferNum = 0;
@@ -385,6 +386,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     if (inputFrameRateInfo.value != 0) {
         mDurationUs = 1000 * 1000 / inputFrameRateInfo.value;
         mCredibleDuration = true;
+        mFramerate = inputFrameRateInfo.value;
     }
 
     mDurationUsFromApp = mDurationUs;
@@ -606,6 +608,7 @@ bool C2VdecComponent::DeviceUtil::setDuration()
     AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
     if (msg != NULL && mDurationUs != 0) {
         msg->setInt32("duration", mDurationUs);
+        msg->setFloat("framerate", mFramerate);
         msg->setInt32("type", 2);
         wraper->postAndReplyMsg(msg);
         ret = true;
@@ -1646,6 +1649,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
             if (intfImpl->mVdecWorkMode->value == VDEC_STREAMMODE || mUnstablePts) {
                 mDurationUs = dur;
+                mFramerate = (96000 * 1.0 / durationData);
                 if (oldDur != mDurationUs) {
                     setDuration();
                 }
