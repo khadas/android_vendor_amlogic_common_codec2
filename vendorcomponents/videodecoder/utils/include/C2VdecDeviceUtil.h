@@ -91,6 +91,7 @@ public:
     void setForceFullUsage(bool isFullUsage) { mForceFullUsage = isFullUsage;}
     void setUseSurfaceTexture(bool userSurfaceTexture) { mUseSurfaceTexture = userSurfaceTexture;}
 
+    bool checkSupport8kMode();
     bool paramsPreCheck();
     int32_t getPlayerId() {return mPlayerId;}
     uint32_t getVideoDurationUs() {return mDurationUs;}

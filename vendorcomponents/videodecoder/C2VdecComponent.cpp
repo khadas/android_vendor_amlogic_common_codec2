@@ -2444,7 +2444,12 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         reportError(err);
         return err;
     }
-
+    //check is can play 8k normally
+    bool support = mDeviceUtil->checkSupport8kMode();
+    if (support == false) {
+        reportError(C2_NO_MEMORY);
+        return C2_NO_MEMORY;
+    }
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
     uint64_t platformUsage = mDeviceUtil->getPlatformUsage();
     C2MemoryUsage usage = {

@@ -1337,6 +1337,15 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
     return usage & C2MemoryUsage::PLATFORM_MASK;
 }
 
+bool C2VdecComponent::DeviceUtil::checkSupport8kMode() {
+    //need report error for 8k video at not surface mode if device not support 8k buf mode.
+    bool support = property_get_bool(PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE, false);
+    if (mIs8k && (mUseSurfaceTexture || mNoSurface) && !support) {
+        return false;
+    }
+    return true;
+}
+
 uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forceAlign) {
     LockWeakPtrWithReturnVal(comp, mComp, 0);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, 0);
