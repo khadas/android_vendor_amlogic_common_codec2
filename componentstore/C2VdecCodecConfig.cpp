@@ -79,7 +79,7 @@ const char* kAV1ModuleName = "ammvdec_av1_v4l";
 const char* kDVHEModuleName = "ammvdec_h265_v4l";
 const char* kDVAVModuleName = "ammvdec_h264_v4l";
 const char* kDVAV1ModuleName = "ammvdec_av1_v4l";
-const char* kMP2ModuleName = "ammvdec_mpeg2_v4l";
+const char* kMP2ModuleName = "ammvdec_mpeg12_v4l";
 const char* kMP4ModuleName = "ammvdec_mpeg4_v4l";
 const char* kMJPGModuleName = "ammvdec_mjpeg_v4l";
 const char* kAVS3ModuleName = "ammvdec_avs3_v4l";
@@ -206,19 +206,25 @@ C2VdecCodecConfig::C2VdecCodecConfig():
     mParser() {
     (void)mParser.parseXmlFilesInSearchDirs();
     (void)mParser.parseXmlPath(mParser.defaultProfilingResultsXmlPath);
+
+    mDecoderFeatureInfo.data = NULL;
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     Json::Value value;
+    char *featureListData = NULL;
 #ifdef TEST
-    char *featureListData = (char*)malloc(FEATURES_LIST_SIZE);
+    featureListData = (char*)malloc(FEATURES_LIST_SIZE);
     getFeatureList("/data/featureList.json", &featureListData);
+#else
+    featureListData = getCodecFeatures();
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "json:%s", featureListData);
+#endif
     if (featureListData)
         StringToJsonValue(std::string(featureListData), value);
-#else
-    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "json:%s", getCodecFeatures());
-    if (getCodecFeatures())
-        StringToJsonValue(std::string(getCodecFeatures()), value);
-#endif
     JsonValueToCodecsMap(value);
+    if (mDecoderFeatureInfo.data) {
+        free(mDecoderFeatureInfo.data);
+        mDecoderFeatureInfo.data = NULL;
+    }
 #ifdef TEST
     free(featureListData);
 #endif
@@ -226,6 +232,10 @@ C2VdecCodecConfig::C2VdecCodecConfig():
 
 C2VdecCodecConfig::~C2VdecCodecConfig() {
     mCodecsMap.clear();
+    if (mDecoderFeatureInfo.data) {
+        free(mDecoderFeatureInfo.data);
+        mDecoderFeatureInfo.data = NULL;
+    }
 }
 
 
@@ -274,9 +284,12 @@ C2VendorCodec C2VdecCodecConfig::adaptorInputCodecToVendorCodec(InputCodec codec
 
 char* C2VdecCodecConfig::getCodecFeatures() {
     static void* video_dec = NULL;
-    typedef uint32_t (*getVideoDecoderFeatureListFunc)(char** data);
-    static getVideoDecoderFeatureListFunc getFeatureList =  NULL;
-    char * data = NULL;
+    typedef uint32_t (*getVideoDecoderFeatureListFunc)(decoder_info_parameter type, void* arg);
+    static getVideoDecoderFeatureListFunc getFeatureList = NULL;
+
+    if (mDecoderFeatureInfo.data) {
+        return (char*)mDecoderFeatureInfo.data;
+    }
 
     if (video_dec == NULL) {
         video_dec = dlopen("libmediahal_videodec.so", RTLD_NOW);
@@ -284,12 +297,27 @@ char* C2VdecCodecConfig::getCodecFeatures() {
             ALOGE("Unable to dlopen libmediahal_videodec: %s", dlerror());
             return NULL;
         }
-        getFeatureList = (getVideoDecoderFeatureListFunc)dlsym(video_dec, "AmVideoDec_getVideoDecoderFeatureList");
     }
 
+    getFeatureList = (getVideoDecoderFeatureListFunc)dlsym(video_dec, "AmVideoDec_getVideoDecoderInfo");
     if (getFeatureList != NULL) {
-        (*getFeatureList)(&data);
-        return data;
+        int featureListSize = 0;
+        //get feature size
+        (*getFeatureList)(GET_DECODER_FEATURE_LIST_SIZE, (void*)(&featureListSize));
+        if (featureListSize > 0) {
+            mDecoderFeatureInfo.data = (uint8_t *)malloc(featureListSize);
+            memset(mDecoderFeatureInfo.data, 0, featureListSize);
+            if (mDecoderFeatureInfo.data == nullptr) {
+                ALOGE("%s:%d malloc %d fail", __func__, __LINE__, featureListSize);
+                return NULL;
+            }
+            mDecoderFeatureInfo.data_len = featureListSize;
+            //get featurelist
+            (*getFeatureList)(GET_DECODER_FEATURE_LIST, (void*)&mDecoderFeatureInfo);
+        } else {
+            ALOGD("read none, ignore");
+        }
+        return (char*)mDecoderFeatureInfo.data;
     }
 
     return NULL;
@@ -405,7 +433,10 @@ bool C2VdecCodecConfig::codecSupportFromFeatureList(C2VendorCodec type) {
     const char* decName = NULL;
     GetDecName(type, decName);
     auto iter = mCodecsMap.find(decName);
-    return ((iter != mCodecsMap.end()) ? true: false);
+    if (mCodecsMap.size() > 0)
+        return ((iter != mCodecsMap.end()) ? true: false);
+    else
+        return true;
 }
 
 bool C2VdecCodecConfig::codecFeatureSupport(C2VendorCodec codec_type, FeatureIndex feature_type) {

@@ -132,6 +132,7 @@ private:
     MediaCodecsXmlParser mParser;
     std::map<const char*, std::vector<Feature>> mCodecsMap;
     std::map<const char*, CodecAttributes> mCodecAttributes;
+    decoder_feature_info mDecoderFeatureInfo;
 };
 
 }

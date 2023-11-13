@@ -605,7 +605,7 @@ C2VendorComponentStore::C2VendorComponentStore()
     bool disableC2SecureVdec = property_get_bool(C2_PROPERTY_VDEC_SECURE_DISABLE, false);
     bool supportC2VEnc = property_get_bool(C2_PROPERTY_VENC_SUPPORT, true);
     bool supportC2Adec = property_get_bool(C2_PROPERTY_ADEC_SUPPORT, true);
-    bool supportVdecFeatureList = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_FEATURELIST, false);
+    bool supportVdecFeatureList = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_FEATURELIST, true);
     bool supportMediaCodecxml = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_MEDIACODEC, true);
     if (supportC2Vdec) {
         for (int i = 0; i < sizeof(gC2VideoDecoderComponents) / sizeof(C2VendorComponent); i++) {
