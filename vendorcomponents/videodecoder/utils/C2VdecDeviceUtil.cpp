@@ -43,26 +43,6 @@
 #define OUTPUT_BUFS_ALIGN_SIZE (64)
 #define min(a, b) (((a) > (b))? (b):(a))
 
-#define LockWeakPtrWithReturnVal(name, weak, retval) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return retval;\
-    }
-
-#define LockWeakPtrWithReturnVoid(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return;\
-    }
-
-#define LockWeakPtrWithoutReturn(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecMDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-    }
-
 namespace android {
 
 constexpr int kMaxWidth8k = 8192;
@@ -142,13 +122,13 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mMarginBufferNum = 0;
 }
 
-c2_status_t C2VdecComponent::DeviceUtil::setComponent(std::shared_ptr<C2VdecComponent> sharecomp) {
-    mComp = sharecomp;
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-    mIntfImpl = comp->GetIntfImpl();
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+c2_status_t C2VdecComponent::DeviceUtil::setComponent(std::shared_ptr<C2VdecComponent> sharedcomp) {
+    mComp = sharedcomp;
+    std::shared_ptr<C2VdecComponent::IntfImpl> intfImpl = sharedcomp->GetIntfImpl();
+    mIntfImpl = intfImpl;
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d][%s:%d]", sharedcomp->mSessionID, sharedcomp->mDecoderID, __func__, __LINE__);
 
-    paramsPreCheck();
+    paramsPreCheck(intfImpl);
 
     return C2_OK;
 }
@@ -327,10 +307,7 @@ uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat)
     return format;
 }
 
-bool C2VdecComponent::DeviceUtil::paramsPreCheck() {
-    LockWeakPtrWithReturnVal(comp, mComp, false);
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
-
+bool C2VdecComponent::DeviceUtil::paramsPreCheck(std::shared_ptr<C2VdecComponent::IntfImpl> intfImpl) {
     c2_status_t err = C2_OK;
     C2VendorPlayerId::input playerId = {0};
     err = intfImpl->query({&playerId}, {}, C2_MAY_BLOCK, nullptr);

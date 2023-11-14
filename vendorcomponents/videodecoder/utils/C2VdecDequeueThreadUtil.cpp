@@ -54,26 +54,6 @@ namespace android {
 #define ATRACE_TAG ATRACE_TAG_VIDEO
 #endif
 
-#define LockWeakPtrWithReturnVal(name, weak, retval) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecDQ_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return retval;\
-    }
-
-#define LockWeakPtrWithReturnVoid(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecDQ_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return;\
-    }
-
-#define LockWeakPtrWithoutReturn(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecDQ_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-    }
-
 C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil() {
     mDequeueThread = new ::base::Thread("C2VdecDequeueThread");
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
@@ -98,11 +78,10 @@ C2VdecComponent::DequeueThreadUtil::~DequeueThreadUtil() {
     }
 }
 
-c2_status_t C2VdecComponent::DequeueThreadUtil::setComponent(std::shared_ptr<C2VdecComponent> sharecomp) {
-    mComp = sharecomp;
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-    mIntfImpl = comp->GetIntfImpl();
-    C2VdecDQ_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+c2_status_t C2VdecComponent::DequeueThreadUtil::setComponent(std::shared_ptr<C2VdecComponent> sharedcomp) {
+    mComp = sharedcomp;
+    mIntfImpl = sharedcomp->GetIntfImpl();
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d][%s:%d]", sharedcomp->mSessionID, sharedcomp->mDecoderID, __func__, __LINE__);
     return C2_OK;
 }
 

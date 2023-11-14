@@ -33,7 +33,7 @@
 
 namespace android {
 
-class C2VdecComponent::TunerPassthroughHelper {
+class C2VdecComponent::TunerPassthroughHelper : public IC2Observer {
 public:
     TunerPassthroughHelper(bool secure,
             const char* mime,

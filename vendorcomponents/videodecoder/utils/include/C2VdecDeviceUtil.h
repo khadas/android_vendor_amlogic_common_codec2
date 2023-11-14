@@ -73,7 +73,7 @@ enum useP010Mode_t {
     kUseHardwareP010,
 };
 
-class C2VdecComponent::DeviceUtil {
+class C2VdecComponent::DeviceUtil : public IC2Observer {
 public:
     DeviceUtil(bool secure);
     virtual ~DeviceUtil();
@@ -92,7 +92,7 @@ public:
     void setUseSurfaceTexture(bool userSurfaceTexture) { mUseSurfaceTexture = userSurfaceTexture;}
 
     bool checkSupport8kMode();
-    bool paramsPreCheck();
+    bool paramsPreCheck(std::shared_ptr<C2VdecComponent::IntfImpl> intfImpl);
     int32_t getPlayerId() {return mPlayerId;}
     uint32_t getVideoDurationUs() {return mDurationUs;}
     int32_t getMarginBufferNum() {return mMarginBufferNum;}

@@ -61,15 +61,60 @@
 #include <C2VdecBlockPoolUtil.h>
 #include <C2VendorVideoSupport.h>
 #include <AmlMessageBase.h>
+#include <C2ObserverBase.h>
 
 namespace android {
+
+#define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
+    do {                                                                   \
+        ComponentState compState = static_cast<ComponentState>(mComponentState);\
+        if (mCompHasError \
+            || compState == ComponentState::UNINITIALIZED \
+            || compState == ComponentState::DESTROYING \
+            || compState == ComponentState::DESTROYED) \
+            return;                                                        \
+    } while (0);
+
+#define RETURN_ON_UNINITIALIZED_OR_ERROR_WithVal(retval)                                 \
+    do {                                                                   \
+        ComponentState compState = static_cast<ComponentState>(mComponentState);\
+        if (mCompHasError \
+            || compState == ComponentState::UNINITIALIZED \
+            || compState == ComponentState::DESTROYING \
+            || compState == ComponentState::DESTROYED) \
+            return retval;                                                        \
+    } while (0);
+
+
+#define LockWeakPtrWithReturnVal(name, weak, retval) \
+    RETURN_ON_UNINITIALIZED_OR_ERROR_WithVal(retval) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check",__func__, __LINE__); \
+        return retval;\
+    }
+
+#define LockWeakPtrWithReturnVoid(name, weak) \
+    RETURN_ON_UNINITIALIZED_OR_ERROR() \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check",__func__, __LINE__); \
+        return;\
+    }
+
+#define LockWeakPtrWithoutReturn(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check",__func__, __LINE__); \
+    }
 
 #define DECLARE_C2_DEFAULT_UNSTRICT_SETTER(s,n) \
     static C2R n##Setter(bool mayBlock, C2P<s> &me)
 
 class C2VdecComponent : public C2Component,
                        public VideoDecWraper::VideoDecWraperCallback,
-                       public std::enable_shared_from_this<C2VdecComponent> {
+                       public std::enable_shared_from_this<C2VdecComponent>,
+                       public IC2Subject {
 public:
     class IntfImpl;
     static std::shared_ptr<C2Component> create(const std::string& name, c2_node_id_t id,
@@ -186,6 +231,8 @@ private:
     enum class ComponentState : int32_t {
         // This is the initial state until Vdec initialization returns successfully.
         UNINITIALIZED,
+        // onStart() is called.
+        STARTING,
         // Vdec initialization returns successfully. Vdec is ready to make progress.
         STARTED,
         // onDrain() is called. Vdec is draining. Component will hold on queueing works until
@@ -400,6 +447,9 @@ private:
     bool isNoOutFrameDone(int64_t bitstreamId, const C2Work* work);
     void onReportNoOutFrameFinished();
 
+    void updateComponentState(const ComponentState& state, bool error = false);
+    void notifyObservers() override;
+
     //convert graphicblock state.
     const char* GraphicBlockState(GraphicBlockInfo::State state);
     //get the delay time of fetch block
@@ -468,7 +518,7 @@ private:
     // of this queue will be equal to the minimum number of undequeued buffers.
     std::deque<int32_t> mUndequeuedBlockIds;
     // The error state indicator which sets to true when an error is occurred.
-    bool mHasError = false;
+    bool mCompHasError = false;
 
     // The indicator of enable dump current process information.
     bool mFdInfoDebugEnable;

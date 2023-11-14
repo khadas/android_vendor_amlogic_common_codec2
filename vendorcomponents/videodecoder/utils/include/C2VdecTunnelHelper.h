@@ -33,7 +33,7 @@
 
 namespace android {
 
-class C2VdecComponent::TunnelHelper {
+class C2VdecComponent::TunnelHelper : public IC2Observer {
 public:
     TunnelHelper(bool secure);
     virtual ~TunnelHelper();

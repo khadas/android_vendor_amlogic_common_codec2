@@ -117,17 +117,6 @@ const uint32_t kDpbOutputBufferExtraCount = 0;          // Use the same number a
 const int kDequeueRetryDelayUs = 10000;                 // Wait time of dequeue buffer retry in microseconds.
 const int32_t kAllocateBufferMaxRetries = 10;           // Max retry time for fetchGraphicBlock timeout.
 constexpr uint32_t kDefaultSmoothnessFactor = 8;        // Default smoothing margin.(kRenderingDepth + kSmoothnessFactor + 1)
-
-#define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
-    do {                                                                   \
-        if (mHasError \
-            || mComponentState == ComponentState::UNINITIALIZED \
-            || mComponentState == ComponentState::DESTROYING \
-            || mComponentState == ComponentState::DESTROYED) \
-            return;                                                        \
-    } while (0)
-
-
 }  // namespace
 
 static c2_status_t adaptorResultToC2Status(VideoDecodeAcceleratorAdaptor::Result result) {
@@ -282,7 +271,9 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
 
     mSupport10BitDepth = support_soft_10bit | support_hardware_10bit;
     mDebugUtil = std::make_shared<DebugUtil>();
+    addObserver(mDebugUtil, static_cast<int>(mComponentState), mCompHasError);
     mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
+    addObserver(mDequeueThreadUtil, static_cast<int>(mComponentState), mCompHasError);
 
     if (mFdInfoDebugEnable && mDebugUtil) {
         mDebugUtil->showCurrentProcessFdInfo();
@@ -296,7 +287,7 @@ void C2VdecComponent::Init(C2String compName) {
     mInterlacedType = C2_INTERLACED_TYPE_NONE;
 
     mVdecInitResult = VideoDecodeAcceleratorAdaptor::Result::ILLEGAL_STATE;
-    mComponentState = ComponentState::UNINITIALIZED;
+    updateComponentState(ComponentState::UNINITIALIZED);
     mCodecProfile = media::VIDEO_CODEC_PROFILE_UNKNOWN;
     mState = State::UNLOADED;
 
@@ -374,8 +365,9 @@ void C2VdecComponent::Init(C2String compName) {
 
 C2VdecComponent::~C2VdecComponent() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "~C2VdecComponent start");
-    mComponentState = ComponentState::DESTROYING;
+    updateComponentState(ComponentState::DESTROYING);
     if (mDebugUtil) {
+        removeObserver(mDebugUtil);
         mDebugUtil.reset();
         mDebugUtil = NULL;
     }
@@ -408,6 +400,7 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
 
     if (mDequeueThreadUtil) {
+        removeObserver(mDequeueThreadUtil);
         mDequeueThreadUtil->StopRunDequeueTask();
         mDequeueThreadUtil.reset();
         mDequeueThreadUtil = NULL;
@@ -424,14 +417,17 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
         mVideoDecWraper = NULL;
     }
     if (mDeviceUtil) {
+        removeObserver(mDeviceUtil);
         mDeviceUtil.reset();
         mDeviceUtil = NULL;
     }
     if (mTunerPassthroughHelper) {
+        removeObserver(mTunerPassthroughHelper);
         mTunerPassthroughHelper.reset();
         mTunerPassthroughHelper = NULL;
     }
     if (mTunnelHelper) {
+        removeObserver(mTunnelHelper);
         mTunnelHelper.reset();
         mTunnelHelper = NULL;
     }
@@ -453,13 +449,14 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
     if (mStopDoneEvent != nullptr)
         mStopDoneEvent = nullptr;
 
-    mComponentState = ComponentState::DESTROYED;
+    updateComponentState(ComponentState::DESTROYED);
     done->Signal();
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s] done", __func__);
 }
 
 void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::WaitableEvent* done) {
     DCHECK(mTaskRunner->BelongsToCurrentThread());
+    updateComponentState(ComponentState::STARTING);
     C2Vdec_LOG(CODEC2_LOG_INFO, "OnStart DolbyVision:%d", mIsDolbyVision);
     //CHECK_EQ(mComponentState, ComponentState::UNINITIALIZED);
     bool disableRC = property_get_bool(C2_PROPERTY_VDEC_DISABLE_RC, true);
@@ -490,10 +487,12 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         mVideoDecWraper = std::make_shared<VideoDecWraper>();
 
         if (mDeviceUtil) {
+            removeObserver(mDeviceUtil);
             mDeviceUtil.reset();
             mDeviceUtil = NULL;
         }
         mDeviceUtil = std::make_shared<DeviceUtil>(mSecureMode);
+        addObserver(mDeviceUtil, static_cast<int>(mComponentState), mCompHasError);
         mDeviceUtil->setComponent(shared_from_this());
         mDeviceUtil->setHDRStaticColorAspects(GetIntfImpl()->getColorAspects());
         // set session id
@@ -570,8 +569,7 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
     }
 
     if (mVdecInitResult == VideoDecodeAcceleratorAdaptor::Result::SUCCESS) {
-        mComponentState = ComponentState::STARTED;
-        mHasError = false;
+        updateComponentState(ComponentState::STARTED, false);
     }
 
     done->Signal();
@@ -843,7 +841,7 @@ void C2VdecComponent::onDequeueWork() {
         if (mVideoDecWraper) {
             mVideoDecWraper->eosFlush();
         }
-        mComponentState = ComponentState::DRAINING;
+        updateComponentState(ComponentState::DRAINING);
         mPendingOutputEOS = drainMode == DRAIN_COMPONENT_WITH_EOS;
     }
 
@@ -1434,7 +1432,7 @@ void C2VdecComponent::onDrain(uint32_t drainMode) {
             if (mVideoDecWraper) {
                 mVideoDecWraper->eosFlush();
             }
-            mComponentState = ComponentState::DRAINING;
+            updateComponentState(ComponentState::DRAINING);
             mPendingOutputEOS = drainMode == DRAIN_COMPONENT_WITH_EOS;
 
             if (mTunnelHelper && isTunnelMode()) {
@@ -1457,7 +1455,7 @@ void C2VdecComponent::onDrainDone() {
     RETURN_ON_UNINITIALIZED_OR_ERROR();
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     if (mComponentState == ComponentState::DRAINING) {
-        mComponentState = ComponentState::STARTED;
+        updateComponentState(ComponentState::STARTED);
     } else if (mComponentState == ComponentState::STOPPING) {
         if (mPendingOutputEOS) {
             C2Vdec_LOG(CODEC2_LOG_INFO, "[%s@%d]Return EOS work.", __func__, __LINE__);
@@ -1512,7 +1510,7 @@ void C2VdecComponent::onFlush() {
     mFirstInputTimestamp = -1;
     mLastOutputBitstreamId = -1;
     mLastFinishedBitstreamId = -1;
-    mComponentState = ComponentState::FLUSHING;
+    updateComponentState(ComponentState::FLUSHING);
     if (mVideoDecWraper) {
         mVideoDecWraper->flush();
     }
@@ -1543,14 +1541,14 @@ void C2VdecComponent::onStop(::base::WaitableEvent* done) {
     mInputWorkCount = 0;
     mInputCSDWorkCount = 0;
     mStopDoneEvent = done;  // restore done event which should be signaled in onStopDone().
-    mComponentState = ComponentState::STOPPING;
+    updateComponentState(ComponentState::STOPPING);
     mDequeueThreadUtil->StopRunDequeueTask();
     if (mTunerPassthroughHelper) {
         mTunerPassthroughHelper->stop();
     }
     // Immediately release Vdec by calling onStopDone() if component is in error state. Otherwise,
     // send reset request to Vdec and wait for callback to stop the component gracefully.
-    if (mHasError) {
+    if (mCompHasError) {
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Component is in error state. Immediately call onStopDone().");
         onStopDone();
     } else if (mComponentState != ComponentState::FLUSHING) {
@@ -1692,7 +1690,7 @@ void C2VdecComponent::onFlushDone() {
         mSentOutBitStreamIdList.clear();
     }
 
-    mComponentState = ComponentState::STARTED;
+    updateComponentState(ComponentState::STARTED);
     AutoMutex l(mFlushDoneLock);
     mFlushDoneCond.signal();
 }
@@ -1754,7 +1752,7 @@ void C2VdecComponent::onStopDone() {
         mBlockPoolUtil = NULL;
     }
 
-    mComponentState = ComponentState::UNINITIALIZED;
+    updateComponentState(ComponentState::UNINITIALIZED);
     if (mStopDoneEvent != nullptr)
         mStopDoneEvent->Signal();
 
@@ -3010,7 +3008,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
 
     AutoMutex l(mFlushDoneLock);
     if (mFlushDoneCond.waitRelative(mFlushDoneLock, 500000000ll) == ETIMEDOUT) {  // 500ms Time out
-        mComponentState = ComponentState::STARTED;
+        updateComponentState(ComponentState::STARTED);
         uint64_t nowTimeMs = systemTime(SYSTEM_TIME_MONOTONIC) / 1000000;
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] last flush time:%" PRId64", now time:%" PRId64"", __func__, mLastFlushTimeMs, nowTimeMs);
         return C2_TIMED_OUT;
@@ -3162,6 +3160,7 @@ c2_status_t C2VdecComponent::release() {
     mIsReleasing = true;
     ret = reset();
     if (mDebugUtil) {
+        removeObserver(mDebugUtil);
         mDebugUtil->dtor();
         mDebugUtil.reset();
         mDebugUtil = NULL;
@@ -3732,7 +3731,7 @@ void C2VdecComponent::reportError(c2_status_t error) {
         return;
     }
     mListener->onError_nb(shared_from_this(), static_cast<uint32_t>(error));
-    mHasError = true;
+    updateComponentState(mComponentState, true);
     mState.store(State::ERROR);
 }
 
@@ -3790,10 +3789,12 @@ void C2VdecComponent::onConfigureTunnelMode() {
                 || (syncId == 0x0)) {
                 mSyncId = syncId;
                 if (mTunnelHelper) {
+                    removeObserver(mTunnelHelper);
                     mTunnelHelper.reset();
                     mTunnelHelper = NULL;
                 }
                 mTunnelHelper =  std::make_shared<TunnelHelper>(mSecureMode);
+                addObserver(mTunnelHelper, static_cast<int>(mComponentState), mCompHasError);
                 mTunnelHelper->setComponent(shared_from_this());
                 mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
                 mSyncType |= C2_SYNC_TYPE_TUNNEL;
@@ -3806,10 +3807,12 @@ void C2VdecComponent::onConfigureTunnelMode() {
 
 void C2VdecComponent::onConfigureTunerPassthroughMode() {
     if (mTunerPassthroughHelper) {
+        removeObserver(mTunerPassthroughHelper);
         mTunerPassthroughHelper.reset();
         mTunerPassthroughHelper = NULL;
     }
     mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper);
+    addObserver(mTunerPassthroughHelper, static_cast<int>(mComponentState), mCompHasError);
     mTunerPassthroughHelper->setComponent(shared_from_this());
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
     mSyncType |= C2_SYNC_TYPE_PASSTHROUGH;
@@ -3839,6 +3842,19 @@ void C2VdecComponent::onConfigureEsModeHwAvsyncId(int32_t avSyncId){
             CODEC2_LOG(CODEC2_LOG_ERR, "Invalid hwsyncid:0x%x", avSyncId);
         }
      }
+}
+
+void C2VdecComponent::updateComponentState(const ComponentState& state, bool error) {
+    mComponentState = state;
+    mCompHasError = error;
+    notifyObservers();
+}
+
+void C2VdecComponent::notifyObservers() {
+    for (auto& observer : observers) {
+        observer->updateState(static_cast<int>(mComponentState));
+        observer->updateError(mCompHasError);
+    }
 }
 
 class C2VdecComponentFactory : public C2ComponentFactory {

@@ -178,7 +178,7 @@ private:
 class AmlDiagnosticServer;
 struct AmlDiagnosticStatsQty;
 
-class C2VdecComponent::DebugUtil {
+class C2VdecComponent::DebugUtil : public IC2Observer {
 public:
     static constexpr char* kCreatedAt = (char*)   "Created At   :";
     static constexpr char* kStartedAt = (char*)   "Started At   :";

@@ -29,7 +29,7 @@
 
 namespace android {
 
-class C2VdecComponent::DequeueThreadUtil {
+class C2VdecComponent::DequeueThreadUtil : public IC2Observer {
 public:
     DequeueThreadUtil();
     virtual ~DequeueThreadUtil();

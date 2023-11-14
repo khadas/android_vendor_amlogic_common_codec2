@@ -32,34 +32,6 @@
 #define HWSYNCID_PASSTHROUGH_FLAG (1u << 16)
 
 #define C2VdecTPH_LOG(level, fmt, str...) CODEC2_LOG(level, "[NO-%d]-[%d]"#fmt, mPlayerSyncNum, C2VdecComponent::mInstanceNum, ##str)
-#define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
-    do {                                                                   \
-        if (comp->mHasError \
-            || comp->mComponentState == ComponentState::UNINITIALIZED \
-            || comp->mComponentState == ComponentState::DESTROYING \
-            || comp->mComponentState == ComponentState::DESTROYED) \
-            return;                                                        \
-    } while (0)
-
-#define LockWeakPtrWithReturnVal(name, weak, retval) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecTPH_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return retval;\
-    }
-
-#define LockWeakPtrWithReturnVoid(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecTPH_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return;\
-    }
-
-#define LockWeakPtrWithoutReturn(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-    }
 
 enum TRICK_MODE {
     TRICKMODE_SMOOTH = 1, //based on the playback rate of the codec
@@ -119,10 +91,8 @@ C2VdecComponent::TunerPassthroughHelper::~TunerPassthroughHelper() {
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::setComponent(std::shared_ptr<C2VdecComponent> sharedcomp) {
     mComp = sharedcomp;
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-
-    mIntfImpl = comp->GetIntfImpl();
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+    std::shared_ptr<C2VdecComponent::IntfImpl> intfImpl = sharedcomp->GetIntfImpl();
+    mIntfImpl = intfImpl;
 
     mSyncId = intfImpl->mVendorTunerHalParam->hwAVSyncId;
     if ((mSyncId & 0x0000FF00) == 0xFF00 || mSyncId == 0x0) {

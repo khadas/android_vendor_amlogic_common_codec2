@@ -36,29 +36,6 @@
 
 namespace android {
 
-#define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
-    do {                                                                   \
-        if (comp->mHasError \
-            || comp->mComponentState == ComponentState::UNINITIALIZED \
-            || comp->mComponentState == ComponentState::DESTROYING \
-            || comp->mComponentState == ComponentState::DESTROYED) \
-            return;                                                        \
-    } while (0)
-
-#define LockWeakPtrWithReturnVal(name, weak, retval) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return retval;\
-    }
-
-#define LockWeakPtrWithReturnVoid(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return;\
-    }
-
 C2VdecComponent::TunnelHelper::TunnelHelper(bool secure) {
     mSecure = secure;
     mReallocWhenResChange = false;
@@ -81,11 +58,10 @@ C2VdecComponent::TunnelHelper::~TunnelHelper() {
 
 c2_status_t C2VdecComponent::TunnelHelper::setComponent(std::shared_ptr<C2VdecComponent> sharedcomp) {
     mComp = sharedcomp;
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
 
-    mSyncId = comp->mSyncId;
-    mIntfImpl = comp->GetIntfImpl();
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+    mSyncId = sharedcomp->mSyncId;
+    std::shared_ptr<C2VdecComponent::IntfImpl> intfImpl = sharedcomp->GetIntfImpl();
+    mIntfImpl = intfImpl;
 
     if (intfImpl != NULL && intfImpl->getInputCodec() == InputCodec::H264) {
         mReallocWhenResChange = true;
@@ -101,7 +77,7 @@ c2_status_t C2VdecComponent::TunnelHelper::setComponent(std::shared_ptr<C2VdecCo
         }
     }
 
-    C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d][%s:%d]", sharedcomp->mSessionID, sharedcomp->mDecoderID, __func__, __LINE__);
 
     return C2_OK;
 }
@@ -163,7 +139,6 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
         return;
     }
     DCHECK(taskRunner->BelongsToCurrentThread());
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
     C2VdecTMH_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Fd:%d, render:%d", __func__, __LINE__, dmafd, rendered);
 
     struct fillVideoFrame2 frame = {
@@ -271,7 +246,6 @@ void C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel(struct renderTime r
         return;
     }
     DCHECK(taskRunner->BelongsToCurrentThread());
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     struct renderTime renderTime = {
         .mediaUs = rendertime.mediaUs,

@@ -54,37 +54,8 @@ using namespace std;
 using namespace android;
 
 namespace android {
-#define RETURN_ON_UNINITIALIZED_OR_ERROR()                                 \
-    do {                                                                   \
-        if (comp->mHasError \
-            || comp->mComponentState == ComponentState::UNINITIALIZED \
-            || comp->mComponentState == ComponentState::DESTROYING \
-            || comp->mComponentState == ComponentState::DESTROYED) \
-            return;                                                        \
-    } while (0)
 
 #define C2VdecDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d##%d]"#fmt, comp->mSessionID, comp->mDecoderID, ##str)
-
-#define LockWeakPtrWithReturnVal(name, weak, retval) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return retval;\
-    }
-
-#define LockWeakPtrWithReturnVoid(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        C2VdecDU_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-        return;\
-    }
-
-#define LockWeakPtrWithoutReturn(name, weak) \
-    auto name = weak.lock(); \
-    if (name == nullptr) { \
-        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check", __func__, __LINE__); \
-    }
-
 
 C2VdecComponent::DebugUtil::DebugUtil():mWeakFactory(this) {
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
@@ -97,12 +68,11 @@ C2VdecComponent::DebugUtil::~DebugUtil() {
 
 c2_status_t C2VdecComponent::DebugUtil::setComponent(std::shared_ptr<C2VdecComponent> sharedcomp) {
     mComp = sharedcomp;
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-    mIntfImpl = comp->GetIntfImpl();
-    C2VdecDU_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    mIntfImpl = sharedcomp->GetIntfImpl();
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d][%s:%d]", sharedcomp->mSessionID, sharedcomp->mDecoderID, __func__, __LINE__);
 
     mServer = &AmlDiagnosticServer::getInstance();
-    sprintf(mName, "%s", comp->mName.c_str());
+    sprintf(mName, "%s", sharedcomp->mName.c_str());
     mCreatedAt = kInvalidTimestamp;
     mStartedAt = kInvalidTimestamp;
     mStoppedAt = kInvalidTimestamp;
@@ -111,7 +81,7 @@ c2_status_t C2VdecComponent::DebugUtil::setComponent(std::shared_ptr<C2VdecCompo
     mOutputQtyStats = make_shared<AmlDiagnosticStatsQty>();
     resetStats();
     ctor();
-    mServer->addClient(comp->mDebugUtil);
+    mServer->addClient(sharedcomp->mDebugUtil);
     return C2_OK;
 }
 
@@ -131,7 +101,6 @@ void C2VdecComponent::DebugUtil::startShowPipeLineBuffer() {
     if (taskRunner == nullptr) {
         return;
     }
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     BufferStatus(comp, CODEC2_LOG_INFO, "in/out status {INS/OUTS=%" PRId64 "(%d)/%" PRId64 "(%zu)}, pipeline status",
         comp->mInputWorkCount, comp->mInputCSDWorkCount,
