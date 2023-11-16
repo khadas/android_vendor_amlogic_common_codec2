@@ -2343,7 +2343,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
-            (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), mDeviceUtil->getPlatformUsage()};
+            (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), mDeviceUtil->getPlatformUsage(size)};
 
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count = %zu  usage= %" PRId64"", minBuffersForDisplay, usage.expected);
 
@@ -2447,7 +2447,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         return C2_NO_MEMORY;
     }
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
-    uint64_t platformUsage = mDeviceUtil->getPlatformUsage();
+    uint64_t platformUsage = mDeviceUtil->getPlatformUsage(size);
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
@@ -2584,7 +2584,7 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
     C2Vdec_LOG(CODEC2_LOG_INFO, "AllocateBuffersFromBlockPool(%s, 0x%x)", size.ToString().c_str(), pixelFormat);
     mDequeueThreadUtil->StopRunDequeueTask();
     size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-    if (isTunnelMode() || !mDeviceUtil->needAllocWithMaxSize()) {
+    if (isTunnelMode() || mDeviceUtil->needAllocWithMaxSize()) {
         mOutBufferCount = getDefaultMaxBufNum(GetIntfImpl()->getInputCodec());
         if (bufferCount > mOutBufferCount) {
             C2Vdec_LOG(CODEC2_LOG_INFO, "required outbuffer count %d large than default num %d", (int)bufferCount, mOutBufferCount);
@@ -3208,7 +3208,7 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     mDeviceUtil->queryStreamBitDepth();
     mDeviceUtil->checkUseP010Mode();
 
-    if (!mDeviceUtil->needAllocWithMaxSize()) {
+    if (mDeviceUtil->needAllocWithMaxSize()) {
         mDeviceUtil->getMaxBufWidthAndHeight(max_width, max_height);
     }
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,

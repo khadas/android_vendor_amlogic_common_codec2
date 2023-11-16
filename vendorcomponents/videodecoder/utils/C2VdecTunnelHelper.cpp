@@ -499,7 +499,7 @@ c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffer(const media::Size& 
     LockWeakPtrWithReturnVal(blockPoolUtil, mBlockPoolUtil, C2_BAD_VALUE);
     LockWeakPtrWithReturnVal(deviceUtil, mDeviceUtil, C2_BAD_VALUE);
 
-    uint64_t platformUsage = deviceUtil->getPlatformUsage();
+    uint64_t platformUsage = deviceUtil->getPlatformUsage(size);
     C2MemoryUsage usage = {
             mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
@@ -576,12 +576,12 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
     LockWeakPtrWithReturnVal(blockPoolUtil, mBlockPoolUtil, C2_BAD_VALUE)
     LockWeakPtrWithReturnVal(deviceUtil, mDeviceUtil, C2_BAD_VALUE);
 
-    uint64_t platformUsage = deviceUtil->getPlatformUsage();
+    media::Size& size = comp->mOutputFormat.mCodedSize;
+    comp->mPendingOutputFormat.reset();
+    uint64_t platformUsage = deviceUtil->getPlatformUsage(size);
     C2MemoryUsage usage = {
             mSecure ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};
-    media::Size& size = comp->mOutputFormat.mCodedSize;
-    comp->mPendingOutputFormat.reset();
 
 
     C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
@@ -591,6 +591,7 @@ c2_status_t C2VdecComponent::TunnelHelper::videoResolutionChangeTunnel() {
 
     C2VdecTMH_LOG(CODEC2_LOG_INFO, "[%s:%d] in resolution changing:%d", __func__, __LINE__, isInResolutionChanging());
     if (checkReallocOutputBuffer(comp->mLastOutputFormat, comp->mOutputFormat, &sizeChanged, &bufferNumEnlarged)) {
+        deviceUtil->releaseGrallocSlot();
         if (mReallocWhenResChange && sizeChanged) {
             //all realloc buffer
             int alloc_first = 0;
