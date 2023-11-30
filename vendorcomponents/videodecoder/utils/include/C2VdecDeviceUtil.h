@@ -164,6 +164,7 @@ private:
 
     bool mIsYcbRP010Stream;
     bool mHwSupportP010;
+    bool mSwSupportP010;
 
     //di post
     bool needDecoderReplaceBufferForDiPost();

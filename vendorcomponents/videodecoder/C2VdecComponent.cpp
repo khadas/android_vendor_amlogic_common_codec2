@@ -267,6 +267,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     mFdInfoDebugEnable = property_get_bool(C2_PROPERTY_VDEC_FD_INFO_DEBUG, false);
 
     bool support_soft_10bit = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
+    support_soft_10bit = property_get_bool(PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010, support_soft_10bit);
     bool support_hardware_10bit = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010, false);
 
     mSupport10BitDepth = support_soft_10bit | support_hardware_10bit;

@@ -82,6 +82,7 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mIsYcbRP010Stream = false;
     mIsNeedUse10BitOutBuffer = false;
     mHwSupportP010 = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010, false);
+    mSwSupportP010 = property_get_bool(PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010, true);
 
     mDiPost = property_get_bool(C2_PROPERTY_VDEC_DI_POST, false);
     // 8K
