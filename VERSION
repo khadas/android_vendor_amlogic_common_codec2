@@ -2,6 +2,29 @@ Major_V=2
 Minor_V=3
 BaseCommitId=dfb90dd2e3385c66483029d56ec63eff3e7e805b
 
+#Release_ChangeId_V2_3=I423a52056e7b077719c93181615080306709ae25
+#CommitId:a459fdaf7eb6323888db85ea0dea4fa7758dbf39
+#V2.3.14-ga459fda ReleaseNote
+#history version
+#What's New
+# Video Decoder
+#  Support double write 0x10200 for 10bit P010 output
+#  Support hardware p010 use nv12 not nv21
+#  Add prop to configure avc enable mmu resolution
+#  Bypass vpp if the interlaced stream bitrate too high
+#  Add check support 8k buf mode.
+#Bug Fixes
+# Video Decoder
+#  Fixed failed to allocate buffer for P010 on THXD2.
+#  FIxed print a lot of error log
+#  Fixed c2 crash when switch youtube and netflix long time.
+#  Fixed output width and higth not aligned 64bit.
+#  Fixed framerate set error.
+#  Used OSD usage at no surface or surfacetexture mode.
+#  Used 'mVisibleRect' to update C2StreamPictureSizeInfo.
+# Video Encoder
+#  Delete the command line.
+
 #Release_ChangeId_V2_2=Ief3df3f0c883ddb8804834ff6018850926981521
 #CommitId:348317d25ac3e14e30fad450eb9fb26224160095
 #V2.2.6-g348317d ReleaseNote
