@@ -953,8 +953,8 @@ void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> blo
         info->mBind = true;
     }
 
-    if (info->mState != GraphicBlockInfo::State::OWNED_BY_CLIENT &&
-            getVideoResolutionChanged()) {
+    if (getVideoResolutionChanged() &&
+        info->mState != GraphicBlockInfo::State::OWNED_BY_CLIENT) {
         C2Vdec_LOG(CODEC2_LOG_ERR, "Graphic block (id=%d) (state=%s) (fd=%d) (fdset=%d)should be owned by client on return",
                 info->mBlockId, GraphicBlockState(info->mState), info->mFd,info->mFdHaveSet);
         if (mDebugUtil)
@@ -1055,7 +1055,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
     DCHECK(mTaskRunner->BelongsToCurrentThread());
     RETURN_ON_UNINITIALIZED_OR_ERROR();
     if (mResChStat == C2_RESOLUTION_CHANGING) {
-        C2Vdec_LOG(CODEC2_LOG_ERR, "onOutputBufferDone :%d mResChStat C2_RESOLUTION_CHANGING,ignore this buf", pictureBufferId);
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "onOutputBufferDone :%d mResChStat C2_RESOLUTION_CHANGING,ignore this buf", pictureBufferId);
     }
 
     if (mComponentState == ComponentState::FLUSHING) {
