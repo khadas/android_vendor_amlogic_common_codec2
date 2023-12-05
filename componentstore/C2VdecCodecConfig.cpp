@@ -317,6 +317,15 @@ char* C2VdecCodecConfig::getCodecFeatures() {
         } else {
             ALOGD("read none, ignore");
         }
+
+        memset(&mDisplayInfo, 0, sizeof(mDisplayInfo));
+        (*getFeatureList)(GET_DISPLAY_INFO_VIDEO_MAX_SIZE, (void*)(&(mDisplayInfo.maxSize)));
+        if (mDisplayInfo.maxSize.w * mDisplayInfo.maxSize.h != 0) {
+            ALOGI("display max size %dx%d", mDisplayInfo.maxSize.w, mDisplayInfo.maxSize.h);
+            if ((mDisplayInfo.maxSize.w * mDisplayInfo.maxSize.h) > (4096 * 2304)) {
+                    mDisplayInfo.isSupport8k = true;
+            }
+        }
         return (char*)mDecoderFeatureInfo.data;
     }
 
@@ -614,6 +623,9 @@ bool C2VdecCodecConfig::isCodecSupport8k(C2VendorCodec codec_type, bool secure) 
         return false;
     }
     return attribute->second.isSupport8k;
+}
+bool C2VdecCodecConfig::isDisplaySupport8k() {
+    return mDisplayInfo.isSupport8k ;
 }
 
 c2_status_t C2VdecCodecConfig::isCodecSupportResolutionRatio(InputCodec codec, bool secure, int32_t bufferSize) {

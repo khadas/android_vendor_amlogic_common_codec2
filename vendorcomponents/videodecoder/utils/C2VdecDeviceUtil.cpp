@@ -34,6 +34,7 @@
 #include <C2VendorProperty.h>
 #include <c2logdebug.h>
 #include <C2VendorConfig.h>
+#include <C2VdecCodecConfig.h>
 #include <inttypes.h>
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
@@ -144,6 +145,11 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
     if (defaultDoubleWrite >= 0) {
         doubleWriteValue = defaultDoubleWrite;
         CODEC2_LOG(CODEC2_LOG_INFO, "set double write(%d) from property", doubleWriteValue);
+        return doubleWriteValue;
+    }
+
+    if (mIs8k && !C2VdecCodecConfig::getInstance().isDisplaySupport8k()) {
+        doubleWriteValue = 4;
         return doubleWriteValue;
     }
 
@@ -430,9 +436,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
     mBufferWidth  = bufwidth;
     mBufferHeight = bufheight;
-    if (bufwidth * bufheight > 4096 * 2304) {
-        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] update doubleWriteMode to %d",__func__, __LINE__, doubleWriteMode);
-        doubleWriteMode = 0x04;
+    if (bufwidth * bufheight > kMaxWidth4k * kMaxHeight4k) {
         default_margin = 5;
         mIs8k = true;
         if (!mEnable8kNR) {
@@ -441,12 +445,6 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] is 8k",__func__, __LINE__);
     }
 
-    if (intfImpl->getInputCodec() == InputCodec::H264) {
-        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] update doubleWriteMode to %d",__func__, __LINE__, doubleWriteMode);
-        doubleWriteMode = 0x10;
-    }
-
-    C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] update doubleWriteMode to %d",__func__, __LINE__, doubleWriteMode);
     doubleWriteMode = getDoubleWriteModeValue();
 
     default_margin = property_get_int32(C2_PROPERTY_VDEC_MARGIN, default_margin);

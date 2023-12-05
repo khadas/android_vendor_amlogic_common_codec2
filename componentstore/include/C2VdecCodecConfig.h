@@ -63,6 +63,7 @@ public:
 
     // Checks whether the specified codec supports 8k on the current platform
     bool isCodecSupport8k(C2VendorCodec codec_type, bool secure);
+    bool isDisplaySupport8k();
     c2_status_t isCodecSupportResolutionRatio(InputCodec codec, bool secure, int32_t bufferSize);
     enum ValType {
         TYPE_INVALID = 0,
@@ -123,6 +124,10 @@ private:
         Range bitRate;
         bool isSupport8k;
     };
+    struct DisplayInfo {
+        Size maxSize;
+        bool isSupport8k;
+    };
 
     char* getCodecFeatures();
     bool codecsMapToString();
@@ -133,6 +138,7 @@ private:
     std::map<const char*, std::vector<Feature>> mCodecsMap;
     std::map<const char*, CodecAttributes> mCodecAttributes;
     decoder_feature_info mDecoderFeatureInfo;
+    DisplayInfo mDisplayInfo;
 };
 
 }
