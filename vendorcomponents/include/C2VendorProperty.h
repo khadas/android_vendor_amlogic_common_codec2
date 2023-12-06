@@ -72,6 +72,7 @@
 #define C2_PROPERTY_VDEC_DEBUG_PRIORITY             "debug.vendor.media.c2.vdec.priority"
 #define C2_PROPERTY_VDEC_OUT_ADD_DELAY              "debug.vendor.media.c2.vdec.out.add_delay"
 #define C2_PROPERTY_VDEC_DIABLE_BYPASS_VPP          "debug.vendor.media.c2.vdec.default.bypass_vpp"
+#define C2_PROPERTY_VDEC_LLV_FIRST_ALLOC_NUM        "debug.vendor.media.c2.vdec.llv_first_alloc_num"
 
 /* soft vdec */
 #define C2_PROPERTY_SOFTVDEC_INST_MAX_NUM           "vendor.media.c2.softvdec.inst.max_num"

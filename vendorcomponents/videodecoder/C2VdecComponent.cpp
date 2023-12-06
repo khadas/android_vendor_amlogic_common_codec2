@@ -2478,6 +2478,12 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     if (dequeue_buffer_num < 2 * mOutBufferCount / 3) {
         dequeue_buffer_num = 2 * mOutBufferCount / 3;
     }
+    int32_t llv_first_alloc_num = mOutBufferCount / 2;
+    if (mDeviceUtil->isLowLatencyMode() && (dequeue_buffer_num > llv_first_alloc_num)) {
+        llv_first_alloc_num = property_get_int32(C2_PROPERTY_VDEC_LLV_FIRST_ALLOC_NUM, llv_first_alloc_num);
+        CODEC2_LOG(CODEC2_LOG_INFO, "lowlatency mode set first alloc buffer num from %d to %d", dequeue_buffer_num, llv_first_alloc_num);
+        dequeue_buffer_num = llv_first_alloc_num;
+    }
 
     // Allocate the output buffers.
     if (mVideoDecWraper) {
