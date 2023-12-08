@@ -2479,6 +2479,16 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         dequeue_buffer_num = 2 * mOutBufferCount / 3;
     }
 
+    // Allocate the output buffers.
+    if (mVideoDecWraper) {
+        if (mDeviceUtil->checkUseP010Mode() == kUseHardwareP010) {
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Hardware p010 use NV12", __func__);
+            mVideoDecWraper->setOutputFormat(V4L2_PIX_FMT_NV12);
+        }
+        mVideoDecWraper->assignPictureBuffers(bufferCount);
+    }
+    mCanQueueOutBuffer = true;
+
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count:%zu buffer count:%d first_bufferNum:%d Usage %" PRId64"",
                 minBuffersForDisplay, (int)bufferCount, dequeue_buffer_num, usage.expected);
     for (int i = 0; i < dequeue_buffer_num; ++i) {
@@ -2532,17 +2542,6 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
             return err;
         }
 
-        if (i == 0) {
-            // Allocate the output buffers.
-            if (mVideoDecWraper) {
-                if (mDeviceUtil->checkUseP010Mode() == kUseHardwareP010) {
-                    C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s] Hardware p010 use NV12", __func__);
-                    mVideoDecWraper->setOutputFormat(V4L2_PIX_FMT_NV12);
-                }
-                mVideoDecWraper->assignPictureBuffers(bufferCount);
-            }
-            mCanQueueOutBuffer = true;
-        }
         appendOutputBuffer(std::move(block), poolId, blockId, true);
         GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
         if (info == nullptr) {
