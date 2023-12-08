@@ -62,7 +62,7 @@
 #define C2_PROPERTY_VDEC_FORCE_DI_PERMISSION        "vendor.media.c2.vdec.force_di_permission"
 #define C2_PROPERTY_VDEC_GAME_LOW_LATENCY           "vendor.media.c2.vdec.game_low_latency"
 #define C2_PROPERTY_VDEC_FIXED_BUFF_SLICE           "vendor.media.common.fixed_buffer_slice"
-#define C2_PROPERTY_VDEC_DI_POST                     "vendor.media.c2.vdec.di.post"
+#define C2_PROPERTY_VDEC_DI_POST                    "vendor.media.c2.vdec.di.post"
 #define C2_PROPERTY_VDEC_DIABLE_VPP_THRES           "vendor.media.c2.vdec.disable_vpp_thres"
 
 /* debug */
@@ -86,6 +86,6 @@
 #define PROPERTY_PLATFORM_SUPPORT_8K                "ro.vendor.platform.support.8k"
 #define PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010     "ro.vendor.platform.support.hardware_10bit"
 #define PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010     "ro.vendor.platform.support.software_10bit"
-#define PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE                "ro.vendor.platform.support.8k.buffer_mode"
+#define PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE       "ro.vendor.platform.support.8k.buffer_mode"
 
 #endif

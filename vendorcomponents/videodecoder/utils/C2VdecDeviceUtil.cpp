@@ -142,6 +142,8 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
 
     InputCodec codec = intfImpl->getInputCodec();
     int32_t defaultDoubleWrite = getPropertyDoubleWrite();
+    int32_t fixedBufferSlice = property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1);
+
     if (defaultDoubleWrite >= 0) {
         doubleWriteValue = defaultDoubleWrite;
         CODEC2_LOG(CODEC2_LOG_INFO, "set double write(%d) from property", doubleWriteValue);
@@ -159,7 +161,7 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             break;
         case InputCodec::H264:
             if (mHwSupportP010 && mIsYcbRP010Stream) {
-                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                if ((fixedBufferSlice == 1080) && !mSecure) {
                     doubleWriteValue = 0x10200;
                 } else {
                     doubleWriteValue = 3;
@@ -169,9 +171,16 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
                     mIsInterlaced || !mEnableNR || !mEnableDILocalBuf ||
                     mDiPost) {
                 doubleWriteValue = 0x10;
-                CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "texture/nosurface or interlaced or no di/nr video use dw 0x10");
+                if ((fixedBufferSlice == 540) && (!mUseSurfaceTexture && !mNoSurface && !mIsInterlaced)) {
+                    doubleWriteValue = 0x400;
+                    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "540p_buffer enabled, set avc double write %d",doubleWriteValue);
+                }
+                CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s-%d] texture/nosurface or interlaced or no di/nr video use dw %d", __func__, __LINE__, doubleWriteValue);
             } else {
-                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                if ((fixedBufferSlice == 540) && !mUseSurfaceTexture && !mSecure) { // fix 540p buffer.
+                    doubleWriteValue = 0x400;
+                    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s-%d] 540p_buffer enabled, set avc double write %d", __func__, __LINE__, doubleWriteValue);
+                } else if ((fixedBufferSlice == 1080) && !mSecure) {  // fix 1080p buffer.
                     doubleWriteValue = 0x200;
                 } else {
                     doubleWriteValue = 3;
@@ -182,6 +191,7 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::MP4V:
         case InputCodec::MJPG:
             doubleWriteValue = 0x10;
+            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "codec is mp2v/mp4v/mjpg, set double write %d", doubleWriteValue);
             break;
         case InputCodec::H265:
         case InputCodec::VP9:
@@ -189,7 +199,7 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::DVAV1:
         case InputCodec::DVHE:
             if (mHwSupportP010 && mIsYcbRP010Stream) {
-                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                if ((fixedBufferSlice == 1080) && !mSecure) { // fix 1080p buffer.
                     doubleWriteValue = 0x10200;
                 } else {
                     doubleWriteValue = 3;
@@ -205,7 +215,11 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             } else if (codec == InputCodec::H265 && mIsInterlaced) {
                 doubleWriteValue = 1;
             } else {
-                if (property_get_int32(C2_PROPERTY_VDEC_FIXED_BUFF_SLICE, -1) == 1080 && !mSecure) {
+                if ((fixedBufferSlice == 540) &&
+                    !mUseSurfaceTexture && !mSecure) { // fix 540p buffer.
+                    doubleWriteValue = 0x400;
+                    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "540p_buffer enabled, set double write %d", doubleWriteValue);
+                } else if ((fixedBufferSlice == 1080) && !mSecure) { // fix 1080p buffer.
                     doubleWriteValue = 0x200;
                 } else {
                     doubleWriteValue = 3;
@@ -1059,6 +1073,7 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(int32_t doublewrit
         case 2:
         case 3:
         case 0x200:
+        case 0x400:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             break;
         case 4:
@@ -1090,12 +1105,6 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(int32_t doublewrit
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             break;
     }
-/*
-    if (mIsYcbRP010Stream && mHwSupportP010) {
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d is 10bit stream dw:%d usage use full usage", __func__, __LINE__, doublewrite);
-        usage = am_gralloc_get_video_decoder_full_buffer_usage();
-    }
-*/
     return usage;
 }
 
@@ -1262,21 +1271,21 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
     int32_t tripleWrite = params->cfg.triple_write_mode;
 
     auto getUsage = [=] (int32_t dw, int32_t tw) -> uint64_t {
-          uint64_t ret = 0;
-          int32_t defaultDw = getPropertyDoubleWrite();
-          int32_t doubleWriteValue = (defaultDw >= 0) ? defaultDw : dw;
+        uint64_t ret = 0;
+        int32_t defaultDw = getPropertyDoubleWrite();
+        int32_t doubleWriteValue = (defaultDw >= 0) ? defaultDw : dw;
 
-          int32_t defaultTw = getPropertyTripleWrite();
-          int32_t tripleWriteValue = (defaultTw >= 0) ? defaultTw : tw;
+        int32_t defaultTw = getPropertyTripleWrite();
+        int32_t tripleWriteValue = (defaultTw >= 0) ? defaultTw : tw;
 
-          if (doubleWriteValue == 0 && tripleWriteValue != 0)
-              ret = getUsageFromTripleWrite(tripleWriteValue);
-          else if (doubleWriteValue != 0 && tripleWriteValue == 0)
-              ret = getUsageFromDoubleWrite(doubleWriteValue);
-          else
-              ret = getUsageFromDoubleWrite(doubleWriteValue);
+        if (doubleWriteValue == 0 && tripleWriteValue != 0)
+            ret = getUsageFromTripleWrite(tripleWriteValue);
+        else if (doubleWriteValue != 0 && tripleWriteValue == 0)
+            ret = getUsageFromDoubleWrite(doubleWriteValue);
+        else
+            ret = getUsageFromDoubleWrite(doubleWriteValue);
 
-          return ret;
+        return ret;
     };
 
     if (mIsYcbRP010Stream) {
@@ -1618,11 +1627,10 @@ void C2VdecComponent::DeviceUtil::setHDRStaticColorAspects(std::shared_ptr<C2Str
     mHDRStaticInfoColorAspects = NULL;
 
 #if 0
-    C2VdecMDU_LOG(CODEC2_LOG_INFO, "setHDRStaticColorAspects primaries(%d vs %d %d) transfer(%d vs %d) matrix(%d vs %d %d)",
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "HDR Static ColorAspects primaries(%d vs %d) transfer(%d vs %d %d) matrix(%d vs %d %d)",
                 coloraspect->primaries, C2Color::PRIMARIES_BT2020,
-                coloraspect->transfer, C2Color::TRANSFER_ST2084, C2Color::TRANSFER_HLG
+                coloraspect->transfer, C2Color::TRANSFER_ST2084, C2Color::TRANSFER_HLG,
                 coloraspect->matrix, C2Color::MATRIX_BT2020, C2Color::MATRIX_BT2020_CONSTANT);
-
 #endif
 
     bool checkPrimaries = (coloraspect->primaries == C2Color::PRIMARIES_BT2020);
