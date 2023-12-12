@@ -270,7 +270,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     support_soft_10bit = property_get_bool(PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010, support_soft_10bit);
     bool support_hardware_10bit = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010, false);
 
-    mSupport10BitDepth = support_soft_10bit | support_hardware_10bit;
+    mSupport10BitDepth = support_soft_10bit || support_hardware_10bit;
     mDebugUtil = std::make_shared<DebugUtil>();
     addObserver(mDebugUtil, static_cast<int>(mComponentState), mCompHasError);
     mDequeueThreadUtil = std::make_shared<DequeueThreadUtil>();
@@ -3209,10 +3209,8 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     uint32_t max_width = width;
     uint32_t max_height = height;
 
-    if (mSupport10BitDepth) {
-        mDeviceUtil->queryStreamBitDepth();
-        mDeviceUtil->checkUseP010Mode();
-    }
+    mDeviceUtil->queryStreamBitDepth();
+    mDeviceUtil->checkUseP010Mode();
 
     if (!mDeviceUtil->needAllocWithMaxSize()) {
         mDeviceUtil->getMaxBufWidthAndHeight(max_width, max_height);

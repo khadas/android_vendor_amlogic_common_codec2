@@ -319,7 +319,8 @@ void C2VdecComponent::DeviceUtil::queryStreamBitDepth() {
 
 uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat) {
     uint32_t format = pixelFormat;
-    if (mIsYcbRP010Stream || mIsNeedUse10BitOutBuffer) {
+    bool support_soft_10bit = property_get_bool(PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010, true);
+    if (support_soft_10bit && (mIsYcbRP010Stream || mIsNeedUse10BitOutBuffer)) {
         format = HAL_PIXEL_FORMAT_YCBCR_P010;
     }
 
@@ -1715,12 +1716,16 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
 
     if (type & INTERLACE) {
         if (codec == InputCodec::H265 && mIsInterlaced && params->cfg.double_write_mode == 0x03) {
-           params->cfg.double_write_mode = 1;
-           configChanged = true;
+            if (mStreamBitDepth == 10) {
+                params->cfg.double_write_mode = 1;
+            } else {
+                params->cfg.double_write_mode = 0x10;
+            }
+            configChanged = true;
         } else if ((codec == InputCodec::H264 && mIsInterlaced && params->cfg.double_write_mode == 0x03) ||
             needDecoderReplaceBufferForDiPost()) {
-           params->cfg.double_write_mode = 0x10;
-           configChanged = true;
+            params->cfg.double_write_mode = 0x10;
+            configChanged = true;
         }
 
         int32_t disableVppThreshold = 0;

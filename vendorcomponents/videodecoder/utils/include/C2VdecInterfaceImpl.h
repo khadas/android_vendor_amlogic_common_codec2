@@ -40,7 +40,7 @@ public:
     C2BlockPool::local_id_t getBlockPoolId() const {return mOutputBlockPoolIds->m.values[0];}
     InputCodec getInputCodec() {return mInputCodec;}
     float getInputFrameRate() {return  mFrameRateInfo->value;}
-    uint32_t getPixelFormatInfoValue() {return mPixelFormatInfo->value;}
+    uint32_t getPixelFormatInfoValue() {return mPixelFormatInfo.get() == nullptr ? HAL_PIXEL_FORMAT_YCBCR_420_888 : mPixelFormatInfo->value;}
     void getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen);
 
     // for DolbyVision Only
