@@ -65,12 +65,11 @@ C2VdecComponent::TunerPassthroughHelper::TunerPassthroughHelper(bool secure,
         const char* mime,
         std::shared_ptr<C2VdecComponent::TunnelHelper> tunnelHelper) {
     mTunnelHelper = tunnelHelper;
-    LockWeakPtrWithoutReturn(helper, mTunnelHelper);
 
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     mTunerPassthroughParams.secure_mode = secure;
     mTunerPassthroughParams.mime = mime;
-    mTunerPassthroughParams.tunnel_renderer = helper->getTunnelRender();
+    mTunerPassthroughParams.tunnel_renderer = tunnelHelper->getTunnelRender();
     mTunerPassthroughParams.dmx_id = -1;
     mTunerPassthroughParams.video_pid = -1;
     mTunerPassthroughParams.hw_sync_id = -1;
@@ -101,7 +100,7 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setComponent(std::shared_pt
         C2VdecTPH_LOG(CODEC2_LOG_ERR, "Invalid hwsyncid:0x%x", mSyncId);
     }
 
-    LockWeakPtrWithoutReturn(helper, mTunnelHelper);
+    LockWeakPtrWithReturnVal_WithoutC2Status(helper, mTunnelHelper, C2_BAD_VALUE);
     if (helper->getTunnelRender()) {
         helper->getTunnelRender()->init(mSyncId);
     }
@@ -167,8 +166,8 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::flush() {
 }
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(intfImpl, mIntfImpl, C2_BAD_VALUE);
 
     // int frameAdvance = intfImpl->mVendorTunerPassthroughTrickMode->frameAdvance;
     int mode = intfImpl->mVendorTunerPassthroughTrickMode->trickMode;
@@ -197,8 +196,8 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
 }
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::setWorkMode() {
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(intfImpl, mIntfImpl, C2_BAD_VALUE);
 
     int mode = intfImpl->mVendorTunerPassthroughWorkMode->workMode;
 
@@ -218,8 +217,8 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setWorkMode() {
 }
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::setInstanceNo() {
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(intfImpl, mIntfImpl, C2_BAD_VALUE);
 
     int32_t instanceNo = intfImpl->mVendorTunerPassthroughInstanceNo->instanceNo;
 
@@ -229,8 +228,8 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setInstanceNo() {
 }
 
 c2_status_t C2VdecComponent::TunerPassthroughHelper::setRenderCallBackEventFlag() {
-    LockWeakPtrWithReturnVal(comp, mComp, C2_BAD_VALUE);
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(comp, mComp, C2_BAD_VALUE);
+    LockWeakPtrWithReturnVal_WithoutC2Status(intfImpl, mIntfImpl, C2_BAD_VALUE);
 
     int64_t mask = intfImpl->mVendorTunerPassthroughEventMask->eventMask;
 
@@ -246,7 +245,6 @@ void C2VdecComponent::TunerPassthroughHelper::onNotifyRenderTimeTunerPassthrough
         return;
     }
     DCHECK(taskRunner->BelongsToCurrentThread());
-    RETURN_ON_UNINITIALIZED_OR_ERROR();
 
     struct renderTime renderTime = {
         .mediaUs = rendertime.mediaUs,

@@ -102,10 +102,18 @@ namespace android {
         return;\
     }
 
-#define LockWeakPtrWithoutReturn(name, weak) \
+#define LockWeakPtrWithReturnVal_WithoutC2Status(name, weak, retval) \
     auto name = weak.lock(); \
     if (name == nullptr) { \
         CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check",__func__, __LINE__); \
+        return retval;\
+    }
+
+#define LockWeakPtrWithReturnVoid_WithoutC2Status(name, weak) \
+    auto name = weak.lock(); \
+    if (name == nullptr) { \
+        CODEC2_LOG(CODEC2_LOG_ERR, "[%s:%d] null ptr, please check",__func__, __LINE__); \
+        return;\
     }
 
 #define DECLARE_C2_DEFAULT_UNSTRICT_SETTER(s,n) \
