@@ -48,7 +48,8 @@ cc_library_shared {
     defaults: [
         "libchrome-defaults",
         "libcodec2-impl-defaults",
-	"c2_component_aml_go_defaults"
+        "c2_component_aml_go_defaults",
+        "componentstore_defaults"
     ],
     vendor: true,
 
