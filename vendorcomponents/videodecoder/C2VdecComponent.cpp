@@ -381,17 +381,6 @@ C2VdecComponent::~C2VdecComponent() {
         mThread.Stop();
     }
 
-    if (mSecureMode)
-        sConcurrentInstanceSecures.fetch_sub(1, std::memory_order_relaxed);
-    else
-        sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
-
-    if (mIsMaxResolution)
-        sConcurrentMaxResolutionInstance.fetch_sub(1, std::memory_order_relaxed);
-    if (mIntfImpl->getInputCodec() == InputCodec::VC1) {
-        sConcurrentVc1Instance.fetch_sub(1, std::memory_order_relaxed);
-    }
-
     C2Vdec_LOG(CODEC2_LOG_INFO, "~C2VdecComponent done");
     --mInstanceNum;
 }
@@ -449,6 +438,17 @@ void C2VdecComponent::onDestroy(::base::WaitableEvent* done) {
     }
     if (mStopDoneEvent != nullptr)
         mStopDoneEvent = nullptr;
+
+    if (mSecureMode)
+        sConcurrentInstanceSecures.fetch_sub(1, std::memory_order_relaxed);
+    else
+        sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
+
+    if (mIsMaxResolution)
+        sConcurrentMaxResolutionInstance.fetch_sub(1, std::memory_order_relaxed);
+    if (mIntfImpl->getInputCodec() == InputCodec::VC1) {
+        sConcurrentVc1Instance.fetch_sub(1, std::memory_order_relaxed);
+    }
 
     updateComponentState(ComponentState::DESTROYED);
     done->Signal();
