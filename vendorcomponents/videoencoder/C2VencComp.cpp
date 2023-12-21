@@ -142,7 +142,6 @@ C2VencComp::C2VencComp(const char *name, c2_node_id_t id, const std::shared_ptr<
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
     ALOGD("gloglevel:%x",gloglevel);
     ALOGD("mOutBufferSize:%d",mOutBufferSize);
-    //mAmlVencInst = IAmlVencInst::GetInstance();
     Load();
     mAmlVencInst->SetVencParamInst(mIntfImpl->GetVencParam());
 }
@@ -316,11 +315,11 @@ c2_status_t C2VencComp::stop() {
 
     ret = stop_process();
     {
-        AutoMutex l(mDestroyQueueLock); //for kill user process upper than 1 time,need lock to protect
+       // AutoMutex l(mDestroyQueueLock); //for kill user process upper than 1 time,need lock to protect
         if (mAmlVencInst) {
             C2Venc_LOG(CODEC2_VENC_LOG_INFO,"Destroy process,mAmlVencInst:%p",mAmlVencInst);
             mAmlVencInst->Destroy();
-            mAmlVencInst = NULL;
+      //      mAmlVencInst = NULL;
         }
     }
     return ret;
