@@ -111,7 +111,7 @@ std::atomic<int32_t> C2VencComp::sConcurrentInstances = 0;
 // static
 std::shared_ptr<C2Component> C2VencComp::create(
         char *name, c2_node_id_t id, const std::shared_ptr<IntfImpl>& helper) {
-    static const int32_t kMaxConcurrentInstances = helper->GetVencParam()->GetMaxSupportInstance();//6;
+    static const int32_t kMaxConcurrentInstances = helper->GetVencParam()->GetMaxSupportInstance();
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
     if (strcmp(name,COMPONENT_NAME_AVC) && strcmp(name,COMPONENT_NAME_HEVC)) {
@@ -143,6 +143,7 @@ C2VencComp::C2VencComp(const char *name, c2_node_id_t id, const std::shared_ptr<
     ALOGD("gloglevel:%x",gloglevel);
     ALOGD("mOutBufferSize:%d",mOutBufferSize);
     Load();
+    sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
     mAmlVencInst->SetVencParamInst(mIntfImpl->GetVencParam());
 }
 
@@ -156,7 +157,7 @@ C2VencComp::~C2VencComp() {
         stop_process();
     }
     unLoad();
-    //IAmlVencInst::DelInstance(mAmlVencInst);
+    sConcurrentInstances.fetch_sub(1, std::memory_order_relaxed);
     ALOGD("C2VencComponent destructor!");
 }
 
