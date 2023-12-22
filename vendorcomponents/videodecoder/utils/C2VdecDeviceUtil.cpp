@@ -1616,13 +1616,27 @@ bool C2VdecComponent::DeviceUtil::getHDR10PlusData(std::string &data)
 void C2VdecComponent::DeviceUtil::setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect) {
     LockWeakPtrWithReturnVoid(comp, mComp);
     mHDRStaticInfoColorAspects = NULL;
-    if ((coloraspect->primaries == C2Color::PRIMARIES_BT2020)
-        && (coloraspect->transfer == C2Color::TRANSFER_ST2084)
-        && ((coloraspect->matrix == C2Color::MATRIX_BT2020) || (coloraspect->matrix == C2Color::MATRIX_BT2020_CONSTANT))) {
+
+#if 0
+    C2VdecMDU_LOG(CODEC2_LOG_INFO, "setHDRStaticColorAspects primaries(%d vs %d %d) transfer(%d vs %d) matrix(%d vs %d %d)",
+                coloraspect->primaries, C2Color::PRIMARIES_BT2020,
+                coloraspect->transfer, C2Color::TRANSFER_ST2084, C2Color::TRANSFER_HLG
+                coloraspect->matrix, C2Color::MATRIX_BT2020, C2Color::MATRIX_BT2020_CONSTANT);
+
+#endif
+
+    bool checkPrimaries = (coloraspect->primaries == C2Color::PRIMARIES_BT2020);
+    bool checkTransfer = ((coloraspect->transfer == C2Color::TRANSFER_ST2084) ||
+                            (coloraspect->transfer == C2Color::TRANSFER_HLG));
+
+    bool checkMatrix = ((coloraspect->matrix == C2Color::MATRIX_BT2020) ||
+                        (coloraspect->matrix == C2Color::MATRIX_BT2020_CONSTANT));
+
+    if (checkPrimaries && checkTransfer && checkMatrix) {
         mHDRStaticInfoColorAspects = coloraspect;
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "mHDRStaticInfoColorAspects set");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "HDR Static Info ColorAspects set");
     } else {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "No hdr ColorAspects set");
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "No HDR ColorAspects set");
     }
 }
 
