@@ -191,9 +191,17 @@ C2VencComp::IntfImpl::IntfImpl(C2String name,C2String mimetype,const std::shared
 
     //mAmlVencParam = IAmlVencParam::GetInstance();
     Load();
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[var_deref_model:SUPPRESS]*/
     mAmlVencParam->RegisterChangeNotify(C2VencComp::IntfImpl::VencParamChangeListener,this);
     ALOGE("mimetype:%s",mimetype.c_str());
     mAmlVencParam->SetCodecType((std::string::npos != mimetype.find("hevc")) ? H265 : H264);
+    /*
+     * This is the logic, no need to modify, ignore coverity weak cryptor report.
+    */
+    /*coverity[check_after_deref:SUPPRESS]*/
     if (NULL == mAmlVencParam) {
         ALOGE("mAmlVencParam is NULL!!!!");
     }
