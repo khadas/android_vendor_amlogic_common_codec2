@@ -294,15 +294,16 @@ c2_status_t C2VencComp::stop_process() {
         mQueue.clear();
     }
     if (mthread.isRunning()) {
-        mthread.stop();
-        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread to exit!");
         AutoMutex l(mProcessDoneLock);
+        mthread.requestExit();
+        C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread to exit!");
         if (mProcessDoneCond.waitRelative(mProcessDoneLock,500000000ll) == ETIMEDOUT) {
             C2Venc_LOG(CODEC2_VENC_LOG_ERR,"wait for thread timeout!!!!");
         }
         else {
             C2Venc_LOG(CODEC2_VENC_LOG_INFO,"wait for thread exit done!!!!");
         }
+        mthread.stop();
     }
     mComponentState = ComponentState::UNINITIALIZED;
     C2Venc_LOG(CODEC2_VENC_LOG_INFO,"stop done,set state to UNINITIALIZED");
