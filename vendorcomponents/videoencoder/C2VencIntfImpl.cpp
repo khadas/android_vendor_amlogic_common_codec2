@@ -435,7 +435,6 @@ void C2VencComp::IntfImpl::onAvcProfileLevelParam() {
         .withFields({
             C2F(mProfileLevel, profile).oneOf({
                 PROFILE_AVC_BASELINE,
-                PROFILE_AVC_CONSTRAINED_BASELINE,
                 PROFILE_AVC_MAIN,
             }),
             C2F(mProfileLevel, level).oneOf({
@@ -474,14 +473,19 @@ void C2VencComp::IntfImpl::onHevcProfileLevelParam() {
                 PROFILE_HEVC_MAIN,
             }),
             C2F(mProfileLevel, level).oneOf({
-                    LEVEL_HEVC_HIGH_4,  ///< HEVC (H.265) High Tier Level 4
-                    LEVEL_HEVC_HIGH_4_1,                        ///< HEVC (H.265) High Tier Level 4.1
-                    LEVEL_HEVC_HIGH_5,                          ///< HEVC (H.265) High Tier Level 5
-                    LEVEL_HEVC_HIGH_5_1,                        ///< HEVC (H.265) High Tier Level 5.1
-                    LEVEL_HEVC_HIGH_5_2,                        ///< HEVC (H.265) High Tier Level 5.2
-                    LEVEL_HEVC_HIGH_6,                          ///< HEVC (H.265) High Tier Level 6
-                    LEVEL_HEVC_HIGH_6_1,                        ///< HEVC (H.265) High Tier Level 6.1
-                    LEVEL_HEVC_HIGH_6_2,                        ///< HEVC (H.265) High Tier Level 6.2
+                    LEVEL_HEVC_MAIN_1,       ///< HEVC (H.265) Main Tier Level 1
+                    LEVEL_HEVC_MAIN_2,                          ///< HEVC (H.265) Main Tier Level 2
+                    LEVEL_HEVC_MAIN_2_1,                        ///< HEVC (H.265) Main Tier Level 2.1
+                    LEVEL_HEVC_MAIN_3,                          ///< HEVC (H.265) Main Tier Level 3
+                    LEVEL_HEVC_MAIN_3_1,                        ///< HEVC (H.265) Main Tier Level 3.1
+                    LEVEL_HEVC_MAIN_4,                          ///< HEVC (H.265) Main Tier Level 4
+                    LEVEL_HEVC_MAIN_4_1,                        ///< HEVC (H.265) Main Tier Level 4.1
+                    LEVEL_HEVC_MAIN_5,                          ///< HEVC (H.265) Main Tier Level 5
+                    LEVEL_HEVC_MAIN_5_1,                        ///< HEVC (H.265) Main Tier Level 5.1
+                    LEVEL_HEVC_MAIN_5_2,                        ///< HEVC (H.265) Main Tier Level 5.2
+                    LEVEL_HEVC_MAIN_6,                          ///< HEVC (H.265) Main Tier Level 6
+                    LEVEL_HEVC_MAIN_6_1,                        ///< HEVC (H.265) Main Tier Level 6.1
+                    LEVEL_HEVC_MAIN_6_2,                        ///< HEVC (H.265) Main Tier Level 6.2
             }),
         })
         .withSetter(HevcProfileLevelSetter, mSize, mFrameRate, mBitrate)
@@ -564,7 +568,7 @@ C2R C2VencComp::IntfImpl::AvcProfileLevelSetter(
         const C2P<C2StreamBitrateInfo::output> &bitrate) {
     (void)mayBlock;
     if (!me.F(me.v.profile).supportsAtAll(me.v.profile)) {
-        me.set().profile = PROFILE_AVC_CONSTRAINED_BASELINE;
+        me.set().profile = PROFILE_AVC_MAIN;
     }
 
     struct LevelLimits {
