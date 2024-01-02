@@ -84,6 +84,7 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mIsNeedUse10BitOutBuffer = false;
     mHwSupportP010 = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010, false);
     mSwSupportP010 = property_get_bool(PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010, true);
+    mUseP010ForDisplay = false;
 
     mDiPost = property_get_bool(C2_PROPERTY_VDEC_DI_POST, false);
     // 8K
@@ -160,14 +161,7 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
             doubleWriteValue = 0x10;
             break;
         case InputCodec::H264:
-            if (mHwSupportP010 && mIsYcbRP010Stream) {
-                if ((fixedBufferSlice == 1080) && !mSecure) {
-                    doubleWriteValue = 0x10200;
-                } else {
-                    doubleWriteValue = 3;
-                }
-                CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "[%s-%d] surfaceuse dw:%d", __func__, __LINE__, doubleWriteValue);
-            } else if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
+            if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
                     mIsInterlaced || !mEnableNR || !mEnableDILocalBuf ||
                     mDiPost) {
                 doubleWriteValue = 0x10;
@@ -199,8 +193,14 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         case InputCodec::DVAV1:
         case InputCodec::DVHE:
             if (mHwSupportP010 && mIsYcbRP010Stream) {
-                if ((fixedBufferSlice == 1080) && !mSecure) { // fix 1080p buffer.
-                    doubleWriteValue = 0x10200;
+                if (comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) {
+                    doubleWriteValue = 0x10001;
+                    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "surface texture/nosurface use dw:%d", doubleWriteValue);
+                } else if (mUseP010ForDisplay) {
+                    doubleWriteValue = 0x10003;
+                    if ((fixedBufferSlice == 1080) && !mSecure) {
+                        doubleWriteValue = 0x10200;
+                    }
                 } else {
                     doubleWriteValue = 3;
                 }
@@ -435,6 +435,7 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
     }
 
     if (comp->isAmDolbyVision()) {
+        mUseP010ForDisplay = property_get_bool(C2_PROPERTY_VDEC_AMDV_USE_P010, false);
         dvUseTwoLayer = checkDvProfileAndLayer();
     }
 
