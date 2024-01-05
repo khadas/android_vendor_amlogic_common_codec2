@@ -614,6 +614,29 @@ bool C2VdecCodecConfig::isMaxResolutionFromXml(C2VendorCodec codec_type, bool se
     return false;
 }
 
+bool C2VdecCodecConfig::getMinMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, struct Size& min, struct Size& max) {
+    const char* name = NULL;
+    GetCompName(codec_type, secure, name);
+
+    if (name == NULL) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"codecname is null and return.");
+        return false;
+    }
+
+    auto attribute = mCodecAttributes.find(name);
+    if (attribute == mCodecAttributes.end()) {
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"don't found %s.", name);
+        return false;
+    }
+
+    struct CodecAttributes codecAttributes = attribute->second;
+
+    min = codecAttributes.minSize;
+    max = codecAttributes.maxSize;
+    return true;
+}
+
+
 bool C2VdecCodecConfig::isCodecSupport8k(C2VendorCodec codec_type, bool secure) {
     const char* name = nullptr;
     GetCompName(codec_type, secure, name);

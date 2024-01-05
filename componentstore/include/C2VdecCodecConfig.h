@@ -47,6 +47,12 @@ enum FeatureIndex {
     FEATURE_MAX = DECODER_DOUBLE_WRITE + 1
 };
 
+struct Size {
+    int32_t w;
+    int32_t h;
+};
+
+
 class C2VdecCodecConfig : public Singleton<C2VdecCodecConfig> {
 public:
     C2VdecCodecConfig();
@@ -60,6 +66,7 @@ public:
     // check xml param.
     bool isCodecSupportFrameRate(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height, float frameRate);
     bool isMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height);
+    bool getMinMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, struct Size& min, struct Size& max);
 
     // Checks whether the specified codec supports 8k on the current platform
     bool isCodecSupport8k(C2VendorCodec codec_type, bool secure);
@@ -98,10 +105,7 @@ private:
         std::vector<int> svalIntArray;
     };
 
-    struct Size {
-        int32_t w;
-        int32_t h;
-    };
+
     struct Range {
         int32_t min;
         int32_t max;
