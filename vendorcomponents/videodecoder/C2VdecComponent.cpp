@@ -505,23 +505,25 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
         mVideoDecWraper->setSessionID((uint32_t)mSessionID);
         mDeviceUtil->codecConfig(&mConfigParam);
 
-        //update profile for DolbyVision
-        if (mIsDolbyVision) {
+        //update profile
+        if ((mCodecProfile == media::VIDEO_CODEC_PROFILE_UNKNOWN) || mIsDolbyVision) {
             media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
             InputCodec codec = mIntfImpl->getInputCodec();
-            if (InputCodec::H264 <= codec || codec < InputCodec::UNKNOWN) {
-                supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)codec);
-                if (supportedProfiles.empty()) {
-                    C2Vdec_LOG(CODEC2_LOG_ERR, "No supported profile from input codec: %d", mIntfImpl->getInputCodec());
-                    return;
-                }
-                mCodecProfile = supportedProfiles[0].profile;
-                mIntfImpl->updateCodecProfile(mCodecProfile);
-                C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Update profile(%d) to (%d) mime(%s)", profile, mCodecProfile,
-                    VideoCodecProfileToMime(mCodecProfile));
-                profile = mCodecProfile;
+            supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)codec);
+            if (supportedProfiles.empty()) {
+                C2Vdec_LOG(CODEC2_LOG_ERR, "No supported profile from input codec: %d", mIntfImpl->getInputCodec());
+                return;
             }
+            mCodecProfile = supportedProfiles[0].profile;
+            mIntfImpl->updateCodecProfile(mCodecProfile);
+
         }
+        if (profile != mCodecProfile) {
+            profile = mCodecProfile;
+            C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Update profile(%d) to (%d) mime(%s)", profile, mCodecProfile,
+                    VideoCodecProfileToMime(mCodecProfile));
+        }
+
         uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
         if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
             vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
@@ -2462,7 +2464,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     //out buf release is slow at surface mode,
     //we cannot get out buf so fast.
     if (mDeviceUtil->isInterlaced() &&
-        !(mIntfImpl->getCodecProfile() == media::MPEG2_PROFILE && mBlockPoolUtil->isBufferQueue())) {
+        !(mIntfImpl->getInputCodec() == InputCodec::MP2V && mBlockPoolUtil->isBufferQueue())) {
         if (mOutBufferCount > kDefaultSmoothnessFactor)
             dequeue_buffer_num = mOutBufferCount - kDefaultSmoothnessFactor;
     }
@@ -2887,6 +2889,21 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
             C2Vdec_LOG(CODEC2_LOG_INFO, "Bufferpool-backed block pool is used.");
         }
     }
+    //update profile
+    if (mCodecProfile == media::VIDEO_CODEC_PROFILE_UNKNOWN) {
+        media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
+        InputCodec codec = mIntfImpl->getInputCodec();
+        supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)codec);
+        if (supportedProfiles.empty()) {
+            C2Vdec_LOG(CODEC2_LOG_ERR, "No supported profile from input codec: %d", mIntfImpl->getInputCodec());
+            return;
+        }
+        mCodecProfile = supportedProfiles[0].profile;
+        mIntfImpl->updateCodecProfile(mCodecProfile);
+        C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Update profile  (%d) mime(%s)",  mCodecProfile,
+            VideoCodecProfileToMime(mCodecProfile));
+    }
+
     if (mBlockPoolUtil->isBufferQueue()) {
         bool usersurfacetexture = false;
         uint64_t usage = 0;

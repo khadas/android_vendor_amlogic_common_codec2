@@ -1393,21 +1393,17 @@ void C2VdecComponent::IntfImpl::onGameModeLatencyDeclareParam() {
 
 
 void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
-    // Get supported profiles from Vdec.
-    // TODO: re-think the suitable method of getting supported profiles for both pure Android and
-    //       ARC++.
-    media::VideoDecodeAccelerator::SupportedProfiles supportedProfiles;
-    supportedProfiles = VideoDecWraper::AmVideoDec_getSupportedProfiles((uint32_t)mInputCodec);
-    if (supportedProfiles.empty()) {
-        CODEC2_LOG(CODEC2_LOG_ERR, "No supported profile from input codec: %d", mInputCodec);
+    // Get supported size from xml.
+
+    struct Size minSize;
+    struct Size maxSize;
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
+    bool ret = C2VdecCodecConfig::getInstance().getMinMaxResolutionFromXml(vendorCodec, mSecureMode, minSize, maxSize);
+    if (!ret) {
         mInitStatus = C2_BAD_VALUE;
         return;
     }
 
-    mCodecProfile = supportedProfiles[0].profile;
-
-    auto minSize = supportedProfiles[0].min_resolution;
-    auto maxSize = supportedProfiles[0].max_resolution;
     addParameter(
         DefineParam(mKind, C2_PARAMKEY_COMPONENT_KIND)
         .withConstValue(
@@ -1441,8 +1437,8 @@ void C2VdecComponent::IntfImpl::onBufferSizeDeclareParam(const char* mine) {
         DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
         .withDefault(new C2StreamPictureSizeInfo::output(0u, 176, 144))
         .withFields({
-            C2F(mSize, width).inRange(minSize.width(), maxSize.width(), 16),
-            C2F(mSize, height).inRange(minSize.height(), maxSize.height(), 16),
+            C2F(mSize, width).inRange(minSize.w, maxSize.w, 16),
+            C2F(mSize, height).inRange(minSize.h, maxSize.h, 16),
         })
     .withSetter(SizeSetter)
     .build());
