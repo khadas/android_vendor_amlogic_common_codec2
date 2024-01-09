@@ -66,6 +66,8 @@ C2VdecComponent::DeviceUtil::~DeviceUtil() {
     if (mHdr10PlusInfo != nullptr) {
         mHdr10PlusInfo.reset();
     }
+    property_set(C2_PROPERTY_COMMON_LOWLATENCY_MODE, "0");
+    CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] clear %s", __func__, __LINE__, C2_PROPERTY_COMMON_LOWLATENCY_MODE);
 }
 
 void C2VdecComponent::DeviceUtil::init(bool secure) {
@@ -411,9 +413,13 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
         mUseLowLatencyMode = true;
         mEnableNR = false;
         mEnableDILocalBuf = false;
+        property_set(C2_PROPERTY_COMMON_LOWLATENCY_MODE, "1");
+        CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] set %s", __func__, __LINE__, C2_PROPERTY_COMMON_LOWLATENCY_MODE);
     } else {
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "Disable low latency mode to v4l2 decoder.");
         pAmlDecParam->cfg.low_latency_mode |= LOWLATENCY_DISABLE;
+        property_set(C2_PROPERTY_COMMON_LOWLATENCY_MODE, "0");
+        CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] clear %s", __func__, __LINE__, C2_PROPERTY_COMMON_LOWLATENCY_MODE);
     }
 
     if (intfImpl->mVendorGameModeLatency->enable) {

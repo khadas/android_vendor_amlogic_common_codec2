@@ -90,4 +90,7 @@
 #define PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010     "ro.vendor.platform.support.software_10bit"
 #define PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE       "ro.vendor.platform.support.8k.buffer_mode"
 
+/* vdec property set */
+#define C2_PROPERTY_COMMON_LOWLATENCY_MODE          "vendor.media.llp"
+
 #endif
