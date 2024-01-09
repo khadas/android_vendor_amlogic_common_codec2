@@ -523,14 +523,12 @@ void C2VdecComponent::onStart(media::VideoCodecProfile profile, ::base::Waitable
             }
         }
         uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
-        if (mIntfImpl) {
-            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
-                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
-                mVideoDecWraper->setPipeLineWorkNumber(mIntfImpl->mStreamModePipeLineDelay->value + mIntfImpl->mActualOutputDelay->value);
-            }
-            if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
-                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
+        if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE) {
+            vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+            mVideoDecWraper->setPipeLineWorkNumber(mIntfImpl->mStreamModePipeLineDelay->value + mIntfImpl->mActualOutputDelay->value);
         }
+        if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
+            vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
         if (mDeviceUtil->isLowLatencyMode()) {
             vdecflags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
         }
@@ -1789,10 +1787,8 @@ void C2VdecComponent::sendInputBufferToAccelerator(const C2ConstLinearBlock& inp
     }
     if (mVideoDecWraper != NULL) {
         mVideoDecWraper->decode(bitstreamId, dupFd, input.offset(), input.size(), timestamp, hdrbuf, hdrlen, flags);
-        if (mIntfImpl) {
-            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE && mTunnelHelper)
-                mTunnelHelper->videoSyncQueueVideoFrame(timestamp,input.size());
-        }
+        if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE && mTunnelHelper)
+            mTunnelHelper->videoSyncQueueVideoFrame(timestamp,input.size());
     }
 }
 
@@ -2307,7 +2303,8 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
             reportError(err);
             return err;
         }
-        mBlockPoolUtil->resetBlockPool(blockPool);
+        DCHECK(blockPool != NULL);
+        mBlockPoolUtil = std::make_shared<C2VdecBlockPoolUtil> (blockPool);
     }
 
     if (mBlockPoolUtil->isBufferQueue()) {
@@ -2686,6 +2683,9 @@ void C2VdecComponent::sendOutputBufferToAccelerator(GraphicBlockInfo* info, bool
     if (info->mGraphicBlock != nullptr) {
         width  = info->mGraphicBlock->width();
         height = info->mGraphicBlock->height();
+    } else {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "info->mGraphicBlock is nullptr, please theck it.");
+        return;
     }
 
     CODEC2_VDEC_ATRACE(TRACE_NAME_SEND_OUTPUT_BUFFER.str().c_str(), info->mBlockId);
@@ -2909,12 +2909,10 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
             }
             mDeviceUtil->codecConfig(&mConfigParam);
             uint32_t vdecFlags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
-            if (mIntfImpl) {
-                if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
-                    vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
-                if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
-                    vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
-            }
+            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
+                vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+            if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
+                vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
             if (mDeviceUtil->isLowLatencyMode()) {
                 vdecFlags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
             }
@@ -2941,12 +2939,10 @@ void C2VdecComponent::onCheckVideoDecReconfig() {
         }
         mDeviceUtil->codecConfig(&mConfigParam);
         uint32_t vdecflags = AM_VIDEO_DEC_INIT_FLAG_CODEC2;
-        if (mIntfImpl) {
-            if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
-                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
-            if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
-                vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
-        }
+        if (mIntfImpl->mVdecWorkMode->value == VDEC_STREAMMODE)
+            vdecflags |= AM_VIDEO_DEC_INIT_FLAG_STREAMMODE;
+        if (mIntfImpl->mDataSourceType->value == DATASOURCE_DMX)
+            vdecflags |= AM_VIDEO_DEC_INIT_FLAG_DMXDATA_SOURCE;
         if (mDeviceUtil->isLowLatencyMode()) {
             vdecflags |= AM_VIDEO_DEC_INIT_FLAG_USE_LOW_LATENCY_MODE;
         }
@@ -3328,6 +3324,7 @@ void C2VdecComponent::onReportNoOutFrameFinished() {
         if (workIter == mPendingWorks.end()) {
             C2Vdec_LOG(CODEC2_LOG_ERR, "[%s:%d] Can not find work with bistreamId:%lld", __func__, __LINE__, (long long)bitstreamId);
             reportError(C2_CORRUPTED);
+            return;
         }
 
         auto work = workIter->get();

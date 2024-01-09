@@ -101,6 +101,7 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mAVCMMUWidth = 2560;
     mAVCMMUHeight = 2160;
     mForceFullUsage = false;
+    mBufMode = DMA_BUF_MODE;
     mEnableDILocalBuf = false;
     mUseSurfaceTexture = false;
     mForceDIPermission = false;
@@ -125,6 +126,9 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mUnstablePts = 0;
     mCredibleDuration = 0;
     mMarginBufferNum = 0;
+
+    // For Game Mode
+    mMemcMode = 0;
 }
 
 c2_status_t C2VdecComponent::DeviceUtil::setComponent(std::shared_ptr<C2VdecComponent> sharedcomp) {
@@ -1134,25 +1138,26 @@ uint64_t C2VdecComponent::DeviceUtil::getUsageFromTripleWrite(int32_t triplewrit
         case 0x10001:
             usage = am_gralloc_get_video_decoder_full_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
-        break;
+            break;
         case 0x10003:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
-        break;
+            break;
         case 0x10004:
             usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
-        break;
+            break;
         case 0x10008:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
+            break;
         case 0x10200:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
             mIsNeedUse10BitOutBuffer = true;
-        break;
+            break;
         default:
             usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-        break;
+            break;
     }
 /*
     if (mIsYcbRP010Stream && mHwSupportP010) {
@@ -1740,7 +1745,7 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
         LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
         C2VendorVideoBitrate::input bitrate = {0};
         c2_status_t err = intfImpl->query({&bitrate}, {}, C2_MAY_BLOCK, nullptr);
-        int32_t nBitrate = err == C2_OK ? nBitrate = bitrate.value : 0;
+        int32_t nBitrate = (err == C2_OK) ?  bitrate.value : 0;
         if (disableVppThreshold > 0 && nBitrate > 0 && nBitrate/1024/1024 > disableVppThreshold) {
             // High bitrate interlaced stream, bypass vpp to reduce bandwidth to avoid drop frames
             params->cfg.metadata_config_flag |= VDEC_CFG_FLAG_DISABLE_DECODE_VPP;

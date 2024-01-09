@@ -232,6 +232,9 @@ void C2VdecComponent::DebugUtil::fillBufferDone(void *buffHdr, uint32_t flags, u
 }
 
 ResmanHandler::ResmanHandler():
+        Resman_init(nullptr),
+        Resman_close(nullptr),
+        Resman_add_handler_and_resreports(nullptr),
         mResmanLibHandle(nullptr) {
     if (mResmanLibHandle == NULL) {
         mResmanLibHandle = dlopen("libmediahal_resman.so", RTLD_NOW);
@@ -263,7 +266,9 @@ void onDumpboardCallback(void *instance) {
     dumpboard->dump();
 }
 
-AmlDiagnosticServer::AmlDiagnosticServer() {
+AmlDiagnosticServer::AmlDiagnosticServer():
+    mfd(-1),
+    mResmanHandler(nullptr) {
     mResmanHandler = new ResmanHandler();
     if (mResmanHandler && mResmanHandler->isValid()) {
         mfd = mResmanHandler->Resman_init("DumpState", RESMAN_APP_DIAGNOSTICS);

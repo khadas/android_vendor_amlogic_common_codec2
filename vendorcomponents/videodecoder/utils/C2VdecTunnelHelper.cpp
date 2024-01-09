@@ -165,6 +165,10 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
             DCHECK(iter != mOutBufferFdMap.end());
 
             GraphicBlockInfo *info = comp->getGraphicBlockByFd(frame.fd);
+            /*
+             * iter have be check.
+             */
+            /* coverity[event_tag:SUPPRESS] */
             GraphicBlockInfo *info2 = comp->getGraphicBlockByBlockId(poolId, iter->second.mBlockId);
             int fd = -1;
             if ((info == NULL) ||
@@ -362,7 +366,7 @@ c2_status_t C2VdecComponent::TunnelHelper::sendVideoFrameToVideoTunnel(int32_t p
             switch (param->coreIndex().coreIndex()) {
                 case C2StreamTunnelHoldRender::CORE_INDEX:
                     {
-                        C2StreamTunnelHoldRender::input firstTunnelFrameHoldRender;
+                        C2StreamTunnelHoldRender::input firstTunnelFrameHoldRender {0u, C2_TRUE};
                         if (!firstTunnelFrameHoldRender.updateFrom(*param)) break;
                         if (firstTunnelFrameHoldRender.value == C2_TRUE) {
                             frameHoldRender = true;
@@ -517,6 +521,11 @@ c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffer(const media::Size& 
             return C2_BAD_VALUE;
         }
         blockPoolUtil->getBlockFd(c2Block, &fd);
+
+        if (fd < 0) {
+            C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s] get the block fd failed, please check!", __func__);
+            return C2_BAD_VALUE;
+        }
 
         int dupfd = dup(fd);
         DCHECK(dupfd >= 0);
