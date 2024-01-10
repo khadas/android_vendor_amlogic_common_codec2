@@ -55,7 +55,7 @@
 #include <C2VdecTunerPassthroughHelper.h>
 #include <C2VdecDebugUtil.h>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/resource.h>

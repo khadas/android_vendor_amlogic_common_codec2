@@ -24,7 +24,7 @@
 #include <C2Buffer.h>
 #include <utility>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>

@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <utils/Log.h>
 #include <C2VdecCodecConfig.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2VendorProperty.h>
 #include <C2VendorVideoSupport.h>
 #include <AmVideoDecBase.h>

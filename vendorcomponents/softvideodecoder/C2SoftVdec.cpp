@@ -27,7 +27,7 @@
 #include <Codec2Mapper.h>
 
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2SoftVdec.h>
 #include <C2SoftVdecInterfaceImpl.h>
 

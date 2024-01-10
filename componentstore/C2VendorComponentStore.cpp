@@ -27,6 +27,7 @@
 #include <C2VdecCodecConfig.h>
 
 #include <C2VendorProperty.h>
+#include <C2VendorDebug.h>
 #include <cutils/properties.h>
 #include <utils/Log.h>
 #include <inttypes.h>
@@ -245,6 +246,9 @@ private:
     std::map<C2String, ComponentLoader> mComponents;  ///< list of components
     std::shared_ptr<C2ReflectorHelper> mReflector;
     Interface mInterface;
+
+    DefaultDebugger* mDfltDebugger;
+    GlobalDebugger* mC2Debugger;
 };
 
 C2VendorComponentStore::ComponentModule::~ComponentModule() {
@@ -654,6 +658,8 @@ C2VendorComponentStore::C2VendorComponentStore()
             }
         }
     }
+    mDfltDebugger = &DefaultDebugger::getInstance();
+    mC2Debugger = &GlobalDebugger::getInstance();
     ALOGI("C2VendorComponentStore::C2VendorComponentStore\n");
 }
 

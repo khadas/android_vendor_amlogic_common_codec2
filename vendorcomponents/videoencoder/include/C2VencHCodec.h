@@ -5,7 +5,7 @@
 #include <inttypes.h>
 #include <utils/Vector.h>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2VencComponent.h>
 #include "vpcodec_1_0.h"
 

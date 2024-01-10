@@ -31,6 +31,7 @@
 #include <utils/Singleton.h>
 #include <utils/Timers.h>
 
+#include <C2VendorDebug.h>
 #include <C2VdecComponent.h>
 
 namespace android {
@@ -153,32 +154,9 @@ static const uint64_t kLogTimeout = 60*15;
                     comp->mGraphicBlockStateCount[(int)GraphicBlockInfo::State::OWNER_BY_TUNNELRENDER]);\
     } while (0)
 
-enum RESMAN_APP {
-    RESMAN_APP_SYSTEM_RESERVED = 100,
-    RESMAN_APP_DIAGNOSTICS = 101,
-};
-
-typedef int (*DResman_init)(const char *appname, int type);
-typedef int (*DResman_close)(int handle);
-typedef int (*DResman_add_handler_and_resreports)(int fd, void (* handler)(void *), void (* resreport)(void *), void *opaque);
-
-class ResmanHandler {
-public:
-    ResmanHandler();
-    ~ResmanHandler();
-    bool isValid() { return !!mResmanLibHandle; }
-    DResman_init   Resman_init;
-    DResman_close  Resman_close;
-    DResman_add_handler_and_resreports Resman_add_handler_and_resreports;
-
-private:
-    void* mResmanLibHandle;
-};
-
-class AmlDiagnosticServer;
 struct AmlDiagnosticStatsQty;
 
-class C2VdecComponent::DebugUtil : public IC2Observer {
+class C2VdecComponent::DebugUtil : public IC2Observer, public IC2Debuggable {
 public:
     static constexpr char* kCreatedAt = (char*)   "Created At   :";
     static constexpr char* kStartedAt = (char*)   "Started At   :";
@@ -206,6 +184,7 @@ public:
     void fillBufferDone(void* buff, uint32_t flags, uint32_t index,
                         int64_t timestamp=kInvalidTimestamp, int64_t bitstreamId=-1, int64_t pictureBufferId=-1);
     void dump();
+    void debug(std::list<std::string> cmds);
 
 private:
     std::weak_ptr<C2VdecComponent> mComp;
@@ -213,7 +192,7 @@ private:
     ::base::WeakPtrFactory<C2VdecComponent::DebugUtil> mWeakFactory;
 
     /* The singleton server */
-    AmlDiagnosticServer* mServer;
+    C2DebugServer* mServer;
     void resetStats();
 
     nsecs_t getNowUs();
@@ -227,21 +206,6 @@ private:
 
     std::shared_ptr<AmlDiagnosticStatsQty> mInputQtyStats;
     std::shared_ptr<AmlDiagnosticStatsQty> mOutputQtyStats;
-};
-
-class AmlDiagnosticServer : public Singleton<AmlDiagnosticServer> {
-public:
-    static constexpr uint8_t kMaxClients = 1;
-    AmlDiagnosticServer();
-    ~AmlDiagnosticServer();
-    void dump();
-    void addClient(std::shared_ptr<C2VdecComponent::DebugUtil> client);
-    bool isValid() { return mfd >= 0; }
-private:
-    int mfd;
-    ResmanHandler *mResmanHandler;
-    Mutex mLock;
-    std::list<std::shared_ptr<C2VdecComponent::DebugUtil>> mClients;
 };
 
 struct AmlDiagnosticStatsQty {

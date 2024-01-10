@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <utils/Log.h>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include "TunerPassthroughWrapper.h"
 #include "VideoTunnelRendererBase.h"
 

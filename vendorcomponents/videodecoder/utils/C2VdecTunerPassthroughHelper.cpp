@@ -26,7 +26,7 @@
 
 #include <C2VendorProperty.h>
 #include <C2VdecTunerPassthroughHelper.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2VdecInterfaceImpl.h>
 
 #define HWSYNCID_PASSTHROUGH_FLAG (1u << 16)

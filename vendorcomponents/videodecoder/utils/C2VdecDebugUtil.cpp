@@ -36,7 +36,7 @@
 #include <base/bind_helpers.h>
 
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2VdecDebugUtil.h>
 #include <C2VdecInterfaceImpl.h>
 
@@ -60,6 +60,7 @@ namespace android {
 C2VdecComponent::DebugUtil::DebugUtil():mWeakFactory(this) {
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]", __func__, __LINE__);
+    mServer = &C2DebugServer::getInstance();
 }
 
 C2VdecComponent::DebugUtil::~DebugUtil() {
@@ -70,9 +71,8 @@ c2_status_t C2VdecComponent::DebugUtil::setComponent(std::shared_ptr<C2VdecCompo
     mComp = sharedcomp;
     mIntfImpl = sharedcomp->GetIntfImpl();
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d][%s:%d]", sharedcomp->mSessionID, sharedcomp->mDecoderID, __func__, __LINE__);
-
-    mServer = &AmlDiagnosticServer::getInstance();
     sprintf(mName, "%s", sharedcomp->mName.c_str());
+    mServer->addClient("C2_VDEC", dynamic_pointer_cast<IC2Debuggable, C2VdecComponent::DebugUtil>(sharedcomp->mDebugUtil));
     mCreatedAt = kInvalidTimestamp;
     mStartedAt = kInvalidTimestamp;
     mStoppedAt = kInvalidTimestamp;
@@ -81,7 +81,6 @@ c2_status_t C2VdecComponent::DebugUtil::setComponent(std::shared_ptr<C2VdecCompo
     mOutputQtyStats = make_shared<AmlDiagnosticStatsQty>();
     resetStats();
     ctor();
-    mServer->addClient(sharedcomp->mDebugUtil);
     return C2_OK;
 }
 
@@ -182,6 +181,10 @@ void C2VdecComponent::DebugUtil::dump() {
     mOutputQtyStats->dump();
 }
 
+void C2VdecComponent::DebugUtil::debug(std::list<std::string> cmds) {
+
+}
+
 void C2VdecComponent::DebugUtil::ctor() {
     mCreatedAt = getNowUs();
 }
@@ -229,105 +232,6 @@ void C2VdecComponent::DebugUtil::fillBufferDone(void *buffHdr, uint32_t flags, u
     if (pictureBufferId != -1 && bitstreamId != -1) {
         mOutputQtyStats->put(timestamp);
     }
-}
-
-ResmanHandler::ResmanHandler():
-        Resman_init(nullptr),
-        Resman_close(nullptr),
-        Resman_add_handler_and_resreports(nullptr),
-        mResmanLibHandle(nullptr) {
-    if (mResmanLibHandle == NULL) {
-        mResmanLibHandle = dlopen("libmediahal_resman.so", RTLD_NOW);
-        if (mResmanLibHandle) {
-            Resman_init = (DResman_init) dlsym(mResmanLibHandle, "resman_init");
-            Resman_close = (DResman_close) dlsym(mResmanLibHandle, "resman_close");
-            Resman_add_handler_and_resreports = (DResman_add_handler_and_resreports) dlsym(mResmanLibHandle, "resman_add_handler_and_resreports");
-
-            if (!Resman_init || !Resman_close || !Resman_add_handler_and_resreports) {
-                ALOGE("dlsym error:%s", dlerror());
-                dlclose(mResmanLibHandle);
-                mResmanLibHandle = NULL;
-            }
-        } else
-            ALOGW("dlopen libmediahal_resman.so error:%s", dlerror());
-    }
-}
-
-ResmanHandler::~ResmanHandler()
-{
-    if (mResmanLibHandle)
-        dlclose(mResmanLibHandle);
-}
-
-ANDROID_SINGLETON_STATIC_INSTANCE(AmlDiagnosticServer);
-
-void onDumpboardCallback(void *instance) {
-    AmlDiagnosticServer *dumpboard = (AmlDiagnosticServer*)instance;
-    dumpboard->dump();
-}
-
-AmlDiagnosticServer::AmlDiagnosticServer():
-    mfd(-1),
-    mResmanHandler(nullptr) {
-    mResmanHandler = new ResmanHandler();
-    if (mResmanHandler && mResmanHandler->isValid()) {
-        mfd = mResmanHandler->Resman_init("DumpState", RESMAN_APP_DIAGNOSTICS);
-        mResmanHandler->Resman_add_handler_and_resreports(mfd, onDumpboardCallback, onDumpboardCallback, (void *)this);
-    }
-}
-
-AmlDiagnosticServer::~AmlDiagnosticServer() {
-    if (isValid()) {
-        ALOGD("%s fd = %d", __FUNCTION__, mfd);
-        mResmanHandler->Resman_close(mfd);
-        mfd = -1;
-        delete mResmanHandler;
-        mResmanHandler = nullptr;
-    }
-}
-
-void AmlDiagnosticServer::dump() {
-#ifdef HAVE_VERSION_INFO
-    static const char* c2Features = (char*)MEDIA_MODULE_FEATURES;
-#endif
-    ALOGI("DUMPING DIAGNOSTICS DATABASE START");
-#ifdef HAVE_VERSION_INFO
-    ALOGI("\n--------------------------------\n"
-        "ARCH = %s\n"
-        "Version:%s\n"
-        "%s\n"
-        "%s\n"
-        "Change-Id:%s\n"
-        "CommitID:%s\n"
-        "--------------------------------\n",
-#if defined(__aarch64__)
-        "arm64",
-#else
-        "arm",
-#endif
-        VERSION,
-        GIT_COMMITMSG,
-        GIT_PD,
-        GIT_CHANGEID,
-        GIT_COMMITID);
-ALOGI("%s", c2Features);
-#endif
-    {
-        AutoMutex l(mLock);
-        for (auto client: mClients) {
-            client->dump();
-            ALOGI("\n--------------------------------\n");
-        }
-    }
-    ALOGI("DUMPING DIAGNOSTICS DATABASE END");
-}
-
-void AmlDiagnosticServer::addClient(std::shared_ptr<C2VdecComponent::DebugUtil> client) {
-    AutoMutex l(mLock);
-    while (mClients.size() >= kMaxClients) {
-        mClients.pop_front();
-    }
-    mClients.push_back(client);
 }
 
 AmlDiagnosticStatsQty::AmlDiagnosticStatsQty() {

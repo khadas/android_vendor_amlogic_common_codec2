@@ -17,9 +17,10 @@
 #ifndef _C2_VENDOR_PROPERTY_H
 #define _C2_VENDOR_PROPERTY_H
 
-/* debug log level */
-#define CODEC2_VDEC_LOGDEBUG_PROPERTY               "debug.vendor.media.c2.vdec.loglevels"
-#define CODEC2_VENC_LOGDEBUG_PROPERTY               "debug.vendor.media.c2.venc.loglevels"
+/* log level */
+#define CODEC2_LOGDEBUG_PROPERTY                    "vendor.media.c2.loglevels"
+#define CODEC2_VDEC_LOGDEBUG_PROPERTY               CODEC2_LOGDEBUG_PROPERTY
+#define CODEC2_VENC_LOGDEBUG_PROPERTY               CODEC2_LOGDEBUG_PROPERTY
 
 /* store */
 #define C2_PROPERTY_VDEC_SUPPORT                    "vendor.media.c2.vdec.support"

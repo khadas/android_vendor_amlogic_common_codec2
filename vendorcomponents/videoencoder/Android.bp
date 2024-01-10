@@ -60,6 +60,7 @@ cc_library_shared {
         "libutilscallstack",
         "libevent",
         "libvendor_c2componentstore",
+        "libvendor_c2common",
         "libamgralloc_ext",
     ],
 

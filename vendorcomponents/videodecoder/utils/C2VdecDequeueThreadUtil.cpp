@@ -35,7 +35,7 @@
 #include <base/bind.h>
 #include <base/bind_helpers.h>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2VdecDebugUtil.h>
 #include <C2VdecDeviceUtil.h>
 #include <C2VdecInterfaceImpl.h>

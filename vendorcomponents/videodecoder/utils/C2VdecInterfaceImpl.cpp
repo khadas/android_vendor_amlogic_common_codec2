@@ -23,7 +23,7 @@
 #include <C2VdecComponent.h>
 #include <C2VendorProperty.h>
 #include <C2VdecCodecConfig.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 
 #include <C2PlatformSupport.h>
 #include <SimpleC2Interface.h>

@@ -79,6 +79,7 @@ cc_library_shared {
         "liblog",
         "libutils",
         "libcutils",
+        "libvendor_c2common",
         "libstagefright_xmlparser",
     ],
 

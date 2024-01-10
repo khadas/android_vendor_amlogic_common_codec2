@@ -32,7 +32,7 @@
 #include <am_gralloc_ext.h>
 #include <hardware/gralloc1.h>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2VendorConfig.h>
 #include <C2VdecCodecConfig.h>
 #include <inttypes.h>

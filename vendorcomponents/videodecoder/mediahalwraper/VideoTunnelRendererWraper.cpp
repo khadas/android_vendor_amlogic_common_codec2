@@ -27,7 +27,7 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 
 namespace android {
 

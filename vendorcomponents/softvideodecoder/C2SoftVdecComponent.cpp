@@ -28,7 +28,7 @@
 #include <Codec2CommonUtils.h>
 
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2SoftVdecComponent.h>
 
 

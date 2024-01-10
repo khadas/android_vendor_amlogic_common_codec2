@@ -1,0 +1,71 @@
+// *** THIS PACKAGE HAS SPECIAL LICENSING CONDITIONS.  PLEASE
+//     CONSULT THE OWNERS AND opensource-licensing@google.com BEFORE
+//     DEPENDING ON IT IN YOUR PROJECT. ***
+package {
+    //   legacy_proprietary
+    default_applicable_licenses: ["vendor_amlogic_common_license"],
+}
+
+bootstrap_go_package {
+    name: "c2_component_aml",
+    pkgPath: "android/soong/c2_component_aml",
+    deps: [
+        "blueprint",
+        "soong",
+        "soong-android",
+        "soong-cc",
+        "soong-genrule",
+        "blueprint-bootstrap",
+        "soong-cc-config"
+    ],
+    srcs: [
+        "c2_component_aml.go",
+    ],
+
+    pluginFor: ["soong_build"],
+}
+
+c2_component_aml_go_defaults {
+    name: "c2_component_aml_go_defaults",
+}
+
+cc_library_shared {
+    name: "libvendor_c2common",
+    defaults: [
+        "libcodec2-impl-defaults",
+        "c2_component_aml_go_defaults",
+    ],
+    vendor: true,
+
+    srcs: [
+        "C2VendorDebug.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "liblog",
+        "libutils",
+        "libcutils",
+    ],
+
+    header_libs: [
+        "libnativebase_headers",
+        "libvendor_component_headers",
+        "libvendor_c2componentstore_headers",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Wno-unused-parameter",
+    ],
+    sanitize: {
+        misc_undefined: [
+            "unsigned-integer-overflow",
+            "signed-integer-overflow",
+        ],
+    },
+
+    ldflags: ["-Wl,-Bsymbolic"],
+
+}

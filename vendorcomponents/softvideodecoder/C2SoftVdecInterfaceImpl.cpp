@@ -22,7 +22,7 @@
 
 #include <C2VendorSupport.h>
 #include <C2VendorProperty.h>
-#include <c2logdebug.h>
+#include <C2VendorDebug.h>
 #include <C2SoftVdecInterfaceImpl.h>
 #include <AmMediaDefsExt.h>
 
