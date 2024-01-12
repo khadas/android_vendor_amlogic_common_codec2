@@ -67,7 +67,7 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     if err != nil {
         fmt.Printf("%v like UpsideDownCake may fail to convert", PlatformVndkVersion)
     }
-    if (PlatformVndkVersion >= 34) {
+    {
         BUFFERUSAGE := "-DSUPPORT_GRALLOC_REPLACE_BUFFER_USAGE"
         cppflags = append(cppflags, BUFFERUSAGE)
         //fmt.Println("use BUFFER_USAGE")
