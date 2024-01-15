@@ -78,7 +78,7 @@ typedef struct _VencParam {
     int FrameRate;
     int PixFormat;
     bool SyncFrameRequest;
-    int SyncFramePeriod;
+    uint64_t SyncFramePeriod;
     stQpInfo QpInfo;
     int LayerCnt;
     bool prepend_header_flag;
@@ -111,7 +111,7 @@ public:
     virtual void GetVencParam(stVencParam &Param) = 0;
     virtual void SetSize(int width,int height) = 0;
     virtual void SetBitrate(int bitrate) = 0;
-    virtual void SetSyncPeriodSize(int Period) = 0;
+    virtual void SetSyncPeriodSize(uint64_t Period) = 0;
     virtual void SetFrameRate(int FrameRate) = 0;
     virtual void SetQpInfo(stQpInfo QpInfo) = 0;
     virtual void SetLayerCnt(int LayerCount) = 0;
@@ -128,12 +128,10 @@ public:
     virtual void SetCodecType(eCodecType CodecType) = 0;
     virtual eCodecType GetCodecType() = 0;
 
-public:
-    static IAmlVencParam *GetInstance();
-    static void DelInstance(IAmlVencParam *pInstance);
-
 };
 
+extern "C" IAmlVencParam *VencParamGetInstance();
+extern "C" void VencParamDelInstance(IAmlVencParam *pInstance);
 
 
 }

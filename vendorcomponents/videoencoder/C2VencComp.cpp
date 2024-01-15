@@ -222,10 +222,15 @@ bool C2VencComp::Load() {
     }
     ALOGE("C2VencComp::mLibHandle:%p",mLibHandle);
     CreateMethod = (C2VencCreateInstance)dlsym(
-                mLibHandle, "_ZN7android12IAmlVencInst11GetInstanceEv");
+                mLibHandle, "VencGetInstance");
 
     DestroyMethod = (C2VencDestroyInstance)dlsym(
-                mLibHandle, "_ZN7android12IAmlVencInst11DelInstanceEPS0_");
+                mLibHandle, "VencDelInstance");
+
+    if (!CreateMethod || !DestroyMethod) {
+        ALOGE("load library failed,CreateMethod:%p,DestroyMethod:%p",CreateMethod,DestroyMethod);
+        return false;
+    }
 
     if (CreateMethod) {
         mAmlVencInst = CreateMethod();

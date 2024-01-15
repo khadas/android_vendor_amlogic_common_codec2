@@ -133,10 +133,15 @@ bool C2VencComp::IntfImpl::Load() {
     }
     ALOGE("IntfImpl::mLibHandle:%p",mLibHandle);
     mCreateMethod = (C2VencParamCreateInstance)dlsym(
-                mLibHandle, "_ZN7android13IAmlVencParam11GetInstanceEv");
+                mLibHandle, "VencParamGetInstance");
 
     mDestroyMethod = (C2VencParamDestroyInstance)dlsym(
-                mLibHandle, "_ZN7android13IAmlVencParam11DelInstanceEPS0_");
+                mLibHandle, "VencParamDelInstance");
+
+    if (!mCreateMethod || !mDestroyMethod) {
+        ALOGE("load library failed,mCreateMethod:%p,mDestroyMethod:%p",mCreateMethod,mDestroyMethod);
+        return false;
+    }
 
     if (mCreateMethod) {
         mAmlVencParam = mCreateMethod();
@@ -580,7 +585,7 @@ C2R C2VencComp::IntfImpl::AvcProfileLevelSetter(
     constexpr LevelLimits kLimits[] = {
         { LEVEL_AVC_1,     1485,    99,     64000 },
         // Decoder does not properly handle level 1b.
-        // { LEVEL_AVC_1B,    1485,   99,   128000 },
+         //{ LEVEL_AVC_1B,    1485,   99,   128000 },
         { LEVEL_AVC_1_1,   3000,   396,    192000 },
         { LEVEL_AVC_1_2,   6000,   396,    384000 },
         { LEVEL_AVC_1_3,  11880,   396,    768000 },

@@ -62,14 +62,15 @@ public:
     virtual bool Destroy() = 0;
     virtual void SetVencParamInst(IAmlVencParam *pVencParamInst) = 0;
 
-public:
+/*public:
     static IAmlVencInst *GetInstance();
-    static void DelInstance(IAmlVencInst *pInstance);
+    static void DelInstance(IAmlVencInst *pInstance);*/
 
 
 };
 
-
+extern "C" IAmlVencInst *VencGetInstance();
+extern "C" void VencDelInstance(IAmlVencInst *pInstance);
 
 }
 
