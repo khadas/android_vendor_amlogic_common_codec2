@@ -50,6 +50,13 @@ using namespace std;
 #define CODEC2_VENC_LOG_TAG_BUFFER  CODEC2_LOG_TAG_BUFFER
 #define CODEC2_VENC_LOG_TRACE  CODEC2_LOG_TRACE
 
+//Audio Decoder log level define.
+#define CODEC2_ADEC_LOG_ERR         CODEC2_LOG_ERR
+#define CODEC2_ADEC_LOG_INFO        CODEC2_LOG_INFO
+#define CODEC2_ADEC_LOG_DEBUG       CODEC2_LOG_DEBUG_LEVEL1
+#define CODEC2_ADEC_LOG_VERBOSE     CODEC2_LOG_DEBUG_LEVEL2
+#define CODEC2_ADEC_LOG_TRACE       CODEC2_LOG_TRACE
+
 static unsigned int gloglevel = 1;
 
 #define CODEC2_LOG(level, f, s...) \

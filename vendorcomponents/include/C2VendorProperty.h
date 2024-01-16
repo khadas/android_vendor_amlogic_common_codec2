@@ -21,6 +21,7 @@
 #define CODEC2_LOGDEBUG_PROPERTY                    "vendor.media.c2.loglevels"
 #define CODEC2_VDEC_LOGDEBUG_PROPERTY               CODEC2_LOGDEBUG_PROPERTY
 #define CODEC2_VENC_LOGDEBUG_PROPERTY               CODEC2_LOGDEBUG_PROPERTY
+#define CODEC2_ADEC_LOGDEBUG_PROPERTY               CODEC2_LOGDEBUG_PROPERTY
 
 /* store */
 #define C2_PROPERTY_VDEC_SUPPORT                    "vendor.media.c2.vdec.support"
@@ -82,6 +83,11 @@
 #define C2_PROPERTY_SOFTVDEC_DUMP_YUV               "debug.vendor.media.c2.softvdec.dump_yuv"
 
 /* venc */
+
+/* audio decoder */
+#define C2_PROPERTY_AUDIO_DECODER_DEBUG             "vendor.media.c2.audio.decoder.debug"
+#define C2_PROPERTY_AUDIO_DECODER_DUMP              "vendor.media.c2.audio.decoder.dump"
+
 
 /* platform */
 #define PROPERTY_PLATFORM_SUPPORT_4K                "ro.vendor.platform.support.4k"

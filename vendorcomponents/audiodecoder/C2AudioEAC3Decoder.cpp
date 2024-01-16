@@ -37,7 +37,7 @@
 #include "C2AudioEAC3Decoder.h"
 #include "aml_ac3_decoder_api.h"
 #include "C2VendorConfig.h"
-
+#include "AmlAudioCommon.h"
 
 #define MAX_CHANNEL_COUNT            8  /* maximum number of audio channels that can be decoded */
 
@@ -46,12 +46,6 @@
         (void)(expr); \
     } while (0)
 
-#define LOGE ALOGE
-#define LOGI ALOGI
-#define LOGW ALOGW
-#define LOGD ALOGD
-#define LOGV ALOGV
-#define LOG_LINE() ALOGD("[%s:%d]", __FUNCTION__, __LINE__);
 #define BYTE_REV(a) ((((uint16_t)a) & 0xff) << 8 | ((uint16_t)a) >> 8)
 
 
@@ -152,7 +146,7 @@ private:
         num = strtoul(bcmd, NULL, 0);
         close(fd);
     } else {
-        ALOGI("unable to open file \n");
+        C2AUDIO_LOGI("unable to open file \n");
     }
     return num;
 }*/
@@ -165,7 +159,7 @@ static int amsysfs_set_sysfs_str(const char *path, const char *val) {
         close(fd);
         return 0;
     } else {
-        ALOGE("unable to open file %s,err: %s", path, strerror(errno));
+        C2AUDIO_LOGE("unable to open file %s,err: %s", path, strerror(errno));
     }
     return -1;
 }
@@ -177,10 +171,10 @@ static void dump(const char * path, char *data, int size)
     if (fp != NULL) {
         size_t  write_size = fwrite(data, sizeof(char), (size_t)size, fp);
         if (write_size != (size_t)size)
-            ALOGE("error: write data to file failed[want:%d]-[ret:%zu]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
+            C2AUDIO_LOGE("error: write data to file failed[want:%d]-[ret:%zu]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
         fclose(fp);
     }else
-        ALOGE("error: open file failed\n");
+        C2AUDIO_LOGE("error: open file failed\n");
 }
 const uint16_t aml_ac3_frame_size_tab[38][3] = {
     { 64,   69,   96   },
@@ -263,7 +257,7 @@ int parse_frame_header
     }
     //2 step 1, frame header 0x0b77/0x770b
     if (header == 0) {
-        ALOGE("locate frame header 0x0b77/0x770b failed\n");
+        C2AUDIO_LOGE("locate frame header 0x0b77/0x770b failed\n");
         goto error;//no frame header, maybe need more data
     }
 
@@ -271,7 +265,7 @@ int parse_frame_header
     if (length - *offset < 12) {
         //find the sync word 0x0b77/0x770b,
         //but we need 12bytes which will copy to inheader[12], need more data
-        ALOGE("data less than one frame!!!\n");
+        C2AUDIO_LOGE("data less than one frame!!!\n");
         goto error;
     }
     else {
@@ -290,11 +284,11 @@ int parse_frame_header
     }
 
     if (length < 12) {
-        ALOGE("%s::%d-[len:%d]\n",__FUNCTION__, __LINE__, length);
+        C2AUDIO_LOGE("%s::%d-[len:%d]\n",__FUNCTION__, __LINE__, length);
         goto error;
     }
     else {
-        //ALOGV("dolby head:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x \n",
+        //C2AUDIO_LOGV("dolby head:0x%x 0x%x 0x%x 0x%x 0x%x 0x%x \n",
         // inheader[0],inheader[1],inheader[2], inheader[3],inheader[4],inheader[5]);
         int bsid = (inheader[5] >> 3) & 0x1f;//bitstream_id,bit[40,44]
         if (bsid > 16)
@@ -306,18 +300,18 @@ int parse_frame_header
         *IsEc3 = nIsEc3;
 
         if (nIsEc3 == 0) {
-            //ALOGI("%02x",inheader[6]);
+            //C2AUDIO_LOGI("%02x",inheader[6]);
             int use_bits = 0;
 
             substreamid = 0;
             sr_code = inheader[4]>>6;
             if (sr_code == 3) {
-                ALOGE("%s::%d-[error *sr_code:%d]", __FUNCTION__, __LINE__, sr_code);
+                C2AUDIO_LOGE("%s::%d-[error *sr_code:%d]", __FUNCTION__, __LINE__, sr_code);
                 goto error;
             }
             frame_size_code = inheader[4]&0x3F;
             if (frame_size_code > 37) {
-                ALOGE("%s::%d-[error frame_size_code:%d]", __FUNCTION__, __LINE__, frame_size_code);
+                C2AUDIO_LOGE("%s::%d-[error frame_size_code:%d]", __FUNCTION__, __LINE__, frame_size_code);
                 goto error;
             }
             acmod = (inheader[6] >> 5) & 0x7;// 3bits
@@ -359,7 +353,7 @@ C2AudioEAC3Decoder::C2AudioEAC3Decoder(
     decoder_offset(0),
     mNumFramesOutput(0)
 {
-    ALOGV("%s() %d  name:%s", __func__, __LINE__, name);
+    C2AUDIO_LOGV("%s() %d  name:%s", __func__, __LINE__, name);
     {
         AutoMutex l(mSetUpLock);
         initializeState_l();
@@ -385,7 +379,7 @@ C2AudioEAC3Decoder::C2AudioEAC3Decoder(
 
 /*coverity[exn_spec_violation]*/
 C2AudioEAC3Decoder::~C2AudioEAC3Decoder() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d", __func__, __LINE__);
     onRelease();
 
     if (mOutBuffer != NULL) {
@@ -408,20 +402,11 @@ C2AudioEAC3Decoder::~C2AudioEAC3Decoder() {
     }
     mDecodingErrors = 0;
     mTotalDecodedFrames = 0;
-    /*char value[PROPERTY_VALUE_MAX];
-    if (property_get(AML_DEBUG_AUDIOINFO_REPORT_PROPERTY, value, NULL)) {
-        sprintf(sysfs_buf, "decoded_err %d", mDecodingErrors);
-        amsysfs_set_sysfs_str(REPORT_DECODED_INFO, sysfs_buf);
-        sprintf(sysfs_buf, "decoded_frames %d", mTotalDecodedFrames);
-        amsysfs_set_sysfs_str(REPORT_DECODED_INFO, sysfs_buf);
-    }
-    memset(sysfs_buf, 0, sizeof(sysfs_buf));*/
-
-    LOGV("%s() %d  exit", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d  exit", __func__, __LINE__);
 }
 
 void C2AudioEAC3Decoder::initializeState_l() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     {
         AutoMutex l(mConfigLock);
         mConfig = (AC3DecoderExternal *)malloc(sizeof(AC3DecoderExternal));
@@ -437,7 +422,7 @@ void C2AudioEAC3Decoder::initializeState_l() {
 
 
 bool C2AudioEAC3Decoder::tearDownAudioDecoder_l() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     if (mConfig != NULL) {
         free(mConfig);
         mConfig = NULL;
@@ -453,7 +438,7 @@ bool C2AudioEAC3Decoder::tearDownAudioDecoder_l() {
 }
 
 bool C2AudioEAC3Decoder::unload_ddp_decoder_lib(){
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     if (ddp_decoder_cleanup != NULL && handle != NULL) {
         (*ddp_decoder_cleanup)(handle);
         handle = NULL;
@@ -473,34 +458,34 @@ bool C2AudioEAC3Decoder::load_license_decoder_lib(const char *filename){
     gDDPDecoderLibHandler = dlopen(filename, RTLD_NOW);
 
     if (!gDDPDecoderLibHandler) {
-        ALOGE("%s, failed to open filename %s dlerror() %s\n", __FUNCTION__, filename, dlerror());
+        C2AUDIO_LOGE("%s, failed to open filename %s dlerror() %s\n", __FUNCTION__, filename, dlerror());
         goto Error;
     } else {
-        ALOGV("<%s::%d>--[gDDPDecoderLibHandler:%p]", __FUNCTION__, __LINE__, gDDPDecoderLibHandler);
+        C2AUDIO_LOGV("<%s::%d>--[gDDPDecoderLibHandler:%p]", __FUNCTION__, __LINE__, gDDPDecoderLibHandler);
     }
 
     ddp_decoder_init = (int (*)(int, int,void **))dlsym(gDDPDecoderLibHandler, "ddp_decoder_init");
     if (ddp_decoder_init == NULL) {
-        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
+        C2AUDIO_LOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
-        ALOGV("<%s::%d>--[ddp_decoder_init:]", __FUNCTION__, __LINE__);
+        C2AUDIO_LOGV("<%s::%d>--[ddp_decoder_init:]", __FUNCTION__, __LINE__);
     }
 
     ddp_decoder_process = (int (*)(char * ,int ,int *,int ,char *,int *,struct pcm_info *,char *,int *,void *))dlsym(gDDPDecoderLibHandler, "ddp_decoder_process");
     if (ddp_decoder_process == NULL) {
-        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
+        C2AUDIO_LOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
-        ALOGV("<%s::%d>--[ddp_decoder_process:]", __FUNCTION__, __LINE__);
+        C2AUDIO_LOGV("<%s::%d>--[ddp_decoder_process:]", __FUNCTION__, __LINE__);
     }
 
     ddp_decoder_cleanup = (int (*)(void *))dlsym(gDDPDecoderLibHandler, "ddp_decoder_cleanup");
     if (ddp_decoder_cleanup == NULL) {
-        ALOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
+        C2AUDIO_LOGE("%s,can't find decoder lib,%s\n", __FUNCTION__, dlerror());
         goto Error;
     } else {
-        ALOGV("<%s::%d>--[ddp_decoder_cleanup:]", __FUNCTION__, __LINE__);
+        C2AUDIO_LOGV("<%s::%d>--[ddp_decoder_cleanup:]", __FUNCTION__, __LINE__);
     }
     return true;
 Error:
@@ -543,16 +528,18 @@ bool C2AudioEAC3Decoder::setUpAudioDecoder_l() {
         mConfig->debug_dump = 0;
         memset(value,0,sizeof(value));
 
-        if ((property_get("vendor.media.c2.audio.debug",value,NULL) > 0) &&
+        if ((property_get(C2_PROPERTY_AUDIO_DECODER_DEBUG,value,NULL) > 0) &&
             (!strcmp(value,"1")||!strcmp(value,"true"))) {
             mConfig->debug_print = 1;
         }
         memset(value,0,sizeof(value));
 
-        if ((property_get("vendor.media.c2.audio.dump",value,NULL) > 0) &&
+        if ((property_get(C2_PROPERTY_AUDIO_DECODER_DUMP,value,NULL) > 0) &&
             (!strcmp(value,"1")||!strcmp(value,"true"))) {
             mConfig->debug_dump = 1;
         }
+        propGetInt(CODEC2_ADEC_LOGDEBUG_PROPERTY, &gloglevel);
+        C2AUDIO_LOGI("%s  debug_print:%d, debug_dump:%d,  gloglevel:%d", __func__, mConfig->debug_print, mConfig->debug_dump, gloglevel);
 
         digital_raw = mIntf->getPassthroughEnable();
         if (digital_raw >= 3) {
@@ -562,13 +549,13 @@ bool C2AudioEAC3Decoder::setUpAudioDecoder_l() {
                 digital_raw = digital_raw  - 3;
                 adec_call = true;
             }
-            ALOGI("adec_call % d digital_raw %d ", adec_call, digital_raw);
+            C2AUDIO_LOGI("adec_call % d digital_raw %d ", adec_call, digital_raw);
         }
 
         /* nAudioCodec: 1 - AC3,  2 - EAC3 */
         nAudioCodec = component_is_eac3 ? 2 : 1;
 
-        ALOGV("nAudioCodec %d, digital_raw %d adec_call %d \n", nAudioCodec, digital_raw, adec_call);
+        C2AUDIO_LOGV("nAudioCodec %d, digital_raw %d adec_call %d \n", nAudioCodec, digital_raw, adec_call);
         if (digital_raw <= 1 ) {/*ac3,eac3 spdif mode passthrough*/
             (*ddp_decoder_init)(1, 1,&handle);
         } else if (digital_raw == 2 && (nAudioCodec == 1)) {/*ac3 hdmi mode passthrough*/
@@ -590,25 +577,25 @@ bool C2AudioEAC3Decoder::setUpAudioDecoder_l() {
 }
 
 bool C2AudioEAC3Decoder::setUp() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     AutoMutex l(mSetUpLock);
     if (mSetUp) {
-        LOGW("Trying to set up stream when you already have.");
+        C2AUDIO_LOGW("Trying to set up stream when you already have.");
         return false;
     }
 
     if (!setUpAudioDecoder_l()) {
-        LOGE("setUpAC3AudioDecoder_l failed.");
+        C2AUDIO_LOGE("setUpAC3AudioDecoder_l failed.");
         tearDownAudioDecoder_l();
         return false;
     }
-    ALOGI("C2AudioEAC3Decoder setUp done\n");
+    C2AUDIO_LOGI("C2AudioEAC3Decoder setUp done\n");
     mSetUp = true;
     return true;
 }
 
 bool C2AudioEAC3Decoder::tearDown() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     AutoMutex l(mSetUpLock);
     if (mSetUp) {
         tearDownAudioDecoder_l();
@@ -622,23 +609,23 @@ bool C2AudioEAC3Decoder::isSetUp() {
 }
 
 c2_status_t C2AudioEAC3Decoder::onInit() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGV("%s() %d", __func__, __LINE__);
 
     status_t err = initDecoder();
 
-    ALOGV("%s() %d exit", __func__, __LINE__);
+    C2AUDIO_LOGV("%s() %d exit", __func__, __LINE__);
     return err == OK ? C2_OK : C2_CORRUPTED;
 }
 
 c2_status_t C2AudioEAC3Decoder::onStop() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGV("%s() %d", __func__, __LINE__);
     mAbortPlaying = true;
 
     return C2_OK;
 }
 
 void C2AudioEAC3Decoder::onReset() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGV("%s() %d", __func__, __LINE__);
     (void)onStop();
 
     if (handle == NULL) {
@@ -665,7 +652,7 @@ void C2AudioEAC3Decoder::onReset() {
 }
 
 void C2AudioEAC3Decoder::onRelease() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     if (ddp_decoder_cleanup != NULL && handle != NULL) {
         (*ddp_decoder_cleanup)(handle);
         handle = NULL;
@@ -677,14 +664,14 @@ void C2AudioEAC3Decoder::onRelease() {
 }
 
 status_t C2AudioEAC3Decoder::initDecoder() {
-    ALOGV("initDecoder()");
+    C2AUDIO_LOGV("initDecoder()");
     status_t status = UNKNOWN_ERROR;
 
     if (setUp()) {
     }
 
     if (!isSetUp()) {
-        LOG_LINE();
+        C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
         return C2_OMITTED;
     }
     mAbortPlaying = false;
@@ -711,7 +698,7 @@ void C2AudioEAC3Decoder::drainOutBuffer(
         int numFrames = outInfo.decodedSizes.size();
         int outputDataSize =  mConfig->outputFrameSize;
         if (mConfig->debug_print) {
-            ALOGV("%s outputDataSize:%d,  outInfo numFrames:%d,frameIndex = %" PRIu64 "",__func__, outputDataSize, numFrames, outInfo.frameIndex);
+            C2AUDIO_LOGI("%s outputDataSize:%d,  outInfo numFrames:%d,frameIndex = %" PRIu64 "",__func__, outputDataSize, numFrames, outInfo.frameIndex);
         }
 
         std::shared_ptr<C2LinearBlock> block;
@@ -739,7 +726,7 @@ void C2AudioEAC3Decoder::drainOutBuffer(
                 size_t bufferSize = mConfig->outputFrameSize;
                 c2_status_t err = pool->fetchLinearBlock(bufferSize, usage, &block);
                 if (err != C2_OK) {
-                    ALOGE("failed to fetch a linear block (%d)", err);
+                    C2AUDIO_LOGE("failed to fetch a linear block (%d)", err);
                     return std::bind(fillEmptyWork, _1, C2_NO_MEMORY);
                 }
                 C2WriteView wView = block->map().get();
@@ -770,7 +757,7 @@ void C2AudioEAC3Decoder::drainOutBuffer(
         mBuffersInfo.pop_front();
         if (mConfig->debug_print) {
             /*coverity[use_after_free]*/
-            ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
+            C2AUDIO_LOGI("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
         }
     }
 }
@@ -808,7 +795,7 @@ void C2AudioEAC3Decoder::process(
     inInfo.bufferSize = inBuffer_nFilledLen;
     inInfo.decodedSizes.clear();
     if (mConfig->debug_print) {
-        ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%" PRIu64 ", timestamp:%" PRIu64 "", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
+        C2AUDIO_LOGI("%s() inInfo.bufferSize:%zu, frameIndex:%" PRIu64 ", timestamp:%" PRIu64 "", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
     }
 
 
@@ -825,7 +812,7 @@ void C2AudioEAC3Decoder::process(
         mNumFramesOutput = 0;
         decoder_offset += inBuffer_nFilledLen;
         if (mConfig->debug_print == 1)
-            ALOGI("inHeader->nFilledLen:%zu  inHeader->nTimeStamp %" PRIu64 "",inBuffer_nFilledLen,inInfo.timestamp);
+            C2AUDIO_LOGI("inHeader->nFilledLen:%zu  inHeader->nTimeStamp %" PRIu64 "",inBuffer_nFilledLen,inInfo.timestamp);
 
         if (mConfig->debug_dump == 1)
             dump("/data/vendor/audiohal/c2_decoder_in.ac3", (char *)mConfig->pInputBuffer, inBuffer_nFilledLen);
@@ -841,7 +828,7 @@ void C2AudioEAC3Decoder::process(
 
                 memcpy(mRemainBuffer + mRemainLen, mConfig->pInputBuffer, copy_size);
                 ret = parse_frame_header(mRemainBuffer, mRemainLen + copy_size, &framesize, &offset, &nIsEc3);
-                //ALOGV("%s() 111 ret:%d, inBuffer_len:%zu  avail_size:%d, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, avail_size, framesize, offset,  nIsEc3);
+                //C2AUDIO_LOGV("%s() 111 ret:%d, inBuffer_len:%zu  avail_size:%d, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, avail_size, framesize, offset,  nIsEc3);
                 if (ret == 0 && (framesize - mRemainLen >= 0)) {
                     inBuffer_offset += (framesize - mRemainLen);
                     inBuffer_nFilledLen -= (framesize - mRemainLen);
@@ -857,7 +844,7 @@ void C2AudioEAC3Decoder::process(
                 mConfig->pInputBuffer = inBuffer + inBuffer_offset;
                 mConfig->inputBufferCurrentLength = inBuffer_nFilledLen;
                 ret = parse_frame_header(mConfig->pInputBuffer,mConfig->inputBufferCurrentLength,&framesize,&offset,&nIsEc3);
-                //ALOGV("%s() 222 ret:%d, inBuffer_len:%zu, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, framesize, offset,  nIsEc3);
+                //C2AUDIO_LOGV("%s() 222 ret:%d, inBuffer_len:%zu, framesize:%d  offset:%d, nIsEc3:%d", __func__, ret, inBuffer_nFilledLen, framesize, offset,  nIsEc3);
                 if (ret == 0) {
                     if (framesize > mConfig->inputBufferCurrentLength - offset) {
                         mRemainLen = mConfig->inputBufferCurrentLength - offset;
@@ -894,7 +881,7 @@ void C2AudioEAC3Decoder::process(
                                                     ,(int *)&spdif_len,
                                                     handle);
                 if (mConfig->debug_print == 1)
-                    ALOGI("%s ret:%d used_size:%d inHeader->nFilledLen:%zu mRemainLen %d mConfig->outputFrameSize %d nIsEc3:%d",
+                    C2AUDIO_LOGI("%s ret:%d used_size:%d inHeader->nFilledLen:%zu mRemainLen %d mConfig->outputFrameSize %d nIsEc3:%d",
                         __func__, ret,used_size,inBuffer_nFilledLen,mRemainLen, mConfig->outputFrameSize, nIsEc3);
                 if (inBuffer_nFilledLen + mRemainLen >= (uint32_t)used_size) {
                     if (mRemainLen && inBuffer_nFilledLen) {
@@ -1005,10 +992,10 @@ void C2AudioEAC3Decoder::process(
 
     //update out config.
     if (!pcm_out_info.sample_rate || !pcm_out_info.channel_num) {
-        ALOGW("%s Invalid dolby frame", __func__);
+        C2AUDIO_LOGW("%s Invalid dolby frame", __func__);
     } else if ((pcm_out_info.sample_rate != prevSampleRate) ||
                (pcm_out_info.channel_num != prevNumChannels)) {
-        ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
+        C2AUDIO_LOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
               prevSampleRate, pcm_out_info.sample_rate,
               prevNumChannels, pcm_out_info.channel_num);
 
@@ -1027,7 +1014,7 @@ void C2AudioEAC3Decoder::process(
             output.configUpdate.push_back(C2Param::Copy(channelCountInfo));
             output.configUpdate.push_back(C2Param::Copy(channelMaskInfo));
         } else {
-            ALOGE("Config Update failed");
+            C2AUDIO_LOGE("Config Update failed");
             work->result = C2_CORRUPTED;
             return;
         }
@@ -1043,7 +1030,7 @@ c2_status_t C2AudioEAC3Decoder::drainEos(
         uint32_t drainMode,
         const std::shared_ptr<C2BlockPool> &pool,
         const std::unique_ptr<C2Work> &work) {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     bool eos = (drainMode == DRAIN_COMPONENT_WITH_EOS);
 
     drainOutBuffer(work, pool, eos);
@@ -1070,20 +1057,19 @@ c2_status_t C2AudioEAC3Decoder::drainEos(
 c2_status_t C2AudioEAC3Decoder::drain(
         uint32_t drainMode,
         const std::shared_ptr<C2BlockPool> &pool) {
-    LOG_LINE();
-
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     return C2_OK;
 }
 
 c2_status_t C2AudioEAC3Decoder::onFlush_sm() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     mBuffersInfo.clear();
 
     return C2_OK;
 }
 
 void C2AudioEAC3Decoder::drainDecoder() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
 }
 
 // definitions based on android.media.AudioFormat.CHANNEL_OUT_*
@@ -1140,7 +1126,7 @@ public:
             std::shared_ptr<C2Component>* const component,
             std::function<void(C2Component*)> deleter) override {
             UNUSED(deleter);
-            ALOGI("in %s, mDecoderName:%s component_is_eac3:%d", __func__, mDecoderName.c_str(), component_is_eac3);
+            C2AUDIO_LOGI("in %s, mDecoderName:%s component_is_eac3:%d", __func__, mDecoderName.c_str(), component_is_eac3);
         *component = std::shared_ptr<C2Component>(
                 new C2AudioEAC3Decoder(mDecoderName.c_str(),
                               id,
@@ -1151,7 +1137,7 @@ public:
     virtual c2_status_t createInterface(
             c2_node_id_t id, std::shared_ptr<C2ComponentInterface>* const interface,
             std::function<void(C2ComponentInterface*)> deleter) override {
-            //ALOGI("in %s, id:%d,  start to create C2ComponentInterface", __func__, id);
+            //C2AUDIO_LOGI("in %s, id:%d,  start to create C2ComponentInterface", __func__, id);
             UNUSED(deleter);
         *interface = std::shared_ptr<C2ComponentInterface>(
                 new AudioDecInterface<C2AudioEAC3Decoder::IntfImpl>(

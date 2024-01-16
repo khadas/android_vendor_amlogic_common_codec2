@@ -33,6 +33,7 @@
 
 #include "C2VendorSupport.h"
 #include "C2AudioAacDecoder.h"
+#include "AmlAudioCommon.h"
 
 #define FILEREAD_MAX_LAYERS 2
 
@@ -291,7 +292,7 @@ C2AudioAacDecoder::C2AudioAacDecoder(
       mOutputDelayRingBufferWritePos(0),
       mOutputDelayRingBufferReadPos(0),
       mOutputDelayRingBufferFilled(0){
-      ALOGV("%s()", __func__);
+      C2AUDIO_LOGV("%s()", __func__);
 }
 
 /*coverity[exn_spec_violation]*/
@@ -300,13 +301,13 @@ C2AudioAacDecoder::~C2AudioAacDecoder() {
 }
 
 c2_status_t C2AudioAacDecoder::onInit() {
-    ALOGD("%s()", __func__);
+    C2AUDIO_LOGI("%s()", __func__);
     status_t err = initDecoder();
     return err == OK ? C2_OK : C2_CORRUPTED;
 }
 
 c2_status_t C2AudioAacDecoder::onStop() {
-    ALOGD("%s()", __func__);
+    C2AUDIO_LOGI("%s()", __func__);
     drainDecoder();
     // reset the "configured" state
     mOutputDelayCompensated = 0;
@@ -327,12 +328,12 @@ c2_status_t C2AudioAacDecoder::onStop() {
 }
 
 void C2AudioAacDecoder::onReset() {
-    ALOGD("%s()", __func__);
+    C2AUDIO_LOGD("%s()", __func__);
     (void)onStop();
 }
 
 void C2AudioAacDecoder::onRelease() {
-    ALOGD("%s()", __func__);
+    C2AUDIO_LOGI("%s()", __func__);
     if (mAACDecoder) {
         aacDecoder_Close(mAACDecoder);
         mAACDecoder = nullptr;
@@ -341,7 +342,7 @@ void C2AudioAacDecoder::onRelease() {
 }
 
 status_t C2AudioAacDecoder::initDecoder() {
-    ALOGV("initDecoder()");
+    C2AUDIO_LOGI("initDecoder()");
     status_t status = UNKNOWN_ERROR;
     mAACDecoder = aacDecoder_Open(TT_MP4_ADIF, /* num layers */ 1);
     if (mAACDecoder != nullptr) {
@@ -359,12 +360,12 @@ status_t C2AudioAacDecoder::initDecoder() {
     mOutputDelayRingBufferFilled = 0;
 
     if (mAACDecoder == nullptr) {
-        ALOGE("AAC decoder is null. TODO: Can not call aacDecoder_SetParam in the following code");
+        C2AUDIO_LOGE("AAC decoder is null. TODO: Can not call aacDecoder_SetParam in the following code");
     }
 
     // AAC_PCM_MAX_OUTPUT_CHANNELS
     u_int32_t maxChannelCount = mIntf->getMaxChannelCount();
-    ALOGV("AAC decoder using maximum output channel count %d", maxChannelCount);
+    C2AUDIO_LOGI("AAC decoder using maximum output channel count %d", maxChannelCount);
     aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, maxChannelCount);
 
     return status;
@@ -375,7 +376,7 @@ bool C2AudioAacDecoder::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_
         return true;
     }
     if (outputDelayRingBufferSpaceLeft() < numSamples) {
-        ALOGE("RING BUFFER WOULD OVERFLOW");
+        C2AUDIO_LOGE("RING BUFFER WOULD OVERFLOW");
         return false;
     }
     if (mOutputDelayRingBufferWritePos + numSamples <= mOutputDelayRingBufferSize
@@ -390,7 +391,7 @@ bool C2AudioAacDecoder::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_
             mOutputDelayRingBufferWritePos -= mOutputDelayRingBufferSize;
         }
     } else {
-        ALOGV("slow C2SoftAacDec::outputDelayRingBufferPutSamples()");
+        C2AUDIO_LOGV("slow C2SoftAacDec::outputDelayRingBufferPutSamples()");
 
         for (int32_t i = 0; i < numSamples; i++) {
             mOutputDelayRingBuffer[mOutputDelayRingBufferWritePos] = samples[i];
@@ -406,7 +407,7 @@ bool C2AudioAacDecoder::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_
 
 int32_t C2AudioAacDecoder::outputDelayRingBufferGetSamples(INT_PCM *samples, int32_t numSamples) {
     if (numSamples > mOutputDelayRingBufferFilled) {
-        ALOGE("RING BUFFER WOULD UNDERRUN");
+        C2AUDIO_LOGE("RING BUFFER WOULD UNDERRUN");
         return -1;
     }
 
@@ -425,7 +426,7 @@ int32_t C2AudioAacDecoder::outputDelayRingBufferGetSamples(INT_PCM *samples, int
             mOutputDelayRingBufferReadPos -= mOutputDelayRingBufferSize;
         }
     } else {
-        ALOGV("slow C2SoftAacDec::outputDelayRingBufferGetSamples()");
+        C2AUDIO_LOGV("slow C2SoftAacDec::outputDelayRingBufferGetSamples()");
 
         for (int32_t i = 0; i < numSamples; i++) {
             if (samples != nullptr) {
@@ -456,7 +457,7 @@ void C2AudioAacDecoder::drainRingBuffer(
     while (!mBuffersInfo.empty() && outputDelayRingBufferSamplesAvailable()
             >= mStreamInfo->frameSize * mStreamInfo->numChannels) {
         Info &outInfo = mBuffersInfo.front();
-        ALOGV("outInfo.frameIndex = %" PRIu64, outInfo.frameIndex);
+        C2AUDIO_LOGV("outInfo.frameIndex = %" PRIu64, outInfo.frameIndex);
         int samplesize __unused = mStreamInfo->numChannels * sizeof(int16_t);
 
         int available = outputDelayRingBufferSamplesAvailable();
@@ -469,9 +470,9 @@ void C2AudioAacDecoder::drainRingBuffer(
                 break;
             }
         }
-        ALOGV("%d samples available (%d), or %d frames",
+        C2AUDIO_LOGV("%d samples available (%d), or %d frames",
                 numSamples, available, numFrames);
-        ALOGV("getting %d from ringbuffer", numSamples);
+        C2AUDIO_LOGV("getting %d from ringbuffer", numSamples);
 
         std::shared_ptr<C2LinearBlock> block;
         std::function<void(const std::unique_ptr<C2Work>&)> fillWork =
@@ -498,7 +499,7 @@ void C2AudioAacDecoder::drainRingBuffer(
                 size_t bufferSize = numSamples * sizeof(int16_t);
                 c2_status_t err = pool->fetchLinearBlock(bufferSize, usage, &block);
                 if (err != C2_OK) {
-                    ALOGD("failed to fetch a linear block (%d)", err);
+                    C2AUDIO_LOGD("failed to fetch a linear block (%d)", err);
                     return std::bind(fillEmptyWork, _1, C2_NO_MEMORY);
                 }
                 C2WriteView wView = block->map().get();
@@ -506,7 +507,7 @@ void C2AudioAacDecoder::drainRingBuffer(
                 INT_PCM *outBuffer = reinterpret_cast<INT_PCM *>(wView.data());
                 int32_t ns = outputDelayRingBufferGetSamples(outBuffer, numSamples);
                 if (ns != numSamples) {
-                    ALOGE("not a complete frame of samples available");
+                    C2AUDIO_LOGE("not a complete frame of samples available");
                     mSignalledError = true;
                     return std::bind(fillEmptyWork, _1, C2_CORRUPTED);
                 }
@@ -528,7 +529,7 @@ void C2AudioAacDecoder::drainRingBuffer(
             finish(outInfo.frameIndex, fillWork);
         }
 
-        ALOGV("out timestamp %" PRIu64 " / %u", outInfo.timestamp, block ? block->capacity() : 0);
+        C2AUDIO_LOGV("out timestamp %" PRIu64 " / %u", outInfo.timestamp, block ? block->capacity() : 0);
         mBuffersInfo.pop_front();
     }
 }
@@ -565,7 +566,7 @@ void C2AudioAacDecoder::process(
     //TODO
 #if 0
     if (mInputBufferCount == 0 && !codecConfig) {
-        ALOGW("first buffer should have FLAG_CODEC_CONFIG set");
+        C2AUDIO_LOGW("first buffer should have FLAG_CODEC_CONFIG set");
         codecConfig = true;
     }
 #endif
@@ -580,7 +581,7 @@ void C2AudioAacDecoder::process(
                                  inBufferLength);
 
         if (decoderErr != AAC_DEC_OK) {
-            ALOGE("aacDecoder_ConfigRaw decoderErr = 0x%4.4x", decoderErr);
+            C2AUDIO_LOGE("aacDecoder_ConfigRaw decoderErr = 0x%4.4x", decoderErr);
             mSignalledError = true;
             work->result = C2_CORRUPTED;
             return;
@@ -597,7 +598,7 @@ void C2AudioAacDecoder::process(
     inInfo.bufferSize = size;
     inInfo.decodedSizes.clear();
     while (size > 0u) {
-        ALOGV("size = %zu", size);
+        C2AUDIO_LOGV("size = %zu", size);
         if (mIntf->isAdts()) {
             size_t adtsHeaderSize = 0;
             // skip 30 bits, aac_frame_length follows.
@@ -606,7 +607,7 @@ void C2AudioAacDecoder::process(
 
             bool signalError = false;
             if (size < 7) {
-                ALOGE("Audio data too short to contain even the ADTS header. "
+                C2AUDIO_LOGE("Audio data too short to contain even the ADTS header. "
                         "Got %zu bytes.", size);
                 hexdump(adtsHeader, size);
                 signalError = true;
@@ -619,7 +620,7 @@ void C2AudioAacDecoder::process(
                     | (adtsHeader[5] >> 5);
 
                 if (size < aac_frame_length) {
-                    ALOGE("Not enough audio data for the complete frame. "
+                    C2AUDIO_LOGE("Not enough audio data for the complete frame. "
                             "Got %zu bytes, frame size according to the ADTS "
                             "header is %u bytes.",
                             size, aac_frame_length);
@@ -665,7 +666,7 @@ void C2AudioAacDecoder::process(
 
         // AAC_PCM_MAX_OUTPUT_CHANNELS
         int32_t maxChannelCount = mIntf->getMaxChannelCount();
-        ALOGV("AAC decoder using maximum output channel count %d", maxChannelCount);
+        C2AUDIO_LOGV("AAC decoder using maximum output channel count %d", maxChannelCount);
         aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, maxChannelCount);
 
         UINT inBufferUsedLength = inBufferLength[0] - bytesValid[0];
@@ -676,7 +677,7 @@ void C2AudioAacDecoder::process(
         do {
             if (outputDelayRingBufferSpaceLeft() <
                     (mStreamInfo->frameSize * mStreamInfo->numChannels)) {
-                ALOGV("skipping decode: not enough space left in ringbuffer");
+                C2AUDIO_LOGV("skipping decode: not enough space left in ringbuffer");
                 // discard buffer
                 size = 0;
                 break;
@@ -696,11 +697,11 @@ void C2AudioAacDecoder::process(
             inInfo.decodedSizes.push_back(numConsumed);
 
             if (decoderErr != AAC_DEC_OK) {
-                ALOGW("aacDecoder_DecodeFrame decoderErr = 0x%4.4x", decoderErr);
+                C2AUDIO_LOGW("aacDecoder_DecodeFrame decoderErr = 0x%4.4x", decoderErr);
             }
 
             if (bytesValid[0] != 0) {
-                ALOGE("bytesValid[0] != 0 should never happen");
+                C2AUDIO_LOGE("bytesValid[0] != 0 should never happen");
                 mSignalledError = true;
                 work->result = C2_CORRUPTED;
                 return;
@@ -717,7 +718,7 @@ void C2AudioAacDecoder::process(
                     return;
                 }
             } else {
-                ALOGW("AAC decoder returned error 0x%4.4x, substituting silence", decoderErr);
+                C2AUDIO_LOGW("AAC decoder returned error 0x%4.4x, substituting silence", decoderErr);
 
                 memset(tmpOutBuffer, 0, numOutBytes); // TODO: check for overflow
 
@@ -757,13 +758,13 @@ void C2AudioAacDecoder::process(
              */
             if (!mStreamInfo->sampleRate || !mStreamInfo->numChannels) {
                 // if ((mInputBufferCount > 2) && (mOutputBufferCount <= 1)) {
-                    ALOGD("Invalid AAC stream");
+                    C2AUDIO_LOGI("Invalid AAC stream");
                     // TODO: notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
                     // mSignalledError = true;
                 // }
             } else if ((mStreamInfo->sampleRate != prevSampleRate) ||
                        (mStreamInfo->numChannels != prevNumChannels)) {
-                ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
+                C2AUDIO_LOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
                       prevSampleRate, mStreamInfo->sampleRate,
                       prevNumChannels, mStreamInfo->numChannels);
 
@@ -784,13 +785,13 @@ void C2AudioAacDecoder::process(
                     output.configUpdate.push_back(C2Param::Copy(channelCountInfo));
                     output.configUpdate.push_back(C2Param::Copy(channelMaskInfo));
                 } else {
-                    ALOGE("Config Update failed");
+                    C2AUDIO_LOGE("Config Update failed");
                     mSignalledError = true;
                     work->result = C2_CORRUPTED;
                     return;
                 }
             }
-            ALOGV("size = %zu", size);
+            C2AUDIO_LOGV("size = %zu", size);
         } while (decoderErr == AAC_DEC_OK);
     }
 
@@ -801,7 +802,7 @@ void C2AudioAacDecoder::process(
         size_t actualOutputPortDelay = (outputDelay + numSamplesInOutput - 1) / numSamplesInOutput;
         if (actualOutputPortDelay > mOutputPortDelay) {
             mOutputPortDelay = actualOutputPortDelay;
-            ALOGV("New Output port delay %zu ", mOutputPortDelay);
+            C2AUDIO_LOGV("New Output port delay %zu ", mOutputPortDelay);
 
             C2PortActualDelayTuning::output outputPortDelay(mOutputPortDelay);
             std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -811,7 +812,7 @@ void C2AudioAacDecoder::process(
                 work->worklets.front()->output.configUpdate.push_back(
                     C2Param::Copy(outputPortDelay));
             } else {
-                ALOGE("Cannot set output delay");
+                C2AUDIO_LOGE("Cannot set output delay");
                 mSignalledError = true;
                 work->workletsProcessed = 1u;
                 work->result = C2_CORRUPTED;
@@ -845,11 +846,11 @@ c2_status_t C2AudioAacDecoder::drainInternal(
         const std::shared_ptr<C2BlockPool> &pool,
         const std::unique_ptr<C2Work> &work) {
     if (drainMode == NO_DRAIN) {
-        ALOGW("drain with NO_DRAIN: no-op");
+        C2AUDIO_LOGW("drain with NO_DRAIN: no-op");
         return C2_OK;
     }
     if (drainMode == DRAIN_CHAIN) {
-        ALOGW("DRAIN_CHAIN not supported");
+        C2AUDIO_LOGW("DRAIN_CHAIN not supported");
         return C2_OMITTED;
     }
 
@@ -895,7 +896,7 @@ c2_status_t C2AudioAacDecoder::onFlush_sm() {
         }
         int32_t ns = outputDelayRingBufferGetSamples(nullptr, avail);
         if (ns != avail) {
-            ALOGW("not a complete frame of samples available");
+            C2AUDIO_LOGW("not a complete frame of samples available");
             break;
         }
     }
@@ -917,7 +918,7 @@ void C2AudioAacDecoder::drainDecoder() {
                                    2048 * MAX_CHANNEL_COUNT,
                                    AACDEC_FLUSH);
         if (decoderErr != AAC_DEC_OK) {
-            ALOGW("aacDecoder_DecodeFrame decoderErr = 0x%4.4x", decoderErr);
+            C2AUDIO_LOGW("aacDecoder_DecodeFrame decoderErr = 0x%4.4x", decoderErr);
         }
 
         int32_t tmpOutBufferSamples = mStreamInfo->frameSize * mStreamInfo->numChannels;

@@ -43,12 +43,7 @@
         (void)(expr); \
     } while (0)
 
-#define LOGE ALOGE
-#define LOGI ALOGI
-#define LOGW ALOGW
-#define LOGD ALOGD
-#define LOGV ALOGV
-#define LOG_LINE() ALOGD("[%s:%d]", __FUNCTION__, __LINE__);
+
 #define BYTE_REV(a) ((((uint16_t)a) & 0xff) << 8 | ((uint16_t)a) >> 8)
 
 #define AV_CODEC_ID_ADPCM_IMA_WAV 0x11001
@@ -75,7 +70,7 @@ namespace android {
 
 static const char *ConvertComponentRoleToMimeType(const char *componentRole) {
     if (componentRole == NULL) {
-        ALOGE("ConvertComponentRoleToMime componentRole is NULL!");
+        C2AUDIO_LOGE("ConvertComponentRoleToMime componentRole is NULL!");
         return "NA";
     }
 
@@ -84,7 +79,7 @@ static const char *ConvertComponentRoleToMimeType(const char *componentRole) {
     } else if (strstr(componentRole, "mp2")) {
         return const_cast<char *>(MEDIA_MIMETYPE_AUDIO_MPEG_LAYER_II);
     } else {
-        ALOGE("Not support %s yet, need to add!", componentRole);
+        C2AUDIO_LOGE("Not support %s yet, need to add!", componentRole);
         return "NA";
     }
 }
@@ -105,7 +100,7 @@ public:
                 C2Component::KIND_DECODER,
                 C2Component::DOMAIN_AUDIO,
                 ConvertComponentRoleToMimeType(name)) {
-                ALOGI("in %s  %s", __func__, name);
+                C2AUDIO_LOGI("in %s  %s", __func__, name);
 
         addParameter(
                 DefineParam(mSampleRate, C2_PARAMKEY_SAMPLE_RATE)
@@ -218,7 +213,7 @@ static int amsysfs_set_sysfs_str(const char *path, const char *val) {
         close(fd);
         return 0;
     } else {
-        ALOGE("unable to open file %s,err: %s", path, strerror(errno));
+        C2AUDIO_LOGE("unable to open file %s,err: %s", path, strerror(errno));
     }
     return -1;
 }
@@ -230,10 +225,10 @@ static void dump(const char * path, char *data, int size)
     if (fp != NULL) {
         size_t  write_size = fwrite(data, sizeof(char), (size_t)size, fp);
         if (write_size != (size_t)size)
-            ALOGE("error: write data to file failed[want:%d]-[ret:%zu]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
+            C2AUDIO_LOGE("error: write data to file failed[want:%d]-[ret:%zu]-[strerror(errno):%s]\n", size, write_size, strerror(errno));
         fclose(fp);
     }else {
-        ALOGE("error: open file failed\n");
+        C2AUDIO_LOGE("error: open file failed\n");
     }
 }
 
@@ -265,7 +260,7 @@ C2AudioFFMPEGDecoder::C2AudioFFMPEGDecoder(
     sysfs_buf{'\0'},
     mOutSize(0)
 {
-    ALOGV("%s() %d  name:%s", __func__, __LINE__, mComponentName);
+    C2AUDIO_LOGI("%s() %d  name:%s", __func__, __LINE__, mComponentName);
     {
         AutoMutex l(mSetUpLock);
         initializeState_l();
@@ -278,18 +273,18 @@ C2AudioFFMPEGDecoder::C2AudioFFMPEGDecoder(
 
 /*coverity[exn_spec_violation]*/
 C2AudioFFMPEGDecoder::~C2AudioFFMPEGDecoder() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d", __func__, __LINE__);
     if (mOutBuffer != NULL) {
         free(mOutBuffer);
         mOutBuffer = NULL;
     }
 
     onRelease();
-    ALOGV("%s() %d  exit", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d  exit", __func__, __LINE__);
 }
 
 void C2AudioFFMPEGDecoder::initializeState_l() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     AutoMutex l(mConfigLock);
     if (load_ffmpeg_decoder_lib()) {
         mAInfo = new AUDIO_INFO_T;
@@ -297,12 +292,12 @@ void C2AudioFFMPEGDecoder::initializeState_l() {
             delete mAInfo;
         }
     } else {
-        ALOGE("%s load_ffmpeg_decoder_lib failed, errno:%s", __func__, strerror(errno));
+        C2AUDIO_LOGE("%s load_ffmpeg_decoder_lib failed, errno:%s", __func__, strerror(errno));
     }
 }
 
 bool C2AudioFFMPEGDecoder::tearDownAudioDecoder_l() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     if ( mAInfo !=NULL ) {
         delete mAInfo;
         mAInfo = NULL;
@@ -319,7 +314,7 @@ bool C2AudioFFMPEGDecoder::tearDownAudioDecoder_l() {
 }
 
 bool C2AudioFFMPEGDecoder::unload_ffmpeg_decoder_lib(){
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     if (ffmpeg_decoder_close != NULL)
         (*ffmpeg_decoder_close)(mCodec);
     mCodec = NULL;
@@ -338,22 +333,22 @@ bool C2AudioFFMPEGDecoder::load_ffmpeg_decoder_lib(){
     memset(&pcm_out_info, 0, sizeof(pcm_out_info));
     gAmFFmpegCodecLibHandler = dlopen("libamffmpegcodec.so", RTLD_NOW);
     if (!gAmFFmpegCodecLibHandler) {
-        LOGE("failed to open ffmpeg decoder lib, %s\n", dlerror());
+        C2AUDIO_LOGE("failed to open ffmpeg decoder lib, %s\n", dlerror());
         goto Error;
     }
     ffmpeg_decoder_init = (int (*)(const char *, AUDIO_INFO *,AmAudioCodec **))dlsym(gAmFFmpegCodecLibHandler, "ffmpeg_decoder_init");
     if (ffmpeg_decoder_init == NULL) {
-        LOGE("find lib err:,%s\n", dlerror());
+        C2AUDIO_LOGE("find lib err:,%s\n", dlerror());
         goto Error;
     }
     ffmpeg_decoder_process = (int (*)(char * ,int ,int *,char *,int *,struct pcm_info *,AmAudioCodec *))dlsym(gAmFFmpegCodecLibHandler, "ffmpeg_decoder_process");
     if (ffmpeg_decoder_process == NULL) {
-        LOGE("find lib err,%s\n", dlerror());
+        C2AUDIO_LOGE("find lib err,%s\n", dlerror());
         goto Error;
     }
     ffmpeg_decoder_close = (int (*)(AmAudioCodec *))dlsym(gAmFFmpegCodecLibHandler, "ffmpeg_decoder_close");
     if (ffmpeg_decoder_close == NULL) {
-        LOGE("find lib err:%s\n", dlerror());
+        C2AUDIO_LOGE("find lib err:%s\n", dlerror());
         goto Error;
     }
     return true;
@@ -372,26 +367,20 @@ bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
     debug_print = 0;
     debug_dump = 0;
     memset(value,0,sizeof(value));
-#ifdef SUPPORT_STANDARD_PROP
-    if ((property_get("vendor.media.codec2.audio.debug",value,NULL) > 0) &&
-#else
-    if ((property_get("media.codec2.audio.debug",value,NULL) > 0) &&
-#endif
+    if ((property_get(C2_PROPERTY_AUDIO_DECODER_DEBUG,value,NULL) > 0) &&
         (!strcmp(value,"1")||!strcmp(value,"true"))) {
         debug_print = 1;
     }
     memset(value,0,sizeof(value));
-#ifdef SUPPORT_STANDARD_PROP
-    if ((property_get("vendor.media.codec2.audio.dump",value,NULL) > 0) &&
-#else
-    if ((property_get("media.codec2.audio.dump",value,NULL) > 0) &&
-#endif
+    if ((property_get(C2_PROPERTY_AUDIO_DECODER_DUMP,value,NULL) > 0) &&
         (!strcmp(value,"1")||!strcmp(value,"true"))) {
         debug_dump = 1;
     }
+    propGetInt(CODEC2_ADEC_LOGDEBUG_PROPERTY, &gloglevel);
+    C2AUDIO_LOGI("%s  debug_print:%d, debug_dump:%d,  gloglevel:%d", __func__, debug_print, debug_dump, gloglevel);
 
     if (NULL == mAInfo ||  NULL == mIntf) {
-        ALOGE("%s  mAInfo or mIntf is null, so exit directly", __func__);
+        C2AUDIO_LOGE("%s  mAInfo or mIntf is null, so exit directly", __func__);
         goto Error;
     }
     mAInfo->extradata_size = mIntf->getExtraDataSize();
@@ -410,36 +399,36 @@ bool C2AudioFFMPEGDecoder::setUpAudioDecoder_l() {
     if ( mAInfo->codec_id == AV_CODEC_ID_ADPCM_IMA_WAV || mAInfo->codec_id == AV_CODEC_ID_ADPCM_MS)
         mAInfo->bitspersample = 4;
 
-    ALOGI("mAInfo codec_id:(0x%x %d) blockalign:%d bitspersample:%d channelCount:%d SampleRate:%d BitRate:%d",
+    C2AUDIO_LOGI("mAInfo codec_id:(0x%x %d) blockalign:%d bitspersample:%d channelCount:%d SampleRate:%d BitRate:%d",
         mAInfo->codec_id, mAInfo->codec_id, mAInfo->blockalign, mAInfo->bitspersample, mIntf->getChannelCount(), mIntf->getSampleRate(), mIntf->getBitRate());
 
     ret = (*ffmpeg_decoder_init)(mMimeType, mAInfo, &mCodec);
-    ALOGI("ffmpeg audio_decode_init return %d", ret);
+    C2AUDIO_LOGI("ffmpeg audio_decode_init return %d", ret);
     return true;
 Error:
     return false;
 }
 
 bool C2AudioFFMPEGDecoder::setUp() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     AutoMutex l(mSetUpLock);
     if (mSetUp) {
-        LOGW("Trying to set up stream when you already have.");
+        C2AUDIO_LOGI("Trying to set up stream when you already have.");
         return false;
     }
 
     if (!setUpAudioDecoder_l()) {
-        LOGE("setUpFFMPEGAudioDecoder_l failed.");
+        C2AUDIO_LOGE("setUpFFMPEGAudioDecoder_l failed.");
         tearDownAudioDecoder_l();
         return false;
     }
-    ALOGI("C2AudioFFMPEGDecoder setUp done\n");
+    C2AUDIO_LOGI("C2AudioFFMPEGDecoder setUp done\n");
     mSetUp = true;
     return true;
 }
 
 bool C2AudioFFMPEGDecoder::tearDown() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     AutoMutex l(mSetUpLock);
     if (mSetUp) {
         tearDownAudioDecoder_l();
@@ -453,18 +442,18 @@ bool C2AudioFFMPEGDecoder::isSetUp() {
 }
 
 c2_status_t C2AudioFFMPEGDecoder::onInit() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d", __func__, __LINE__);
 
     status_t err = initDecoder();
     prevSampleRate = 0;
     prevNumChannels = 0;
 
-    ALOGV("%s() %d exit", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d exit", __func__, __LINE__);
     return err == OK ? C2_OK : C2_CORRUPTED;
 }
 
 c2_status_t C2AudioFFMPEGDecoder::onStop() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d", __func__, __LINE__);
 
     mBuffersInfo.clear();
     mAbortPlaying = true;
@@ -473,7 +462,7 @@ c2_status_t C2AudioFFMPEGDecoder::onStop() {
 }
 
 void C2AudioFFMPEGDecoder::onReset() {
-    ALOGV("%s() %d", __func__, __LINE__);
+    C2AUDIO_LOGI("%s() %d", __func__, __LINE__);
     (void)onStop();
 
     if (ffmpeg_decoder_close != NULL)
@@ -486,15 +475,14 @@ void C2AudioFFMPEGDecoder::onReset() {
         || mAInfo->codec_id == AV_CODEC_ID_ADPCM_MS
         || mAInfo->codec_id == AV_CODEC_ID_COOK) && mComponentName) {
         int ret = (*ffmpeg_decoder_init)(mMimeType, mAInfo, &mCodec);
-        ALOGI("ffmpeg audio_decode_init return %d", ret);
+        C2AUDIO_LOGI("ffmpeg audio_decode_init return %d", ret);
     }
 }
 
 void C2AudioFFMPEGDecoder::onRelease() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     onStop();
     tearDown();//move to here from releaseResources, for SWPL-40408
-    LOG_LINE();
 
     mDecodingErrors = 0;
     mDecodedFrames= 0;
@@ -511,14 +499,14 @@ void C2AudioFFMPEGDecoder::onRelease() {
 }
 
 status_t C2AudioFFMPEGDecoder::initDecoder() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     status_t status = UNKNOWN_ERROR;
 
     if (setUp()) {
     }
 
     if (!isSetUp()) {
-        LOG_LINE();
+        C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
         return C2_OMITTED;
     }
 
@@ -536,7 +524,7 @@ void C2AudioFFMPEGDecoder::drainOutBuffer(
         int numFrames = outInfo.decodedSizes.size();
         int outputDataSize = mOutSize;
         if (debug_print) {
-            ALOGV("%s outputDataSize:%d,  outInfo numFrames:%d,frameIndex = %" PRIu64 "",__func__, outputDataSize, numFrames, outInfo.frameIndex);
+            C2AUDIO_LOGI("%s outputDataSize:%d,  outInfo numFrames:%d,frameIndex = %" PRIu64 "",__func__, outputDataSize, numFrames, outInfo.frameIndex);
         }
 
         std::shared_ptr<C2LinearBlock> block;
@@ -564,7 +552,7 @@ void C2AudioFFMPEGDecoder::drainOutBuffer(
                 size_t bufferSize = mOutSize;
                 c2_status_t err = pool->fetchLinearBlock(bufferSize, usage, &block);
                 if (err != C2_OK) {
-                    ALOGE("failed to fetch a linear block (%d)", err);
+                    C2AUDIO_LOGE("failed to fetch a linear block (%d)", err);
                     return std::bind(fillEmptyWork, _1, C2_NO_MEMORY);
                 }
                 C2WriteView wView = block->map().get();
@@ -595,7 +583,7 @@ void C2AudioFFMPEGDecoder::drainOutBuffer(
         mBuffersInfo.pop_front();
         if (debug_print) {
             /*coverity[use_after_free]*/
-            ALOGV("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
+            C2AUDIO_LOGI("%s  mBuffersInfo is %s, out timestamp %" PRIu64 " / %u", __func__, mBuffersInfo.empty()?"null":"not null", outInfo.timestamp, block ? block->capacity() : 0);
         }
     }
 }
@@ -624,14 +612,14 @@ void C2AudioFFMPEGDecoder::process(
 
 
     if (work->input.flags & C2FrameData::FLAG_CODEC_CONFIG) {
-        ALOGI("ffmpeg_decoder handle csd data!");
+        C2AUDIO_LOGI("ffmpeg_decoder handle csd data!");
         if (NULL != mAInfo) {
             mAInfo->extradata_size = (int32_t)inBuffer_nFilledLen;
             if (inBuffer_nFilledLen > 0) {
                 mAInfo->extradata_size = (int32_t)inBuffer_nFilledLen;
                 memcpy(mAInfo->extradata, inBuffer, inBuffer_nFilledLen);
             }
-            ALOGI("mAInfo codec_id:(0x%x %d) blockalign:%d bitspersample:%d channelCount:%d SampleRate:%d BitRate:%d",
+            C2AUDIO_LOGI("mAInfo codec_id:(0x%x %d) blockalign:%d bitspersample:%d channelCount:%d SampleRate:%d BitRate:%d",
                 mAInfo->codec_id, mAInfo->codec_id, mAInfo->blockalign, mAInfo->bitspersample, mIntf->getChannelCount(), mIntf->getSampleRate(), mIntf->getBitRate());
 
             if (ffmpeg_decoder_close != NULL && mCodec != NULL) {
@@ -640,7 +628,7 @@ void C2AudioFFMPEGDecoder::process(
             }
 
             int ret = (*ffmpeg_decoder_init)(mMimeType, mAInfo, &mCodec);
-            ALOGI("ffmpeg audio_decode_init return %d", ret);
+            C2AUDIO_LOGI("ffmpeg audio_decode_init return %d", ret);
         }
         return;
     }
@@ -652,7 +640,7 @@ void C2AudioFFMPEGDecoder::process(
     inInfo.bufferSize = inBuffer_nFilledLen;
     inInfo.decodedSizes.clear();
     if (debug_print) {
-        ALOGV("%s() inInfo.bufferSize:%zu, frameIndex:%" PRIu64 ", timestamp:%" PRIu64 "", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
+        C2AUDIO_LOGI("%s() inInfo.bufferSize:%zu, frameIndex:%" PRIu64 ", timestamp:%" PRIu64 "", __func__, inInfo.bufferSize, inInfo.frameIndex, inInfo.timestamp);
     }
 
 
@@ -686,16 +674,16 @@ void C2AudioFFMPEGDecoder::process(
             dump("/data/vendor/audiohal/c2_audio_decoded.pcm", (char *)(mOutBuffer+mOutSize), outsize);
         }
         if (debug_print) {
-            ALOGV("%s decoder_buffer:%p  ret:%d  usedsize:%d, inBuffer_nFilledLen:%zu  ----   mOutSize:%d  outsize:%d, pcm_out_info.sample_rate:%d channel_num:%d", __func__,
+            C2AUDIO_LOGI("%s decoder_buffer:%p  ret:%d  usedsize:%d, inBuffer_nFilledLen:%zu  ----   mOutSize:%d  outsize:%d, pcm_out_info.sample_rate:%d channel_num:%d", __func__,
                 decoder_buffer, ret, usedsize, inBuffer_nFilledLen, mOutSize, outsize, pcm_out_info.sample_rate,pcm_out_info.channel_num);
         }
 
         //update out config.
         if (!pcm_out_info.sample_rate || !pcm_out_info.channel_num) {
-            ALOGW("%s Invalid data frame", __func__);
+            C2AUDIO_LOGW("%s Invalid data frame", __func__);
         } else if ((pcm_out_info.sample_rate != prevSampleRate) ||
                    (pcm_out_info.channel_num != prevNumChannels)) {
-            ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
+            C2AUDIO_LOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
                   prevSampleRate, pcm_out_info.sample_rate,
                   prevNumChannels, pcm_out_info.channel_num);
 
@@ -717,7 +705,7 @@ void C2AudioFFMPEGDecoder::process(
                 output.configUpdate.push_back(C2Param::Copy(channelCountInfo));
                 output.configUpdate.push_back(C2Param::Copy(channelMaskInfo));
             } else {
-                ALOGE("Config Update failed");
+                C2AUDIO_LOGE("Config Update failed");
                 work->result = C2_CORRUPTED;
                 return;
             }
@@ -736,7 +724,7 @@ c2_status_t C2AudioFFMPEGDecoder::drainEos(
         uint32_t drainMode,
         const std::shared_ptr<C2BlockPool> &pool,
         const std::unique_ptr<C2Work> &work) {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     bool eos = (drainMode == DRAIN_COMPONENT_WITH_EOS);
 
     drainOutBuffer(work, pool, eos);
@@ -763,20 +751,19 @@ c2_status_t C2AudioFFMPEGDecoder::drainEos(
 c2_status_t C2AudioFFMPEGDecoder::drain(
         uint32_t drainMode,
         const std::shared_ptr<C2BlockPool> &pool) {
-    LOG_LINE();
-
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     return C2_OK;
 }
 
 c2_status_t C2AudioFFMPEGDecoder::onFlush_sm() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
     mBuffersInfo.clear();
 
     return C2_OK;
 }
 
 void C2AudioFFMPEGDecoder::drainDecoder() {
-    LOG_LINE();
+    C2AUDIO_LOGI("%s %d", __FUNCTION__, __LINE__);
 }
 
 // definitions based on android.media.AudioFormat.CHANNEL_OUT_*
@@ -826,7 +813,7 @@ public:
     C2AudioFFMPEGDecFactory(C2String decoderName) : mDecoderName(decoderName),
          mHelper(std::static_pointer_cast<C2ReflectorHelper>(
             GetCodec2VendorComponentStore()->getParamReflector())) {
-            ALOGI("in %s ", __func__);
+            C2AUDIO_LOGI("in %s ", __func__);
     }
 
     virtual c2_status_t createComponent(
@@ -834,7 +821,7 @@ public:
             std::shared_ptr<C2Component>* const component,
             std::function<void(C2Component*)> deleter) override {
             UNUSED(deleter);
-            ALOGI("in %s ", __func__);
+            C2AUDIO_LOGI("in %s ", __func__);
         *component = std::shared_ptr<C2Component>(
                 new C2AudioFFMPEGDecoder(mDecoderName.c_str(),
                               id,
@@ -846,7 +833,7 @@ public:
             c2_node_id_t id, std::shared_ptr<C2ComponentInterface>* const interface,
             std::function<void(C2ComponentInterface*)> deleter) override {
             UNUSED(deleter);
-            ALOGI("in %s ", __func__);
+            C2AUDIO_LOGI("in %s ", __func__);
         *interface = std::shared_ptr<C2ComponentInterface>(
                 new AudioDecInterface<C2AudioFFMPEGDecoder::IntfImpl>(
                         mDecoderName.c_str(), id, std::make_shared<C2AudioFFMPEGDecoder::IntfImpl>(mDecoderName.c_str(), mHelper)));
@@ -889,18 +876,3 @@ CreateC2AudioDecFactory(FFMPEG)
 DestroyC2AudioDecFactory(FFMPEG)
 CreateC2AudioDecFactory(MP2)
 DestroyC2AudioDecFactory(MP2)
-
-#if 0//remove this code
-__attribute__((cfi_canonical_jump_table))
-extern "C" ::C2ComponentFactory* CreateC2AudioDecoderFFMPEGFactory() {
-    ALOGV("in %s", __func__);
-    return new ::android::C2AudioFFMPEGDecFactory();
-}
-
-__attribute__((cfi_canonical_jump_table))
-extern "C" void DestroyC2AudioDecoderFFMPEGFactory(::C2ComponentFactory* factory) {
-    ALOGV("in %s", __func__);
-    delete factory;
-}
-#endif
-
