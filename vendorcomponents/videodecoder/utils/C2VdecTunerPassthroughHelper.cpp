@@ -36,6 +36,7 @@
 enum TRICK_MODE {
     TRICKMODE_SMOOTH = 1, //based on the playback rate of the codec
     TRICKMODE_BY_SEEK, //playback speed is achieved by changing the play position
+    TRICKMODE_I_ONLY, //playback speed is achieved by I frame
     TRICKMODE_MAX,
 };
 
@@ -165,7 +166,7 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
     LockWeakPtrWithReturnVal_WithoutC2Status(comp, mComp, C2_BAD_VALUE);
     LockWeakPtrWithReturnVal_WithoutC2Status(intfImpl, mIntfImpl, C2_BAD_VALUE);
 
-    // int frameAdvance = intfImpl->mVendorTunerPassthroughTrickMode->frameAdvance;
+    int frameAdvance = intfImpl->mVendorTunerPassthroughTrickMode->frameAdvance;
     int mode = intfImpl->mVendorTunerPassthroughTrickMode->trickMode;
     int trickSpeed = intfImpl->mVendorTunerPassthroughTrickMode->trickSpeed;
 
@@ -176,6 +177,8 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
         mode = TRICK_MODE_NONE;
     } else if (mode == TRICKMODE_BY_SEEK) {
         mode = TRICK_MODE_PAUSE_NEXT;
+    } else if (mode == TRICKMODE_I_ONLY) {
+        mode = TRICK_MODE_IONLY;
     } else {
         mode = TRICK_MODE_NONE;
     }
@@ -183,7 +186,12 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setTrickMode() {
     if (trickSpeed == 0)
         trickSpeed = 1000;
 
-    C2VdecTPH_LOG(CODEC2_LOG_INFO, "passthrough trickmode:%d, trickspeed:%d", mode, trickSpeed);
+    C2VdecTPH_LOG(CODEC2_LOG_INFO, "passthrough trickmode:%d, trickspeed:%d, frameAdvance:%d", mode, trickSpeed, frameAdvance);
+
+    if (frameAdvance == 1 && mode == TRICK_MODE_NONE) {
+        C2VdecTPH_LOG(CODEC2_LOG_INFO, "fury step I only frame");
+        return C2_OK;
+    }
 
     mTunerPassthrough->SetTrickMode(mode);
     mTunerPassthrough->SetTrickSpeed(trickSpeed / 1000.f);
