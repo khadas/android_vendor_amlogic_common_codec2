@@ -235,6 +235,7 @@ c2_status_t C2VdecComponent::IntfImpl::config(
             case C2VendorGameModeLatency::CORE_INDEX:
                 CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d]config game mode latency",
                     mComponent->mSessionID, mComponent->mDecoderID);
+                break;
             case C2VendorTunerPassthroughMute::CORE_INDEX:
                 onTunerPassthroughMuteConfigParam();
                 break;
