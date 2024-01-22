@@ -42,7 +42,7 @@ namespace android {
 
 constexpr char COMPONENT_NAME[] = "c2.amlogic.hevc.encoder";
 
-#define C2W420_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
+#define C2W420_LOG(level, fmt, str...) CODEC2_VENC_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
 #define true 1
 uint32_t C2VencW420New::mInstanceID = 0;
 #define SUPPORT_DMA 1
@@ -685,7 +685,10 @@ C2VencW420New::C2VencW420New(const char *name, c2_node_id_t id, const std::share
               mFrameRateValue(0) {
     ALOGD("C2VencW420New constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_ONLY_VENC_LOGDEBUG_PROPERTY,&gloglevel_encoder);
     ALOGD("gloglevel:%x",gloglevel);
+    ALOGD("gloglevel_encoder:%x",gloglevel_encoder);
+    compute_venc_loglevel();
     sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
     mInstanceID++;
     mSyncFramePeriod=NULL;

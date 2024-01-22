@@ -30,7 +30,7 @@ stPicSize C2VencComp::IntfImpl::mMaxSize;
 const C2String kComponentLoadMediaProcessLibrary = "lib_encoder_media_process.so";
 
 
-#define C2Venc_IntfImpl_Log(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
+#define C2Venc_IntfImpl_Log(level, fmt, str...) CODEC2_VENC_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
 
 #define SUPPORT_DMA   1  //support dma mode or not
 constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;

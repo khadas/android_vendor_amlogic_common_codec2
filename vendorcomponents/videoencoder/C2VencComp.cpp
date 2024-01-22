@@ -53,7 +53,7 @@ const C2String kComponentLoadMediaProcessLibrary = "lib_encoder_media_process.so
 
 #define OUTPUT_BUFFERSIZE_MIN (5 * 1024 * 1024)
 
-#define C2Venc_LOG(level, fmt, str...) CODEC2_LOG(level, fmt, ##str)
+#define C2Venc_LOG(level, fmt, str...) CODEC2_VENC_LOG(level, fmt, ##str)
 
 class C2VencComp::BlockingBlockPool : public C2BlockPool {
 public:
@@ -140,8 +140,10 @@ C2VencComp::C2VencComp(const char *name, c2_node_id_t id, const std::shared_ptr<
                   DestroyMethod(NULL) {
     ALOGD("C2VencComponent constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_ONLY_VENC_LOGDEBUG_PROPERTY,&gloglevel_encoder);
     ALOGD("gloglevel:%x",gloglevel);
     ALOGD("mOutBufferSize:%d",mOutBufferSize);
+    compute_venc_loglevel();
     Load();
     sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
     mAmlVencInst->SetVencParamInst(mIntfImpl->GetVencParam());

@@ -6,6 +6,7 @@
 #include <utils/Vector.h>
 #include <C2VencComponent.h>
 #include "vp_hevc_codec_1_0.h"
+#include <C2VencLogDebug.h>
 
 
 namespace android {

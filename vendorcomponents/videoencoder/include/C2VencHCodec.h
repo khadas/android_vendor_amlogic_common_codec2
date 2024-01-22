@@ -8,6 +8,7 @@
 #include <C2VendorDebug.h>
 #include <C2VencComponent.h>
 #include "vpcodec_1_0.h"
+#include <C2VencLogDebug.h>
 
 
 namespace android {

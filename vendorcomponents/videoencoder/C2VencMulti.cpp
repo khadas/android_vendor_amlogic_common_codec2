@@ -47,7 +47,7 @@ namespace android {
 constexpr char COMPONENT_NAME[] = "c2.amlogic.avc.encoder";
 constexpr char COMPONENT_NAME_HEVC[] = "c2.amlogic.hevc.encoder";
 
-#define C2MULTI_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
+#define C2MULTI_LOG(level, fmt, str...) CODEC2_VENC_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
 uint32_t C2VencMulti::mInstanceID = 0;
 
 #define SUPPORT_DMA   1  //support dma mode or not

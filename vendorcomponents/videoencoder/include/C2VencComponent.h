@@ -25,6 +25,7 @@
 #include "ThreadWorker.h"
 #include <media/stagefright/foundation/Mutexed.h>
 #include <am_gralloc_ext.h>
+#include <C2VencLogDebug.h>
 
 //#include <base/macros.h>
 //#include <base/memory/ref_counted.h>

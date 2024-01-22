@@ -289,6 +289,7 @@ void DefaultDebugger::debug(list<string> cmds) {
             logLevel.erase(logLevel.find_last_not_of(" \n\r\t")+1);
             ALOGD("set log level to %s", logLevel.c_str());
             property_set(CODEC2_LOGDEBUG_PROPERTY, logLevel.c_str());
+            property_set(CODEC2_ONLY_VENC_LOGDEBUG_PROPERTY, logLevel.c_str());
         } else {
             ALOGE("unknown debug command %s", cmd.c_str());
         }
