@@ -48,7 +48,7 @@ namespace android {
 
 constexpr char COMPONENT_NAME[] = "c2.amlogic.avc.encoder";
 
-#define C2HCodec_LOG(level, fmt, str...) CODEC2_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
+#define C2HCodec_LOG(level, fmt, str...) CODEC2_VENC_LOG(level, "[##%d##]"#fmt, mInstanceID, ##str)
 
 uint32_t C2VencHCodec::mInstanceID = 0;
 
@@ -736,7 +736,10 @@ C2VencHCodec::C2VencHCodec(const char *name, c2_node_id_t id, const std::shared_
               mBitRate(0) {
     ALOGD("C2VencHCodec constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_ONLY_VENC_LOGDEBUG_PROPERTY,&gloglevel_encoder);
     ALOGD("gloglevel:%x",gloglevel);
+    ALOGD("gloglevel_encoder:%x",gloglevel_encoder);
+    compute_venc_loglevel();
     sConcurrentInstances.fetch_add(1, std::memory_order_relaxed);
     mInstanceID++;
 }

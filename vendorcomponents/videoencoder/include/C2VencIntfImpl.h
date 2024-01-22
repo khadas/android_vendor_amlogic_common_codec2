@@ -5,6 +5,7 @@
 #include <SimpleC2Interface.h>
 #include <util/C2InterfaceHelper.h>
 #include "AmlVencParamIntf.h"
+#include <C2VencLogDebug.h>
 
 
 namespace android {

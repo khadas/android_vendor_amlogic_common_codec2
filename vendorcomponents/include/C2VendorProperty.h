@@ -23,6 +23,7 @@
 #define CODEC2_VENC_LOGDEBUG_PROPERTY               CODEC2_LOGDEBUG_PROPERTY
 #define CODEC2_ADEC_LOGDEBUG_PROPERTY               CODEC2_LOGDEBUG_PROPERTY
 
+#define CODEC2_ONLY_VENC_LOGDEBUG_PROPERTY          "vendor.media.c2.encoder.loglevels"
 /* store */
 #define C2_PROPERTY_VDEC_SUPPORT                    "vendor.media.c2.vdec.support"
 #define C2_PROPERTY_SOFTVDEC_SUPPORT                "vendor.media.c2.softvdec.support"

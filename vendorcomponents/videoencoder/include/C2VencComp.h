@@ -25,6 +25,7 @@
 #include "ThreadWorker.h"
 #include <media/stagefright/foundation/Mutexed.h>
 #include "AmlVencInstIntf.h"
+#include <C2VencLogDebug.h>
 
 namespace android {
 

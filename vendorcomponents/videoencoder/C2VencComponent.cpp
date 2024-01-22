@@ -50,7 +50,7 @@ namespace android {
 #define USE_CONTINUES_PHYBUFF(h) (am_gralloc_get_usage(h) & GRALLOC_USAGE_HW_VIDEO_ENCODER)
 #define align_32(x)  ((((x)+31)>>5)<<5)
 
-#define C2Venc_LOG(level, fmt, str...) CODEC2_LOG(level, fmt, ##str)
+#define C2Venc_LOG(level, fmt, str...) CODEC2_VENC_LOG(level, fmt, ##str)
 
 #define kMetadataBufferTypeCanvasSource 3
 #define kMetadataBufferTypeANWBuffer 2
@@ -187,7 +187,10 @@ C2VencComponent::C2VencComponent(const std::shared_ptr<C2ComponentInterface> &in
                   mDumpEsEnable(false) {
     ALOGD("C2VencComponent constructor!");
     propGetInt(CODEC2_VENC_LOGDEBUG_PROPERTY, &gloglevel);
+    propGetInt(CODEC2_ONLY_VENC_LOGDEBUG_PROPERTY,&gloglevel_encoder);
     ALOGD("gloglevel:%x",gloglevel);
+    ALOGD("gloglevel_encoder:%x",gloglevel_encoder);
+    compute_venc_loglevel();
     ALOGD("mOutBufferSize:%d",mOutBufferSize);
 }
 
