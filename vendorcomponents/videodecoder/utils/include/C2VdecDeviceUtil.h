@@ -102,8 +102,9 @@ public:
     bool isColorAspectsChanged();
 
     //int check_color_aspects();
+
     uint64_t getPlatformUsage();
-    uint32_t getOutAlignedSize(uint32_t size, bool forceAlign = false);
+    uint32_t getOutAlignedSize(uint32_t size, bool align64 = false,bool forceAlign = false);
     bool needAllocWithMaxSize();
     bool isReallocateOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
                                  bool *sizechange, bool *buffernumincrease);
@@ -121,6 +122,9 @@ public:
     // bit depth
     void queryStreamBitDepth();
     uint32_t getStreamPixelFormat(uint32_t pixelFormat);
+
+    // decoder width / height align type
+    int32_t getDecoderWidthAlign();
 
     uint64_t getLastOutputPts();
     void setLastOutputPts(uint64_t);
@@ -213,6 +217,7 @@ private:
 
     int32_t mMarginBufferNum;
     int32_t mStreamBitDepth;
+    int32_t mDecoderWidthAlign;
     uint32_t mBufferWidth;
     uint32_t mBufferHeight;
     int32_t mMemcMode;

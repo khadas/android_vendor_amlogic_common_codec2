@@ -41,7 +41,8 @@
 
 #define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d]"#fmt, comp->mSessionID, comp->mDecoderID, ##str)
 
-#define OUTPUT_BUFS_ALIGN_SIZE (64)
+#define OUTPUT_BUFS_ALIGN_SIZE_32 (32)
+#define OUTPUT_BUFS_ALIGN_SIZE_64 (64)
 #define min(a, b) (((a) > (b))? (b):(a))
 
 namespace android {
@@ -333,6 +334,36 @@ uint32_t C2VdecComponent::DeviceUtil::getStreamPixelFormat(uint32_t pixelFormat)
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s-%d IsYcbRP010Stream:%d IsNeedYcbRP010OutBuffer:%d format:%d",__func__, __LINE__,
                     mIsYcbRP010Stream, mIsNeedUse10BitOutBuffer, format);
     return format;
+}
+
+int32_t C2VdecComponent::DeviceUtil::getDecoderWidthAlign() {
+    LockWeakPtrWithReturnVal(comp, mComp, -1);
+    mVideoDecWraper = comp->getCompVideoDecWraper();
+    LockWeakPtrWithReturnVal(wraper, mVideoDecWraper, -1);
+
+    if (mDecoderWidthAlign != -1) {
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "return queried decoder width align(%d) directly.", mDecoderWidthAlign);
+        return mDecoderWidthAlign;
+    }
+
+    int32_t widthAlign = -1;
+    AmlMessageBase *msg = VideoDecWraper::AmVideoDec_getAmlMessage();
+    if (msg != NULL) {
+        msg->setInt32("widthalign", widthAlign);
+        wraper->postAndReplyMsg(msg);
+        msg->findInt32("widthalign", &widthAlign);
+        if (widthAlign == 32 || widthAlign == 64) {
+            mDecoderWidthAlign = widthAlign;
+            C2VdecMDU_LOG(CODEC2_LOG_INFO, "Query the decoder width align(%d) success.", widthAlign);
+        } else {
+            C2VdecMDU_LOG(CODEC2_LOG_ERR, "Query the decoder width align failed.");
+        }
+    }
+
+    if (msg != NULL)
+        delete msg;
+
+    return mDecoderWidthAlign;
 }
 
 bool C2VdecComponent::DeviceUtil::paramsPreCheck(std::shared_ptr<C2VdecComponent::IntfImpl> intfImpl) {
@@ -1344,20 +1375,27 @@ bool C2VdecComponent::DeviceUtil::checkSupport8kMode() {
     return true;
 }
 
-uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forceAlign) {
+uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool align64, bool forceAlign) {
     LockWeakPtrWithReturnVal(comp, mComp, 0);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, 0);
+    int align = getDecoderWidthAlign();
+    if (align != OUTPUT_BUFS_ALIGN_SIZE_32 && align != OUTPUT_BUFS_ALIGN_SIZE_64) {
+        align = OUTPUT_BUFS_ALIGN_SIZE_64;
+    }
+    if (align64 == true) {
+        align = OUTPUT_BUFS_ALIGN_SIZE_64;
+    }
     if ((mSecure && intfImpl->getInputCodec() == InputCodec::H264) || forceAlign)
-        return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
+        return (size + align - 1) & (~(align - 1));
 
     if (mNoSurface) {
-        return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
+        return (size + align - 1) & (~(align - 1));
     }
     //fixed cl:371156 regression
     if (intfImpl->getInputCodec() == InputCodec::H264
         && getDoubleWriteModeValue() == 3
         && mEnableAvc4kMMU) {
-        return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
+        return (size + align - 1) & (~(align - 1));
     }
     return size;
 }

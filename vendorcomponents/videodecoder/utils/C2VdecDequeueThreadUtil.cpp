@@ -253,8 +253,8 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         C2Fence fence;
 
         CODEC2_ATRACE_BEGIN("fetchGraphicBlock");
-        err = blockPoolUtil->fetchGraphicBlock(deviceUtil->getOutAlignedSize(size.width()),
-                                        deviceUtil->getOutAlignedSize(size.height()),
+        err = blockPoolUtil->fetchGraphicBlock(deviceUtil->getOutAlignedSize(size.width(), false),
+                                        deviceUtil->getOutAlignedSize(size.height(), true),
                                         format, usage, &block,&fence);
         CODEC2_ATRACE_END();
     }
