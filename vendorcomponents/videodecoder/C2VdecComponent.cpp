@@ -925,8 +925,8 @@ void C2VdecComponent::onOutputBufferReturned(std::shared_ptr<C2GraphicBlock> blo
 
     if ((block->width() != static_cast<uint32_t>(mOutputFormat.mCodedSize.width()) ||
         block->height() != static_cast<uint32_t>(mOutputFormat.mCodedSize.height())) &&
-        (block->width() != mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width(), true) ||
-        block->height() != mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true))) {
+        (block->width() != mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width(), false, true) ||
+        block->height() != mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true, true))) {
         // Output buffer is returned after we changed output resolution. Just let the buffer be
         // released.
         C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Discard obsolete graphic block: poolId=%u", poolId);
@@ -1010,7 +1010,7 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
     }
     if (getVideoResolutionChanged()) {
         if ((mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width()) == block->width() &&
-             mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height()) == block->height())) {
+             mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true) == block->height())) {
             appendOutputBuffer(std::move(block), poolId, blockId, true);
             GraphicBlockInfo *info = getGraphicBlockByBlockId(poolId, blockId);
             if (info == nullptr) {
@@ -1028,8 +1028,8 @@ void C2VdecComponent::onNewBlockBufferFetched(std::shared_ptr<C2GraphicBlock> bl
     } else {
         if ((mOutputFormat.mCodedSize.width() == block->width() &&
              mOutputFormat.mCodedSize.height() == block->height()) ||
-            (mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width(), true) == block->width() &&
-             mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true) == block->height())){
+            (mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.width(), false, true) == block->width() &&
+             mDeviceUtil->getOutAlignedSize(mOutputFormat.mCodedSize.height(), true, true) == block->height())){
             C2Vdec_LOG(CODEC2_LOG_TAG_BUFFER, "Current resolution (%d*%d) new block(%d*%d) and add it",
                 mOutputFormat.mCodedSize.width(), mOutputFormat.mCodedSize.height(), block->width(), block->height());
             appendOutputBuffer(std::move(block), poolId, blockId, true);
@@ -2366,7 +2366,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
             C2Fence fence;
             auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
-                                               mDeviceUtil->getOutAlignedSize(size.height()),
+                                               mDeviceUtil->getOutAlignedSize(size.height(),true),
                                                format, usage, &block, &fence);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Allocate buffer timeout, %d retry time(s) left...", retries_left);
@@ -2515,7 +2515,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
             auto format = mDeviceUtil->getStreamPixelFormat(pixelFormat);
             C2Fence fence;
             err = mBlockPoolUtil->fetchGraphicBlock(mDeviceUtil->getOutAlignedSize(size.width()),
-                                            mDeviceUtil->getOutAlignedSize(size.height()),
+                                            mDeviceUtil->getOutAlignedSize(size.height(),true),
                                             format, usage, &block, &fence);
             if (err == C2_TIMED_OUT && retries_left > 0) {
                 C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Allocate buffer timeout, %d retry time(s) left...", retries_left);

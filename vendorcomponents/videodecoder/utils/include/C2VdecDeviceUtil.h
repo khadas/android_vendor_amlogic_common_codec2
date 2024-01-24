@@ -105,7 +105,7 @@ public:
 
     //int check_color_aspects();
     uint64_t getPlatformUsage(const media::Size& size);
-    uint32_t getOutAlignedSize(uint32_t size, bool forceAlign = false);
+    uint32_t getOutAlignedSize(uint32_t size, bool align64 = false,bool forceAlign = false);
     bool isNeedMaxSizeForAvc(int32_t doubleWrite);
     bool needAllocWithMaxSize();
     bool isReallocateOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,

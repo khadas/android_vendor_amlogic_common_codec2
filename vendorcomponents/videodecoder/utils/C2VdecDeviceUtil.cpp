@@ -41,7 +41,8 @@
 
 #define C2VdecMDU_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d]"#fmt, comp->mSessionID, comp->mDecoderID, ##str)
 
-#define OUTPUT_BUFS_ALIGN_SIZE (64)
+#define OUTPUT_BUFS_ALIGN_SIZE_32 (32)
+#define OUTPUT_BUFS_ALIGN_SIZE_64 (64)
 #define min(a, b) (((a) > (b))? (b):(a))
 
 namespace android {
@@ -1230,20 +1231,27 @@ bool C2VdecComponent::DeviceUtil::checkSupport8kMode() {
     return true;
 }
 
-uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool forceAlign) {
+uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool align64, bool forceAlign) {
     LockWeakPtrWithReturnVal(comp, mComp, 0);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, 0);
+    int align = getDecoderWidthAlign();
+    if (align != OUTPUT_BUFS_ALIGN_SIZE_32 && align != OUTPUT_BUFS_ALIGN_SIZE_64) {
+        align = OUTPUT_BUFS_ALIGN_SIZE_64;
+    }
+    if (align64 == true) {
+        align = OUTPUT_BUFS_ALIGN_SIZE_64;
+    }
     if ((mSecure && intfImpl->getInputCodec() == InputCodec::H264) || forceAlign)
-        return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
+        return (size + align - 1) & (~(align - 1));
 
     if (mNoSurface) {
-        return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
+        return (size + align - 1) & (~(align - 1));
     }
     //fixed cl:371156 regression
     if (intfImpl->getInputCodec() == InputCodec::H264
         && getDoubleWriteModeValue() == 3
         && mEnableAvc4kMMU) {
-        return (size + OUTPUT_BUFS_ALIGN_SIZE - 1) & (~(OUTPUT_BUFS_ALIGN_SIZE - 1));
+        return (size + align - 1) & (~(align - 1));
     }
     return size;
 }
