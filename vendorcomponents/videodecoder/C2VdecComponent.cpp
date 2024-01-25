@@ -107,6 +107,9 @@ const char *MEDIA_MIMETYPE_VIDEO_AVS2 = "video/avs2";
 const char *MEDIA_MIMETYPE_VIDEO_AVS3 = "video/avs3";
 const char *MEDIA_MIMETYPE_VIDEO_VC1 = "video/vc1";
 
+const char *MEDIA_MIMETYPE_DOLBYVISION_HEVC_TUNER_PASSTHROUGH = "video/dolby-vision-hevc";
+const char *MEDIA_MIMETYPE_DOLBYVISION_AVC_TUNER_PASSTHROUGH = "video/dolby-vision-avc";
+
 namespace android {
 
 namespace {
@@ -3859,6 +3862,10 @@ void C2VdecComponent::onConfigureTunerPassthroughMode() {
         mime = MEDIA_MIMETYPE_VIDEO_AVS;
     } else if (componentName.find("mjpeg") != std::string::npos) {
         mime = MEDIA_MIMETYPE_VIDEO_MJPEG;
+    } else if (componentName.find("dvhe") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_DOLBYVISION_HEVC_TUNER_PASSTHROUGH;
+    } else if (componentName.find("dvav") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_DOLBYVISION_AVC_TUNER_PASSTHROUGH;
     } else {
         C2Vdec_LOG(CODEC2_LOG_ERR, "ConfigureTunerPassthroughMode mime unknown: %s", componentName.c_str());
     }
