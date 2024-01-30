@@ -1688,7 +1688,7 @@ void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size
             if (intfImpl->mVdecWorkMode->value == VDEC_STREAMMODE || mUnstablePts) {
                 mDurationUs = dur;
                 mFramerate = (96000 * 1.0 / durationData);
-                if (oldDur != mDurationUs) {
+                if (oldDur != mDurationUs && (0.5 <= durStep && durStep <= 1.5)) {
                     setDuration();
                 }
                 C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
