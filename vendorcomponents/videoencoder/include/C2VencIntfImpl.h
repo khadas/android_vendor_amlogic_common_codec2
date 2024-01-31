@@ -112,6 +112,7 @@ private:
     bool Load();
     void unLoad();
 public:
+    static stPicSize mMaxSize;
     void ParamUpdate();
     static bool VencParamChangeListener(void *pInst,stParamChangeIndex Index,void *pParam);
 };
