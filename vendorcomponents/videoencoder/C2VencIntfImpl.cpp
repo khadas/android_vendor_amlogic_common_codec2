@@ -24,6 +24,9 @@
 namespace android {
 
 
+stPicSize C2VencComp::IntfImpl::mMaxSize;
+
+
 const C2String kComponentLoadMediaProcessLibrary = "lib_encoder_media_process.so";
 
 
@@ -395,19 +398,19 @@ IAmlVencParam *C2VencComp::IntfImpl::GetVencParam() {
 
 void C2VencComp::IntfImpl::onSizeParam(C2String mimetype) {
     stPicSize MinSize;
-    stPicSize MaxSize;
+    //stPicSize MaxSize;
     stPicAlign align;
     memset(&MinSize,0,sizeof(MinSize));
-    memset(&MaxSize,0,sizeof(MaxSize));
+    memset(&mMaxSize,0,sizeof(mMaxSize));
     memset(&align,0,sizeof(align));
 
-    mAmlVencParam->GetSizeLimit(MinSize, MaxSize, align);
+    mAmlVencParam->GetSizeLimit(MinSize, mMaxSize, align);
     addParameter(
             DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
             .withDefault(new C2StreamPictureSizeInfo::input(0u, MinSize.width, MinSize.height))
             .withFields({
-                C2F(mSize, width).inRange(MinSize.width, MaxSize.width, align.width/*(mimetype == MEDIA_MIMETYPE_VIDEO_AVC) ? 2 : 8*/),
-                C2F(mSize, height).inRange(MinSize.height, MaxSize.height, align.height),
+                C2F(mSize, width).inRange(MinSize.width, mMaxSize.width, align.width/*(mimetype == MEDIA_MIMETYPE_VIDEO_AVC) ? 2 : 8*/),
+                C2F(mSize, height).inRange(MinSize.height, mMaxSize.width, align.height),
             })
             .withSetter(SizeSetter)
             .build());
@@ -510,6 +513,11 @@ C2R C2VencComp::IntfImpl::SizeSetter(bool mayBlock, const C2P<C2StreamPictureSiz
     (void)mayBlock;
     C2R res = C2R::Ok();
     ALOGD("SizeSetter oldwidth:%d,oldheight:%d,newwidth:%d,newheight:%d",oldMe.v.width,oldMe.v.height,me.v.width,me.v.height);
+    if (me.v.width * me.v.height > mMaxSize.width * mMaxSize.height) {
+        res = res.plus(C2SettingResultBuilder::BadValue(me.F(me.v.width)));
+        me.set().width = oldMe.v.width;
+        ALOGD("SizeSetter check max width & height failed");
+    }
     if (!me.F(me.v.width).supportsAtAll(me.v.width)) {
         res = res.plus(C2SettingResultBuilder::BadValue(me.F(me.v.width)));
         me.set().width = oldMe.v.width;
