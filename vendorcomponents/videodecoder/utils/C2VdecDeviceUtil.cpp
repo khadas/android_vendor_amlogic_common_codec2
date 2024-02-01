@@ -1349,42 +1349,48 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
     LockWeakPtrWithReturnVal(comp, mComp, false);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
     bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    uint32_t maxWidth = 0;
+    uint32_t maxHeight = 0;
+    do {
+        if (support_4k) {
+            if (mIs8k) {
+                maxWidth = kMaxWidth8k;
+                maxHeight = kMaxHeight8k;
+                break;
+            }
+            //mpeg2 and mpeg4 default size is 1080p
+            if ((intfImpl->getInputCodec() == InputCodec::MP2V ||
+                intfImpl->getInputCodec() == InputCodec::MP4V)
+                ) {
+                if (width * height <= kMaxWidth1080p * kMaxHeight1080p) {
+                    maxWidth = kMaxWidth1080p;
+                    maxHeight = kMaxHeight1080p;
+                } else if (width * height <= kMaxWidth4k * kMaxHeight4k) {
+                    maxWidth = kMaxWidth4k;
+                    maxHeight = kMaxHeight4k;
+                }
+            } else {
+                maxWidth = kMaxWidth4k;
+                maxHeight = kMaxHeight4k;
+            }
+            //264 and 265 interlace stream
+            if ((intfImpl->getInputCodec() == InputCodec::H265 ||
+                intfImpl->getInputCodec() == InputCodec::H264) && mIsInterlaced) {
+                maxWidth = kMaxWidth1080p;
+                maxHeight = kMaxHeight1080p;
+            }
+        } else {
+            maxWidth = kMaxWidth1080p;
+            maxHeight = kMaxHeight1080p;
+        }
+    } while (0);
 
-    if (support_4k) {
-        if (mIs8k) {
-            width = kMaxWidth8k;
-            height = kMaxHeight8k;
-            return true;
-        }
-        //mpeg2 and mpeg4 default size is 1080p
-        if ((intfImpl->getInputCodec() == InputCodec::MP2V ||
-            intfImpl->getInputCodec() == InputCodec::MP4V)
-            ) {
-             if (width * height <= kMaxWidth1080p * kMaxHeight1080p) {
-                width = kMaxWidth1080p;
-                height = kMaxHeight1080p;
-             } else if (width * height <= kMaxWidth4k * kMaxHeight4k) {
-                width = kMaxWidth4k;
-                height = kMaxHeight4k;
-             }
-        } else {
-            width = kMaxWidth4k;
-            height = kMaxHeight4k;
-        }
-        //264 and 265 interlace stream
-        if ((intfImpl->getInputCodec() == InputCodec::H265 ||
-            intfImpl->getInputCodec() == InputCodec::H264) && mIsInterlaced) {
-            width = kMaxWidth1080p;
-            height = kMaxHeight1080p;
-        }
+    if (height > width && maxWidth > 0) {
+        width = maxHeight;
+        height = maxWidth;
     } else {
-        if (height > width) {
-            width = kMaxHeight1080p;
-            height = kMaxWidth1080p;
-        } else {
-            width = kMaxWidth1080p;
-            height = kMaxHeight1080p;
-        }
+        width = maxWidth;
+        height = maxHeight;
     }
     return true;
 }
