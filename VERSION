@@ -2,6 +2,51 @@ Major_V=2
 Minor_V=4
 BaseCommitId=bd49dec5200f1574cc66024f62e62a0b515c36d4
 
+#Release_ChangeId_V2_4=I066e39dd2279301239156cf4eb6319397ae29d02
+#CommitId:fdb039b488e1d1d393b3ff0cac5fdf57ca8fc1a1
+#V2.4.34-gfdb039b ReleaseNote
+#What's New
+# Video Decoder
+#  Using Gralloc Extension API Version 2 if supported
+#  Use dumpsys to pass debug commands to codec2.
+#  Add use 10-bit P010 for DV
+#  Check display support for 8k and use it if available
+#  H265 8bit interlaced streams use double write 16
+#  Read and parse decoder feature info
+#  Support using 540p_buffer configuration.
+#  Add enable LLP  mode by setting property vendor.media.llp
+# Video Encoder
+#  Debug level needs refactoring with the unified log level.
+# Audio Decoder
+#  Unify Audio decoder logs to follow codec2
+#Bug Fixes
+# Video Decoder
+#  The crop value is set error
+#  BufferSizeDeclareParam use mediacodec xml value
+#  Delete gralloc header from android bp
+#  Modify for fixed coverity issue
+#  Open replace buf function for android t.
+#  Reduce first buffer number to start quickly for lowlatency mode
+#  Fixed queue outbuf to vdec error.
+#  Solve stuck caused by incorrect duration.
+#  Limit profile level
+#  Change import function name.
+#  Fix crash in low latency mode
+#  FIxed WvtsDeviceTestCases 1 fail
+#  Resolve no HLG effect when playing HLG video
+#  Resolve the issue of avs/avs2 playback failure
+# Video Encoder
+#  Fix codec2 new coverity problem.
+#  Fixed codec2 coverity problem.
+#  Add max resolution for Vertical screen.
+#  Adjust profile & level support range.
+#  Fix the long time wait when stop.
+#  Add max support instance for bluebell.
+#  Fix vts fail on t7c/blubell.
+# Tunnerpassthrough
+#  Add CBS params control interface
+#  TunerPassthrough config failed
+
 #Release_ChangeId_V2_3=I423a52056e7b077719c93181615080306709ae25
 #CommitId:a459fdaf7eb6323888db85ea0dea4fa7758dbf39
 #V2.3.14-ga459fda ReleaseNote
