@@ -98,6 +98,7 @@
 #define PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010     "ro.vendor.platform.support.hardware_10bit"
 #define PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010     "ro.vendor.platform.support.software_10bit"
 #define PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE       "ro.vendor.platform.support.8k.buffer_mode"
+#define PROPERTY_PLATFORM_SUPPORT_HDR               "ro.vendor.platform.support.hdr"
 
 /* vdec property set */
 #define C2_PROPERTY_COMMON_LOWLATENCY_MODE          "vendor.media.llp"

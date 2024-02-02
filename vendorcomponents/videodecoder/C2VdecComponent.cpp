@@ -816,7 +816,7 @@ void C2VdecComponent::onDequeueWork() {
                     break;
             }
         }
-        if (!isHdr10PlusInfoWithWork) {
+        if (mIntfImpl->mIsSupportHdr && !isHdr10PlusInfoWithWork) {
             if (hdrInfo != nullptr) {
                 hdr10plusBuf = hdrInfo->m.data;
                 hdr10plusLen = hdrInfo->flexCount();
@@ -1370,15 +1370,15 @@ void C2VdecComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
         buffer->setInfo(mCurrentColorAspects);
     }
     /* update hdr static info */
-    if (mDeviceUtil->isHDRStaticInfoUpdated()) {
+    if (mIntfImpl->mIsSupportHdr && mDeviceUtil->isHDRStaticInfoUpdated()) {
         updateHDRStaticInfo();
     }
-    if (mCurrentHdrStaticInfo) {
+    if (mIntfImpl->mIsSupportHdr && mCurrentHdrStaticInfo) {
         buffer->setInfo(mCurrentHdrStaticInfo);
     }
 
     /* update hdr10 plus info */
-    if (mDeviceUtil->isHDR10PlusStaticInfoUpdated()) {
+    if (mIntfImpl->mIsSupportHdr && mDeviceUtil->isHDR10PlusStaticInfoUpdated()) {
         updateHDR10PlusInfo();
     }
 

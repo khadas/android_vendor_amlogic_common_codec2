@@ -196,6 +196,7 @@ private:
     C2VdecComponent *mComponent;
     bool mSecureMode;
     bool mIsSupport4k;
+    bool mIsSupportHdr;
     friend C2VdecComponent;
 
     // Declare the format configuration parameters according to different formats.
