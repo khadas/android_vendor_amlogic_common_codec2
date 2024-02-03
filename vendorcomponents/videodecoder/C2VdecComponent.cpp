@@ -102,6 +102,11 @@ uint32_t android::C2VdecComponent::mInstanceID = 0;
 
 using android::hardware::graphics::common::V1_0::BufferUsage;
 
+const char *MEDIA_MIMETYPE_VIDEO_AVS = "video/avs";
+const char *MEDIA_MIMETYPE_VIDEO_AVS2 = "video/avs2";
+const char *MEDIA_MIMETYPE_VIDEO_AVS3 = "video/avs3";
+const char *MEDIA_MIMETYPE_VIDEO_VC1 = "video/vc1";
+
 namespace android {
 
 namespace {
@@ -3829,9 +3834,41 @@ void C2VdecComponent::onConfigureTunerPassthroughMode() {
         mTunerPassthroughHelper.reset();
         mTunerPassthroughHelper = NULL;
     }
-    mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper);
+
+    C2String componentName = mName;
+    const char *mime = "";
+    if (componentName.find("avc") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVC;
+    } else if (componentName.find("hevc") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_HEVC;
+    } else if (componentName.find("vp9") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_VP9;
+    } else if (componentName.find("av1") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AV1;
+    } else if (componentName.find("mpeg4") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_MPEG4;
+    } else if (componentName.find("mpeg2") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_MPEG2;
+    } else if (componentName.find("vc1") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_VC1;
+    } else if (componentName.find("avs2") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVS2;
+    } else if (componentName.find("avs3") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVS3;
+    } else if (componentName.find("avs") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVS;
+    } else if (componentName.find("mjpeg") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_MJPEG;
+    } else {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "ConfigureTunerPassthroughMode mime unknown: %s", componentName.c_str());
+    }
+
+    C2Vdec_LOG(CODEC2_LOG_INFO, "ConfigureTunerPassthroughMode mime: %s", mime);
+
+    mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(mSecureMode, mime, mTunnelHelper);
     addObserver(mTunerPassthroughHelper, static_cast<int>(mComponentState), mCompHasError);
     mTunerPassthroughHelper->setComponent(shared_from_this());
+
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
     mSyncType |= C2_SYNC_TYPE_PASSTHROUGH;
 }
