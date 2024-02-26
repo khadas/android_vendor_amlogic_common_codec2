@@ -113,9 +113,7 @@ public:
     bool getMaxBufWidthAndHeight(uint32_t &width, uint32_t &height);
     bool getUvmMetaData(int fd,unsigned char *data,int *size);
     void parseAndProcessMetaData(unsigned char *data, int size, C2Work& work);
-    bool parseAndProcessDuration(unsigned char *data, int size);
     void updateHDR10plusToWork(unsigned char *data, int size, C2Work& work);
-    void updateDurationUs(unsigned char *data, int size);
     bool getHDR10PlusData(std::string &data);
     void setHDRStaticColorAspects(std::shared_ptr<C2StreamColorAspectsInfo::output> coloraspect);
     int32_t getDoubleWriteModeValue();

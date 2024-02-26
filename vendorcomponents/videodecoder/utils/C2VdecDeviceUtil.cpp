@@ -347,7 +347,7 @@ int32_t C2VdecComponent::DeviceUtil::getDecoderWidthAlign() {
     LockWeakPtrWithReturnVal(wraper, mVideoDecWraper, -1);
 
     if (mDecoderWidthAlign != -1) {
-        C2VdecMDU_LOG(CODEC2_LOG_INFO, "return queried decoder width align(%d) directly.", mDecoderWidthAlign);
+        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "return queried decoder width align(%d) directly.", mDecoderWidthAlign);
         return mDecoderWidthAlign;
     }
 
@@ -1234,7 +1234,13 @@ bool C2VdecComponent::DeviceUtil::checkSupport8kMode() {
 uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool align64, bool forceAlign) {
     LockWeakPtrWithReturnVal(comp, mComp, 0);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, 0);
-    int align = getDecoderWidthAlign();
+
+    int align = OUTPUT_BUFS_ALIGN_SIZE_64;
+
+    if (mDecoderWidthAlign == -1) {
+        align = getDecoderWidthAlign();
+    }
+
     if (align != OUTPUT_BUFS_ALIGN_SIZE_32 && align != OUTPUT_BUFS_ALIGN_SIZE_64) {
         align = OUTPUT_BUFS_ALIGN_SIZE_64;
     }
@@ -1432,47 +1438,6 @@ bool C2VdecComponent::DeviceUtil::getUvmMetaData(int fd, unsigned char *data, in
     return false;
 }
 
-bool C2VdecComponent::DeviceUtil::parseAndProcessDuration(unsigned char *data, int size) {
-    LockWeakPtrWithReturnVal(comp, mComp, false);
-    struct aml_meta_head_s *meta_head;
-    uint32_t offset = 0;
-    uint32_t meta_magic = 0, meta_type = 0, meta_size = 0;
-    bool ret = false;
-    if (data == NULL || size <= 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1,"parse and process meta data failed, please check.");
-        return ret;
-    }
-    meta_head = (struct aml_meta_head_s *)data;
-    while ((offset + AML_META_HEAD_SIZE) < size) {
-        meta_magic = meta_head->magic;
-        meta_type  = meta_head->type;
-        meta_size  = meta_head->data_size;
-        if (meta_magic != META_DATA_MAGIC ||
-            (meta_size > META_DATA_SIZE) ||
-            (meta_size <= 0)) {
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "meta head size error, please check.");
-            break;
-        }
-        unsigned char buf[meta_size];
-        memset(buf, 0, meta_size);
-        if ((offset + AML_META_HEAD_SIZE + meta_size) > size) {
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "meta size oversize %u > %u, please check.",
-                    (unsigned int)(offset + AML_META_HEAD_SIZE + meta_size), (unsigned int)size);
-            break;
-        }
-
-        memcpy(buf, (data + offset + AML_META_HEAD_SIZE), meta_size);
-        offset = offset + AML_META_HEAD_SIZE + meta_size;
-        meta_head = (struct aml_meta_head_s *)(&data[offset]);
-
-        if (meta_type == UVM_META_DATA_VF_BASE_INFOS) {
-            updateDurationUs(buf, meta_size);
-            ret = true;
-        }
-    }
-    return ret;
-}
-
 void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, int size, C2Work& work) {
     LockWeakPtrWithReturnVoid(comp, mComp);
     struct aml_meta_head_s *meta_head;
@@ -1507,9 +1472,7 @@ void C2VdecComponent::DeviceUtil::parseAndProcessMetaData(unsigned char *data, i
         offset = offset + AML_META_HEAD_SIZE + meta_size;
         meta_head = (struct aml_meta_head_s *)(&data[offset]);
 
-        if (meta_type == UVM_META_DATA_VF_BASE_INFOS) {
-            updateDurationUs(buf, meta_size);
-        } else if (meta_type == UVM_META_DATA_HDR10P_DATA) {
+        if (meta_type == UVM_META_DATA_HDR10P_DATA) {
             updateHDR10plusToWork(buf, meta_size, work);
             haveUpdateHDR10Plus = true;
         }
@@ -1586,43 +1549,6 @@ void C2VdecComponent::DeviceUtil::setHDRStaticColorAspects(std::shared_ptr<C2Str
     }
 }
 
-void C2VdecComponent::DeviceUtil::updateDurationUs(unsigned char *data, int size) {
-    LockWeakPtrWithReturnVoid(comp, mComp);
-    LockWeakPtrWithReturnVoid(intfImpl, mIntfImpl);
-    uint32_t durationData = 0;
-    if (data == NULL || size <= 0) {
-        C2VdecMDU_LOG(CODEC2_LOG_ERR,"Update DurationUs error");
-        return;
-    }
-
-    struct aml_vf_base_info_s *baseinfo = (struct aml_vf_base_info_s *)(data);
-
-    if (baseinfo != NULL && baseinfo->duration != 0) {
-        durationData = baseinfo->duration;
-        if (durationData != 0) {
-            uint64_t rate64 = 1000000;
-            rate64 = rate64 / (96000 * 1.0 / durationData);
-            uint32_t dur = 0, oldDur = mDurationUs;
-            if (mIsInterlaced)
-                dur = 2 * rate64;
-            else
-                dur = rate64;
-            mCredibleDuration = true;
-
-            float durStep = std::max(mDurationUsFromApp, dur) / (float)min(mDurationUsFromApp, dur);
-            if (intfImpl->mVdecWorkMode->value == VDEC_STREAMMODE || mUnstablePts) {
-                mDurationUs = dur;
-                mFramerate = (96000 * 1.0 / durationData);
-                if (oldDur != mDurationUs && (0.5 <= durStep && durStep <= 1.5)) {
-                    setDuration();
-                }
-                C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
-            } else {
-                C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Not update DurationUs:%d DurationUsFromApp:%d Dur:%d %f by meta data", mDurationUs, mDurationUsFromApp, dur, durStep);
-            }
-        }
-    }
-}
 
 bool C2VdecComponent::DeviceUtil::updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum) {
     LockWeakPtrWithReturnVal(comp, mComp, false);

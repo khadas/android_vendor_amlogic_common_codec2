@@ -217,8 +217,6 @@ public:
     int32_t mDecoderID;
     bool mIsMaxResolution;
 
-    static const uint32_t kUpdateDurationFramesNumMax = 10;
-    int mUpdateDurationUsCount;
     bool mPreempting;
     bool IsCompHaveCurrentBlock(uint32_t poolId, uint32_t blockId);
     bool IsCheckStopDequeueTask();

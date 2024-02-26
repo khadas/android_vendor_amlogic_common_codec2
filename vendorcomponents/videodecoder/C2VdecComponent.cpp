@@ -337,7 +337,6 @@ void C2VdecComponent::Init(C2String compName) {
     mInputCSDWorkCount = 0;
     mCurrentPixelFormat = 0;
     mErrorFrameWorkCount = 0;
-    mUpdateDurationUsCount = 0;
     mOutputFinishedWorkCount = 0;
 
     mFirstInputTimestamp = -1;
@@ -1129,26 +1128,7 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
            mTunnelHelper->fastHandleOutBufferTunnel(timestamp, pictureBufferId);
            return;
         }
-        if (mHDR10PlusMeteDataNeedCheck) {
-            unsigned char  buffer[META_DATA_SIZE];
-            int buffer_size = 0;
-            memset(buffer, 0, META_DATA_SIZE);
-            mDeviceUtil->getUvmMetaData(info->mFd, buffer, &buffer_size);
-            bool gotDur = false;
-            if (buffer_size > META_DATA_SIZE) {
-                C2Vdec_LOG(CODEC2_LOG_ERR, "Uvm metadata size error, please check");
-            } else if (buffer_size <= 0)  {
-                //Do not have meta data, do not need check more.
-                mHDR10PlusMeteDataNeedCheck = false;
-            } else {
-                gotDur = mDeviceUtil->parseAndProcessDuration(buffer, buffer_size);
-                if (gotDur == true) {
-                    C2Vdec_LOG(CODEC2_LOG_INFO, "Got decoder duration");
-                    mHDR10PlusMeteDataNeedCheck = false;
-                }
-            }
-            mUpdateDurationUsCount++;
-        }
+
         if ((work != NULL)
             && ((work->input.flags & C2FrameData::FLAG_DROP_FRAME) != 0)) {
              mTunnelHelper->fastHandleOutBufferTunnel(timestamp, pictureBufferId);
@@ -1287,7 +1267,6 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             } else {
                 mDeviceUtil->parseAndProcessMetaData(buffer, bufferSize, *work);
             }
-            mUpdateDurationUsCount++;
         }
         if (mLastOutputReportWork == NULL)
             mLastOutputReportWork = cloneWork(work);
@@ -1578,7 +1557,6 @@ void C2VdecComponent::resetInputAndOutputBufInfo() {
     mOutputWorkCount = 0;
     mErrorFrameWorkCount = 0;
     mHasQueuedWork = false;
-    mUpdateDurationUsCount = 0;
     mOutputFinishedWorkCount = 0;
     mInputQueueNum = 0;
 }
