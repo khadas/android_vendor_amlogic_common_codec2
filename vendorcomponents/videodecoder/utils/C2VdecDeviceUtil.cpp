@@ -855,14 +855,14 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
     //setup hdr metadata, only present_flag is 1 there has a hdr metadata
     if (phdr->color_parms.present_flag == 1) {
         if ((intfImpl->getInputCodec() == InputCodec::VP9)) {
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] * 0.00002;
 
             hdr.mastering.maxLuminance = phdr->color_parms.luminance[0];
 
@@ -876,16 +876,16 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             //semantics
             //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
             //so we will shift right 16bit change to float 0.16 farmat value.
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[0][0] / 65536.0;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[0][1] / 65536.0;
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[1][0] / 65536.0;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[1][1] / 65536.0;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[2][0] / 65536.0;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[2][1] / 65536.0;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[0][0] / 65536.0;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[0][1] / 65536.0;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[1][0] / 65536.0;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[1][1] / 65536.0;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[2][0] / 65536.0;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[2][1] / 65536.0;
             // hdr_mdcv.white_point_chromaticity_* values are in 0.16 fixed-point format.
             //so we will shift right 16bit change to float 0.16 farmat value.
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] / 65536.0;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] / 65536.0;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] / 65536.0;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] / 65536.0;
             // hdr_mdcv.luminance_max is in 24.8 fixed-point format.
             //so we will shift right 8bit change to float 24.8 farmat value.
             int32_t MaxDisplayLuminance = 0;
@@ -902,14 +902,14 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
         } else if ((intfImpl->getInputCodec() == InputCodec::H265)) {
             //see 265 spec
             // D.3.28 Mastering display colour volume SEI message semantics
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] * 0.00002;
 
             int32_t MaxDisplayLuminance = 0;
             MaxDisplayLuminance = min(50 * ((phdr->color_parms.luminance[0] + 250000) / 500000), 10000);
@@ -920,14 +920,14 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             hdr.maxFall =
                 phdr->color_parms.content_light_level.max_pic_average;
         } else {
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] * 0.00002;
 
             hdr.mastering.maxLuminance = phdr->color_parms.luminance[0];
             hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
@@ -1283,6 +1283,8 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
     } else {
         switch (intfImpl->getInputCodec()) {
             case InputCodec::MJPG:
+            case InputCodec::MP2V:
+            case InputCodec::MP4V:
                 needMaxSize = false;
                 break;
             case InputCodec::H264:
@@ -1292,8 +1294,6 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
                     needMaxSize = true;
                 }
                 break;
-            case InputCodec::MP2V:
-            case InputCodec::MP4V:
             case InputCodec::VP9:
             case InputCodec::H265:
             case InputCodec::AV1:
