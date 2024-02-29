@@ -94,11 +94,7 @@ c2_status_t C2VdecComponent::TunerPassthroughHelper::setComponent(std::shared_pt
     mIntfImpl = intfImpl;
 
     mSyncId = intfImpl->mVendorTunerHalParam->hwAVSyncId;
-    if ((mSyncId & 0x0000FF00) == 0xFF00 || mSyncId == 0x0) {
-        mSyncId = mSyncId | HWSYNCID_PASSTHROUGH_FLAG;
-    } else {
-        C2VdecTPH_LOG(CODEC2_LOG_ERR, "Invalid hwsyncid:0x%x", mSyncId);
-    }
+    mSyncId = mSyncId | HWSYNCID_PASSTHROUGH_FLAG;
 
     LockWeakPtrWithReturnVal_WithoutC2Status(helper, mTunnelHelper, C2_BAD_VALUE);
     if (helper->getTunnelRender()) {
