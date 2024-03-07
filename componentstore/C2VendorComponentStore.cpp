@@ -280,7 +280,7 @@ C2VendorComponentStore::ComponentModule::~ComponentModule() {
 c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec codectype,std::string &strFactoryName,std::string &strDestroyFactoryName) {
     ALOGV("selectEncoder");
     if (C2VendorCodec::VENC_H264 == codectype) {
-        if (access("/dev/amvenc_multi", F_OK ) != -1) {
+        if (access("/dev/amvenc_multi", F_OK ) != -1 || access("/dev/vc8000", F_OK ) != -1 ) {
             strFactoryName = "CreateC2VencH264Factory";
             strDestroyFactoryName = "DestroyC2VencH264Factory";
             ALOGD("amvenc_multi h264 present");
@@ -297,7 +297,7 @@ c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec
     }
 
     if (C2VendorCodec::VENC_H265 == codectype) {
-        if (access("/dev/amvenc_multi", F_OK ) != -1) {
+        if (access("/dev/amvenc_multi", F_OK ) != -1 || access("/dev/vc8000", F_OK ) != -1 ) {
             strFactoryName = "CreateC2VencH265Factory";
             strDestroyFactoryName = "DestroyC2VencH265Factory";
             ALOGD("amvenc_multi h265 present");
