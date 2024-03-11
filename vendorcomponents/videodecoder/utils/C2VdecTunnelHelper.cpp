@@ -478,6 +478,7 @@ c2_status_t C2VdecComponent::TunnelHelper::allocTunnelBuffersAndSendToDecoder(co
 
     mPixelFormat = pixelFormat;
     mOutBufferCount = comp->mOutBufferCount;
+    comp->mOutputFormat.mMinNumBuffers = mOutBufferCount;
 
     blockPoolUtil->requestNewBufferSet(mOutBufferCount);
     if (comp->mVideoDecWraper) {
