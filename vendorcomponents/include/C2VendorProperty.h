@@ -68,6 +68,8 @@
 #define C2_PROPERTY_VDEC_DI_POST                    "vendor.media.c2.vdec.di.post"
 #define C2_PROPERTY_VDEC_DIABLE_VPP_THRES           "vendor.media.c2.vdec.disable_vpp_thres"
 #define C2_PROPERTY_VDEC_AMDV_USE_P010                "vendor.media.c2.vdec.amdv_use_P010"
+#define C2_PROPERTY_VDEC_AMDV_USE_540P                "vendor.media.c2.vdec.amdv_use_540p"
+
 
 
 /* debug */

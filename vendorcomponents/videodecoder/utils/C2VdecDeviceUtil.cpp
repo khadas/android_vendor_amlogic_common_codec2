@@ -168,10 +168,12 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         return doubleWriteValue;
     }
 
+    if (fixedBufferSlice != 540 && comp->isAmDolbyVision() && property_get_bool(C2_PROPERTY_VDEC_AMDV_USE_540P, false)) {
+        fixedBufferSlice = 540;
+    }
+
     switch (codec) {
         case InputCodec::DVAV:
-            doubleWriteValue = 0x10;
-            break;
         case InputCodec::H264:
             if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
                     mIsInterlaced || !mEnableNR || !mEnableDILocalBuf ||
