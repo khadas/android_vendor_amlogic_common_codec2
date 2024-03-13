@@ -943,6 +943,7 @@ void C2VencComp::IntfImpl::ParamUpdate() {
     mAmlVencParam->SetQpInfo(VencParam.QpInfo);
     ALOGD("update Qp Info,min:%d,max:%d!!",VencParam.QpInfo.QpMin,VencParam.QpInfo.QpMax);
 
+    mAmlVencParam->SetLayerCnt(mLayerCount->m.layerCount);
 }
 
 
