@@ -3789,20 +3789,17 @@ void C2VdecComponent::onConfigureTunnelMode() {
     if (mIntfImpl->mTunnelModeOutput->m.syncType == C2PortTunneledModeTuning::Struct::sync_type_t::AUDIO_HW_SYNC) {
         int syncId = mIntfImpl->mTunnelModeOutput->m.syncId[0];
         if (syncId >= 0) {
-            if (((syncId & 0x0000FF00) == 0xFF00)
-                || (syncId == 0x0)) {
-                mSyncId = syncId;
-                if (mTunnelHelper) {
-                    removeObserver(mTunnelHelper);
-                    mTunnelHelper.reset();
-                    mTunnelHelper = NULL;
-                }
-                mTunnelHelper =  std::make_shared<TunnelHelper>(mSecureMode);
-                addObserver(mTunnelHelper, static_cast<int>(mComponentState), mCompHasError);
-                mTunnelHelper->setComponent(shared_from_this());
-                mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
-                mSyncType |= C2_SYNC_TYPE_TUNNEL;
+            mSyncId = syncId;
+            if (mTunnelHelper) {
+                removeObserver(mTunnelHelper);
+                mTunnelHelper.reset();
+                mTunnelHelper = NULL;
             }
+            mTunnelHelper =  std::make_shared<TunnelHelper>(mSecureMode);
+            addObserver(mTunnelHelper, static_cast<int>(mComponentState), mCompHasError);
+            mTunnelHelper->setComponent(shared_from_this());
+            mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
+            mSyncType |= C2_SYNC_TYPE_TUNNEL;
         }
     }
 
