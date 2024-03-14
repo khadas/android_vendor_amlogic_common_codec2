@@ -61,11 +61,14 @@
     }
 
 namespace android {
+static void* gGrallocHandle = NULL;
+
 
 GrallocWraper::GrallocWraper() {
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s@%d] enter", __func__, __LINE__);
     mSlotID = -1;
+    mUsage = 0;
     mGrallocVersion = 1;
     am_gralloc_get_slot_id = NULL;
     am_gralloc_free_slot = NULL;
@@ -219,7 +222,8 @@ media::Size GrallocWraper::calculateRealBufferSize(C2VdecComponent::DeviceUtil* 
     // use max size for some case
     size = ori;
     if (deviceUtil->needAllocWithMaxSize()) {
-        uint32_t maxWidth, maxHeight;
+        uint32_t maxWidth = 0;
+        uint32_t maxHeight = 0;
         deviceUtil->getMaxBufWidthAndHeight(maxWidth, maxHeight);
         size.set_width(maxWidth);
         size.set_height(maxHeight);
@@ -458,24 +462,31 @@ uint64_t GrallocWraper::getUsageFromTripleWrite(C2VdecComponent::DeviceUtil* dev
 }
 
 void GrallocWraper::checkGrallocVersion() {
-    void* grallocHandle = dlopen("libamgralloc_ext.so", RTLD_NOW);
-    if (grallocHandle != NULL) {
-        am_gralloc_get_slot_id = (am_gralloc_get_slot_id_t)dlsym(grallocHandle, "_Z22am_gralloc_get_slot_idv");
-        am_gralloc_free_slot = (am_gralloc_free_slot_t)dlsym(grallocHandle, "_Z20am_gralloc_free_slotj");
-        am_gralloc_set_parameters = (am_gralloc_set_parameters_t)dlsym(grallocHandle,
+    if (gGrallocHandle == NULL) {
+        gGrallocHandle = dlopen("libamgralloc_ext.so", RTLD_NOW);
+    }
+
+    if (gGrallocHandle != NULL) {
+        am_gralloc_get_slot_id = (am_gralloc_get_slot_id_t)dlsym(gGrallocHandle, "_Z22am_gralloc_get_slot_idv");
+        am_gralloc_free_slot = (am_gralloc_free_slot_t)dlsym(gGrallocHandle, "_Z20am_gralloc_free_slotj");
+        am_gralloc_set_parameters = (am_gralloc_set_parameters_t)dlsym(gGrallocHandle,
             "_Z25am_gralloc_set_parametersjNSt3__13mapI27AM_GRALLOC_DECODE_PARA_TYPEyNS_4lessIS1_EENS_9allocatorINS_4pairIKS1_yEEEEEE");
-        am_gralloc_compose_slot_id = (am_gralloc_compose_slot_id_t)dlsym(grallocHandle, "_Z26am_gralloc_compose_slot_idj");
+        am_gralloc_compose_slot_id = (am_gralloc_compose_slot_id_t)dlsym(gGrallocHandle, "_Z26am_gralloc_compose_slot_idj");
         if (am_gralloc_get_slot_id != NULL
             && am_gralloc_free_slot != NULL
             && am_gralloc_set_parameters != NULL
             && am_gralloc_compose_slot_id != NULL) {
             mGrallocVersion = 2;
+        } else {
+            dlclose(gGrallocHandle);
+            gGrallocHandle = NULL;
         }
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s@%d] Gralloc version is:%d, grelloc handle[%p:%p:%p:%p:%p]",
+                __func__, __LINE__, mGrallocVersion, gGrallocHandle, am_gralloc_get_slot_id,
+                am_gralloc_free_slot, am_gralloc_set_parameters, am_gralloc_compose_slot_id);
     }
 
-    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s@%d] Gralloc version is:%d, grelloc handle[%p:%p:%p:%p:%p]",
-                __func__, __LINE__, mGrallocVersion, grallocHandle, am_gralloc_get_slot_id,
-                am_gralloc_free_slot, am_gralloc_set_parameters, am_gralloc_compose_slot_id);
+
 }
 
 int32_t GrallocWraper::getSlotID() {

@@ -838,16 +838,14 @@ void C2SoftVdecComponent::cloneAndSend(
         work->input.ordinal = queue->pending().at(frameIndex)->input.ordinal;
     }
     work->worklets.emplace_back(new C2Worklet);
-    if (work) {
-        fillWork(work);
-        std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
-        if (listener == nullptr) {
-            CODEC2_LOG(CODEC2_LOG_ERR, "%s unexpected null object error", __func__);
-            return;
-        }
-        listener->onWorkDone_nb(shared_from_this(), vec(work));
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Cloned and sending work");
+    fillWork(work);
+    std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
+    if (listener == nullptr) {
+        CODEC2_LOG(CODEC2_LOG_ERR, "%s unexpected null object error", __func__);
+        return;
     }
+    listener->onWorkDone_nb(shared_from_this(), vec(work));
+    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Cloned and sending work");
 }
 
 bool C2SoftVdecComponent::processQueue() {

@@ -163,12 +163,14 @@ void C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2(int dmafd, bool rend
             blockPoolUtil->getPoolId(&poolId);
             auto iter = mOutBufferFdMap.find(dmafd);
             DCHECK(iter != mOutBufferFdMap.end());
+            if (iter == mOutBufferFdMap.end()) {
+                C2VdecTMH_LOG(CODEC2_LOG_ERR, "[%s:%d] Cannot get fd:%d", __func__, __LINE__, dmafd);
+                comp->reportError(C2_CORRUPTED);
+                return;
+            }
 
             GraphicBlockInfo *info = comp->getGraphicBlockByFd(frame.fd);
-            /*
-             * iter have be check.
-             */
-            /* coverity[event_tag:SUPPRESS] */
+
             GraphicBlockInfo *info2 = comp->getGraphicBlockByBlockId(poolId, iter->second.mBlockId);
             int fd = -1;
             if ((info == NULL) ||
