@@ -25,7 +25,13 @@
 #include <dlfcn.h>
 #include "GrallocWraper.h"
 
-#define C2VdecGW_LOG(level, fmt, str...) CODEC2_LOG(level, "[%d#%d %s@%d]"#fmt, comp->mSessionID, comp->mDecoderID, __func__, __LINE__, ##str)
+#define C2VdecGW_LOG(level, fmt, str...) \
+    if (comp != nullptr) { \
+        CODEC2_LOG(level, "[%d#%d %s@%d]"#fmt, comp->mSessionID, comp->mDecoderID, __func__, __LINE__, ##str); \
+    } else { \
+        CODEC2_LOG(level, "[%s@%d]"#fmt,  __func__, __LINE__, ##str); \
+    }
+
 #define CODEC_ALIGN(value, base) (((value) + ((base)-1)) & ~((base)-1))
 #define DEFAULT_HEIGHT_ALIGN_SIZE 64
 #define DEFAULT_WIDTH_ALIGN_SIZE 64
