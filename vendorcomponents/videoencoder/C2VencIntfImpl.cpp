@@ -897,6 +897,8 @@ void C2VencComp::IntfImpl::ParamUpdate() {
     stColorAspect ColorAspect;
     stProfileLevelInfo ProfileLevelInfo;
     stVencParam VencParam;
+    stSVCInfo SvcInfo;
+    memset(&SvcInfo,0,sizeof(SvcInfo));
 
     mAmlVencParam->GetVencParam(VencParam);
     mAmlVencParam->SetSize(mSize->width,mSize->height);
@@ -939,7 +941,9 @@ void C2VencComp::IntfImpl::ParamUpdate() {
     mAmlVencParam->SetQpInfo(VencParam.QpInfo);
     ALOGD("update Qp Info,min:%d,max:%d!!",VencParam.QpInfo.QpMin,VencParam.QpInfo.QpMax);
 
-    mAmlVencParam->SetLayerCnt(mLayerCount->m.layerCount);
+    if (mAmlVencParam->GetSVCLimit(SvcInfo) && SvcInfo.enable) {
+        mAmlVencParam->SetLayerCnt(mLayerCount->m.layerCount);
+    }
 }
 
 
