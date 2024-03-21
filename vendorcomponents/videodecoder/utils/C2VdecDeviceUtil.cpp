@@ -1241,6 +1241,8 @@ uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool alig
 
     if (mDecoderWidthAlign == -1) {
         align = getDecoderWidthAlign();
+    } else {
+        align = mDecoderWidthAlign;
     }
 
     if (align != OUTPUT_BUFS_ALIGN_SIZE_32 && align != OUTPUT_BUFS_ALIGN_SIZE_64) {
