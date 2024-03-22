@@ -573,7 +573,8 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
         float supportFrameRate = (float)codecAttributes.blocksPerSecond.max / (float)codecAttributes.blockCount.max;
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported framerate:%f framerate:%f blocksPerSecond:%d blockCount:%d", __func__, supportFrameRate, frameRate,
             codecAttributes.blocksPerSecond.max, codecAttributes.blockCount.max);
-        if (frameRate <= support_4k_fps_max)
+        if (((codec_type == C2VendorCodec::VDEC_H265) || (codec_type == C2VendorCodec::VDEC_VP9) || (codec_type == C2VendorCodec::VDEC_AV1))
+            && (frameRate <= support_4k_fps_max))
             return true;
 
         if (frameRate <= supportFrameRate) {
