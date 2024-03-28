@@ -306,19 +306,19 @@ void C2SoftVdec::finishWork(uint64_t index, const std::unique_ptr<C2Work> &work)
         bool eos = ((work->input.flags & C2FrameData::FLAG_END_OF_STREAM) != 0);
         // TODO: Check if cloneAndSend can be avoided by tracking number of frames remaining
         if (eos) {
-            if (buffer) {
-                mOutIndex = index;
-                C2WorkOrdinalStruct outOrdinal = work->input.ordinal;
-                cloneAndSend(
-                    mOutIndex, work,
-                    FillWork(C2FrameData::FLAG_INCOMPLETE, outOrdinal, buffer));
-                buffer.reset();
-            }
+            mOutIndex = index;
+            C2WorkOrdinalStruct outOrdinal = work->input.ordinal;
+            cloneAndSend(
+                mOutIndex, work,
+                FillWork(C2FrameData::FLAG_INCOMPLETE, outOrdinal, buffer));
+            buffer.reset();
         } else {
             fillWork(work);
         }
     } else {
-        finish(index, work->input.ordinal.customOrdinal.peeku(), fillWork);
+        if (work) {
+            finish(index, work->input.ordinal.customOrdinal.peeku(), fillWork);
+        }
     }
 }
 

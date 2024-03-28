@@ -35,6 +35,7 @@ cc_library_shared {
         "C2AudioAacDecoder.cpp",
         "C2AudioEAC3Decoder.cpp",
         "C2AudioDTSDecoder.cpp",
+        "C2AudioDTSXDecoder.cpp",
         "C2AudioAC4Decoder.cpp"
     ],
 

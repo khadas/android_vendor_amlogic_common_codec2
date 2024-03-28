@@ -52,7 +52,11 @@ static char* _trim(char* str) {
 }
 
 ResmanHandler::ResmanHandler():
-        mResmanLibHandle(nullptr) {
+        mResmanLibHandle(nullptr),
+        resman_init(nullptr),
+        resman_close(nullptr),
+        resman_add_dumper(nullptr),
+        resman_add_debugger(nullptr) {
     if (mResmanLibHandle == NULL) {
         mResmanLibHandle = dlopen("libmediahal_resman.so", RTLD_NOW);
         if (mResmanLibHandle) {
@@ -88,7 +92,8 @@ void onDebug(void *instance, const char *debug, int len) {
     server->debug(debug, len);
 }
 
-C2DebugServer::C2DebugServer() {
+C2DebugServer::C2DebugServer():
+    mFd(-1) {
     mResmanHandler = new ResmanHandler();
     if (mResmanHandler && mResmanHandler->isValid()) {
         mFd = mResmanHandler->resman_init("DEBUGGER", RESMAN_APP_DEBUG_SERVER);

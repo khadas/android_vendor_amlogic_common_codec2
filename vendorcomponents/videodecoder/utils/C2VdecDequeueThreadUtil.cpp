@@ -229,7 +229,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         C2VdecDQ_LOG(CODEC2_LOG_ERR,"device or pool util is null,cancel fetch task.");
         return;
     }
-    uint64_t platformUsage = deviceUtil->getPlatformUsage();
+    uint64_t platformUsage = deviceUtil->getPlatformUsage(size);
     C2MemoryUsage usage = {
             comp->isSecureMode() ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE),  platformUsage};

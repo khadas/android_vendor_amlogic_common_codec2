@@ -30,11 +30,11 @@
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <am_gralloc_ext.h>
-#include <hardware/gralloc1.h>
 #include <C2VendorProperty.h>
 #include <C2VendorDebug.h>
 #include <C2VendorConfig.h>
 #include <C2VdecCodecConfig.h>
+#include <grallocwraper/GrallocWraper.h>
 #include <inttypes.h>
 
 #define V4L2_PARMS_MAGIC 0x55aacc33
@@ -76,6 +76,7 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mSignalType = 0;
     mBufferWidth = 0;
     mBufferHeight = 0;
+    mDecoderWidthAlign = -1;
     mOutputWorkCount = 0;
     mDurationUsFromApp = 0;
     mConfigParam = NULL;
@@ -128,6 +129,9 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
     mCredibleDuration = 0;
     mMarginBufferNum = 0;
 
+    // gralloc
+    mGrallocWraper = std::make_unique<GrallocWraper>();
+
     // For Game Mode
     mMemcMode = 0;
 }
@@ -137,6 +141,7 @@ c2_status_t C2VdecComponent::DeviceUtil::setComponent(std::shared_ptr<C2VdecComp
     std::shared_ptr<C2VdecComponent::IntfImpl> intfImpl = sharedcomp->GetIntfImpl();
     mIntfImpl = intfImpl;
     CODEC2_LOG(CODEC2_LOG_INFO, "[%d##%d][%s:%d]", sharedcomp->mSessionID, sharedcomp->mDecoderID, __func__, __LINE__);
+    mGrallocWraper->setComponent(sharedcomp);
 
     paramsPreCheck(intfImpl);
 
@@ -163,10 +168,12 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         return doubleWriteValue;
     }
 
+    if (fixedBufferSlice != 540 && comp->isAmDolbyVision() && property_get_bool(C2_PROPERTY_VDEC_AMDV_USE_540P, false)) {
+        fixedBufferSlice = 540;
+    }
+
     switch (codec) {
         case InputCodec::DVAV:
-            doubleWriteValue = 0x10;
-            break;
         case InputCodec::H264:
             if ((comp->isNonTunnelMode() && (mUseSurfaceTexture || mNoSurface)) ||
                     mIsInterlaced || !mEnableNR || !mEnableDILocalBuf ||
@@ -850,14 +857,14 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
     //setup hdr metadata, only present_flag is 1 there has a hdr metadata
     if (phdr->color_parms.present_flag == 1) {
         if ((intfImpl->getInputCodec() == InputCodec::VP9)) {
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] * 0.00002;
 
             hdr.mastering.maxLuminance = phdr->color_parms.luminance[0];
 
@@ -871,16 +878,16 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             //semantics
             //hdr_mdcv.primaries* values are in 0.16 fixed-point format.
             //so we will shift right 16bit change to float 0.16 farmat value.
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[0][0] / 65536.0;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[0][1] / 65536.0;
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[1][0] / 65536.0;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[1][1] / 65536.0;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[2][0] / 65536.0;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[2][1] / 65536.0;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[0][0] / 65536.0;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[0][1] / 65536.0;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[1][0] / 65536.0;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[1][1] / 65536.0;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[2][0] / 65536.0;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[2][1] / 65536.0;
             // hdr_mdcv.white_point_chromaticity_* values are in 0.16 fixed-point format.
             //so we will shift right 16bit change to float 0.16 farmat value.
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] / 65536.0;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] / 65536.0;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] / 65536.0;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] / 65536.0;
             // hdr_mdcv.luminance_max is in 24.8 fixed-point format.
             //so we will shift right 8bit change to float 24.8 farmat value.
             int32_t MaxDisplayLuminance = 0;
@@ -897,14 +904,14 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
         } else if ((intfImpl->getInputCodec() == InputCodec::H265)) {
             //see 265 spec
             // D.3.28 Mastering display colour volume SEI message semantics
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] * 0.00002;
 
             int32_t MaxDisplayLuminance = 0;
             MaxDisplayLuminance = min(50 * ((phdr->color_parms.luminance[0] + 250000) / 500000), 10000);
@@ -915,14 +922,14 @@ int C2VdecComponent::DeviceUtil::checkHDRMetadataAndColorAspects(struct aml_vdec
             hdr.maxFall =
                 phdr->color_parms.content_light_level.max_pic_average;
         } else {
-            hdr.mastering.green.x	= 	phdr->color_parms.primaries[0][0] * 0.00002;
-            hdr.mastering.green.y	= 	phdr->color_parms.primaries[0][1] * 0.00002;
-            hdr.mastering.blue.x	=  	phdr->color_parms.primaries[1][0] * 0.00002;
-            hdr.mastering.blue.y	= 	phdr->color_parms.primaries[1][1] * 0.00002;
-            hdr.mastering.red.x     = 	phdr->color_parms.primaries[2][0] * 0.00002;
-            hdr.mastering.red.y     = 	phdr->color_parms.primaries[2][1] * 0.00002;
-            hdr.mastering.white.x	= 	phdr->color_parms.white_point[0] * 0.00002;
-            hdr.mastering.white.y	= 	phdr->color_parms.white_point[1] * 0.00002;
+            hdr.mastering.green.x   =   phdr->color_parms.primaries[0][0] * 0.00002;
+            hdr.mastering.green.y   =   phdr->color_parms.primaries[0][1] * 0.00002;
+            hdr.mastering.blue.x    =   phdr->color_parms.primaries[1][0] * 0.00002;
+            hdr.mastering.blue.y    =   phdr->color_parms.primaries[1][1] * 0.00002;
+            hdr.mastering.red.x     =   phdr->color_parms.primaries[2][0] * 0.00002;
+            hdr.mastering.red.y     =   phdr->color_parms.primaries[2][1] * 0.00002;
+            hdr.mastering.white.x   =   phdr->color_parms.white_point[0] * 0.00002;
+            hdr.mastering.white.y   =   phdr->color_parms.white_point[1] * 0.00002;
 
             hdr.mastering.maxLuminance = phdr->color_parms.luminance[0];
             hdr.mastering.minLuminance = phdr->color_parms.luminance[1] * 0.0001;
@@ -1103,103 +1110,6 @@ int32_t C2VdecComponent::DeviceUtil::getPropertyTripleWrite() {
     return tripleWrite;
 }
 
-uint64_t C2VdecComponent::DeviceUtil::getUsageFromDoubleWrite(int32_t doublewrite) {
-    uint64_t usage = 0;
-    switch (doublewrite) {
-        case 0:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            break;
-        case 1:
-        case 0x10:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            break;
-        case 2:
-        case 3:
-        case 0x200:
-        case 0x400:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            break;
-        case 4:
-        case 0x100:
-        case 0x300:
-            usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-            break;
-        case 0x10001:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10003:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10004:
-            usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10008:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10200:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        default:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            break;
-    }
-    return usage;
-}
-
-uint64_t C2VdecComponent::DeviceUtil::getUsageFromTripleWrite(int32_t triplewrite) {
-    uint64_t usage = 0;
-    switch (triplewrite) {
-        case 0:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            break;
-        case 1:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            break;
-        case 3:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            break;
-        case 4:
-            usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-            break;
-        case 0x10001:
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10003:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10004:
-            usage = am_gralloc_get_video_decoder_quarter_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10008:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        case 0x10200:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            mIsNeedUse10BitOutBuffer = true;
-            break;
-        default:
-            usage = am_gralloc_get_video_decoder_one_sixteenth_buffer_usage();
-            break;
-    }
-/*
-    if (mIsYcbRP010Stream && mHwSupportP010) {
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s:%d is 10bit stream tw:%d usage use full usage", __func__, __LINE__, triplewrite);
-        usage = am_gralloc_get_video_decoder_full_buffer_usage();
-    }
-*/
-    CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] triplewrite:0x%llx usage:0x%llx",__func__, __LINE__, (unsigned long long)triplewrite, (unsigned long long)usage);
-    return usage;
-}
-
 bool C2VdecComponent::DeviceUtil::checkDvProfileAndLayer() {
     LockWeakPtrWithReturnVal(comp, mComp, false);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
@@ -1256,7 +1166,8 @@ uint32_t C2VdecComponent::DeviceUtil::checkUseP010Mode() {
 
     //Use soft decoder support P010.
     if ((mStreamBitDepth == 10) && (mBufferWidth <= kMaxWidthP010 && mBufferHeight <= kMaxHeightP010)
-        && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888) && !mSecure) {
+        && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888) && !mSecure
+        && (mUseSurfaceTexture || mNoSurface)) {
         mIsYcbRP010Stream = true;
         useP010Mode = kUseSoftwareP010;
     }
@@ -1295,74 +1206,21 @@ bool C2VdecComponent::DeviceUtil::needDecoderReplaceBufferForDiPost() {
         !(mUseSurfaceTexture || mNoSurface))
         return true;
     return false;
- }
+}
 
-uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage() {
+uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage(const media::Size& size) {
     uint64_t usage = 0;
     LockWeakPtrWithReturnVal(comp, mComp, usage);
-
-    if (needDecoderReplaceBufferForDiPost()) {
-#ifdef SUPPORT_GRALLOC_REPLACE_BUFFER_USAGE
-        usage =  am_gralloc_get_video_decoder_replace_buffer_usage();
-        return usage & C2MemoryUsage::PLATFORM_MASK;
-#else
-        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "do not support am_gralloc_get_video_decoder_replace_buffer_usage");
-#endif
-    }
 
     struct aml_dec_params *params = &mConfigParam->aml_dec_cfg;
     int32_t doubleWrite = params->cfg.double_write_mode;
     int32_t tripleWrite = params->cfg.triple_write_mode;
 
-    auto getUsage = [=] (int32_t dw, int32_t tw) -> uint64_t {
-        uint64_t ret = 0;
-        int32_t defaultDw = getPropertyDoubleWrite();
-        int32_t doubleWriteValue = (defaultDw >= 0) ? defaultDw : dw;
-
-        int32_t defaultTw = getPropertyTripleWrite();
-        int32_t tripleWriteValue = (defaultTw >= 0) ? defaultTw : tw;
-
-        if (doubleWriteValue == 0 && tripleWriteValue != 0)
-            ret = getUsageFromTripleWrite(tripleWriteValue);
-        else if (doubleWriteValue != 0 && tripleWriteValue == 0)
-            ret = getUsageFromDoubleWrite(doubleWriteValue);
-        else
-            ret = getUsageFromDoubleWrite(doubleWriteValue);
-
-        return ret;
-    };
-
-    if (mIsYcbRP010Stream) {
-        if (mHwSupportP010) { // hardware support 10bit, use triple write.
-            usage = getUsage(doubleWrite, tripleWrite);
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] doubleWrite:0x%llx triplewrite:0x%llx usage:%llx",__func__, __LINE__,
-                            (unsigned long long)doubleWrite, (unsigned long long)tripleWrite, (unsigned long long)usage);
-        } else { // soft support 10 bit, use double write.
-            int32_t doubleWrite = getDoubleWriteModeValue();
-            usage = getUsageFromDoubleWrite(doubleWrite);
-            if (mUseSurfaceTexture || mNoSurface) {
-                // surfacetext or no surface alloc real 10bit buf
-                // surface mode need alloc small buf, so we need not set 'GRALLOC1_PRODUCER_USAGE_PRIVATE_3' usage,
-                // because if we set GRALLOC1_PRODUCER_USAGE_PRIVATE_3 usage value,the dma buf we alloced is real
-                // 10bit buf with the setting w h value.
-                usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
-                usage = usage | GRALLOC1_PRODUCER_USAGE_PRIVATE_3;
-            }
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] doublewrite:0x%llx usage:%llx",__func__, __LINE__, (unsigned long long)doubleWrite, (unsigned long long)usage);
-        }
-    } else if (mUseSurfaceTexture || mNoSurface) {
-        usage = am_gralloc_get_video_decoder_OSD_buffer_usage();
-        C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] usage:%llx",__func__, __LINE__, (unsigned long long)usage);
-    } else {
-        int32_t doubleWrite = getDoubleWriteModeValue();
-         if (mForceFullUsage) {
-            usage = am_gralloc_get_video_decoder_full_buffer_usage();
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] Force use full usage:%llx",__func__, __LINE__, (unsigned long long)usage);
-        } else {
-            usage = getUsage(doubleWrite, tripleWrite);
-            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "[%s:%d] get usage:%llx dw:%d tw:%d", __func__, __LINE__, (unsigned long long)usage, doubleWrite, tripleWrite);
-        }
+    if (doubleWrite & 0x10000 || tripleWrite & 0x10000) {
+        mIsNeedUse10BitOutBuffer = true;
     }
+
+    usage = mGrallocWraper->getPlatformUsage(this, size);
     return usage & C2MemoryUsage::PLATFORM_MASK;
 }
 
@@ -1383,6 +1241,8 @@ uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool alig
 
     if (mDecoderWidthAlign == -1) {
         align = getDecoderWidthAlign();
+    } else {
+        align = mDecoderWidthAlign;
     }
 
     if (align != OUTPUT_BUFS_ALIGN_SIZE_32 && align != OUTPUT_BUFS_ALIGN_SIZE_64) {
@@ -1406,42 +1266,59 @@ uint32_t C2VdecComponent::DeviceUtil::getOutAlignedSize(uint32_t size, bool alig
     return size;
 }
 
+bool C2VdecComponent::DeviceUtil::isNeedMaxSizeForAvc(int32_t doubleWrite) {
+    switch (doubleWrite) {
+    case 0:
+    case 1:
+    case 0x10001:
+    case 0x10:
+    case 0x10010:
+        return false;
+    default:
+        return true;
+    }
+}
 
 bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
-    bool realloc = true;
-    LockWeakPtrWithReturnVal(comp, mComp, !realloc);
-    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, !realloc);
+    bool needMaxSize = false;
+    LockWeakPtrWithReturnVal(comp, mComp, needMaxSize);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, needMaxSize);
     bool debugrealloc = property_get_bool(C2_PROPERTY_VDEC_OUT_BUF_REALLOC, false);
 
     if (debugrealloc)
-        return true;
+        return false;
 
     if (mUseSurfaceTexture|| mNoSurface) {
-        realloc = true;
+        needMaxSize = false;
     } else {
         switch (intfImpl->getInputCodec()) {
             case InputCodec::MJPG:
-                realloc = true;
-                break;
-            case InputCodec::H264:
-                if (mIsInterlaced || !mEnableNR || !mEnableDILocalBuf) {
-                  realloc = true;
-                } else {
-                  realloc = false;
-                }
-                break;
             case InputCodec::MP2V:
             case InputCodec::MP4V:
+                needMaxSize = false;
+                break;
+            case InputCodec::H264:
+                if (mIsInterlaced || !isNeedMaxSizeForAvc(getDoubleWriteModeValue())) {
+                    needMaxSize = false;
+                } else {
+                    needMaxSize = true;
+                }
+                break;
             case InputCodec::VP9:
             case InputCodec::H265:
             case InputCodec::AV1:
-                realloc = false;
+                needMaxSize = true;
                 break;
             default:
                 break;
         }
     }
-    return realloc;
+    return needMaxSize;
+}
+
+bool C2VdecComponent::DeviceUtil::isNeedHalfHeightBuffer() {
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
+    return mIsInterlaced && intfImpl->getInputCodec() == InputCodec::H265 && mDiPost;
 }
 
 bool C2VdecComponent::DeviceUtil::isReallocateOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
@@ -1471,6 +1348,10 @@ bool C2VdecComponent::DeviceUtil::isReallocateOutputBuffer(VideoFormat rawFormat
         realloc = frameSizeChanged;
     }
 
+    if (realloc) {
+        releaseGrallocSlot();
+    }
+
     C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] raw size:%s %d new size:%s %d realloc:%d",__func__, __LINE__,
         rawFormat.mCodedSize.ToString().c_str(), rawFormat.mMinNumBuffers,
         currentFormat.mCodedSize.ToString().c_str(),currentFormat.mMinNumBuffers, realloc);
@@ -1478,46 +1359,56 @@ bool C2VdecComponent::DeviceUtil::isReallocateOutputBuffer(VideoFormat rawFormat
     return realloc;
 }
 
+void C2VdecComponent::DeviceUtil::releaseGrallocSlot() {
+    mGrallocWraper->freeSlotID();
+}
+
 bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint32_t& height) {
     LockWeakPtrWithReturnVal(comp, mComp, false);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
     bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    uint32_t maxWidth = 0;
+    uint32_t maxHeight = 0;
+    do {
+        if (support_4k) {
+            if (mIs8k) {
+                maxWidth = kMaxWidth8k;
+                maxHeight = kMaxHeight8k;
+                break;
+            }
+            //mpeg2 and mpeg4 default size is 1080p
+            if ((intfImpl->getInputCodec() == InputCodec::MP2V ||
+                intfImpl->getInputCodec() == InputCodec::MP4V)
+                ) {
+                if (width * height <= kMaxWidth1080p * kMaxHeight1080p) {
+                    maxWidth = kMaxWidth1080p;
+                    maxHeight = kMaxHeight1080p;
+                } else if (width * height <= kMaxWidth4k * kMaxHeight4k) {
+                    maxWidth = kMaxWidth4k;
+                    maxHeight = kMaxHeight4k;
+                }
+            } else {
+                maxWidth = kMaxWidth4k;
+                maxHeight = kMaxHeight4k;
+            }
+            //264 and 265 interlace stream
+            if ((intfImpl->getInputCodec() == InputCodec::H265 ||
+                intfImpl->getInputCodec() == InputCodec::H264) && mIsInterlaced) {
+                maxWidth = kMaxWidth1080p;
+                maxHeight = kMaxHeight1080p;
+            }
+        } else {
+            maxWidth = kMaxWidth1080p;
+            maxHeight = kMaxHeight1080p;
+        }
+    } while (0);
 
-    if (support_4k) {
-        if (mIs8k) {
-            width = kMaxWidth8k;
-            height = kMaxHeight8k;
-            return true;
-        }
-        //mpeg2 and mpeg4 default size is 1080p
-        if ((intfImpl->getInputCodec() == InputCodec::MP2V ||
-            intfImpl->getInputCodec() == InputCodec::MP4V)
-            ) {
-             if (width * height <= kMaxWidth1080p * kMaxHeight1080p) {
-                width = kMaxWidth1080p;
-                height = kMaxHeight1080p;
-             } else if (width * height <= kMaxWidth4k * kMaxHeight4k) {
-                width = kMaxWidth4k;
-                height = kMaxHeight4k;
-             }
-        } else {
-            width = kMaxWidth4k;
-            height = kMaxHeight4k;
-        }
-        //264 and 265 interlace stream
-        if ((intfImpl->getInputCodec() == InputCodec::H265 ||
-            intfImpl->getInputCodec() == InputCodec::H264) && mIsInterlaced) {
-            width = kMaxWidth1080p;
-            height = kMaxHeight1080p;
-        }
+    if (height > width && maxWidth > 0) {
+        width = maxHeight;
+        height = maxWidth;
     } else {
-        if (height > width) {
-            width = kMaxHeight1080p;
-            height = kMaxWidth1080p;
-        } else {
-            width = kMaxWidth1080p;
-            height = kMaxHeight1080p;
-        }
+        width = maxWidth;
+        height = maxHeight;
     }
     return true;
 }
@@ -1661,6 +1552,7 @@ void C2VdecComponent::DeviceUtil::setHDRStaticColorAspects(std::shared_ptr<C2Str
         C2VdecMDU_LOG(CODEC2_LOG_INFO, "No HDR ColorAspects set");
     }
 }
+
 
 bool C2VdecComponent::DeviceUtil::updateDisplayInfoToGralloc(const native_handle_t* handle, int videoType, uint32_t sequenceNum) {
     LockWeakPtrWithReturnVal(comp, mComp, false);

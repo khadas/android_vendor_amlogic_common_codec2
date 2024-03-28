@@ -76,6 +76,21 @@ static RETURN_STATUS C2VendorCheckFileMS12Status(void)
     }
 }
 
+static RETURN_STATUS C2VendorCheckFileDTSXStatus(void)
+{
+#define DTSX_LIB_PATH_A "/odm/lib/libHwAudio_dtsx.so"
+#define DTSX_LIB64_PATH_A "/odm/lib64/libHwAudio_dtsx.so"
+
+    if (access(DTSX_LIB_PATH_A, R_OK) == RET_OK) {
+        return RET_OK;
+    } else if (access(DTSX_LIB64_PATH_A, R_OK) == RET_OK) {
+        return RET_OK;
+    } else {
+        //TODO
+        return RET_FAIL;
+    }
+}
+
 class C2VendorComponentStore : public C2ComponentStore {
 public:
     C2VendorComponentStore();
@@ -265,7 +280,7 @@ C2VendorComponentStore::ComponentModule::~ComponentModule() {
 c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec codectype,std::string &strFactoryName,std::string &strDestroyFactoryName) {
     ALOGV("selectEncoder");
     if (C2VendorCodec::VENC_H264 == codectype) {
-        if (access("/dev/amvenc_multi", F_OK ) != -1) {
+        if (access("/dev/amvenc_multi", F_OK ) != -1 || access("/dev/vc8000", F_OK ) != -1 ) {
             strFactoryName = "CreateC2VencH264Factory";
             strDestroyFactoryName = "DestroyC2VencH264Factory";
             ALOGD("amvenc_multi h264 present");
@@ -282,7 +297,7 @@ c2_status_t C2VendorComponentStore::ComponentModule::selectEncoder(C2VendorCodec
     }
 
     if (C2VendorCodec::VENC_H265 == codectype) {
-        if (access("/dev/amvenc_multi", F_OK ) != -1) {
+        if (access("/dev/amvenc_multi", F_OK ) != -1 || access("/dev/vc8000", F_OK ) != -1 ) {
             strFactoryName = "CreateC2VencH265Factory";
             strDestroyFactoryName = "DestroyC2VencH265Factory";
             ALOGD("amvenc_multi h265 present");
@@ -305,6 +320,9 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
     ALOGV("Loading dll");
     mIsAudio = isAudio;
     mLibHandle = dlopen(libPath.c_str(), RTLD_NOW | RTLD_NODELETE);
+    bool isDtsXSupport = false;
+    if (C2VendorCheckFileDTSXStatus() == RET_OK)
+        isDtsXSupport = true;
     if (mLibHandle == nullptr) {
         ALOGD("Could not dlopen %s: %s", libPath.c_str(), dlerror());
         mInit = C2_CORRUPTED;
@@ -338,17 +356,41 @@ c2_status_t C2VendorComponentStore::ComponentModule::init(std::string libPath, C
                   destroyFactoryName = "DestroyC2AudioDecoderEAC3Factory";
                   break;
               case C2VendorCodec::ADEC_DTS:
-                  createFactoryName = "CreateC2AudioDecoderDTSFactory";
-                  destroyFactoryName = "DestroyC2AudioDecoderDTSFactory";
-                  break;
+                    if (isDtsXSupport) {
+                        createFactoryName = "CreateC2AudioDTSXDecoderDTSFactory";
+                        destroyFactoryName = "DestroyC2AudioDTSXDecoderDTSFactory";
+                    } else {
+                        createFactoryName = "CreateC2AudioDecoderDTSFactory";
+                        destroyFactoryName = "DestroyC2AudioDecoderDTSFactory";
+                    }
+                    break;
               case C2VendorCodec::ADEC_DTSE:
-                  createFactoryName = "CreateC2AudioDecoderDTSEFactory";
-                  destroyFactoryName = "DestroyC2AudioDecoderDTSEFactory";
-                  break;
+                    if (isDtsXSupport) {
+                        createFactoryName = "CreateC2AudioDTSXDecoderDTSEFactory";
+                        destroyFactoryName = "DestroyC2AudioDTSXDecoderDTSEFactory";
+                    } else {
+                        createFactoryName = "CreateC2AudioDecoderDTSEFactory";
+                        destroyFactoryName = "DestroyC2AudioDecoderDTSEFactory";
+                    }
+                    break;
               case C2VendorCodec::ADEC_DTSHD:
-                  createFactoryName = "CreateC2AudioDecoderDTSHDFactory";
-                  destroyFactoryName = "DestroyC2AudioDecoderDTSHDFactory";
-                  break;
+                    if (isDtsXSupport) {
+                        createFactoryName = "CreateC2AudioDTSXDecoderDTSHDFactory";
+                        destroyFactoryName = "DestroyC2AudioDTSXDecoderDTSHDFactory";
+                    } else {
+                        createFactoryName = "CreateC2AudioDecoderDTSHDFactory";
+                        destroyFactoryName = "DestroyC2AudioDecoderDTSHDFactory";
+                    }
+                    break;
+              case C2VendorCodec::ADEC_DTSUHD:
+                    if (isDtsXSupport) {
+                        createFactoryName = "CreateC2AudioDTSXDecoderDTSUHDFactory";
+                        destroyFactoryName = "DestroyC2AudioDTSXDecoderDTSUHDFactory";
+                    } else {
+                        ALOGE("Unsupport Audio codec:%d", codec);
+                        return C2_CORRUPTED;
+                    }
+                    break;
               case C2VendorCodec::ADEC_AC4:
                   createFactoryName = "CreateC2AudioDecoderAC4Factory";
                   destroyFactoryName = "DestroyC2AudioDecoderAC4Factory";

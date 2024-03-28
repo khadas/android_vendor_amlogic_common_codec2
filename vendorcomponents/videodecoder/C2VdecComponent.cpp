@@ -102,6 +102,14 @@ uint32_t android::C2VdecComponent::mInstanceID = 0;
 
 using android::hardware::graphics::common::V1_0::BufferUsage;
 
+const char *MEDIA_MIMETYPE_VIDEO_AVS = "video/avs";
+const char *MEDIA_MIMETYPE_VIDEO_AVS2 = "video/avs2";
+const char *MEDIA_MIMETYPE_VIDEO_AVS3 = "video/avs3";
+const char *MEDIA_MIMETYPE_VIDEO_VC1 = "video/vc1";
+
+const char *MEDIA_MIMETYPE_DOLBYVISION_HEVC_TUNER_PASSTHROUGH = "video/dolby-vision-hevc";
+const char *MEDIA_MIMETYPE_DOLBYVISION_AVC_TUNER_PASSTHROUGH = "video/dolby-vision-avc";
+
 namespace android {
 
 namespace {
@@ -807,7 +815,7 @@ void C2VdecComponent::onDequeueWork() {
                     break;
             }
         }
-        if (!isHdr10PlusInfoWithWork) {
+        if (mIntfImpl->mIsSupportHdr && !isHdr10PlusInfoWithWork) {
             if (hdrInfo != nullptr) {
                 hdr10plusBuf = hdrInfo->m.data;
                 hdr10plusLen = hdrInfo->flexCount();
@@ -1341,15 +1349,15 @@ void C2VdecComponent::updateWorkParam(C2Work* work, GraphicBlockInfo* info) {
         buffer->setInfo(mCurrentColorAspects);
     }
     /* update hdr static info */
-    if (mDeviceUtil->isHDRStaticInfoUpdated()) {
+    if (mIntfImpl->mIsSupportHdr && mDeviceUtil->isHDRStaticInfoUpdated()) {
         updateHDRStaticInfo();
     }
-    if (mCurrentHdrStaticInfo) {
+    if (mIntfImpl->mIsSupportHdr && mCurrentHdrStaticInfo) {
         buffer->setInfo(mCurrentHdrStaticInfo);
     }
 
     /* update hdr10 plus info */
-    if (mDeviceUtil->isHDR10PlusStaticInfoUpdated()) {
+    if (mIntfImpl->mIsSupportHdr && mDeviceUtil->isHDR10PlusStaticInfoUpdated()) {
         updateHDR10PlusInfo();
     }
 
@@ -2323,7 +2331,7 @@ c2_status_t C2VdecComponent::reallocateBuffersForUsageChanged(const media::Size&
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
-            (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), mDeviceUtil->getPlatformUsage()};
+            (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), mDeviceUtil->getPlatformUsage(size)};
 
     CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2, "Minimum undequeued buffer count = %zu  usage= %" PRId64"", minBuffersForDisplay, usage.expected);
 
@@ -2427,7 +2435,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
         return C2_NO_MEMORY;
     }
     mUndequeuedBlockIds.resize(minBuffersForDisplay, -1);
-    uint64_t platformUsage = mDeviceUtil->getPlatformUsage();
+    uint64_t platformUsage = mDeviceUtil->getPlatformUsage(size);
     C2MemoryUsage usage = {
             mSecureMode ? (C2MemoryUsage::READ_PROTECTED | C2MemoryUsage::WRITE_PROTECTED) :
             (C2MemoryUsage::CPU_READ | C2MemoryUsage::CPU_WRITE), platformUsage};
@@ -2564,7 +2572,7 @@ c2_status_t C2VdecComponent::allocateBuffersFromBlockPool(const media::Size& siz
     C2Vdec_LOG(CODEC2_LOG_INFO, "AllocateBuffersFromBlockPool(%s, 0x%x)", size.ToString().c_str(), pixelFormat);
     mDequeueThreadUtil->StopRunDequeueTask();
     size_t bufferCount = mOutputFormat.mMinNumBuffers + kDpbOutputBufferExtraCount;
-    if (isTunnelMode() || !mDeviceUtil->needAllocWithMaxSize()) {
+    if (isTunnelMode() || mDeviceUtil->needAllocWithMaxSize()) {
         mOutBufferCount = getDefaultMaxBufNum(GetIntfImpl()->getInputCodec());
         if (bufferCount > mOutBufferCount) {
             C2Vdec_LOG(CODEC2_LOG_INFO, "required outbuffer count %d large than default num %d", (int)bufferCount, mOutBufferCount);
@@ -3203,7 +3211,7 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     mDeviceUtil->queryStreamBitDepth();
     mDeviceUtil->checkUseP010Mode();
 
-    if (!mDeviceUtil->needAllocWithMaxSize()) {
+    if (mDeviceUtil->needAllocWithMaxSize()) {
         mDeviceUtil->getMaxBufWidthAndHeight(max_width, max_height);
     }
     auto format = std::make_unique<VideoFormat>(HalPixelFormat::YCRCB_420_SP, minNumBuffers,
@@ -3781,20 +3789,17 @@ void C2VdecComponent::onConfigureTunnelMode() {
     if (mIntfImpl->mTunnelModeOutput->m.syncType == C2PortTunneledModeTuning::Struct::sync_type_t::AUDIO_HW_SYNC) {
         int syncId = mIntfImpl->mTunnelModeOutput->m.syncId[0];
         if (syncId >= 0) {
-            if (((syncId & 0x0000FF00) == 0xFF00)
-                || (syncId == 0x0)) {
-                mSyncId = syncId;
-                if (mTunnelHelper) {
-                    removeObserver(mTunnelHelper);
-                    mTunnelHelper.reset();
-                    mTunnelHelper = NULL;
-                }
-                mTunnelHelper =  std::make_shared<TunnelHelper>(mSecureMode);
-                addObserver(mTunnelHelper, static_cast<int>(mComponentState), mCompHasError);
-                mTunnelHelper->setComponent(shared_from_this());
-                mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
-                mSyncType |= C2_SYNC_TYPE_TUNNEL;
+            mSyncId = syncId;
+            if (mTunnelHelper) {
+                removeObserver(mTunnelHelper);
+                mTunnelHelper.reset();
+                mTunnelHelper = NULL;
             }
+            mTunnelHelper =  std::make_shared<TunnelHelper>(mSecureMode);
+            addObserver(mTunnelHelper, static_cast<int>(mComponentState), mCompHasError);
+            mTunnelHelper->setComponent(shared_from_this());
+            mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
+            mSyncType |= C2_SYNC_TYPE_TUNNEL;
         }
     }
 
@@ -3807,9 +3812,45 @@ void C2VdecComponent::onConfigureTunerPassthroughMode() {
         mTunerPassthroughHelper.reset();
         mTunerPassthroughHelper = NULL;
     }
-    mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(mSecureMode, VideoCodecProfileToMime(mIntfImpl->getCodecProfile()), mTunnelHelper);
+
+    C2String componentName = mName;
+    const char *mime = "";
+    if (componentName.find("avc") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVC;
+    } else if (componentName.find("hevc") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_HEVC;
+    } else if (componentName.find("vp9") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_VP9;
+    } else if (componentName.find("av1") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AV1;
+    } else if (componentName.find("mpeg4") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_MPEG4;
+    } else if (componentName.find("mpeg2") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_MPEG2;
+    } else if (componentName.find("vc1") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_VC1;
+    } else if (componentName.find("avs2") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVS2;
+    } else if (componentName.find("avs3") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVS3;
+    } else if (componentName.find("avs") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_AVS;
+    } else if (componentName.find("mjpeg") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_VIDEO_MJPEG;
+    } else if (componentName.find("dvhe") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_DOLBYVISION_HEVC_TUNER_PASSTHROUGH;
+    } else if (componentName.find("dvav") != std::string::npos) {
+        mime = MEDIA_MIMETYPE_DOLBYVISION_AVC_TUNER_PASSTHROUGH;
+    } else {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "ConfigureTunerPassthroughMode mime unknown: %s", componentName.c_str());
+    }
+
+    C2Vdec_LOG(CODEC2_LOG_INFO, "ConfigureTunerPassthroughMode mime: %s", mime);
+
+    mTunerPassthroughHelper = std::make_shared<TunerPassthroughHelper>(mSecureMode, mime, mTunnelHelper);
     addObserver(mTunerPassthroughHelper, static_cast<int>(mComponentState), mCompHasError);
     mTunerPassthroughHelper->setComponent(shared_from_this());
+
     mSyncType &= (~C2_SYNC_TYPE_NON_TUNNEL);
     mSyncType |= C2_SYNC_TYPE_PASSTHROUGH;
 }

@@ -72,6 +72,7 @@ enum useP010Mode_t {
     kUseSoftwareP010,
     kUseHardwareP010,
 };
+class GrallocWraper;
 
 class C2VdecComponent::DeviceUtil : public IC2Observer {
 public:
@@ -85,6 +86,7 @@ public:
     void flush();
     void updateInterlacedInfo(bool isInterlaced);
     bool isInterlaced() {return mIsInterlaced;};
+    bool isNeedHalfHeightBuffer();
     int getVideoType();
 
     void setNoSurface(bool isNoSurface) { mNoSurface = isNoSurface;}
@@ -102,9 +104,9 @@ public:
     bool isColorAspectsChanged();
 
     //int check_color_aspects();
-
-    uint64_t getPlatformUsage();
+    uint64_t getPlatformUsage(const media::Size& size);
     uint32_t getOutAlignedSize(uint32_t size, bool align64 = false,bool forceAlign = false);
+    bool isNeedMaxSizeForAvc(int32_t doubleWrite);
     bool needAllocWithMaxSize();
     bool isReallocateOutputBuffer(VideoFormat rawFormat,VideoFormat currentFormat,
                                  bool *sizechange, bool *buffernumincrease);
@@ -137,7 +139,10 @@ public:
 
     void setGameMode(bool enable);
     bool isLowLatencyMode();
+
+    void releaseGrallocSlot();
 private:
+    friend class GrallocWraper;
     void init(bool secure);
     /* set hdr static to decoder */
     int setHDRStaticInfo();
@@ -153,10 +158,8 @@ private:
     // The hardware platform supports 10bit decoding,
     // so use the triple write configuration parameter.
     int32_t getPropertyTripleWrite();
-    uint64_t getUsageFromTripleWrite(int32_t triplewrite);
 
     int32_t getPropertyDoubleWrite();
-    uint64_t getUsageFromDoubleWrite(int32_t doublewrite);
     bool checkDvProfileAndLayer();
     bool isYcrcb420Stream() const; /* 8bit */
 
@@ -228,6 +231,9 @@ private:
     uint32_t mSignalType;
     bool mEnableAdaptivePlayback;
     std::mutex mMutex;
+
+    /* for gralloc wraper */
+    std::unique_ptr<GrallocWraper> mGrallocWraper;
 };
 
 }

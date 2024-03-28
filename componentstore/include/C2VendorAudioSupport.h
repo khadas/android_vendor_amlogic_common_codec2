@@ -23,7 +23,8 @@ const C2String kEC3DecoderName      = "c2.amlogic.audio.decoder.eac3";
 const C2String kFFMPEGDecoderName   = "c2.amlogic.audio.decoder.ffmpeg";
 const C2String kDTSDecoderName      = "c2.amlogic.audio.decoder.dts";
 const C2String kDTSHDDecoderName    = "c2.amlogic.audio.decoder.dtshd";
-const C2String kDTSSEDecoderName    = "c2.amlogic.audio.decoder.dtse";
+const C2String kDTSEDecoderName     = "c2.amlogic.audio.decoder.dtse";
+const C2String kDTSUHDDecoderName   = "c2.amlogic.audio.decoder.dtsuhd";
 const C2String kAC4DecoderName      = "c2.amlogic.audio.decoder.ac4";
 
 static C2VendorComponent gC2AudioDecoderComponents [] = {
@@ -34,7 +35,8 @@ static C2VendorComponent gC2AudioDecoderComponents [] = {
     {kFFMPEGDecoderName, C2VendorCodec::ADEC_FFMPEG},
     {kDTSDecoderName, C2VendorCodec::ADEC_DTS},
     {kDTSHDDecoderName, C2VendorCodec::ADEC_DTSHD},
-    {kDTSSEDecoderName, C2VendorCodec::ADEC_DTSE},
+    {kDTSEDecoderName, C2VendorCodec::ADEC_DTSE},
+    {kDTSUHDDecoderName, C2VendorCodec::ADEC_DTSUHD},
     {kAC4DecoderName, C2VendorCodec::ADEC_AC4},
 };
 

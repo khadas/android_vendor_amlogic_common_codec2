@@ -68,6 +68,8 @@
 #define C2_PROPERTY_VDEC_DI_POST                    "vendor.media.c2.vdec.di.post"
 #define C2_PROPERTY_VDEC_DIABLE_VPP_THRES           "vendor.media.c2.vdec.disable_vpp_thres"
 #define C2_PROPERTY_VDEC_AMDV_USE_P010                "vendor.media.c2.vdec.amdv_use_P010"
+#define C2_PROPERTY_VDEC_AMDV_USE_540P                "vendor.media.c2.vdec.amdv_use_540p"
+
 
 
 /* debug */
@@ -78,6 +80,7 @@
 #define C2_PROPERTY_VDEC_OUT_ADD_DELAY              "debug.vendor.media.c2.vdec.out.add_delay"
 #define C2_PROPERTY_VDEC_DIABLE_BYPASS_VPP          "debug.vendor.media.c2.vdec.default.bypass_vpp"
 #define C2_PROPERTY_VDEC_LLV_FIRST_ALLOC_NUM        "debug.vendor.media.c2.vdec.llv_first_alloc_num"
+#define C2_PROPERTY_VDEC_SUPPORT_GRALLOC_V2         "debug.vendor.media.c2.vdec.support.gralloc_v2"
 
 /* soft vdec */
 #define C2_PROPERTY_SOFTVDEC_INST_MAX_NUM           "vendor.media.c2.softvdec.inst.max_num"
@@ -97,6 +100,7 @@
 #define PROPERTY_PLATFORM_SUPPORT_HARDWARE_P010     "ro.vendor.platform.support.hardware_10bit"
 #define PROPERTY_PLATFORM_SUPPORT_SOFTWARE_P010     "ro.vendor.platform.support.software_10bit"
 #define PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE       "ro.vendor.platform.support.8k.buffer_mode"
+#define PROPERTY_PLATFORM_SUPPORT_HDR               "ro.vendor.platform.support.hdr"
 
 /* vdec property set */
 #define C2_PROPERTY_COMMON_LOWLATENCY_MODE          "vendor.media.llp"

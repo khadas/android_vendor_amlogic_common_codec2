@@ -148,9 +148,10 @@ int VideoTunnelRendererWraper::regNotifyEventCallBack(callbackFunc funs, void* o
 bool VideoTunnelRendererWraper::setFrameRate(int32_t framerate) {
     if (!mVideoTunnelRenderer)
         return false;
-#if ANDROID_PLATFORM_SDK_VERSION >= 30
+//c2 current use r-amlogic branch, r sdk version is already 30, following expression is redundant
+//#if ANDROID_PLATFORM_SDK_VERSION >= 30
     mVideoTunnelRenderer->setFrameRate(framerate);
-#endif
+//#endif
     return true;
 }
 

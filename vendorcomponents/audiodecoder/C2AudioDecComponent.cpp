@@ -449,13 +449,11 @@ void C2AudioDecComponent::cloneAndSend(
         work->input.ordinal = queue->pending().at(frameIndex)->input.ordinal;
     }
     work->worklets.emplace_back(new C2Worklet);
-    if (work) {
-        fillWork(work);
-        /*coverity[dereference]*/
-        std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
-        listener->onWorkDone_nb(shared_from_this(), vec(work));
-        ALOGV("cloned and sending work");
-    }
+    fillWork(work);
+    /*coverity[dereference]*/
+    std::shared_ptr<C2Component::Listener> listener = mExecState.lock()->mListener;
+    listener->onWorkDone_nb(shared_from_this(), vec(work));
+    ALOGV("cloned and sending work");
 }
 
 bool C2AudioDecComponent::processQueue() {
