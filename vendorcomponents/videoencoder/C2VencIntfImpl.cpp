@@ -50,7 +50,6 @@ constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;
 #define DEFAULT_MAX_REORDER_FRM     0
 #define DEFAULT_QP_MIN              10
 #define DEFAULT_QP_MAX              40
-#define DEFAULT_MAX_BITRATE         240000000
 #define DEFAULT_MAX_SRCH_RANGE_X    256
 #define DEFAULT_MAX_SRCH_RANGE_Y    256
 #define DEFAULT_MAX_FRAMERATE       120000
@@ -109,6 +108,10 @@ constexpr static size_t kLinearBufferSize = 5 * 1024 * 1024;
 #define DEFAULT_SOC                 SOC_GENERIC
 #define DEFAULT_INTRA4x4            0
 #define DEFAULT_CONSTRAINED_INTRA   0
+#define DEFAULT_MIN_BITRATE         10000 //vccodec need minimum bitrate is 10000
+#define DEFAULT_MAX_BITRATE         12000000
+
+
 
 #define CODEC_QP_MIN                4
 #define CODEC_QP_MAX                51
@@ -253,7 +256,7 @@ C2VencComp::IntfImpl::IntfImpl(C2String name,C2String mimetype,const std::shared
     addParameter(
             DefineParam(mBitrate, C2_PARAMKEY_BITRATE)
             .withDefault(new C2StreamBitrateInfo::output(0u, 64000))
-            .withFields({C2F(mBitrate, value).inRange(4096, 12000000)})
+            .withFields({C2F(mBitrate, value).inRange(DEFAULT_MIN_BITRATE, DEFAULT_MAX_BITRATE)})
             .withSetter(BitrateSetter)
             .build());
 
@@ -571,8 +574,8 @@ C2R C2VencComp::IntfImpl::FramerateSetter(bool mayBlock, C2P<C2StreamFrameRateIn
 C2R C2VencComp::IntfImpl::BitrateSetter(bool mayBlock, C2P<C2StreamBitrateInfo::output> &me) {
     (void)mayBlock;
     C2R res = C2R::Ok();
-    if (me.v.value <= 4096) {
-        me.set().value = 4096;
+    if (me.v.value <= DEFAULT_MIN_BITRATE) {
+        me.set().value = DEFAULT_MIN_BITRATE;
     }
     return res;
 }
