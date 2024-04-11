@@ -1298,6 +1298,7 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
                 needMaxSize = false;
                 break;
             case InputCodec::H264:
+            case InputCodec::DVAV:
                 if (mIsInterlaced || !isNeedMaxSizeForAvc(getDoubleWriteModeValue())) {
                     needMaxSize = false;
                 } else {
@@ -1307,6 +1308,8 @@ bool C2VdecComponent::DeviceUtil::needAllocWithMaxSize() {
             case InputCodec::VP9:
             case InputCodec::H265:
             case InputCodec::AV1:
+            case InputCodec::DVHE:
+            case InputCodec::DVAV1:
                 needMaxSize = true;
                 break;
             default:
