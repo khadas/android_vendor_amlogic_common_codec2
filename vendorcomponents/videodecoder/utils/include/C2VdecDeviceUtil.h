@@ -192,7 +192,8 @@ private:
     bool mDiPost;
     bool mForceDIPermission;
     bool mEnableDILocalBuf;
-    bool mIs8k;
+    bool mStreamIs8k;
+    bool mCodecSupport8k;
     bool mEnable8kNR;
     bool mDisableErrPolicy;
     bool mForceFullUsage;

@@ -2431,6 +2431,7 @@ c2_status_t C2VdecComponent::allocNonTunnelBuffers(const media::Size& size, uint
     //check is can play 8k normally
     bool support = mDeviceUtil->checkSupport8kMode();
     if (support == false) {
+        C2Vdec_LOG(CODEC2_LOG_ERR, "device not support 8k buffer mode");
         reportError(C2_NO_MEMORY);
         return C2_NO_MEMORY;
     }

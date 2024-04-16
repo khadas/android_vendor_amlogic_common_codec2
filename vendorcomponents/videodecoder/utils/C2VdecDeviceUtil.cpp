@@ -92,8 +92,9 @@ void C2VdecComponent::DeviceUtil::init(bool secure) {
 
     mDiPost = property_get_bool(C2_PROPERTY_VDEC_DI_POST, false);
     // 8K
-    mIs8k = false;
+    mStreamIs8k = false;
     mEnable8kNR = false;
+    mCodecSupport8k = false;
 
     // NR DI
     mEnableNR = false;
@@ -163,7 +164,7 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         return doubleWriteValue;
     }
 
-    if (mIs8k && !C2VdecCodecConfig::getInstance().isDisplaySupport8k()) {
+    if ((mStreamIs8k || mCodecSupport8k) && !C2VdecCodecConfig::getInstance().isDisplaySupport8k()) {
         doubleWriteValue = 4;
         return doubleWriteValue;
     }
@@ -500,9 +501,16 @@ void C2VdecComponent::DeviceUtil::codecConfig(mediahal_cfg_parms* configParam) {
 
     mBufferWidth  = bufwidth;
     mBufferHeight = bufheight;
+
+    C2VendorCodec vendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(intfImpl->getInputCodec());
+    //xml define this codec is support 8k,set mCodecSupport8k true.
+    if (C2VdecCodecConfig::getInstance().isCodecSupport8k(vendorCodec, mSecure)) {
+        mCodecSupport8k = true;
+        C2VdecMDU_LOG(CODEC2_LOG_INFO, "[%s:%d] Codec is Support 8k",__func__, __LINE__);
+    }
     if (bufwidth * bufheight > kMaxWidth4k * kMaxHeight4k) {
+        mStreamIs8k = true;
         default_margin = 5;
-        mIs8k = true;
         if (!mEnable8kNR) {
             mEnableNR = false;
         }
@@ -1227,7 +1235,10 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage(const media::Size& size) 
 bool C2VdecComponent::DeviceUtil::checkSupport8kMode() {
     //need report error for 8k video at not surface mode if device not support 8k buf mode.
     bool support = property_get_bool(PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE, false);
-    if (mIs8k && (mUseSurfaceTexture || mNoSurface) && !support) {
+    if (mStreamIs8k
+        && (mUseSurfaceTexture || mNoSurface)
+        && !support
+        && mCodecSupport8k == false) {
         return false;
     }
     return true;
@@ -1374,7 +1385,7 @@ bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint3
     uint32_t maxHeight = 0;
     do {
         if (support_4k) {
-            if (mIs8k) {
+            if (mStreamIs8k || mCodecSupport8k) {
                 maxWidth = kMaxWidth8k;
                 maxHeight = kMaxHeight8k;
                 break;
