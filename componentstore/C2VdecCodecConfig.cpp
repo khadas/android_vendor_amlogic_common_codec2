@@ -27,6 +27,9 @@
 #include <C2VendorVideoSupport.h>
 #include <AmVideoDecBase.h>
 
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
 #undef TEST
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
@@ -554,7 +557,6 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
     GetCompName(codec_type, secure, name);
     int32_t size = width * height;
     bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
-    int32_t support_4k_fps_max = property_get_int32(PROPERTY_PLATFORM_SUPPORT_4K_FPS_MAX, 0);
 
     if (name == NULL) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"codecname is null and return.");
@@ -569,18 +571,22 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
     }
 
     if ((3840 * 2160 <= size && size <= 4096 * 2304) && support_4k) {
+        int32_t platformSupport4kFpsMax = property_get_int32(PROPERTY_PLATFORM_SUPPORT_4K_FPS_MAX, 60);
+
         struct CodecAttributes codecAttributes = attribute->second;
         float supportFrameRate = (float)codecAttributes.blocksPerSecond.max / (float)codecAttributes.blockCount.max;
-        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported framerate:%f framerate:%f blocksPerSecond:%d blockCount:%d", __func__, supportFrameRate, frameRate,
-            codecAttributes.blocksPerSecond.max, codecAttributes.blockCount.max);
-        if (frameRate <= support_4k_fps_max)
-            return true;
 
-        if (frameRate <= supportFrameRate) {
-            return true;
-        } else {
-            return false;
+        // If the format supports 8k decoding, convert the currently
+        // supported 8k frame rate to a frame rate that supports 4k.
+        if (codecAttributes.maxSize.w * codecAttributes.maxSize.h >= (7680 * 4320)) {
+            float support4KFrameRate = supportFrameRate * 4;
+            supportFrameRate = MIN(platformSupport4kFpsMax, support4KFrameRate);
         }
+
+        CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported fps:%f framerate:%f blocksPerSecond:%d blockCount:%d maxSize:(%d*%d)", __func__, supportFrameRate, frameRate,
+            codecAttributes.blocksPerSecond.max, codecAttributes.blockCount.max, codecAttributes.maxSize.w, codecAttributes.maxSize.h);
+
+        return (frameRate <= supportFrameRate) ? true : false;
     }
 
     return true;

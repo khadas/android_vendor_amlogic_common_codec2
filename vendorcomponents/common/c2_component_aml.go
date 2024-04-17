@@ -21,7 +21,6 @@ import (
     "android/soong/cc"
     "os/exec"
     "fmt"
-    "strconv"
     "strings"
 )
 
@@ -59,22 +58,12 @@ func getVersionInfo(ctx android.LoadHookContext) ([]string) {
     var commitCnt string
     var versionStr string
 
-    //var dir = string(ctx.AConfig().Getenv("PWD"))
-    //sdkVersion,_ := strconv.Atoi(ctx.DeviceConfig().PlatformVndkVersion())
-    sdkVersionstr := ctx.DeviceConfig().PlatformVndkVersion()
+    sdkVersionstr := ctx.Config().PlatformSdkVersion().String()
 
-    PlatformVndkVersion,err := strconv.Atoi(sdkVersionstr);
-    if err != nil {
-        fmt.Printf("%v like UpsideDownCake may fail to convert", PlatformVndkVersion)
-    }
-    {
-        BUFFERUSAGE := "-DSUPPORT_GRALLOC_REPLACE_BUFFER_USAGE"
-        cppflags = append(cppflags, BUFFERUSAGE)
-        //fmt.Println("use BUFFER_USAGE")
-    }
+    BUFFERUSAGE := "-DSUPPORT_GRALLOC_REPLACE_BUFFER_USAGE"
+    cppflags = append(cppflags, BUFFERUSAGE)
     SDKVERSION := "-DANDROID_PLATFORM_SDK_VERSION=" + sdkVersionstr
     cppflags = append(cppflags, SDKVERSION)
-    fmt.Println("c2 PlatformVndkVersion:", SDKVERSION)
 
     currentdir := string(ctx.AConfig().Getenv("PWD")) + "/vendor/amlogic/common/codec2"
 
