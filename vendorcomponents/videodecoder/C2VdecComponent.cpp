@@ -1529,7 +1529,7 @@ void C2VdecComponent::onStop(::base::WaitableEvent* done) {
     mInputWorkCount = 0;
     mInputCSDWorkCount = 0;
     mStopDoneEvent = done;  // restore done event which should be signaled in onStopDone().
-    updateComponentState(ComponentState::STOPPING);
+    updateComponentState(ComponentState::STOPPING, mCompHasError);
     mDequeueThreadUtil->StopRunDequeueTask();
     if (mTunerPassthroughHelper) {
         mTunerPassthroughHelper->stop();
