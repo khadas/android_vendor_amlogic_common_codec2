@@ -21,6 +21,7 @@
 #include <base/bind.h>
 #include <base/bind_helpers.h>
 #include <C2AllocatorGralloc.h>
+#include "base/memory/weak_ptr.h"
 
 #include <am_gralloc_ext.h>
 
@@ -36,7 +37,7 @@
 
 namespace android {
 
-C2VdecComponent::TunnelHelper::TunnelHelper(bool secure) {
+C2VdecComponent::TunnelHelper::TunnelHelper(bool secure) : mWeakFactory(this) {
     mSecure = secure;
     mReallocWhenResChange = false;
     mReallocWhenResChange = property_get_bool(C2_PROPERTY_VDEC_REALLOC_TUNNEL_RESCHANGE, mReallocWhenResChange);
@@ -231,7 +232,7 @@ int C2VdecComponent::TunnelHelper::postFillVideoFrameTunnel2(int dmafd, bool ren
         return 0;
     }
     taskRunner->PostTask(FROM_HERE,
-        ::base::Bind(&C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2, ::base::Unretained(this),
+        ::base::Bind(&C2VdecComponent::TunnelHelper::onFillVideoFrameTunnel2, mWeakFactory.GetWeakPtr(),
             dmafd, rendered));
     return 0;
 }
@@ -272,7 +273,7 @@ int C2VdecComponent::TunnelHelper::postNotifyRenderTimeTunnel(struct renderTime*
         .renderUs = rendertime->renderUs,
     };
     taskRunner->PostTask(FROM_HERE,
-        ::base::Bind(&C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel, ::base::Unretained(this),
+        ::base::Bind(&C2VdecComponent::TunnelHelper::onNotifyRenderTimeTunnel, mWeakFactory.GetWeakPtr(),
             ::base::Passed(&renderTime)));
     return 0;
 }
@@ -324,7 +325,7 @@ int C2VdecComponent::TunnelHelper::postNotifyTunnelEvent(struct tunnelEventParam
     }
     memcpy(eventParam.data, param->data, eventParam.paramSize);
     taskRunner->PostTask(FROM_HERE,
-        ::base::Bind(&C2VdecComponent::TunnelHelper::onNotifyTunnelEvent, ::base::Unretained(this),
+        ::base::Bind(&C2VdecComponent::TunnelHelper::onNotifyTunnelEvent, mWeakFactory.GetWeakPtr(),
         ::base::Passed(&eventParam)));
 
     return 0;
@@ -565,7 +566,7 @@ void C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder(const medi
 
     comp->sendOutputBufferToAccelerator(info, true);
     taskRunner->PostTask(FROM_HERE,
-        ::base::Bind(&C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder, ::base::Unretained(this),
+        ::base::Bind(&C2VdecComponent::TunnelHelper::allocTunnelBufferAndSendToDecoder, mWeakFactory.GetWeakPtr(),
         size, pixelFormat, index+1));
 
     return;

@@ -64,6 +64,7 @@ private:
     int64_t mLastAllocBufferSuccessTimeUs;
     media::Size mCurrentBlockSize;
     std::ostringstream TRACE_NAME_C2VDEC_DEQUEUE_THREAD;
+    ::base::WeakPtrFactory<C2VdecComponent::DequeueThreadUtil> mWeakFactory;
 };
 
 }

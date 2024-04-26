@@ -383,7 +383,7 @@ C2VdecComponent::~C2VdecComponent() {
         ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                    ::base::WaitableEvent::InitialState::NOT_SIGNALED);
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDestroy,
-                                ::base::Unretained(this), &done));
+                                mWeakThisFactory.GetWeakPtr(), &done));
         done.Wait();
         mThread.Stop();
     }
@@ -647,7 +647,7 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
     mQueue.push({std::move(work), drainMode, info});
 
     //  TODO: set a maximum size of mQueue and check if mQueue is already full.
-    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
+    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDequeueWork, mWeakThisFactory.GetWeakPtr()));
 
     if (mReportEosWork == true || (mHaveFlushDone == true)) {
         mReportEosWork = false;
@@ -866,7 +866,7 @@ void C2VdecComponent::onDequeueWork() {
     }
     if (!mQueue.empty()) {
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDequeueWork,
-                                                      ::base::Unretained(this)));
+                                                      mWeakThisFactory.GetWeakPtr()));
     }
 }
 
@@ -911,7 +911,7 @@ void C2VdecComponent::onInputBufferDone(int32_t bitstreamId) {
     } else {
        if (!mPendingBuffersToWork.empty() && isNonTunnelMode()) {
             mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::sendOutputBufferToWorkIfAnyTask,
-                                             ::base::Unretained(this),
+                                             mWeakThisFactory.GetWeakPtr(),
                                              false));
         }
     }
@@ -1400,7 +1400,7 @@ void C2VdecComponent::checkPreempting() {
         reportError(C2_CANCELED);
     } else {
         mTaskRunner->PostDelayedTask(FROM_HERE,
-            ::base::Bind(&C2VdecComponent::checkPreempting, ::base::Unretained(this)),
+            ::base::Bind(&C2VdecComponent::checkPreempting, mWeakThisFactory.GetWeakPtr()),
             ::base::TimeDelta::FromMilliseconds(100));
     }
 }
@@ -1467,7 +1467,7 @@ void C2VdecComponent::onDrainDone() {
     if (isTunnelMode()) {
         CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d] tunnel mode reset done", __FUNCTION__, __LINE__);
         mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
+                          ::base::Bind(&C2VdecComponent::onDequeueWork, mWeakThisFactory.GetWeakPtr()));
         return;
     }
 
@@ -1486,7 +1486,7 @@ void C2VdecComponent::onDrainDone() {
 
     // Work dequeueing was stopped while component draining. Restart it.
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
+                          ::base::Bind(&C2VdecComponent::onDequeueWork, mWeakThisFactory.GetWeakPtr()));
 }
 
 void C2VdecComponent::onFlush() {
@@ -2022,7 +2022,7 @@ void C2VdecComponent::tryChangeOutputFormat() {
     if (isNonTunnelMode() && (!mPendingBuffersToWork.empty())) {
         C2Vdec_LOG(CODEC2_LOG_DEBUG_LEVEL1, "Pending buffers has work, and wait...");
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::tryChangeOutputFormat,
-                                            ::base::Unretained(this)));
+                                            mWeakThisFactory.GetWeakPtr()));
         return;
     }
 
@@ -2977,7 +2977,7 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
     if (!mSurfaceUsageGot) {
         if (isNonTunnelMode())
             mTaskRunner->PostTask(FROM_HERE,
-                        ::base::Bind(&C2VdecComponent::onCheckVideoDecReconfig, ::base::Unretained(this)));
+                        ::base::Bind(&C2VdecComponent::onCheckVideoDecReconfig, mWeakThisFactory.GetWeakPtr()));
     }
 
     while (!items->empty()) {
@@ -2985,7 +2985,7 @@ c2_status_t C2VdecComponent::queue_nb(std::list<std::unique_ptr<C2Work>>* const 
         mHasQueuedWork = true;
         std::shared_ptr<C2StreamHdrDynamicMetadataInfo::input> info((mIntfImpl->getHdr10PlusInfo()));
         mTaskRunner->PostTask(FROM_HERE,
-                              ::base::Bind(&C2VdecComponent::onQueueWork, ::base::Unretained(this),
+                              ::base::Bind(&C2VdecComponent::onQueueWork, mWeakThisFactory.GetWeakPtr(),
                                            ::base::Passed(&items->front()),
                                            std::move(info)));
         //onQueueWork(std::move(items->front()));
@@ -3013,7 +3013,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
     }
 
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onFlush,
-                                                ::base::Unretained(this)));
+                                                mWeakThisFactory.GetWeakPtr()));
 
     AutoMutex l(mFlushDoneLock);
     if (mFlushDoneCond.waitRelative(mFlushDoneLock, 500000000ll) == ETIMEDOUT) {  // 500ms Time out
@@ -3038,7 +3038,7 @@ c2_status_t C2VdecComponent::flush_sm(flush_mode_t mode,
     if (!mTunerPassthroughHelper) {
         // Work dequeueing was stopped while component flushing. Restart it.
         mTaskRunner->PostTask(FROM_HERE,
-                              ::base::Bind(&C2VdecComponent::onDequeueWork, ::base::Unretained(this)));
+                              ::base::Bind(&C2VdecComponent::onDequeueWork, mWeakThisFactory.GetWeakPtr()));
         mHaveFlushDone = true;
         mFlushDoneWithOutEosWork = true;
         // if ((mDequeueThreadUtil != nullptr) && isNonTunnelMode()) {
@@ -3066,7 +3066,7 @@ c2_status_t C2VdecComponent::drain_nb(drain_mode_t mode) {
         return C2_BAD_STATE;
     }
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onDrain, ::base::Unretained(this),
+                          ::base::Bind(&C2VdecComponent::onDrain, mWeakThisFactory.GetWeakPtr(),
                                        static_cast<uint32_t>(mode)));
     return C2_OK;
 }
@@ -3086,7 +3086,7 @@ c2_status_t C2VdecComponent::start() {
     ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                ::base::WaitableEvent::InitialState::NOT_SIGNALED);
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onStart, ::base::Unretained(this),
+                          ::base::Bind(&C2VdecComponent::onStart, mWeakThisFactory.GetWeakPtr(),
                                        mCodecProfile, &done));
     done.Wait();
     c2_status_t c2Status;
@@ -3107,7 +3107,7 @@ c2_status_t C2VdecComponent::start() {
         mDebugUtil->startShowPipeLineBuffer();
     }
     mTaskRunner->PostDelayedTask(FROM_HERE,
-        ::base::Bind(&C2VdecComponent::checkPreempting, ::base::Unretained(this)),
+        ::base::Bind(&C2VdecComponent::checkPreempting, mWeakThisFactory.GetWeakPtr()),
         ::base::TimeDelta::FromMilliseconds(100));
     if (mIntfImpl->mVendorGameModeLatency->enable && mDeviceUtil) {
         mDeviceUtil->setGameMode(true);
@@ -3138,7 +3138,7 @@ c2_status_t C2VdecComponent::stop() {
     ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                ::base::WaitableEvent::InitialState::NOT_SIGNALED);
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onStop, ::base::Unretained(this), &done));
+                          ::base::Bind(&C2VdecComponent::onStop, mWeakThisFactory.GetWeakPtr(), &done));
     done.Wait();
     mState.store(State::LOADED);
     mVdecComponentStopDone = true;
@@ -3178,7 +3178,7 @@ c2_status_t C2VdecComponent::release() {
         ::base::WaitableEvent done(::base::WaitableEvent::ResetPolicy::AUTOMATIC,
                                    ::base::WaitableEvent::InitialState::NOT_SIGNALED);
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onDestroy,
-                                ::base::Unretained(this), &done));
+                                mWeakThisFactory.GetWeakPtr(), &done));
         done.Wait();
         mThread.Stop();
     }
@@ -3224,7 +3224,7 @@ void C2VdecComponent::ProvidePictureBuffers(uint32_t minNumBuffers, uint32_t wid
     // Set mRequestedVisibleRect to default.
     mRequestedVisibleRect = media::Rect();
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputFormatChanged,
-                                                  ::base::Unretained(this),
+                                                  mWeakThisFactory.GetWeakPtr(),
                                                   ::base::Passed(&format)));
 }
 
@@ -3241,11 +3241,11 @@ void C2VdecComponent::PictureReady(int32_t pictureBufferId, int64_t bitstreamId,
     if (mRequestedVisibleRect != media::Rect(x, y, w, h)) {
         mRequestedVisibleRect = media::Rect(x, y, w, h);
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onVisibleRectChanged,
-                                                      ::base::Unretained(this), media::Rect(x, y, w, h)));
+                                                      mWeakThisFactory.GetWeakPtr(), media::Rect(x, y, w, h)));
     }
 
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferDone,
-                                                  ::base::Unretained(this),
+                                                  mWeakThisFactory.GetWeakPtr(),
                                                   pictureBufferId, bitstreamId, flags, 0));
 }
 
@@ -3263,11 +3263,11 @@ void C2VdecComponent::PictureReady(output_buf_param_t* params) {
     if (mRequestedVisibleRect != media::Rect(x, y, w, h)) {
         mRequestedVisibleRect = media::Rect(x, y, w, h);
         mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onVisibleRectChanged,
-                                                      ::base::Unretained(this), media::Rect(x, y, w, h)));
+                                                      mWeakThisFactory.GetWeakPtr(), media::Rect(x, y, w, h)));
     }
 
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onOutputBufferDone,
-                                                   ::base::Unretained(this),
+                                                   mWeakThisFactory.GetWeakPtr(),
                                                    pictureBufferId, bitstreamId, flags, timestamp));
 }
 
@@ -3282,7 +3282,7 @@ void C2VdecComponent::UpdateDecInfo(const uint8_t* info, uint32_t isize) {
 
 void C2VdecComponent::NotifyEndOfBitstreamBuffer(int32_t bitstreamId) {
     mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::onInputBufferDone,
-                                                  ::base::Unretained(this), bitstreamId));
+                                                  mWeakThisFactory.GetWeakPtr(), bitstreamId));
 }
 
 void C2VdecComponent::NotifyFlushDone() {
@@ -3290,13 +3290,13 @@ void C2VdecComponent::NotifyFlushDone() {
     mDequeueThreadUtil->StopAllocBuffer();
     mHaveDrainDone = true;
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onDrainDone, ::base::Unretained(this)));
+                          ::base::Bind(&C2VdecComponent::onDrainDone, mWeakThisFactory.GetWeakPtr()));
 }
 
 void C2VdecComponent::NotifyFlushOrStopDone() {
     C2Vdec_LOG(CODEC2_LOG_INFO, "[%s]", __func__);
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onFlushOrStopDone, ::base::Unretained(this)));
+                          ::base::Bind(&C2VdecComponent::onFlushOrStopDone, mWeakThisFactory.GetWeakPtr()));
 }
 
 void C2VdecComponent::onReportError(c2_status_t error) {
@@ -3315,13 +3315,13 @@ void C2VdecComponent::NotifyError(int error) {
         return;
     }
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onReportError, ::base::Unretained(this), err));
+                          ::base::Bind(&C2VdecComponent::onReportError, mWeakThisFactory.GetWeakPtr(), err));
 }
 
 void C2VdecComponent::onNoOutFrameNotify(int64_t bitstreamId) {
     mNoOutFrameWorkQueue.push_back(bitstreamId);
     mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onReportNoOutFrameFinished, ::base::Unretained(this)));
+                          ::base::Bind(&C2VdecComponent::onReportNoOutFrameFinished, mWeakThisFactory.GetWeakPtr()));
 }
 
 void C2VdecComponent::onReportNoOutFrameFinished() {
@@ -3365,12 +3365,12 @@ void C2VdecComponent::NotifyEvent(uint32_t event, void *param, uint32_t paramsiz
         case VideoDecWraper::FRAME_ERROR:
             bitstreamId = *(int32_t *)(param);
             mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onErrorFrameWorksAndReportIfFinised, ::base::Unretained(this), bitstreamId));
+                          ::base::Bind(&C2VdecComponent::onErrorFrameWorksAndReportIfFinised, mWeakThisFactory.GetWeakPtr(), bitstreamId));
             break;
         case VideoDecWraper::FARAME_INCOMPLETE:
             bitstreamId = *(uint32_t *)(param);
             mTaskRunner->PostTask(FROM_HERE,
-                          ::base::Bind(&C2VdecComponent::onNoOutFrameNotify, ::base::Unretained(this), bitstreamId));
+                          ::base::Bind(&C2VdecComponent::onNoOutFrameNotify, mWeakThisFactory.GetWeakPtr(), bitstreamId));
             break;
         default:
             CODEC2_LOG(CODEC2_LOG_INFO, "NotifyEvent:event:%d", event);
@@ -3427,7 +3427,7 @@ void C2VdecComponent::detectNoShowFrameWorksAndReportIfFinished(
             }
         }
     }
-    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::reportWorkForNoShowFrames, ::base::Unretained(this)));
+    mTaskRunner->PostTask(FROM_HERE, ::base::Bind(&C2VdecComponent::reportWorkForNoShowFrames, mWeakThisFactory.GetWeakPtr()));
 }
 
 void C2VdecComponent::reportWorkForNoShowFrames() {

@@ -41,6 +41,7 @@ namespace android {
 const size_t kDefaultFetchGraphicBlockDelay = 10; // Default smoothing margin for dequeue block.
                                                   // kDefaultSmoothnessFactor + 2
 const size_t kDefaultDequeueBlockCountMax = 64;
+
 int64_t GetNowUs() {
     struct timespec t;
     t.tv_sec = 0;
@@ -176,7 +177,7 @@ C2VdecBlockPoolUtil::~C2VdecBlockPoolUtil() {
             iter->second.mGraphicBlock.use_count());
 
         if (iter->second.mFd >= 0) {
-            close(iter->second.mFd);
+            //close(iter->second.mFd);
             iter->second.mFd = -1;
         }
 
@@ -291,7 +292,7 @@ c2_status_t C2VdecBlockPoolUtil::resetGraphicBlock(int32_t blockId) {
             CODEC2_LOG(CODEC2_LOG_INFO,"[%s] Reset block id:%d fd:%d DupFd:%d", __func__,
                 info->second.mBlockId, info->second.mFd, info->second.mDupFd);
             if (info->second.mFd >= 0) {
-                close(info->second.mFd);
+                //close(info->second.mFd);
                 info->second.mFd = -1;
             }
 
@@ -471,7 +472,7 @@ void C2VdecBlockPoolUtil::cancelAllGraphicBlock() {
             info->second.mBlockId, info->second.mFd, info->second.mDupFd, info->second.mGraphicBlock.use_count());
 
         if (info->second.mFd >= 0) {
-            close(info->second.mFd);
+            //close(info->second.mFd);
             info->second.mFd = -1;
         }
 

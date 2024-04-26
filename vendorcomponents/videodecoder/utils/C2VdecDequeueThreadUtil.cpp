@@ -32,6 +32,8 @@
 #include <sys/resource.h>
 #include <sys/prctl.h>
 
+#include "base/memory/weak_ptr.h"
+
 #include <base/bind.h>
 #include <base/bind_helpers.h>
 #include <C2VendorProperty.h>
@@ -54,7 +56,7 @@ namespace android {
 #define ATRACE_TAG ATRACE_TAG_VIDEO
 #endif
 
-C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil() {
+C2VdecComponent::DequeueThreadUtil::DequeueThreadUtil() : mWeakFactory(this) {
     mDequeueThread = new ::base::Thread("C2VdecDequeueThread");
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     CODEC2_LOG(CODEC2_LOG_INFO, "Creat DequeueThreadUtil!!");
@@ -110,7 +112,7 @@ bool C2VdecComponent::DequeueThreadUtil::StartRunDequeueTask(media::Size size, u
     C2VdecDQ_LOG(CODEC2_LOG_INFO,"%s task loop:%d alloc loop:%d duration:%d minfetchinterval:%d", __func__, mRunTaskLoop.load(), mAllocBufferLoop.load(), mStreamDurationUs, mMinFetchBlockInterval);
 
     mDequeueTaskRunner->PostTask(
-                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onInitTask, ::base::Unretained(this)));
+                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onInitTask, mWeakFactory.GetWeakPtr()));
 
     return true;
 }
@@ -169,13 +171,13 @@ void C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask(media::Size size, 
 
     if (waitRunning && !mAllocBufferLoop.load()) {
         mDequeueTaskRunner->PostDelayedTask(
-                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask, ::base::Unretained(this),
+                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::postDelayedAllocTask, mWeakFactory.GetWeakPtr(),
                     size, pixelFormat, waitRunning, delayTimeUs), ::base::TimeDelta::FromMicroseconds(delayTimeUs));
         return;
     }
 
     mDequeueTaskRunner->PostTask(
-                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
+                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, mWeakFactory.GetWeakPtr(),
                     size, pixelFormat));
 }
 
@@ -195,7 +197,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
     if ((allocRetryDurationUs <=  mStreamDurationUs) && mAllocBufferLoop.load()) {
         int64_t delayTimeUs = (mStreamDurationUs >= allocRetryDurationUs) ? (mStreamDurationUs - allocRetryDurationUs) : mStreamDurationUs;
         mDequeueTaskRunner->PostDelayedTask(
-                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
+                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, mWeakFactory.GetWeakPtr(),
                     size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTimeUs));
         return;
     }
@@ -204,7 +206,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         if (allocSuccessDurationUs <= mMinFetchBlockInterval && mAllocBufferLoop.load()) {
             int64_t delayTimeUs = mMinFetchBlockInterval - allocSuccessDurationUs;
             mDequeueTaskRunner->PostDelayedTask(
-                FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
+                FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, mWeakFactory.GetWeakPtr(),
                 size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTimeUs));
             return;
         }
@@ -289,7 +291,7 @@ void C2VdecComponent::DequeueThreadUtil::onAllocBufferTask(media::Size size, uin
         C2VdecDQ_LOG(CODEC2_LOG_TAG_BUFFER, "retry dequeue task delay times:%d", delayTime);
 
         mDequeueTaskRunner->PostDelayedTask(
-                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, ::base::Unretained(this),
+                    FROM_HERE, ::base::Bind(&C2VdecComponent::DequeueThreadUtil::onAllocBufferTask, mWeakFactory.GetWeakPtr(),
                     size, pixelFormat), ::base::TimeDelta::FromMicroseconds(delayTime));
     }
 

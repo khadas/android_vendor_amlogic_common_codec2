@@ -101,7 +101,7 @@ private:
     uint32_t mOutBufferCount;
     uint32_t mPixelFormat;
     bool mReallocWhenResChange;
-
+    ::base::WeakPtrFactory<C2VdecComponent::TunnelHelper> mWeakFactory;
 };
 }
 #endif
