@@ -1120,6 +1120,10 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
             bitstreamId, pictureBufferId, flags, mPendingBuffersToWork.size());
 
     mLastOutputBitstreamId = bitstreamId;
+
+    if (mErrorFrameWorkCount > 0)
+        mErrorFrameWorkCount = 0;
+
     if (isNonTunnelMode()) {
         sendOutputBufferToWorkIfAny(false /* dropIfUnavailable */);
     } else if (isTunnelMode() && mTunnelHelper != NULL) {
@@ -3393,6 +3397,12 @@ void C2VdecComponent::onErrorFrameWorksAndReportIfFinised(int32_t bitstreamId) {
     mErrorFrameWorkCount++;
     CODEC2_LOG(CODEC2_LOG_INFO, "[%s:%d]if current work finish input buffer done,so discard bitstream id:%d count:%" PRId64 "", __func__, __LINE__,  bitstreamId, mErrorFrameWorkCount);
     reportWorkIfFinished(bitstreamId, 0);
+    //2s frame all error, report error
+    uint32_t fps = mDeviceUtil->getVideoDurationUs() > 0 ? (1000000 / mDeviceUtil->getVideoDurationUs()) : 30;
+    if (mErrorFrameWorkCount > 2 * fps) {
+        reportError(C2_CORRUPTED);
+        mErrorFrameWorkCount = 0;
+    }
 }
 
 void C2VdecComponent::detectNoShowFrameWorksAndReportIfFinished(
