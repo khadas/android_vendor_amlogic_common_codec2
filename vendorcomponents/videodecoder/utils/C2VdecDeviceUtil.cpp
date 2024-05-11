@@ -164,7 +164,8 @@ int32_t C2VdecComponent::DeviceUtil::getDoubleWriteModeValue() {
         return doubleWriteValue;
     }
 
-    if ((mStreamIs8k || mCodecSupport8k) && !C2VdecCodecConfig::getInstance().isDisplaySupport8k()) {
+    if (mStreamIs8k &&  !mUseSurfaceTexture && !mNoSurface
+         && !mSwSupportP010 && !C2VdecCodecConfig::getInstance().isDisplaySupport8k()) {
         doubleWriteValue = 4;
         return doubleWriteValue;
     }
