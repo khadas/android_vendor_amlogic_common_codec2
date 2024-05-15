@@ -472,6 +472,9 @@ void GrallocWraper::checkGrallocVersion() {
         am_gralloc_free_slot = (am_gralloc_free_slot_t)dlsym(gGrallocHandle, "_Z20am_gralloc_free_slotj");
         am_gralloc_set_parameters = (am_gralloc_set_parameters_t)dlsym(gGrallocHandle,
             "_Z25am_gralloc_set_parametersjNSt3__13mapI27AM_GRALLOC_DECODE_PARA_TYPEyNS_4lessIS1_EENS_9allocatorINS_4pairIKS1_yEEEEEE");
+        if (!am_gralloc_set_parameters)
+            am_gralloc_set_parameters = (am_gralloc_set_parameters_t)dlsym(gGrallocHandle,
+            "_Z25am_gralloc_set_parametersjNSt3__13mapI27AM_GRALLOC_DECODE_PARA_TYPEmNS_4lessIS1_EENS_9allocatorINS_4pairIKS1_mEEEEEE");
         am_gralloc_compose_slot_id = (am_gralloc_compose_slot_id_t)dlsym(gGrallocHandle, "_Z26am_gralloc_compose_slot_idj");
         if (am_gralloc_get_slot_id != NULL
             && am_gralloc_free_slot != NULL
