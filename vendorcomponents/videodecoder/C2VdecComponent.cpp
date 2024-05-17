@@ -1304,7 +1304,6 @@ c2_status_t C2VdecComponent::sendOutputBufferToWorkIfAny(bool dropIfUnavailable)
             // Attach output buffer to the work corresponded to bitstreamId.
 
             updateWorkParam(work, info);
-            info->mGraphicBlock.reset();
         }
 
         // Check no-show frame by timestamps for VP8/VP9 cases before reporting the current work.
