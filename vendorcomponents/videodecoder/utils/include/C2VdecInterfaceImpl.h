@@ -39,6 +39,7 @@ public:
     media::VideoCodecProfile getCodecProfile() {return mCodecProfile;}
     C2BlockPool::local_id_t getBlockPoolId() const {return mOutputBlockPoolIds->m.values[0];}
     InputCodec getInputCodec() {return mInputCodec;}
+    C2VendorCodec getVendorCodec() {return mVendorCodec;}
     float getInputFrameRate() {return  mFrameRateInfo->value;}
     uint32_t getPixelFormatInfoValue() {return mPixelFormatInfo.get() == nullptr ? HAL_PIXEL_FORMAT_YCBCR_420_888 : mPixelFormatInfo->value;}
     void getHdr10PlusBuf(uint8_t** pbuf, uint32_t* plen);
@@ -193,6 +194,7 @@ private:
     c2_status_t mInitStatus;
     media::VideoCodecProfile mCodecProfile;
     InputCodec mInputCodec;
+    C2VendorCodec mVendorCodec;
     C2VdecComponent *mComponent;
     bool mSecureMode;
     bool mIsSupport4k;

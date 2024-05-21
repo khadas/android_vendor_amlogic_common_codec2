@@ -65,9 +65,12 @@ public:
 
     // check xml param.
     bool isCodecSupportFrameRate(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height, float frameRate);
+    bool isCodecSupportPictureSize(C2VendorCodec codec_type, bool secure, int32_t pictureSize);
     bool isMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, int32_t width, int32_t height);
     bool getMinMaxResolutionFromXml(C2VendorCodec codec_type, bool secure, struct Size& min, struct Size& max);
 
+    // Checks whether the specified codec supports 4k on the current platform
+    bool isCodecSupport4k(C2VendorCodec codec_type, bool secure);
     // Checks whether the specified codec supports 8k on the current platform
     bool isCodecSupport8k(C2VendorCodec codec_type, bool secure);
     bool isDisplaySupport8k();

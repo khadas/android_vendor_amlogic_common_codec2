@@ -1234,6 +1234,8 @@ uint64_t C2VdecComponent::DeviceUtil::getPlatformUsage(const media::Size& size) 
 }
 
 bool C2VdecComponent::DeviceUtil::checkSupport8kMode() {
+    LockWeakPtrWithReturnVal(comp, mComp, 0);
+    LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, 0);
     //need report error for 8k video at not surface mode if device not support 8k buf mode.
     bool support = property_get_bool(PROPERTY_PLATFORM_SUPPORT_8K_BUF_MODE, false);
     if (mStreamIs8k
@@ -1381,7 +1383,7 @@ void C2VdecComponent::DeviceUtil::releaseGrallocSlot() {
 bool C2VdecComponent::DeviceUtil::getMaxBufWidthAndHeight(uint32_t& width, uint32_t& height) {
     LockWeakPtrWithReturnVal(comp, mComp, false);
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
-    bool support_4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    bool support_4k = C2VdecCodecConfig::getInstance().isCodecSupport4k(intfImpl->getVendorCodec(), mSecure);
     uint32_t maxWidth = 0;
     uint32_t maxHeight = 0;
     do {

@@ -335,8 +335,9 @@ C2VdecComponent::IntfImpl::IntfImpl(C2String name, const std::shared_ptr<C2Refle
 
     // TODO: use factory function to determine whether V4L2 stream or slice API is.
     mInputCodec = getInputCodecFromDecoderName(name);
+    mVendorCodec = C2VdecCodecConfig::getInstance().adaptorInputCodecToVendorCodec(mInputCodec);
     mSecureMode = name.find(".secure") != std::string::npos;
-    mIsSupport4k = property_get_bool(PROPERTY_PLATFORM_SUPPORT_4K, true);
+    mIsSupport4k = C2VdecCodecConfig::getInstance().isCodecSupport4k(mVendorCodec, mSecureMode);
     mIsSupportHdr = property_get_bool(PROPERTY_PLATFORM_SUPPORT_HDR, true);
     //profile and level
     switch (mInputCodec) {
