@@ -364,7 +364,7 @@ int32_t C2VdecComponent::DeviceUtil::getDecoderWidthAlign() {
         if (widthAlign == 32 || widthAlign == 64) {
             mDecoderWidthAlign = widthAlign;
             C2VdecMDU_LOG(CODEC2_LOG_INFO, "Query the decoder width align(%d) success.", widthAlign);
-        } else {
+        } else if (widthAlign != -1) {
             C2VdecMDU_LOG(CODEC2_LOG_ERR, "Query the decoder width align failed.");
         }
     }
