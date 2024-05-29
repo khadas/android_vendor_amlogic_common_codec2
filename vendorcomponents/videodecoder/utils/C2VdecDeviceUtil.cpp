@@ -1666,6 +1666,11 @@ bool C2VdecComponent::DeviceUtil::checkConfigInfoFromDecoderAndReconfig(int type
             C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "%s-%d double write:%d ", __func__, __LINE__,
                         params->cfg.double_write_mode);
         }
+        if (!mHwSupportP010 &&
+            (params->cfg.metadata_config_flag & VDEC_CFG_FLAG_UNUSE_AVBC_OUT)) {
+            C2VdecMDU_LOG(CODEC2_LOG_DEBUG_LEVEL1, "software p010 don't set unuse-avbc flag");
+            params->cfg.metadata_config_flag &= ~VDEC_CFG_FLAG_UNUSE_AVBC_OUT;
+        }
     }
 
     if (configChanged) {
