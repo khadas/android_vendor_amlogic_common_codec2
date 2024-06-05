@@ -1172,9 +1172,16 @@ uint32_t C2VdecComponent::DeviceUtil::checkUseP010Mode() {
     LockWeakPtrWithReturnVal(intfImpl, mIntfImpl, false);
 
     uint32_t useP010Mode = kUnUseP010;
+    uint32_t maxWidthSoftP010 = kMaxWidthP010;
+    uint32_t maxHeightSoftP010 = kMaxHeightP010;
 
     //Use soft decoder support P010.
-    if ((mStreamBitDepth == 10) && (mBufferWidth <= kMaxWidthP010 && mBufferHeight <= kMaxHeightP010)
+    bool support_4k = C2VdecCodecConfig::getInstance().isCodecSupport4k(intfImpl->getVendorCodec(), mSecure);
+    if (support_4k) {
+        maxWidthSoftP010 = 3840;
+        maxHeightSoftP010 = 2160;
+    }
+    if ((mStreamBitDepth == 10) && (mBufferWidth <= maxWidthSoftP010 && mBufferHeight <= maxHeightSoftP010)
         && (intfImpl->getPixelFormatInfoValue() != HAL_PIXEL_FORMAT_YCBCR_420_888) && !mSecure
         && (mUseSurfaceTexture || mNoSurface)) {
         mIsYcbRP010Stream = true;
