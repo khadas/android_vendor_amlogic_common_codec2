@@ -607,8 +607,9 @@ bool C2VdecCodecConfig::isCodecSupportFrameRate(C2VendorCodec codec_type, bool s
         if (codecAttributes.maxSize.w * codecAttributes.maxSize.h >= (7680 * 4320)) {
             float support4KFrameRate = supportFrameRate * 4;
             supportFrameRate = MIN(platformSupport4kFpsMax, support4KFrameRate);
+        } else {
+            supportFrameRate = MAX(platformSupport4kFpsMax, supportFrameRate);
         }
-
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported fps:%f framerate:%f blocksPerSecond:%d blockCount:%d maxSize:(%d*%d)", __func__, supportFrameRate, frameRate,
             codecAttributes.blocksPerSecond.max, codecAttributes.blockCount.max, codecAttributes.maxSize.w, codecAttributes.maxSize.h);
 
