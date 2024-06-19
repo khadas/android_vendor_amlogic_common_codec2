@@ -75,6 +75,7 @@
 
 #define DEFAULT_FRAME_DURATION (16384)// default dur: 16ms (1 frame at 60fps)
 #define DEFAULT_RETRYBLOCK_TIMEOUT_MS (60*1000)// default timeout 1min
+#define DEFAULT_SKIP_ERR_FRAMES_TIMEOUT (10)// default skip 10s data report error
 #define MAX_INSTANCE_LOW_RAM 4
 #define MAX_INSTANCE_DEFAULT 9
 #define MAX_INSTANCE_SECURE_LOW_RAM 1
@@ -272,6 +273,7 @@ C2VdecComponent::C2VdecComponent(C2String name, c2_node_id_t id,
     propGetInt(CODEC2_VDEC_LOGDEBUG_PROPERTY, &gloglevel);
     //default 1min
     mDefaultRetryBlockTimeOutMs = (uint64_t)property_get_int32(C2_PROPERTY_VDEC_RETRYBLOCK_TIMEOUT, DEFAULT_RETRYBLOCK_TIMEOUT_MS);
+    mSkipErrFrameTimeOut = (uint64_t)property_get_int32(C2_PROPERTY_VDEC_SKIP_ERRFRAME_TIMEOUT, DEFAULT_SKIP_ERR_FRAMES_TIMEOUT);
     mFdInfoDebugEnable = property_get_bool(C2_PROPERTY_VDEC_FD_INFO_DEBUG, false);
 
     bool support_soft_10bit = property_get_bool(C2_PROPERTY_VDEC_SUPPORT_10BIT, true);
@@ -3380,7 +3382,7 @@ void C2VdecComponent::onErrorFrameWorksAndReportIfFinised(int32_t bitstreamId) {
     reportWorkIfFinished(bitstreamId, 0);
     //2s frame all error, report error
     uint32_t fps = mDeviceUtil->getVideoDurationUs() > 0 ? (1000000 / mDeviceUtil->getVideoDurationUs()) : 30;
-    if (mErrorFrameWorkCount > 2 * fps) {
+    if (mErrorFrameWorkCount > mSkipErrFrameTimeOut * fps) {
         reportError(C2_CORRUPTED);
         mErrorFrameWorkCount = 0;
     }

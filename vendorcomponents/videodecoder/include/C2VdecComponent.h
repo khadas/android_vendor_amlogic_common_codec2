@@ -626,6 +626,7 @@ private:
     std::list<int64_t> mSentOutBitStreamIdList;
 
     uint64_t mDefaultRetryBlockTimeOutMs;
+    uint32_t mSkipErrFrameTimeOut;
     Mutex mFlushDoneLock;
     Mutex mFlushDoneWorkLock;
     Condition mFlushDoneCond;
