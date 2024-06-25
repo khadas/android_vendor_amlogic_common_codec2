@@ -249,7 +249,8 @@ media::Size GrallocWraper::calculateRealBufferSize(C2VdecComponent::DeviceUtil* 
         result.set_height(CODEC_ALIGN(size.height(), DEFAULT_HEIGHT_ALIGN_SIZE));
         // software decode p010 stream, we use PRIVATE_3 usage which mean height align is **1**
         if (deviceUtil->mIsYcbRP010Stream && !deviceUtil->mHwSupportP010) {
-            result.set_height(CODEC_ALIGN(result.height(), 1));
+            result.set_width(CODEC_ALIGN(size.width() / 4, widthAlign));
+            result.set_height(CODEC_ALIGN(size.height() / 4, 1));
             C2VdecGW_LOG(CODEC2_LOG_DEBUG_LEVEL1, "software decode p010 stream, use height align is **1**");
         }
         C2VdecGW_LOG(CODEC2_LOG_DEBUG_LEVEL1, "surface texture or buffer mode, use real buffer size after aligned");
