@@ -612,8 +612,6 @@ private:
     int64_t mFirstInputTimestamp;
     int32_t mLastOutputBitstreamId;
     int32_t mLastFinishedBitstreamId;
-    uint64_t mLastInputTimestamp;
-    std::queue<int32_t> mDropFrameForLatency;
     bool mHasQueuedWork;
     bool mIsReportEosWork;
     bool mReportEosWork;

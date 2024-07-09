@@ -343,7 +343,6 @@ void C2VdecComponent::Init(C2String compName) {
     mLastOutputBitstreamId = -1;
     mLastFinishedBitstreamId = -1;
     mPendingGraphicBlockBufferId = -1;
-    mLastInputTimestamp = 0;
 
     mSyncId = 0;
     mInstanceNum ++;
@@ -624,17 +623,6 @@ void C2VdecComponent::onQueueWork(std::unique_ptr<C2Work> work, std::shared_ptr<
 
     CODEC2_VDEC_ATRACE(TRACE_NAME_IN_PTS.str().c_str(), work->input.ordinal.timestamp.peekull());
     CODEC2_VDEC_ATRACE(TRACE_NAME_BITSTREAM_ID.str().c_str(), work->input.ordinal.frameIndex.peekull());
-
-    if (mIntfImpl->mVendorGameModeLatency->enable) {
-        uint64_t now = systemTime();
-        if ((now - mLastInputTimestamp < 8000000) && (mInputWorkCount > 32)) {
-            int32_t bitstreamId = frameIndexToBitstreamId(work->input.ordinal.frameIndex);
-            mDropFrameForLatency.push(bitstreamId);
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%d] drop frame(%d/%zd) when frames too closed.", __LINE__, bitstreamId, mDropFrameForLatency.size());
-        } else {
-            mLastInputTimestamp = now;
-        }
-    }
 
     mInputWorkCount ++;
     mInputQueueNum ++;
@@ -1089,15 +1077,6 @@ void C2VdecComponent::onOutputBufferDone(int32_t pictureBufferId, int64_t bitstr
         work = getPendingWorkByBitstreamId(bitstreamId);
         if (!work && checkIsSentId(bitstreamId) == false) {
             CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL1,"[%d] Can't found bitstreamId at pending and sent list,should have been flushed or dropped:%" PRId64 "", __LINE__,bitstreamId);
-            sendOutputBufferToAccelerator(info, true);
-            return;
-        }
-
-        if (work != NULL && !mDropFrameForLatency.empty() && (mDropFrameForLatency.front() == bitstreamId)) {
-            CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"[%d]gamemode frame dropped:%" PRId64 "", __LINE__, bitstreamId);
-            mDropFrameForLatency.pop();
-            work->worklets.front()->output.flags = C2FrameData::FLAG_DROP_FRAME;
-            reportWorkIfFinished(bitstreamId, 0);
             sendOutputBufferToAccelerator(info, true);
             return;
         }
