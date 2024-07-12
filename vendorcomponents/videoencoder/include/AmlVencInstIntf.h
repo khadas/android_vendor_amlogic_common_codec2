@@ -59,6 +59,7 @@ public:
     virtual bool GenerateHeader(char *pHeader,unsigned int &Length) = 0;
     virtual eResult PreProcess(std::shared_ptr<C2Buffer> inputBuffer,stInputFrameInfo &InputFrameInfo) = 0;
     virtual c2_status_t ProcessOneFrame(stInputFrameInfo InputFrameInfo,stOutputFrame &OutFrame) = 0;
+    virtual eResult PostProcess() = 0;
     virtual bool Destroy() = 0;
     virtual void SetVencParamInst(IAmlVencParam *pVencParamInst) = 0;
 

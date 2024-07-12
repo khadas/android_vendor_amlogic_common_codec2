@@ -528,6 +528,7 @@ void C2VencComp::ProcessData()
         C2Venc_LOG(CODEC2_VENC_LOG_DEBUG,"processoneframe ok,do finishwork begin!");
         finishWork(InputFrameInfo.frameIndex,work,OutInfo);
     }
+    mAmlVencInst->PostProcess();
 }
 
 void C2VencComp::WorkDone(std::unique_ptr<C2Work> &work) {
