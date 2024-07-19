@@ -570,7 +570,8 @@ bool C2VdecCodecConfig::isCodecSupportPictureSize(C2VendorCodec codec_type, bool
     struct CodecAttributes codecAttributes = attribute->second;
     int32_t maxBlockCount = codecAttributes.blockCount.max;
     int32_t maxBlockSize = maxBlockCount * codecAttributes.blockSize.h * codecAttributes.blockSize.w;
-    if (pictureSize <= maxBlockSize) {
+    bool inMaxSizeRange = (pictureSize <= codecAttributes.maxSize.w * codecAttributes.maxSize.h) ? true : false;
+    if (pictureSize <= maxBlockSize || (maxBlockCount == 0 && inMaxSizeRange)) {
         CODEC2_LOG(CODEC2_LOG_DEBUG_LEVEL2,"%s supported size:%d maxBlockSize:%d", __func__, pictureSize, maxBlockSize);
         return true;
     }
